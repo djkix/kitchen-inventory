@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  # Les PR ouvertes par release-please ne touchent que ces deux fichiers :
+  # les ignorer évite de déclencher la CI dessus.
+  pull_request:
+    paths-ignore:
+      - "CHANGELOG.md"
+      - ".release-please-manifest.json"
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Types, lint et tests sur tout le monorepo. Les tests d'intégration API
+  # tournent sur un PostgreSQL 16 jetable, même version qu'en production.
+  # Aucun test ne touche le réseau : Open Food Facts et la vision sont rejoués
+  # depuis des fixtures.
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kitchen
+          POSTGRES_PASSWORD: kitchen
+          POSTGRES_DB: kitchen_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kitchen"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL_TEST: postgresql://kitchen:kitchen@localhost:5432/kitchen_test
+      # Requis par « prisma generate » pour valider le datasource, jamais ouvert.
+      DATABASE_URL: postgresql://kitchen:kitchen@localhost:5432/kitchen_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate --schema prisma/schema.prisma
+      - run: npm run build -w @kitchen/shared
+      - name: Vérification des types
+        run: npm run typecheck --workspaces --if-present
+      - name: Lint
+        run: npm run lint
+      - name: Tests
+        run: npm test --workspaces --if-present
+      - name: Build du front et de l'API
+        run: npm run build -w @kitchen/api && npm run build -w @kitchen/web
+
+  # Le schéma Prisma et la chaîne de migrations doivent rester d'accord : une
+  # colonne ajoutée au schéma sans migration passerait les tests unitaires et
+  # casserait au déploiement.
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kitchen
+          POSTGRES_PASSWORD: kitchen
+          POSTGRES_DB: kitchen
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kitchen"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://kitchen:kitchen@localhost:5432/kitchen
+      SHADOW_DATABASE_URL: postgresql://kitchen:kitchen@localhost:5432/kitchen_shadow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Appliquer les migrations sur une base vierge
+        run: npx prisma migrate deploy --schema prisma/schema.prisma
+      - name: Vérifier l'absence de dérive entre schéma et migrations
+        run: |
+          psql "$DATABASE_URL" -c 'CREATE DATABASE kitchen_shadow' || true
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
+            --exit-code
+      - name: Rejouabilité (reset puis deploy)
+        run: |
+          npx prisma migrate reset --force --skip-seed --skip-generate --schema prisma/schema.prisma
+          npx prisma migrate deploy --schema prisma/schema.prisma
+
+  build-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build de l'image (sans publication)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          build-args: |
+            APP_VERSION=ci
+          cache-from: |
+            type=gha,scope=ci
+            type=gha,scope=main
+          cache-to: type=gha,mode=max,scope=ci

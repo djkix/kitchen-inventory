@@ -1,0 +1,87 @@
+name: Build and publish image
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+    branches:
+      - main
+  workflow_call:
+    inputs:
+      tag:
+        description: "Version tag to build and publish (e.g. v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      # Une fusion release-please déclenche ce workflow deux fois pour le même
+      # commit (push sur main, puis workflow_call avec le tag) : on sérialise
+      # pour ne pas faire courir deux builds sur le même cache.
+      group: docker-build
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.sha }}
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG_NAME="${{ inputs.tag }}"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG_NAME="${{ github.ref_name }}"
+          else
+            TAG_NAME=""
+          fi
+          VERSION="${TAG_NAME#v}"
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          # Sans tag (push sur main), l'image affiche la dernière version
+          # publiée d'après le manifeste plutôt qu'un identifiant de commit.
+          if [ -n "$VERSION" ]; then
+            echo "display=$VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "display=$(node -p "require('./.release-please-manifest.json')['.']")-dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.value }},enable=${{ steps.version.outputs.value != '' }}
+            type=raw,value=latest
+
+      # Section 9 : image multi-architecture, mini-PC comme Raspberry Pi.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.display }}
+          cache-from: type=gha,scope=main
+          cache-to: type=gha,mode=max,scope=main
