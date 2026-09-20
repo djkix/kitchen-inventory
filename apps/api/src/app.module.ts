@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { AuthModule } from './auth/auth.module.js';
 import { BootstrapModule } from './bootstrap/bootstrap.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
+import { ExportModule } from './export/export.module.js';
 import { ApiErrorFilter } from './common/api-error.filter.js';
 import { ConfigModule } from './common/config.module.js';
 import type { AppConfig } from './common/config.js';
@@ -16,6 +17,7 @@ import { LocationsModule } from './locations/locations.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { ServiceTokensModule } from './service-tokens/service-tokens.module.js';
+import { SpaModule } from './spa/spa.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { StockModule } from './stock/stock.module.js';
 import { UsersModule } from './users/users.module.js';
@@ -52,6 +54,8 @@ export class AppModule {
         StockModule,
         MediaModule,
         RecognitionModule,
+        ExportModule,
+        SpaModule.forRoot(config),
         BootstrapModule,
         HealthModule,
       ],
