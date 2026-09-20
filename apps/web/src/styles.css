@@ -1,0 +1,129 @@
+@import 'tailwindcss';
+
+/*
+ * Thème sombre par défaut (section 8) : fond vert-noir de cellier, texte
+ * blanc cassé chaud, accent céladon réservé aux actions. Les trois couleurs
+ * d'état (rouge, orange, ambre) ne servent qu'à la péremption.
+ */
+@theme {
+  --color-ink: #111716;
+  --color-surface: #1a2221;
+  --color-raised: #243030;
+  --color-line: #2f3d3c;
+  --color-fg: #f3efe6;
+  --color-muted: #98a5a2;
+  --color-faint: #6b7877;
+  --color-accent: #8fd3c6;
+  --color-accent-deep: #0f2a26;
+  --color-danger: #ff6b6b;
+  --color-danger-deep: #3a1717;
+  --color-warn: #ff9f43;
+  --color-warn-deep: #3b2410;
+  --color-soon: #f5c84c;
+  --color-soon-deep: #3a3012;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  --radius-card: 14px;
+  --radius-sheet: 22px;
+
+  --spacing-nav: 76px;
+  --spacing-touch: 44px;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-ink);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+#root {
+  min-height: 100%;
+}
+
+body {
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.anim-sheet {
+  animation: sheet-up 180ms ease-out;
+}
+
+.anim-toast {
+  animation: toast-in 160ms ease-out;
+}
+
+.anim-pulse {
+  animation: pulse-soft 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-sheet,
+  .anim-toast,
+  .anim-pulse {
+    animation: none;
+  }
+}
