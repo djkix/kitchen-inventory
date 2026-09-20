@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "types": ["node"],
+    "declaration": false,
+    "noEmit": true,
+    "paths": {
+      "@kitchen/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["src", "test"]
+}
