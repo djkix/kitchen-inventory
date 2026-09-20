@@ -3,12 +3,15 @@ import { APP_FILTER } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 import { AuthModule } from './auth/auth.module.js';
+import { BootstrapModule } from './bootstrap/bootstrap.module.js';
+import { CategoriesModule } from './categories/categories.module.js';
 import { ApiErrorFilter } from './common/api-error.filter.js';
 import { ConfigModule } from './common/config.module.js';
 import type { AppConfig } from './common/config.js';
 import { HealthModule } from './health/health.module.js';
 import { LocationsModule } from './locations/locations.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { ProductsModule } from './products/products.module.js';
 import { ServiceTokensModule } from './service-tokens/service-tokens.module.js';
 import { UsersModule } from './users/users.module.js';
 
@@ -37,6 +40,9 @@ export class AppModule {
         UsersModule,
         ServiceTokensModule,
         LocationsModule,
+        CategoriesModule,
+        ProductsModule,
+        BootstrapModule,
         HealthModule,
       ],
       providers: [{ provide: APP_FILTER, useClass: ApiErrorFilter }],
