@@ -12,13 +12,14 @@
     "apps/*"
   ],
   "scripts": {
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "test": "npm test --workspaces --if-present",
+    "test": "npm run build:shared && npm test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "prisma": "prisma --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
-    "db:generate": "prisma generate --schema prisma/schema.prisma"
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "build:shared": "npm run build -w @kitchen/shared"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
