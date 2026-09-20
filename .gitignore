@@ -1,0 +1,36 @@
+# Environnement
+.env
+.env.*
+!.env.example
+
+# Réglages locaux des assistants de code (propres à chaque machine)
+.claude/settings.local.json
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+
+# Prisma
+apps/api/generated/
+
+# Données locales (montages de développement)
+media/
+pgdata/
+backups/
+.embedded-postgres/
+
+# Tests
+coverage/
+playwright-report/
+test-results/
+
+# OS / éditeur
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Journaux
+*.log
