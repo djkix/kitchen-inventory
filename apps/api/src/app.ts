@@ -16,7 +16,8 @@ export async function createApp(config: AppConfig, httpClient?: HttpClient): Pro
   await mkdir(config.mediaDir, { recursive: true });
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config, httpClient), { bufferLogs: true });
   app.useLogger(app.get(Logger));
-  app.setGlobalPrefix(API_PREFIX);
+  // robots.txt doit vivre à la racine du site, hors du préfixe d'API.
+  app.setGlobalPrefix(API_PREFIX, { exclude: ['robots.txt'] });
   app.use(noindexMiddleware);
   app.use(cookieParser(config.SECRET_KEY));
   app.disable('x-powered-by');
