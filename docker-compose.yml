@@ -1,10 +1,9 @@
+# Stack de production (section 9) : trois services, image publiée sur GHCR.
+# Le TLS et le nom de domaine sont assurés par le reverse proxy existant, qui
+# n'a besoin que du port de « app ». Copier .env.example vers .env d'abord.
 services:
   app:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    image: inventaire:latest
-    container_name: inventaire-app
+    image: ghcr.io/djkix/kitchen-inventory:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       db:
@@ -13,19 +12,22 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       SECRET_KEY: ${SECRET_KEY}
       PUBLIC_URL: ${PUBLIC_URL}
-      VISION_PROVIDER: ${VISION_PROVIDER}
-      VISION_API_KEY: ${VISION_API_KEY}
-      VISION_MODEL: ${VISION_MODEL}
-      OFF_USER_AGENT: ${OFF_USER_AGENT}
-      EXPIRY_ALERT_DAYS: ${EXPIRY_ALERT_DAYS}
-      TZ: ${TZ}
+      VISION_PROVIDER: ${VISION_PROVIDER:-none}
+      VISION_API_KEY: ${VISION_API_KEY:-}
+      VISION_MODEL: ${VISION_MODEL:-}
+      VISION_BASE_URL: ${VISION_BASE_URL:-}
+      VISION_DAILY_QUOTA: ${VISION_DAILY_QUOTA:-50}
+      OFF_USER_AGENT: ${OFF_USER_AGENT:-KitchenInventory/0.1 (self-hosted; https://github.com/djkix/kitchen-inventory)}
+      EXPIRY_ALERT_DAYS: ${EXPIRY_ALERT_DAYS:-7}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TZ: ${TZ:-Europe/Paris}
     volumes:
-      - ./media:/app/media
+      - ${MEDIA_DIR:-./media}:/app/media
     ports:
-      # Exposé uniquement au reverse proxy, jamais publié tel quel.
-      - "127.0.0.1:8090:3000"
+      # Exposé au reverse proxy seulement, jamais publié tel quel sur Internet.
+      - "${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8090}:3000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/v1/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/v1/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -33,43 +35,38 @@ services:
 
   db:
     image: postgres:16-alpine
-    container_name: inventaire-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      TZ: ${TZ}
+      TZ: ${TZ:-Europe/Paris}
     volumes:
-      - ./pgdata:/var/lib/postgresql/data
+      - ${PGDATA_DIR:-./pgdata}:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # Dump quotidien de la base et archive des médias, rétention 30 jours.
   backup:
     image: postgres:16-alpine
-    container_name: inventaire-backup
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER}
       PGPASSWORD: ${POSTGRES_PASSWORD}
-      TZ: ${TZ}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      TZ: ${TZ:-Europe/Paris}
     volumes:
-      - ./backups:/backups
-      - ./media:/media:ro
-    entrypoint: >
-      sh -c 'while true; do
-        h=$$(date +%H);
-        if [ "$$h" = "03" ]; then
-          d=$$(date +%Y-%m-%d);
-          pg_dump -h db -U ${POSTGRES_USER} -d ${POSTGRES_DB} | gzip > /backups/db-$$d.sql.gz &&
-          tar czf /backups/media-$$d.tar.gz -C / media &&
-          find /backups -name "*.gz" -mtime +30 -delete;
-          sleep 3600;
-        fi;
-        sleep 600;
-      done'
+      - ./docker/backup.sh:/usr/local/bin/backup.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+      - ${MEDIA_DIR:-./media}:/media:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh"]

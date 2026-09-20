@@ -1,0 +1,13 @@
+# Variante de développement : construit l'image depuis les sources au lieu de
+# tirer celle publiée. Usage :
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+services:
+  app:
+    image: kitchen-inventory:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        APP_VERSION: local
+    environment:
+      LOG_LEVEL: debug

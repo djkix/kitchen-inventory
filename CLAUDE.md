@@ -60,14 +60,29 @@ tools/             utilitaires hors application
 - Étape 0 validée : accès caméra en HTTPS confirmé, reconnaissance de
   code-barres rapide sur mobile. Page de test dans `tools/test-scan.html`.
 - Schéma de données complet dans `prisma/schema.prisma`, entités recettes
-  comprises.
-- Stack Docker et variables d'environnement.
+  comprises, migration initiale commitée.
+- Lot 1 livré : `packages/shared` (unités, règles métier, schémas Zod),
+  `apps/api` (auth par sessions, emplacements, produits, stock et mouvements,
+  cascade de reconnaissance avec fournisseurs `anthropic`/`openai`/`ollama`,
+  export, healthcheck), `apps/web` (PWA : installation, connexion, stock,
+  fiche article, périme bientôt, scan en rafale, réglages).
+- Livraison : image Docker unique multi-arch sur GHCR, `docker-compose.yml`
+  à trois services, CI GitHub Actions (types, lint, tests sur PostgreSQL 16,
+  dérive des migrations, build d'image), release-please.
+- Les choix laissés au jugement par le cahier des charges sont consignés dans
+  `docs/decisions/`. Le plan d'exécution du lot 1 est dans `docs/plans/`.
+
+## Développement local
+
+Ni Docker ni PostgreSQL ne sont requis pour les tests : `npm test` démarre une
+base PostgreSQL 16 embarquée. `npm run build -w @kitchen/shared` d'abord si le
+paquet partagé n'a jamais été compilé. Voir le README, section Développement.
 
 ## Prochaine étape
 
-Étape 1, le socle : monorepo, migrations, authentification par comptes locaux
-(session cookie httpOnly, mots de passe Argon2id), healthcheck, stack qui
-démarre. Rien de visible côté utilisateur.
-
-Ne commence pas les écrans avant que `docker compose up` donne une API qui
-répond sur `/api/v1/health`.
+Lot 2 (décision 8) après quelques semaines d'usage réel : seuils et liste de
+courses, alertes de péremption, mode hors ligne (`POST /sync`, file IndexedDB,
+les écritures portent déjà `clientOpId`), export enrichi, module recettes
+(section 12). Restent aussi à écrire les tests bout en bout Playwright des
+parcours P1 à P4 et le jeu de non-régression de reconnaissance sur photos
+réelles (section 19).
