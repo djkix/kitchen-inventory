@@ -7,6 +7,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { createApp } from '../src/app.js';
 import { BootstrapService } from '../src/bootstrap/bootstrap.service.js';
 import { loadConfig, type AppConfig } from '../src/common/config.js';
+import type { HttpClient } from '../src/common/http-client.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { truncateAll } from './db.js';
 
@@ -22,7 +23,7 @@ export interface TestApp {
   close: () => Promise<void>;
 }
 
-export async function createTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}): Promise<TestApp> {
+export async function createTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}, httpClient?: HttpClient): Promise<TestApp> {
   const mediaDir = await mkdtemp(join(tmpdir(), 'kitchen-media-'));
   const config = loadConfig({
     NODE_ENV: 'test',
@@ -34,7 +35,7 @@ export async function createTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}):
     LOG_LEVEL: 'silent',
     ...overrides,
   });
-  const app = await createApp(config);
+  const app = await createApp(config, httpClient);
   await app.init();
   const prisma = app.get(PrismaService);
   const bootstrap = app.get(BootstrapService);

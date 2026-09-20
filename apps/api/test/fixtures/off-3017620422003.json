@@ -1,0 +1,17 @@
+{
+  "code": "3017620422003",
+  "status": 1,
+  "status_verbose": "product found",
+  "product": {
+    "code": "3017620422003",
+    "product_name": "Nutella",
+    "product_name_fr": "Nutella pâte à tartiner aux noisettes et au cacao",
+    "brands": "Nutella,Ferrero",
+    "categories": "Petit-déjeuners, Produits à tartiner, Produits à tartiner sucrés, Pâtes à tartiner aux noisettes et au cacao",
+    "categories_tags": ["en:breakfasts", "en:spreads", "en:sweet-spreads", "en:hazelnut-spreads", "en:cocoa-and-hazelnuts-spreads"],
+    "quantity": "400 g",
+    "product_quantity": "400",
+    "product_quantity_unit": "g",
+    "image_front_small_url": "https://images.openfoodfacts.org/images/products/301/762/042/2003/front_fr.400.jpg"
+  }
+}
