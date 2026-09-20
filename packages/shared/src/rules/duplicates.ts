@@ -4,12 +4,16 @@
  * l'application propose la fusion ; elle ne fusionne jamais d'office.
  */
 export function normalizeProductName(name: string): string {
-  return name
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  return (
+    name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      // Recompose ce que NFD a décomposé sans accent latin : les syllabes hangul, notamment.
+      .normalize('NFC')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 
 function bigrams(value: string): Map<string, number> {

@@ -5,8 +5,9 @@ describe('normalizeProductName', () => {
   it('met en minuscules, retire les accents et réduit les espaces', () => {
     expect(normalizeProductName('  Crème   Fraîche Épaisse ')).toBe('creme fraiche epaisse');
   });
-  it('conserve les idéogrammes', () => {
+  it('conserve les idéogrammes et les syllabes hangul', () => {
     expect(normalizeProductName('辛ラーメン')).toBe('辛ラーメン');
+    expect(normalizeProductName('신라면')).toBe('신라면');
   });
 });
 

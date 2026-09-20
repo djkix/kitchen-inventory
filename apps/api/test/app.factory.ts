@@ -5,6 +5,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createApp } from '../src/app.js';
+import { BootstrapService } from '../src/bootstrap/bootstrap.service.js';
 import { loadConfig, type AppConfig } from '../src/common/config.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { truncateAll } from './db.js';
@@ -36,6 +37,7 @@ export async function createTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}):
   const app = await createApp(config);
   await app.init();
   const prisma = app.get(PrismaService);
+  const bootstrap = app.get(BootstrapService);
   const server = app.getHttpServer();
   return {
     app,
@@ -43,7 +45,11 @@ export async function createTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}):
     config,
     api: request(server),
     agent: () => request.agent(server),
-    reset: () => truncateAll(prisma),
+    // Vide les données puis recrée les référentiels de la section 22, comme au démarrage.
+    reset: async () => {
+      await truncateAll(prisma);
+      await bootstrap.seedReferenceData();
+    },
     close: async () => {
       await app.close();
     },
