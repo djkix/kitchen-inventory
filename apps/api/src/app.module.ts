@@ -7,6 +7,7 @@ import { ApiErrorFilter } from './common/api-error.filter.js';
 import { ConfigModule } from './common/config.module.js';
 import type { AppConfig } from './common/config.js';
 import { HealthModule } from './health/health.module.js';
+import { LocationsModule } from './locations/locations.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ServiceTokensModule } from './service-tokens/service-tokens.module.js';
 import { UsersModule } from './users/users.module.js';
@@ -35,6 +36,7 @@ export class AppModule {
         AuthModule,
         UsersModule,
         ServiceTokensModule,
+        LocationsModule,
         HealthModule,
       ],
       providers: [{ provide: APP_FILTER, useClass: ApiErrorFilter }],
