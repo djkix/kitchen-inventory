@@ -1,0 +1,28 @@
+{
+  "name": "kitchen-inventory",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Inventaire alimentaire auto-hébergé : scan, péremptions, recettes",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "prisma": "prisma --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:generate": "prisma generate --schema prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.11",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}
