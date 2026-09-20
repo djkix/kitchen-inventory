@@ -2,9 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
-    "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "rootDir": "src"
   },
   "include": ["src"],
-  "exclude": ["src/**/*.spec.ts", "src/**/*.e2e-spec.ts"]
+  "exclude": ["src/**/*.test.ts"]
 }
