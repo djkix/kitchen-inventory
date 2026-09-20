@@ -4,7 +4,8 @@
 // remplie de données réelles ne l'est pas.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
@@ -26,7 +27,11 @@ model User {
   name         String
   passwordHash String
   role         UserRole @default(MEMBER)
-  createdAt    DateTime @default(now())
+  // Verrouillage temporaire après échecs répétés (section 10) : en base pour
+  // survivre à un redémarrage du conteneur.
+  failedLogins Int       @default(0)
+  lockedUntil  DateTime?
+  createdAt    DateTime  @default(now())
 
   movements     StockMovement[]
   shoppingItems ShoppingListItem[]
@@ -35,14 +40,35 @@ model User {
   sessions      Session[]
 }
 
+// Session par cookie httpOnly. Seul le hachage SHA-256 du jeton est stocké :
+// une fuite de la base ne permet pas de rejouer les sessions.
 model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([userId])
+}
+
+// Jeton machine-à-machine en lecture seule (section 11, Home Assistant).
+model ServiceToken {
+  id         String    @id @default(cuid())
+  name       String
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+}
+
+// Réglages d'instance modifiables depuis l'écran Réglages.
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
 }
 
 // ---------------------------------------------------------------- emplacements
@@ -56,7 +82,7 @@ model Location {
   parentId    String?
   parent      Location?  @relation("LocationTree", fields: [parentId], references: [id])
   children    Location[] @relation("LocationTree")
-  path        String
+  path        String     @unique
   depth       Int        @default(0)
   kind        String?    // libre : pièce, meuble, étagère, bac…
   temperature String?    // ambient | chilled | frozen
@@ -146,6 +172,8 @@ model Product {
 
   @@index([categoryId])
   @@index([name])
+  // Recherche tolérante aux fautes (EF-11) : index trigramme pour similarity().
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, name: "Product_name_trgm_idx")
 }
 
 // ---------------------------------------------------------------- stock

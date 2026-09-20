@@ -22,7 +22,24 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
+    "embedded-postgres": "^16.14.0-beta.17",
+    "prisma": "^6.19.3",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  },
+  "allowScripts": {
+    "prisma@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "embedded-postgres@16.14.0-beta.17": true,
+    "@embedded-postgres/darwin-arm64@16.14.0-beta.17": true,
+    "@prisma/client@6.19.3": true,
+    "fsevents@2.3.3": true,
+    "@embedded-postgres/linux-x64@16.14.0-beta.17": true,
+    "@embedded-postgres/linux-arm64@16.14.0-beta.17": true,
+    "@swc/core@1.16.2": true,
+    "esbuild@0.28.2": true
   }
 }
