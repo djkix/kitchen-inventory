@@ -1,0 +1,353 @@
+// Inventaire alimentaire — schéma complet (lots 1 et 2)
+// Les entités recettes sont créées dès maintenant même si le lot 2 est plus tard :
+// ajouter des tables plus tard est indolore, ajouter une colonne à une table
+// remplie de données réelles ne l'est pas.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm]
+}
+
+// ---------------------------------------------------------------- utilisateurs
+
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         UserRole @default(MEMBER)
+  createdAt    DateTime @default(now())
+
+  movements     StockMovement[]
+  shoppingItems ShoppingListItem[]
+  recipes       Recipe[]
+  recipeLogs    RecipeLog[]
+  sessions      Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------- emplacements
+
+// Profondeur libre (décision 5) : l'arbre n'est pas limité à 3 niveaux.
+// `path` stocke la chaîne d'ancêtres ("/cuisine/placard-haut/etagere-2") pour
+// éviter les requêtes récursives sur les filtres par emplacement.
+model Location {
+  id          String   @id @default(cuid())
+  name        String
+  parentId    String?
+  parent      Location?  @relation("LocationTree", fields: [parentId], references: [id])
+  children    Location[] @relation("LocationTree")
+  path        String
+  depth       Int        @default(0)
+  kind        String?    // libre : pièce, meuble, étagère, bac…
+  temperature String?    // ambient | chilled | frozen
+  sortOrder   Int        @default(0)
+
+  stockItems StockItem[]
+
+  @@index([parentId])
+  @@index([path])
+}
+
+// ---------------------------------------------------------------- référentiel
+
+enum Unit {
+  PIECE
+  GRAM
+  KILOGRAM
+  MILLILITER
+  LITER
+  PACK
+  BOX
+  SACHET
+}
+
+enum RecognitionSource {
+  BARCODE_CACHE
+  OPEN_FOOD_FACTS
+  VISION
+  MANUAL
+}
+
+model Category {
+  id                String  @id @default(cuid())
+  name              String  @unique
+  parentId          String?
+  parent            Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children          Category[] @relation("CategoryTree")
+  icon              String?
+  // Sert à estimer la DLC des périssables non emballés (décision 6).
+  shelfLifeDays     Int?
+  // Durée après ouverture par défaut, surchargeable au niveau produit.
+  afterOpeningDays  Int?
+
+  products          Product[]
+  recipeIngredients RecipeIngredient[]
+
+  @@index([parentId])
+}
+
+model Product {
+  id         String  @id @default(cuid())
+  barcode    String? @unique
+  name       String
+  // Nom d'origine tel qu'imprimé : conserve les idéogrammes (EF-04).
+  originalName String?
+  brand      String?
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  defaultUnit Unit @default(PIECE)
+
+  // Le pont entre conditionnement et mesure : un paquet = 500 g.
+  // Sans ces deux champs, une recette en grammes ne peut pas s'imputer
+  // sur un stock en paquets.
+  netContent     Decimal? @db.Decimal(10, 2)
+  netContentUnit Unit?
+
+  // Surcharge la valeur de la catégorie quand elle est renseignée.
+  afterOpeningDays Int?
+
+  minThreshold      Decimal? @db.Decimal(10, 2)
+  imagePath         String?
+  recognitionSource RecognitionSource @default(MANUAL)
+  confidence        Float?
+
+  // Produit archivé après fusion : conservé pour ne pas casser l'historique.
+  mergedIntoId String?
+  mergedInto   Product?  @relation("ProductMerge", fields: [mergedIntoId], references: [id])
+  duplicates   Product[] @relation("ProductMerge")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stockItems        StockItem[]
+  recipeIngredients RecipeIngredient[]
+  shoppingItems     ShoppingListItem[]
+
+  @@index([categoryId])
+  @@index([name])
+}
+
+// ---------------------------------------------------------------- stock
+
+enum DateType {
+  USE_BY // DLC — bloquante
+  BEST_BEFORE // DDM — indicative
+}
+
+model StockItem {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+
+  // Valeur matérialisée, recalculée depuis la somme des mouvements,
+  // qui font autorité (section 8). Jamais écrite directement par une
+  // consommation : on insère un mouvement et on recalcule.
+  quantity Decimal @db.Decimal(10, 2)
+  unit     Unit
+
+  expiryDate  DateTime?
+  dateType    DateType?
+  // Vrai pour une date déduite de la catégorie, pas lue sur l'emballage.
+  dateEstimated Boolean @default(false)
+
+  opened     Boolean   @default(false)
+  openedAt   DateTime?
+  // min(expiryDate, openedAt + afterOpeningDays) — recalculée à l'ouverture.
+  effectiveExpiry DateTime?
+
+  purchasePrice Decimal? @db.Decimal(10, 2)
+  archivedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  movements StockMovement[]
+
+  @@index([productId])
+  @@index([locationId])
+  @@index([effectiveExpiry])
+}
+
+enum MovementType {
+  INBOUND
+  CONSUMPTION
+  ADJUSTMENT
+  LOSS
+  RECIPE
+}
+
+// Journal autoritaire des quantités. Une synchronisation hors ligne rejoue
+// des deltas additifs, jamais des quantités absolues (section 8).
+model StockMovement {
+  id          String       @id @default(cuid())
+  stockItemId String
+  stockItem   StockItem    @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  type        MovementType
+  delta       Decimal      @db.Decimal(10, 2)
+  reason      String?
+  userId      String?
+  user        User?        @relation(fields: [userId], references: [id])
+  recipeLogId String?
+  recipeLog   RecipeLog?   @relation(fields: [recipeLogId], references: [id])
+
+  // Identifiant généré par le client : garantit qu'une opération rejouée
+  // deux fois par la file hors ligne ne compte qu'une fois.
+  clientOpId String?  @unique
+  occurredAt DateTime @default(now())
+
+  @@index([stockItemId])
+}
+
+// ---------------------------------------------------------------- courses
+
+model ShoppingListItem {
+  id        String   @id @default(cuid())
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+  label     String?
+  quantity  Decimal? @db.Decimal(10, 2)
+  unit      Unit?
+  checked   Boolean  @default(false)
+  source    String   @default("manual") // manual | threshold | recipe
+  addedById String?
+  addedBy   User?    @relation(fields: [addedById], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------- recettes
+
+enum Difficulty {
+  VERY_EASY
+  EASY
+  INTERMEDIATE
+  HARD
+}
+
+enum DishType {
+  STARTER
+  MAIN
+  SIDE
+  DESSERT
+  SAUCE
+  DRINK
+}
+
+enum RecipeSource {
+  HOUSEHOLD
+  IMPORTED
+  GENERATED
+}
+
+model Cuisine {
+  id      String   @id @default(cuid())
+  name    String   @unique
+  region  String?
+  recipes Recipe[]
+}
+
+model Recipe {
+  id        String   @id @default(cuid())
+  title     String
+  // Calculée automatiquement, puis corrigeable (décision 9).
+  difficulty         Difficulty
+  difficultyOverride Boolean @default(false)
+  cuisineId String?
+  cuisine   Cuisine? @relation(fields: [cuisineId], references: [id])
+  dishType  DishType?
+  prepMinutes  Int?
+  cookMinutes  Int?
+  servings     Int @default(4)
+  steps        Json
+  diets        String[] // vegetarian, vegan, no-pork, gluten-free, lactose-free
+  imagePath    String?
+  source       RecipeSource @default(HOUSEHOLD)
+  sourceUrl    String?
+  createdById  String?
+  createdBy    User?  @relation(fields: [createdById], references: [id])
+  rating       Int?
+  createdAt    DateTime @default(now())
+
+  ingredients RecipeIngredient[]
+  logs        RecipeLog[]
+
+  @@index([cuisineId])
+  @@index([difficulty])
+}
+
+// Un ingrédient vise soit un produit précis, soit une catégorie entière
+// ("des nouilles asiatiques") — c'est ce qui rend les suggestions possibles
+// avec un stock hétérogène.
+model RecipeIngredient {
+  id         String  @id @default(cuid())
+  recipeId   String
+  recipe     Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  productId  String?
+  product    Product? @relation(fields: [productId], references: [id])
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+  label      String
+  quantity   Decimal? @db.Decimal(10, 2)
+  unit       Unit?
+  // Un ingrédient principal absent exclut la recette des « presque réalisables ».
+  essential     Boolean @default(true)
+  substitutable Boolean @default(false)
+
+  @@index([recipeId])
+  @@index([productId])
+}
+
+model RecipeLog {
+  id             String   @id @default(cuid())
+  recipeId       String
+  recipe         Recipe   @relation(fields: [recipeId], references: [id])
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id])
+  cookedAt       DateTime @default(now())
+  servingsCooked Int
+  rating         Int?
+  stockApplied   Boolean  @default(false)
+
+  movements StockMovement[]
+
+  @@index([recipeId])
+}
+
+// ---------------------------------------------------------------- traçabilité
+
+// Conserve aussi les échecs : ce sont les cas à rejouer quand le modèle change.
+model RecognitionLog {
+  id          String   @id @default(cuid())
+  imagePath   String?
+  barcode     String?
+  provider    String
+  rawResult   Json?
+  confidence  Float?
+  costCents   Decimal? @db.Decimal(10, 4)
+  latencyMs   Int?
+  succeeded   Boolean  @default(false)
+  correctedTo String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}

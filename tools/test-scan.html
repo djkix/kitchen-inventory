@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Test de scan — étape 0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bleu-nuit:#0E1420;
+    --bleu-profond:#151E2E;
+    --ardoise:#22304A;
+    --ambre:#F0A93B;
+    --vert-signal:#5FD0A0;
+    --corail:#E8705F;
+    --texte:#E7ECF4;
+    --texte-faible:#8B9AB4;
+
+    --fond:var(--bleu-nuit);
+    --surface:var(--bleu-profond);
+    --bord:var(--ardoise);
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *,*::before,*::after{box-sizing:inherit}
+  html{scroll-padding-top:env(safe-area-inset-top,0px)}
+  html,body{margin:0;background:var(--fond)}
+  body{
+    font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--texte);
+    font-size:16px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    padding:0 16px 24px;
+    max-width:720px;margin:0 auto;
+  }
+  h1{font-size:1.05rem;font-weight:600;margin:20px 0 2px;letter-spacing:-0.01em}
+  .sous-titre{color:var(--texte-faible);font-size:.85rem;margin:0 0 16px}
+
+  /* ---- Viseur ---- */
+  .viseur{
+    position:relative;width:100%;aspect-ratio:4/3;
+    background:#000;border:1px solid var(--bord);border-radius:14px;overflow:hidden;
+  }
+  .viseur video{width:100%;height:100%;object-fit:cover;display:block}
+  .viseur .repos{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--texte-faible);font-size:.9rem;text-align:center;padding:24px;
+  }
+  .mire{
+    position:absolute;left:12%;right:12%;top:50%;height:2px;
+    background:var(--ambre);opacity:.55;transform:translateY(-1px);
+    box-shadow:0 0 12px rgba(240,169,59,.6);pointer-events:none;
+  }
+  .viseur.inactif .mire{display:none}
+  .viseur.touche{outline:3px solid var(--vert-signal);outline-offset:-3px}
+
+  /* ---- Chrono, l'élément principal ---- */
+  .chrono{
+    display:flex;align-items:baseline;gap:10px;
+    margin:18px 0 4px;
+  }
+  .chrono .valeur{
+    font-size:4.2rem;font-weight:700;line-height:.9;
+    font-variant-numeric:tabular-nums;letter-spacing:-0.04em;
+    color:var(--ambre);
+  }
+  .chrono .unite{font-size:1.1rem;color:var(--texte-faible);font-weight:500}
+  .chrono-aide{color:var(--texte-faible);font-size:.85rem;margin:0 0 18px}
+
+  /* ---- Boutons ---- */
+  .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+  button{
+    font:inherit;font-weight:600;color:var(--texte);
+    background:var(--surface);border:1px solid var(--bord);
+    border-radius:12px;padding:16px 12px;min-height:56px;
+    cursor:pointer;transition:background .12s ease,border-color .12s ease;
+    touch-action:manipulation;
+  }
+  button:hover:not(:disabled){background:var(--ardoise)}
+  button:focus-visible{outline:3px solid var(--ambre);outline-offset:2px}
+  button:disabled{opacity:.4;cursor:default}
+  .principal{grid-column:1 / -1;background:var(--ambre);border-color:var(--ambre);color:#1A1205}
+  .principal:hover:not(:disabled){background:#FFBE55;border-color:#FFBE55}
+  .reprise{border-color:rgba(232,112,95,.5);color:var(--corail)}
+  .discret{background:none;border:none;color:var(--texte-faible);font-weight:500;min-height:44px;padding:10px;font-size:.85rem}
+  .discret:hover{background:none;color:var(--texte);text-decoration:underline}
+
+  /* ---- Mesures ---- */
+  .mesures{
+    display:grid;grid-template-columns:repeat(3,1fr);
+    border:1px solid var(--bord);border-radius:12px;overflow:hidden;margin-bottom:8px;
+  }
+  .mesure{padding:14px 10px;background:var(--surface)}
+  .mesure + .mesure{border-left:1px solid var(--bord)}
+  .mesure b{display:block;font-size:1.7rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+  .mesure span{color:var(--texte-faible);font-size:.78rem}
+  .verdict{font-size:.88rem;padding:12px 14px;border-radius:12px;margin:0 0 18px;border:1px solid var(--bord);background:var(--surface)}
+  .verdict.ok{border-color:rgba(95,208,160,.45);color:var(--vert-signal)}
+  .verdict.ko{border-color:rgba(232,112,95,.45);color:var(--corail)}
+
+  /* ---- Journal ---- */
+  h2{font-size:.9rem;font-weight:600;margin:0 0 8px}
+  ol{list-style:none;margin:0;padding:0;border-top:1px solid var(--bord)}
+  li{display:flex;align-items:baseline;gap:12px;padding:11px 2px;border-bottom:1px solid var(--bord);font-size:.9rem}
+  li .rang{color:var(--texte-faible);font-variant-numeric:tabular-nums;min-width:1.6em}
+  li .code{font-variant-numeric:tabular-nums;letter-spacing:.01em;flex:1;overflow-wrap:anywhere}
+  li .delta{font-variant-numeric:tabular-nums;font-weight:600}
+  li.avec-reprise .delta{color:var(--corail)}
+  li.avec-reprise .code::after{content:" · reprise";color:var(--corail);font-size:.8em;font-weight:500}
+  .vide{color:var(--texte-faible);font-size:.9rem;padding:14px 2px}
+
+  /* ---- Ouvrir sur le téléphone ---- */
+  .passerelle{
+    display:flex;align-items:center;gap:16px;
+    margin-top:24px;padding:16px;
+    background:var(--surface);border:1px solid var(--bord);border-radius:12px;
+  }
+  .passerelle .qr{
+    flex:0 0 auto;width:116px;height:116px;background:#fff;border-radius:8px;padding:8px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .passerelle .qr svg,.passerelle .qr img{width:100%;height:100%;display:block;image-rendering:pixelated}
+  .passerelle p{margin:0 0 6px;font-size:.88rem}
+  .passerelle .adresse{
+    color:var(--texte-faible);font-size:.78rem;overflow-wrap:anywhere;margin:0 0 10px;
+    font-variant-numeric:tabular-nums;
+  }
+  .passerelle button{min-height:40px;padding:8px 14px;font-size:.85rem;border-radius:9px}
+  @media (max-width:420px){ .passerelle{flex-direction:column;align-items:flex-start} }
+
+  .moteur{color:var(--texte-faible);font-size:.8rem;margin:16px 0 0;text-align:center}
+  .erreur{background:rgba(232,112,95,.12);border:1px solid rgba(232,112,95,.5);color:var(--corail);
+    padding:12px 14px;border-radius:12px;font-size:.88rem;margin:12px 0}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<h1>Test de scan</h1>
+<p class="sous-titre">Étape 0 — mesurer le temps par article devant un vrai placard.</p>
+
+<div class="viseur inactif" id="viseur">
+  <video id="video" playsinline muted></video>
+  <div class="repos" id="repos">Ouvre la caméra, puis vise un code-barres.</div>
+  <div class="mire"></div>
+</div>
+
+<div id="erreur"></div>
+
+<div class="chrono">
+  <span class="valeur" id="chrono">0,0</span><span class="unite">s depuis le dernier code</span>
+</div>
+<p class="chrono-aide" id="aide">Scanne vingt articles à la suite, sans reposer le téléphone.</p>
+
+<div class="actions">
+  <button class="principal" id="btn-camera">Ouvrir la caméra</button>
+  <button class="reprise" id="btn-reprise" disabled>J'ai dû m'y reprendre</button>
+  <button id="btn-copier" disabled>Copier le journal</button>
+</div>
+
+<div class="mesures">
+  <div class="mesure"><b id="m-nb">0</b><span>articles</span></div>
+  <div class="mesure"><b id="m-median">—</b><span>médiane</span></div>
+  <div class="mesure"><b id="m-reprises">0</b><span>reprises</span></div>
+</div>
+<p class="verdict" id="verdict">Objectif : médiane sous 8 s, et moins de 3 reprises sur 10 articles difficiles.</p>
+
+<h2>Journal</h2>
+<ol id="journal"></ol>
+<p class="vide" id="vide">Rien de scanné pour l'instant.</p>
+<button class="discret" id="btn-vider">Vider le journal</button>
+
+<div class="passerelle">
+  <div class="qr" id="qr"></div>
+  <div>
+    <p>Scanne ce code pour ouvrir la page sur ton téléphone.</p>
+    <p class="adresse" id="adresse"></p>
+    <button id="btn-lien">Copier l'adresse</button>
+  </div>
+</div>
+
+<p class="moteur" id="moteur">Moteur de décodage : en attente.</p>
+
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+(function(){
+  "use strict";
+  const CLE = "test-scan-journal-v1";
+  const FORMATS = ["ean_13","ean_8","upc_a","upc_e","code_128","qr_code"];
+  const ANTI_REBOND = 2500; // même code ignoré pendant 2,5 s
+
+  const $ = (id) => document.getElementById(id);
+  const elVideo = $("video"), elViseur = $("viseur"), elRepos = $("repos");
+  const elChrono = $("chrono"), elJournal = $("journal"), elVide = $("vide");
+  const btnCamera = $("btn-camera"), btnReprise = $("btn-reprise");
+  const btnCopier = $("btn-copier"), btnVider = $("btn-vider");
+
+  let entrees = [];
+  let actif = false, flux = null, lecteurZXing = null, boucle = null;
+  let dernierCode = null, dernierInstant = 0, depart = 0, tick = null, audio = null;
+
+  /* ---------- Persistance (best effort) ---------- */
+  function charger(){
+    try{ const b = localStorage.getItem(CLE); if(b) entrees = JSON.parse(b) || []; }
+    catch(e){ entrees = []; }
+  }
+  function sauver(){
+    try{ localStorage.setItem(CLE, JSON.stringify(entrees)); }catch(e){}
+  }
+
+  /* ---------- Retours sensoriels ---------- */
+  function bip(){
+    try{
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      if(audio.state === "suspended") audio.resume();
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.type = "sine"; o.frequency.value = 880;
+      g.gain.setValueAtTime(0.0001, audio.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.25, audio.currentTime + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.14);
+      o.connect(g); g.connect(audio.destination);
+      o.start(); o.stop(audio.currentTime + 0.15);
+    }catch(e){}
+  }
+  function vibrer(){ try{ navigator.vibrate && navigator.vibrate(55); }catch(e){} }
+
+  /* ---------- Chrono ---------- */
+  function majChrono(){
+    if(!actif || !depart){ elChrono.textContent = "0,0"; return; }
+    const s = (performance.now() - depart) / 1000;
+    elChrono.textContent = s.toFixed(1).replace(".", ",");
+  }
+
+  /* ---------- Rendu ---------- */
+  function mediane(v){
+    if(!v.length) return null;
+    const t = v.slice().sort((a,b)=>a-b), m = Math.floor(t.length/2);
+    return t.length % 2 ? t[m] : (t[m-1]+t[m])/2;
+  }
+  function rendre(){
+    elJournal.innerHTML = "";
+    entrees.forEach((e,i)=>{
+      const li = document.createElement("li");
+      if(e.reprise) li.className = "avec-reprise";
+      const r = document.createElement("span"); r.className = "rang"; r.textContent = (i+1)+".";
+      const c = document.createElement("span"); c.className = "code"; c.textContent = e.code;
+      const d = document.createElement("span"); d.className = "delta";
+      d.textContent = e.delta == null ? "—" : (e.delta/1000).toFixed(1).replace(".",",")+" s";
+      li.append(r,c,d);
+      elJournal.appendChild(li);
+    });
+    elVide.style.display = entrees.length ? "none" : "block";
+    btnCopier.disabled = !entrees.length;
+    btnReprise.disabled = !entrees.length;
+
+    const deltas = entrees.filter(e=>e.delta!=null).map(e=>e.delta);
+    const med = mediane(deltas);
+    const reprises = entrees.filter(e=>e.reprise).length;
+    $("m-nb").textContent = entrees.length;
+    $("m-median").textContent = med == null ? "—" : (med/1000).toFixed(1).replace(".",",")+" s";
+    $("m-reprises").textContent = reprises;
+
+    const v = $("verdict");
+    if(entrees.length < 10){
+      v.className = "verdict";
+      v.textContent = "Objectif : médiane sous 8 s, et moins de 3 reprises sur 10 articles difficiles.";
+    } else {
+      const tauxOk = med != null && med < 8000;
+      const repOk = reprises / entrees.length < 0.3;
+      v.className = "verdict " + (tauxOk && repOk ? "ok" : "ko");
+      v.textContent = tauxOk && repOk
+        ? "Le scan tient la cadence. L'ergonomie n'est pas un risque pour la suite."
+        : (!tauxOk
+            ? "Médiane au-dessus de 8 s : regarde d'abord la distance de visée et l'éclairage avant de conclure."
+            : "Beaucoup de reprises : le décodage accroche sur les emballages difficiles, à creuser avant de coder le reste.");
+    }
+  }
+
+  /* ---------- Détection ---------- */
+  function detecte(code){
+    const t = performance.now();
+    if(code === dernierCode && t - dernierInstant < ANTI_REBOND) return;
+    const delta = depart ? Math.round(t - depart) : null;
+    dernierCode = code; dernierInstant = t; depart = t;
+    entrees.push({ code: code, delta: delta, reprise: false, ts: new Date().toISOString() });
+    sauver(); rendre(); bip(); vibrer();
+    elViseur.classList.add("touche");
+    setTimeout(()=>elViseur.classList.remove("touche"), 220);
+  }
+
+  /* ---------- Caméra ---------- */
+  function erreur(msg){
+    $("erreur").innerHTML = '<div class="erreur">'+msg+'</div>';
+  }
+  const contraintes = { video:{ facingMode:{ ideal:"environment" }, width:{ ideal:1280 }, height:{ ideal:960 } }, audio:false };
+
+  async function ouvrir(){
+    $("erreur").innerHTML = "";
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      erreur("La caméra n'est pas accessible ici. Il faut une page en HTTPS ou sur localhost."); return;
+    }
+    const natif = ("BarcodeDetector" in window);
+    try{
+      if(natif){
+        let formats = FORMATS;
+        try{
+          const dispo = await window.BarcodeDetector.getSupportedFormats();
+          formats = FORMATS.filter(f => dispo.includes(f));
+        }catch(e){}
+        const detecteur = new window.BarcodeDetector({ formats: formats });
+        flux = await navigator.mediaDevices.getUserMedia(contraintes);
+        elVideo.srcObject = flux; await elVideo.play();
+        $("moteur").textContent = "Moteur de décodage : BarcodeDetector natif (" + formats.join(", ") + ").";
+        const scanner = async () => {
+          if(!actif) return;
+          try{
+            const codes = await detecteur.detect(elVideo);
+            if(codes && codes.length) detecte(codes[0].rawValue);
+          }catch(e){}
+          boucle = requestAnimationFrame(scanner);
+        };
+        boucle = requestAnimationFrame(scanner);
+      } else {
+        if(typeof window.ZXing === "undefined"){
+          erreur("Le moteur de secours ZXing n'a pas pu se charger. Vérifie la connexion, puis recharge."); return;
+        }
+        lecteurZXing = new window.ZXing.BrowserMultiFormatReader();
+        await lecteurZXing.decodeFromConstraints(contraintes, elVideo, (res)=>{ if(res) detecte(res.getText()); });
+        $("moteur").textContent = "Moteur de décodage : ZXing en WebAssembly (BarcodeDetector absent de ce navigateur).";
+      }
+    }catch(e){
+      erreur("Caméra refusée ou indisponible : " + (e && e.name ? e.name : e) + ". Autorise l'accès dans les réglages du navigateur, puis réessaie.");
+      return;
+    }
+    actif = true; depart = performance.now();
+    elViseur.classList.remove("inactif"); elRepos.style.display = "none";
+    btnCamera.textContent = "Fermer la caméra";
+    $("aide").textContent = "Le chrono repart à chaque code reconnu. Vise l'article suivant.";
+    tick = setInterval(majChrono, 100);
+  }
+
+  function fermer(){
+    actif = false;
+    if(boucle) cancelAnimationFrame(boucle), boucle = null;
+    if(tick) clearInterval(tick), tick = null;
+    if(lecteurZXing){ try{ lecteurZXing.reset(); }catch(e){} lecteurZXing = null; }
+    if(flux){ flux.getTracks().forEach(t=>t.stop()); flux = null; }
+    elVideo.srcObject = null; depart = 0; majChrono();
+    elViseur.classList.add("inactif"); elRepos.style.display = "flex";
+    btnCamera.textContent = "Ouvrir la caméra";
+    $("aide").textContent = "Scanne vingt articles à la suite, sans reposer le téléphone.";
+  }
+
+  /* ---------- Commandes ---------- */
+  btnCamera.addEventListener("click", ()=>{ actif ? fermer() : ouvrir(); });
+
+  btnReprise.addEventListener("click", ()=>{
+    if(!entrees.length) return;
+    const e = entrees[entrees.length-1];
+    e.reprise = !e.reprise; sauver(); rendre();
+  });
+
+  btnCopier.addEventListener("click", async ()=>{
+    const lignes = ["rang;code;secondes;reprise;horodatage"].concat(
+      entrees.map((e,i)=>[i+1, e.code, e.delta==null?"":(e.delta/1000).toFixed(1).replace(".",","), e.reprise?"oui":"non", e.ts].join(";"))
+    ).join("\n");
+    try{
+      await navigator.clipboard.writeText(lignes);
+      btnCopier.textContent = "Journal copié";
+      setTimeout(()=>btnCopier.textContent = "Copier le journal", 1800);
+    }catch(e){
+      erreur("Copie refusée par le navigateur. Le journal reste visible ci-dessous.");
+    }
+  });
+
+  btnVider.addEventListener("click", ()=>{
+    if(entrees.length && !confirm("Vider le journal de ce test ?")) return;
+    entrees = []; dernierCode = null; sauver(); rendre();
+    if(actif) depart = performance.now();
+  });
+
+  document.addEventListener("visibilitychange", ()=>{ if(document.hidden && actif) fermer(); });
+
+  /* ---------- Ouvrir sur le téléphone ---------- */
+  const ADRESSE = "https://scan.djkix.ovh";
+  (function passerelle(){
+    $("adresse").textContent = ADRESSE;
+    try{
+      const q = window.qrcode(0, "M");
+      q.addData(ADRESSE); q.make();
+      $("qr").innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+    }catch(e){
+      $("qr").style.display = "none";
+    }
+    $("btn-lien").addEventListener("click", async ()=>{
+      try{
+        await navigator.clipboard.writeText(ADRESSE);
+        $("btn-lien").textContent = "Adresse copiée";
+        setTimeout(()=>$("btn-lien").textContent = "Copier l'adresse", 1800);
+      }catch(e){
+        $("btn-lien").textContent = "Copie refusée";
+        setTimeout(()=>$("btn-lien").textContent = "Copier l'adresse", 1800);
+      }
+    });
+  })();
+
+  charger(); rendre(); majChrono();
+  if(!("BarcodeDetector" in window)){
+    $("moteur").textContent = "Moteur de décodage : ZXing (ce navigateur n'a pas BarcodeDetector).";
+  } else {
+    $("moteur").textContent = "Moteur de décodage : BarcodeDetector natif, disponible sur ce navigateur.";
+  }
+})();
+</script>
+</body>
+</html>
