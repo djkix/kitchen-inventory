@@ -1,6 +1,8 @@
-import { DynamicModule, Module } from '@nestjs/common';
+import { DynamicModule, Global, Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
+import { MediaModule } from './media/media.module.js';
+import { RecognitionModule } from './recognition/recognition.module.js';
 import { randomUUID } from 'node:crypto';
 import { AuthModule } from './auth/auth.module.js';
 import { BootstrapModule } from './bootstrap/bootstrap.module.js';
@@ -8,6 +10,7 @@ import { CategoriesModule } from './categories/categories.module.js';
 import { ApiErrorFilter } from './common/api-error.filter.js';
 import { ConfigModule } from './common/config.module.js';
 import type { AppConfig } from './common/config.js';
+import { defaultHttpClient, HTTP_CLIENT, type HttpClient } from './common/http-client.js';
 import { HealthModule } from './health/health.module.js';
 import { LocationsModule } from './locations/locations.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -17,9 +20,10 @@ import { SettingsModule } from './settings/settings.module.js';
 import { StockModule } from './stock/stock.module.js';
 import { UsersModule } from './users/users.module.js';
 
+@Global()
 @Module({})
 export class AppModule {
-  static forRoot(config: AppConfig): DynamicModule {
+  static forRoot(config: AppConfig, httpClient: HttpClient = defaultHttpClient): DynamicModule {
     return {
       module: AppModule,
       imports: [
@@ -46,10 +50,16 @@ export class AppModule {
         ProductsModule,
         SettingsModule,
         StockModule,
+        MediaModule,
+        RecognitionModule,
         BootstrapModule,
         HealthModule,
       ],
-      providers: [{ provide: APP_FILTER, useClass: ApiErrorFilter }],
+      providers: [
+        { provide: APP_FILTER, useClass: ApiErrorFilter },
+        { provide: HTTP_CLIENT, useValue: httpClient },
+      ],
+      exports: [HTTP_CLIENT],
     };
   }
 }

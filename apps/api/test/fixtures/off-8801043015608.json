@@ -1,0 +1,15 @@
+{
+  "code": "8801043015608",
+  "status": 1,
+  "status_verbose": "product found",
+  "product": {
+    "code": "8801043015608",
+    "product_name": "Shin Ramyun",
+    "product_name_ko": "신라면",
+    "brands": "Nongshim",
+    "categories_tags": ["en:noodles", "en:instant-noodles"],
+    "quantity": "120 g",
+    "product_quantity": "120",
+    "product_quantity_unit": "g"
+  }
+}
