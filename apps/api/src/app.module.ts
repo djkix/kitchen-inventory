@@ -13,6 +13,8 @@ import { LocationsModule } from './locations/locations.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { ServiceTokensModule } from './service-tokens/service-tokens.module.js';
+import { SettingsModule } from './settings/settings.module.js';
+import { StockModule } from './stock/stock.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({})
@@ -42,6 +44,8 @@ export class AppModule {
         LocationsModule,
         CategoriesModule,
         ProductsModule,
+        SettingsModule,
+        StockModule,
         BootstrapModule,
         HealthModule,
       ],
