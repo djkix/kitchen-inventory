@@ -34,6 +34,8 @@ export function ScanScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [dateEntry, setDateEntry] = useState<LastAdded | null>(null);
   const locations = useLocationsQuery();
+  const camera = useCamera(true);
+  const cameraBlocked = camera.state.status === 'insecure' || camera.state.status === 'denied' || camera.state.status === 'unsupported' || camera.state.status === 'error';
 
   // L'emplacement mémorisé peut avoir disparu ou changé de nom depuis un autre téléphone.
   useEffect(() => {
@@ -43,10 +45,9 @@ export function ScanScreen() {
       setLocation(reconciled);
       writeScanLocation(reconciled);
     }
-    if (!reconciled) setPickerOpen(true);
-  }, [locations.data, location]);
-
-  const camera = useCamera(true);
+    // Sans caméra, l'explication passe d'abord ; le choix d'emplacement est demandé à la première saisie.
+    if (!reconciled && !cameraBlocked) setPickerOpen(true);
+  }, [locations.data, location, cameraBlocked]);
   const flow = useScanFlow({ locationId: location?.id ?? null, videoRef: camera.videoRef });
 
   const detectionEnabled = camera.state.status === 'ready' && flow.phase.kind === 'scanning' && location !== null && !pickerOpen && dateEntry === null;
@@ -65,7 +66,14 @@ export function ScanScreen() {
     navigate(from === '/scan' ? '/' : from);
   };
 
-  const cameraBlocked = camera.state.status === 'insecure' || camera.state.status === 'denied' || camera.state.status === 'unsupported' || camera.state.status === 'error';
+  const submitCode = (code: string) => {
+    if (!location) {
+      setPickerOpen(true);
+      return;
+    }
+    void flow.handleCode(code);
+  };
+
   const paused = flow.phase.kind !== 'scanning' || pickerOpen;
   const engineLabel = useMemo(() => (detector.engine === 'zxing' ? 'lecture logicielle' : null), [detector.engine]);
 
@@ -73,23 +81,18 @@ export function ScanScreen() {
     <div className="fixed inset-0 z-40 bg-black text-fg">
       {cameraBlocked ? (
         <>
-          <CloseButton onClick={leave} />
+          <div className="safe-top absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-3">
+            <LocationChip location={location} onClick={() => setPickerOpen(true)} />
+            <CloseButton onClick={leave} inline />
+          </div>
           {camera.state.status !== 'ready' && camera.state.status !== 'starting' && camera.state.status !== 'idle' && (
-            <CameraError state={camera.state} onRetry={() => void camera.retry()} onManualCode={(code) => void flow.handleCode(code)} />
+            <CameraError state={camera.state} onRetry={() => void camera.retry()} onManualCode={submitCode} />
           )}
         </>
       ) : (
         <BarcodeScanner attachVideo={camera.attachVideo} busy={flow.phase.kind === 'resolving'} paused={paused}>
           <div className="safe-top absolute inset-x-0 top-0 flex items-start justify-between gap-2 bg-gradient-to-b from-black/70 to-transparent p-3">
-            <button
-              type="button"
-              onClick={() => setPickerOpen(true)}
-              className="flex min-h-touch max-w-[75%] items-center gap-2 rounded-full bg-ink/85 px-4 text-left backdrop-blur active:bg-raised"
-              aria-label={location ? `Emplacement courant : ${location.name}. Changer` : 'Choisir l’emplacement'}
-            >
-              <PinIcon size={18} className="shrink-0 text-accent" />
-              <span className="truncate text-[15px] font-medium">{location ? location.name : 'Choisir l’emplacement'}</span>
-            </button>
+            <LocationChip location={location} onClick={() => setPickerOpen(true)} />
             <CloseButton onClick={leave} inline />
           </div>
 
@@ -152,6 +155,20 @@ export function ScanScreen() {
         </div>
       )}
     </div>
+  );
+}
+
+function LocationChip({ location, onClick }: { location: ScanLocation | null; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-touch max-w-[75%] items-center gap-2 rounded-full bg-ink/85 px-4 text-left backdrop-blur active:bg-raised"
+      aria-label={location ? `Emplacement courant : ${location.name}. Changer` : 'Choisir l’emplacement'}
+    >
+      <PinIcon size={18} className="shrink-0 text-accent" />
+      <span className="truncate text-[15px] font-medium">{location ? location.name : 'Choisir l’emplacement'}</span>
+    </button>
   );
 }
 
