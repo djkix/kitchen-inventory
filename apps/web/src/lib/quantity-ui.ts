@@ -12,12 +12,18 @@ export function formatQuantity(quantity: number, unit: Unit): string {
 }
 
 /**
- * Pas de consommation rapide par unité : une pièce, 100 g, 100 ml, 0,1 kg ou 0,1 l.
- * Choix d'interface (non spécifié par le cahier des charges), plafonné au stock disponible.
+ * Pas naturel par unité : une pièce, 100 g, 100 ml, 0,1 kg ou 0,1 l.
+ * Choix d'interface, non spécifié par le cahier des charges.
  */
+export function unitStep(unit: Unit): number {
+  if (unit === 'GRAM' || unit === 'MILLILITER') return 100;
+  if (unit === 'KILOGRAM' || unit === 'LITER') return 0.1;
+  return 1;
+}
+
+/** Même pas, plafonné au stock disponible, pour la consommation rapide. */
 export function consumeStep(unit: Unit, available: number): number {
-  const base = unit === 'GRAM' || unit === 'MILLILITER' ? 100 : unit === 'KILOGRAM' || unit === 'LITER' ? 0.1 : 1;
-  return roundQuantity(Math.min(base, available)) || roundQuantity(available);
+  return roundQuantity(Math.min(unitStep(unit), available)) || roundQuantity(available);
 }
 
 export const UNIT_OPTIONS = UNITS.map((unit) => ({ value: unit, label: UNIT_LABELS_FR[unit] }));

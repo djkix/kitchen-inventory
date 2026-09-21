@@ -1,25 +1,47 @@
 /**
- * Anti-rebond par code : en mode rafale, la caméra relit le même code-barres
- * plusieurs fois par seconde ; un code n'est accepté qu'une fois par fenêtre.
+ * Filtre des lectures de code-barres en mode rafale.
+ *
+ * La caméra relit le même code plusieurs fois par seconde, et la détection est
+ * suspendue pendant qu'un tiroir de validation est ouvert. Un code déjà traité
+ * n'est donc réaccepté que lorsque les deux conditions sont réunies : il a
+ * quitté le champ de la caméra, et le délai de garde est écoulé. La seconde
+ * condition seule laissait réajouter l'article resté devant l'objectif ; la
+ * première seule laissait passer un scintillement d'une image.
  */
-export interface CodeDebouncer {
-  accept(code: string, now?: number): boolean;
+export interface ScanGate {
+  /** Codes lus sur l'image courante ; renvoie celui à traiter, ou `null`. */
+  offer(codes: readonly string[], now?: number): string | null;
   reset(): void;
 }
 
-export function createCodeDebouncer(windowMs = 2000): CodeDebouncer {
-  const lastSeen = new Map<string, number>();
+export function createScanGate(cooldownMs = 2000): ScanGate {
+  /** Dernier traitement par code. */
+  const handledAt = new Map<string, number>();
+  /** Codes traités qui n'ont pas encore quitté le champ. */
+  const stillInView = new Set<string>();
+
   return {
-    accept(code, now = Date.now()) {
-      const previous = lastSeen.get(code);
-      // Nettoyage des entrées expirées pour ne pas croître sans fin sur une longue session.
-      for (const [key, seenAt] of lastSeen) if (now - seenAt >= windowMs) lastSeen.delete(key);
-      if (previous !== undefined && now - previous < windowMs) return false;
-      lastSeen.set(code, now);
-      return true;
+    offer(codes, now = Date.now()) {
+      for (const code of [...stillInView]) {
+        if (!codes.includes(code)) stillInView.delete(code);
+      }
+      // Purge des codes anciens et absents, pour ne pas croître sur une longue session.
+      for (const [code, seenAt] of handledAt) {
+        if (!stillInView.has(code) && now - seenAt > cooldownMs * 30) handledAt.delete(code);
+      }
+      for (const code of codes) {
+        const last = handledAt.get(code);
+        const accepted = last === undefined || (!stillInView.has(code) && now - last >= cooldownMs);
+        if (!accepted) continue;
+        handledAt.set(code, now);
+        stillInView.add(code);
+        return code;
+      }
+      return null;
     },
     reset() {
-      lastSeen.clear();
+      handledAt.clear();
+      stillInView.clear();
     },
   };
 }

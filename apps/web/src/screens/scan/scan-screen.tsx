@@ -13,6 +13,7 @@ import { useUndo } from '../../hooks/use-undo';
 import { cn } from '../../lib/cn';
 import { flattenLocations, useLocationsQuery } from '../../lib/queries';
 import { readScanLocation, reconcileScanLocation, writeScanLocation, type ScanLocation } from '../../lib/scan-session';
+import { ConfirmSheet } from './confirm-sheet';
 import { LastAddedBanner, type LastAdded } from './last-added-banner';
 import { LocationPicker } from './location-picker';
 import { ProductForm } from './product-form';
@@ -135,6 +136,16 @@ export function ScanScreen() {
       )}
 
       <LocationPicker open={pickerOpen} selectedId={location?.id ?? null} onSelect={chooseLocation} onClose={() => setPickerOpen(false)} required={!location} />
+
+      <ConfirmSheet
+        target={flow.phase.kind === 'confirm' ? flow.phase.target : null}
+        locationName={location?.name ?? ''}
+        busy={flow.phase.kind === 'confirm' && flow.phase.saving}
+        onConfirm={(quantity) => {
+          if (flow.phase.kind === 'confirm') void flow.confirmAdd(flow.phase.target, quantity);
+        }}
+        onCancel={flow.backToScanning}
+      />
 
       <RecognitionSheet phase={flow.phase} onPhoto={(barcode) => void flow.takePhoto(barcode)} onManual={flow.openManualForm} onDismiss={flow.backToScanning} />
 
