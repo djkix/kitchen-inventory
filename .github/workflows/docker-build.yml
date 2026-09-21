@@ -6,6 +6,14 @@ on:
       - "v*.*.*"
     branches:
       - main
+  # Republication manuelle d'une version : utile quand la publication
+  # automatique a été annulée (verrou de concurrence, incident GitHub).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version à republier (ex. v0.2.2)"
+        required: true
+        type: string
   workflow_call:
     inputs:
       tag:
