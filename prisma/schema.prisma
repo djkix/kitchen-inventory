@@ -6,8 +6,9 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
-  // Image Alpine multi-architecture (section 9) : moteurs musl amd64 et arm64.
-  binaryTargets   = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+  // Image Alpine amd64 (hôte de déploiement x86) : moteur musl amd64. Ajouter
+  // "linux-musl-arm64-openssl-3.0.x" le jour où une image arm est publiée.
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {

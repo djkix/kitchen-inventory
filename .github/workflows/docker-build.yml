@@ -41,7 +41,6 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.sha }}
 
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
@@ -80,13 +79,17 @@ jobs:
             type=raw,value=${{ steps.version.outputs.value }},enable=${{ steps.version.outputs.value != '' }}
             type=raw,value=latest
 
-      # Section 9 : image multi-architecture, mini-PC comme Raspberry Pi.
+      # amd64 seulement : l'hôte de déploiement est un mini-PC x86. La section 9
+      # du cahier des charges prévoit aussi arm64, mais sa construction passait
+      # par l'émulation QEMU, qui échouait par intermittence sur une instruction
+      # illégale (code 132) et doublait la durée du build. À rétablir le jour où
+      # un hôte arm entre en jeu, de préférence sur un exécuteur arm natif.
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
