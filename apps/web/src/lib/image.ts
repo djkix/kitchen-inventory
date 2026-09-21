@@ -50,7 +50,28 @@ export function canvasToJpeg(canvas: HTMLCanvasElement, quality = PHOTO_JPEG_QUA
   });
 }
 
-/** Capture une image de la vidéo, la réduit et l'encode en JPEG. */
+/** Réduit une source déjà décodée et l'encode en JPEG. */
 export async function captureJpeg(source: Drawable, maxWidth = MAX_PHOTO_WIDTH, quality = PHOTO_JPEG_QUALITY): Promise<Blob> {
   return canvasToJpeg(drawResized(source, maxWidth), quality);
+}
+
+/** Types acceptés par le fournisseur de vision ; le reste est refusé avant l'envoi. */
+export const ACCEPTED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'] as const;
+
+export function isAcceptedPhoto(file: { type: string }): boolean {
+  return (ACCEPTED_PHOTO_TYPES as readonly string[]).includes(file.type);
+}
+
+/**
+ * Photo prise par l'appareil natif du téléphone : décodée, réduite à 1024 px
+ * et réencodée en JPEG avant l'envoi. Le réencodage règle aussi le cas du HEIC
+ * d'iPhone, que le fournisseur de vision ne lit pas toujours.
+ */
+export async function photoFileToJpeg(file: Blob, maxWidth = MAX_PHOTO_WIDTH, quality = PHOTO_JPEG_QUALITY): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    return await canvasToJpeg(drawResized(bitmap, maxWidth), quality);
+  } finally {
+    bitmap.close();
+  }
 }

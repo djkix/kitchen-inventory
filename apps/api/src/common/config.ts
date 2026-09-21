@@ -19,6 +19,9 @@ const configSchema = z.object({
   VISION_MODEL: z.string().optional(),
   VISION_BASE_URL: z.string().url().optional(),
   VISION_DAILY_QUOTA: z.coerce.number().int().min(0).default(50),
+  // Plafond de dépense mensuel, en centimes. La cible du cahier des charges
+  // est de 2 € par mois (section 13) ; 0 désactive le plafond.
+  VISION_MONTHLY_CAP_CENTS: z.coerce.number().int().min(0).default(200),
   OFF_USER_AGENT: z.string().default('KitchenInventory/0.1 (self-hosted; https://github.com/djkix/kitchen-inventory)'),
   OFF_BASE_URL: z.string().url().default('https://world.openfoodfacts.org'),
   EXPIRY_ALERT_DAYS: z.coerce.number().int().min(0).max(365).default(7),

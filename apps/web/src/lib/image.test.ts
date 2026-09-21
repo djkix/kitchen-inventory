@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { drawResized, fitWithin, MAX_PHOTO_WIDTH } from './image';
+import { drawResized, fitWithin, isAcceptedPhoto, MAX_PHOTO_WIDTH } from './image';
 
 describe('fitWithin', () => {
   it('réduit à 1024 px de large en gardant le ratio', () => {
@@ -33,5 +33,18 @@ describe('drawResized', () => {
     } finally {
       HTMLCanvasElement.prototype.getContext = original;
     }
+  });
+});
+
+describe('isAcceptedPhoto', () => {
+  it('accepte les formats photo du téléphone, y compris le HEIC d’iPhone', () => {
+    expect(isAcceptedPhoto({ type: 'image/jpeg' })).toBe(true);
+    expect(isAcceptedPhoto({ type: 'image/heic' })).toBe(true);
+    expect(isAcceptedPhoto({ type: 'image/png' })).toBe(true);
+  });
+
+  it('refuse ce qui n’est pas une image', () => {
+    expect(isAcceptedPhoto({ type: 'application/pdf' })).toBe(false);
+    expect(isAcceptedPhoto({ type: '' })).toBe(false);
   });
 });

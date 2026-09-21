@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { errorFeedback, scanFeedback } from '../../components/scanner/feedback';
 import { useToast } from '../../components/ui/toast';
 import { api, errorMessage, isApiError } from '../../lib/api';
-import { captureJpeg } from '../../lib/image';
+import { isAcceptedPhoto, photoFileToJpeg } from '../../lib/image';
 import { stockApi } from '../../lib/stock-api';
 import type { ConfirmTarget } from './confirm-sheet';
 import type { LastAdded } from './last-added-banner';
@@ -22,10 +22,9 @@ export type ScanPhase =
 
 interface Options {
   locationId: string | null;
-  videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
-export function useScanFlow({ locationId, videoRef }: Options) {
+export function useScanFlow({ locationId }: Options) {
   const toast = useToast();
   const [phase, setPhase] = useState<ScanPhase>({ kind: 'scanning' });
   const [lastAdded, setLastAdded] = useState<LastAdded | null>(null);
@@ -95,18 +94,25 @@ export function useScanFlow({ locationId, videoRef }: Options) {
     [locationId, recordAdded, toast],
   );
 
-  /** Photo depuis la vidéo → `POST /scan/image` ; indicateur explicite au-delà d'une seconde (section 13). */
-  const takePhoto = useCallback(
-    async (barcode: string | null) => {
-      const video = videoRef.current;
-      if (!video || video.videoWidth === 0) {
-        toast.show({ message: 'La caméra n’est pas prête, réessayez dans un instant.', tone: 'danger' });
+  /**
+   * Photo prise par l'appareil natif du téléphone → `POST /scan/image`, avec
+   * un indicateur explicite au-delà d'une seconde (section 13).
+   *
+   * L'appareil natif est préféré à une capture du flux vidéo : il apporte
+   * l'autofocus, le flash et la stabilisation, décisifs pour lire une étiquette
+   * en idéogrammes dans un placard peu éclairé. Il fonctionne aussi là où la
+   * caméra du navigateur est refusée, notamment hors HTTPS.
+   */
+  const submitPhoto = useCallback(
+    async (file: File, barcode: string | null) => {
+      if (!isAcceptedPhoto(file)) {
+        toast.show({ message: 'Ce fichier n’est pas une photo exploitable.', tone: 'danger' });
         return;
       }
       setPhase({ kind: 'photo', barcode, slow: false });
       const slowTimer = window.setTimeout(() => setPhase((current) => (current.kind === 'photo' ? { ...current, slow: true } : current)), 1000);
       try {
-        const blob = await captureJpeg(video);
+        const blob = await photoFileToJpeg(file);
         const formData = new FormData();
         formData.append('image', blob, 'photo.jpg');
         if (barcode) formData.append('barcode', barcode);
@@ -156,7 +162,7 @@ export function useScanFlow({ locationId, videoRef }: Options) {
         window.clearTimeout(slowTimer);
       }
     },
-    [toast, videoRef],
+    [toast],
   );
 
   const openManualForm = useCallback((barcode: string | null, imagePath: string | null = null) => {
@@ -197,5 +203,5 @@ export function useScanFlow({ locationId, videoRef }: Options) {
     [],
   );
 
-  return { phase, lastAdded, addedCount, handleCode, confirmAdd, takePhoto, openManualForm, backToScanning, onFormSaved, undoLast, setDate };
+  return { phase, lastAdded, addedCount, handleCode, confirmAdd, submitPhoto, openManualForm, backToScanning, onFormSaved, undoLast, setDate };
 }

@@ -25,7 +25,14 @@ export function StatsPanel() {
   const disabled = s.provider === 'none';
   const tiles: Array<{ label: string; value: string; note?: string }> = [
     { label: 'Photos aujourd’hui', value: `${s.visionCallsToday} / ${s.dailyQuota}`, note: s.visionCallsToday >= s.dailyQuota ? 'Quota atteint' : undefined },
-    { label: 'Photos ce mois', value: String(s.visionCallsThisMonth), note: EUROS.format(s.visionCostCentsThisMonth / 100) },
+    {
+      label: 'Photos ce mois',
+      value: String(s.visionCallsThisMonth),
+      note:
+        s.monthlyCapCents > 0
+          ? `${EUROS.format(s.visionCostCentsThisMonth / 100)} sur ${EUROS.format(s.monthlyCapCents / 100)}`
+          : EUROS.format(s.visionCostCentsThisMonth / 100),
+    },
     { label: 'Reconnaissance automatique (30 j)', value: s.automaticRate30d === null ? '—' : PERCENT.format(s.automaticRate30d) },
     { label: 'Part du cache (30 j)', value: s.cacheShare30d === null ? '—' : PERCENT.format(s.cacheShare30d) },
   ];

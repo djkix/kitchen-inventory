@@ -52,11 +52,17 @@ avec sa photo et sa marque, la quantité est ajustable au pas de son unité
 (une pièce, 100 g, 0,1 l), et rien n'entre en stock avant confirmation. Un
 article déjà validé n'est relu que lorsqu'il a quitté le champ de la caméra.
 
-**Reconnaissance photo.** Étiquettes japonaises, coréennes, chinoises et thaïes
-lues et traduites ; le nom d'origine est conservé avec ses idéogrammes. Entre
-50 et 80 % de confiance, la fiche est proposée avec des champs « à vérifier » ;
-sous 50 %, l'application demande une nouvelle photo plutôt que d'inventer.
-Quota journalier configurable et compteur de coût dans les réglages.
+**Reconnaissance photo.** La prise de vue passe par l'appareil photo du
+téléphone, pour profiter de l'autofocus, du flash et de la stabilisation : une
+étiquette dorée ou gravée dans un placard peu éclairé se lit nettement mieux
+qu'avec une capture du flux vidéo. Étiquettes japonaises, coréennes, chinoises
+et thaïes lues et traduites ; le nom d'origine est conservé avec ses
+idéogrammes. Entre 50 et 80 % de confiance, la fiche est proposée avec des
+champs « à vérifier » ; sous 50 %, l'application demande une nouvelle photo
+plutôt que d'inventer. Deux garde-fous de dépense : un quota d'appels par jour
+et un plafond mensuel en euros, tous deux visibles dans les réglages. La photo
+reste disponible même quand la caméra du navigateur est refusée, cas d'un accès
+sans HTTPS où le scan de code-barres, lui, est impossible.
 
 **Stock et péremption.** Un produit (le référentiel) se distingue d'un lot (un
 exemplaire physique avec sa date et son emplacement). DLC dépassée en rouge,
@@ -197,6 +203,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `VISION_PROVIDER` | `none`, `gemini` (retenu), `anthropic`, `openai` ou `ollama` |
 | `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.5-flash`) ; `VISION_BASE_URL` sert pour Ollama ou un proxy |
 | `VISION_DAILY_QUOTA` | Appels photo autorisés par jour (50) |
+| `VISION_MONTHLY_CAP_CENTS` | Plafond de dépense mensuel en centimes (200, soit 2 €) ; 0 le désactive |
 | `OFF_USER_AGENT` | En-tête demandé par Open Food Facts |
 | `EXPIRY_ALERT_DAYS` | Seuil d'alerte par défaut (7), modifiable dans les réglages |
 | `LOG_LEVEL` | Niveau des journaux JSON sur la sortie standard |
@@ -287,6 +294,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.4.0 | 2026-09-21 | Photo prise par l'appareil natif du téléphone, plafond de dépense mensuel en euros |
 | 0.3.0 | 2026-09-21 | Scan : validation du produit et de la quantité avant ajout ; fin des ajouts répétés du même article |
 | 0.2.2 | 2026-09-21 | Déploiement : droits du volume `media` ajustés au démarrage, plus de `chown` manuel |
 | 0.2.1 | 2026-09-21 | Configuration : les variables vides transmises par Compose (`VISION_BASE_URL=`) sont ignorées au lieu de bloquer le démarrage |

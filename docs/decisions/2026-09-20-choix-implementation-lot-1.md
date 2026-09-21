@@ -103,8 +103,18 @@ par la migration initiale :
   est choisi par `VISION_PROVIDER` au démarrage. Fournisseur retenu par Franck
   le 2026-09-21 : Gemini (`gemini-3.5-flash` par défaut), déjà utilisé dans
   magazine-search ; la clé passe en en-tête `x-goog-api-key`, jamais dans l'URL.
+- La prise de vue passe par l'appareil photo natif du téléphone
+  (`<input type="file" accept="image/*" capture="environment">`) et non par une
+  capture du flux vidéo : autofocus, flash, HDR et stabilisation sont décisifs
+  sur une étiquette en idéogrammes dans un placard peu éclairé. Approche reprise
+  du projet cave-a-vin après comparaison, le 2026-09-21. Le viseur en flux
+  continu reste indispensable au décodage des codes-barres, lui.
 - Le fournisseur reçoit une image redimensionnée à 1024 px de large côté
   client, avant envoi. Le serveur refuse au-delà de 4 Mo.
+- Deux garde-fous de coût : `VISION_DAILY_QUOTA` borne le nombre d'appels par
+  jour, `VISION_MONTHLY_CAP_CENTS` borne la dépense du mois civil (200 centimes
+  par défaut, cible de la section 13). Le second protège d'un changement de
+  tarif ou de modèle, que le premier laisserait passer.
 - Le fournisseur renvoie un JSON strict validé par Zod : `name`,
   `originalName`, `brand`, `category`, `packaging`, `expiryDate`,
   `confidence`. Toute réponse non conforme est traitée comme un échec de

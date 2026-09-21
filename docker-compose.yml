@@ -17,6 +17,7 @@ services:
       VISION_MODEL: ${VISION_MODEL:-}
       VISION_BASE_URL: ${VISION_BASE_URL:-}
       VISION_DAILY_QUOTA: ${VISION_DAILY_QUOTA:-50}
+      VISION_MONTHLY_CAP_CENTS: ${VISION_MONTHLY_CAP_CENTS:-200}
       OFF_USER_AGENT: ${OFF_USER_AGENT:-KitchenInventory/0.1 (self-hosted; https://github.com/djkix/kitchen-inventory)}
       EXPIRY_ALERT_DAYS: ${EXPIRY_ALERT_DAYS:-7}
       LOG_LEVEL: ${LOG_LEVEL:-info}

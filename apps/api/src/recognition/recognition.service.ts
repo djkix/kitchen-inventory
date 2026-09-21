@@ -11,6 +11,9 @@ import { ProviderError, RECOGNITION_PROVIDER, type RecognitionProvider } from '.
 
 const OFF_PROVIDER = 'open_food_facts';
 
+/** Fournisseurs facturables, pour les compteurs et le plafond de dépense. */
+const VISION_PROVIDER_NAMES = ['gemini', 'anthropic', 'openai', 'ollama'];
+
 /** Cascade de reconnaissance de la section 5 : cache local → Open Food Facts → vision. */
 @Injectable()
 export class RecognitionService {
@@ -69,6 +72,19 @@ export class RecognitionService {
         callsToday,
         dailyQuota: this.config.VISION_DAILY_QUOTA,
       });
+    }
+    // Le quota journalier borne le nombre d'appels, pas la dépense : un
+    // changement de tarif ou de modèle passerait au travers. Le plafond
+    // mensuel borne l'euro, conformément à la cible de la section 13.
+    const cap = this.config.VISION_MONTHLY_CAP_CENTS;
+    if (cap > 0) {
+      const spentCents = await this.spentThisMonthCents();
+      if (spentCents >= cap) {
+        throw ApiError.rateLimited('Plafond de dépense mensuel atteint ; le scan de code-barres reste disponible', {
+          spentCents: Math.round(spentCents * 100) / 100,
+          monthlyCapCents: cap,
+        });
+      }
     }
     const imagePath = await this.media.save(image, mimeType, 'scans');
     const started = Date.now();
@@ -130,7 +146,7 @@ export class RecognitionService {
     const dayStart = startOfDay(now);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000);
-    const visionProviders = ['gemini', 'anthropic', 'openai', 'ollama'];
+    const visionProviders = VISION_PROVIDER_NAMES;
     const [visionCallsToday, monthAgg, recent, pendingIdentification] = await Promise.all([
       this.countVisionCalls(dayStart),
       this.prisma.recognitionLog.aggregate({ where: { provider: { in: visionProviders }, createdAt: { gte: monthStart } }, _count: { _all: true }, _sum: { costCents: true } }),
@@ -145,11 +161,23 @@ export class RecognitionService {
       visionCallsThisMonth: monthAgg._count._all,
       visionCostCentsThisMonth: Math.round((monthAgg._sum.costCents?.toNumber() ?? 0) * 100) / 100,
       dailyQuota: this.config.VISION_DAILY_QUOTA,
+      monthlyCapCents: this.config.VISION_MONTHLY_CAP_CENTS,
       automaticRate30d: attempts > 0 ? Math.round((automatic / attempts) * 1000) / 1000 : null,
       cacheShare30d: attempts > 0 ? Math.round((cacheHits / attempts) * 1000) / 1000 : null,
       pendingIdentification,
       provider: this.provider.name,
     };
+  }
+
+  /** Dépense cumulée du mois civil en cours, tous fournisseurs de vision confondus. */
+  private async spentThisMonthCents(): Promise<number> {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const aggregate = await this.prisma.recognitionLog.aggregate({
+      where: { provider: { in: VISION_PROVIDER_NAMES }, createdAt: { gte: monthStart } },
+      _sum: { costCents: true },
+    });
+    return aggregate._sum.costCents?.toNumber() ?? 0;
   }
 
   private countVisionCalls(since: Date): Promise<number> {
