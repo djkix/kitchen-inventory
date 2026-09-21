@@ -36,6 +36,10 @@ ENV NODE_ENV=production \
     MIGRATIONS_DIR=/app/prisma/migrations
 WORKDIR /app
 
+# su-exec : l'entrypoint démarre root pour ajuster les droits du volume média,
+# puis bascule sur l'utilisateur « node » avant de lancer quoi que ce soit.
+RUN apk add --no-cache su-exec
+
 COPY package.json package-lock.json .npmrc ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
@@ -54,7 +58,8 @@ RUN chmod +x /usr/local/bin/entrypoint.sh \
   && mkdir -p /app/media \
   && chown -R node:node /app
 
-USER node
+# Pas de « USER node » ici : l'entrypoint prend en charge la bascule (voir
+# docker/entrypoint.sh). Le serveur ne tourne jamais en root.
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/api/v1/health >/dev/null || exit 1
