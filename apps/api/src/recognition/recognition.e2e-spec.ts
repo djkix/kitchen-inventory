@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
-import { anthropicFixture, FakeHttp, TINY_PNG } from '../../test/fake-http.js';
+import { anthropicFixture, FakeHttp, geminiFixture, TINY_PNG } from '../../test/fake-http.js';
 
 const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-de-passe-long' };
 
@@ -165,6 +165,54 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
   it('refuse un fichier qui n’est pas une image', async () => {
     const res = await agent.post('/api/v1/scan/image').attach('image', Buffer.from('bonjour'), 'note.txt').expect(400);
     expect(res.body.error.code).toBe('validation_failed');
+  });
+});
+
+describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
+  let t: TestApp;
+  let agent: TestAgent;
+  let http: FakeHttp;
+  beforeAll(async () => {
+    http = new FakeHttp();
+    t = await createTestApp({ VISION_PROVIDER: 'gemini', VISION_API_KEY: 'AIza-test', VISION_DAILY_QUOTA: '5' }, http.client);
+  });
+  beforeEach(async () => {
+    await t.reset();
+    http.reset();
+    agent = t.agent();
+    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+  });
+  afterAll(() => t.close());
+
+  it('appelle generateContent avec la clé en en-tête et un schéma JSON, puis journalise le coût', async () => {
+    http.on('generativelanguage.googleapis.com', () => geminiFixture('vision-gochujang.json'));
+    const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').field('hint', 'pot rouge').expect(200);
+    expect(res.body.suggestion).toMatchObject({ name: 'Pâte de piment coréenne (gochujang)', originalName: '고추장 (gochujang)', expiryDate: '2027-03-15' });
+    expect(res.body).toMatchObject({ confidence: 0.92, needsReview: false, rejected: false });
+    const call = http.calls.find((c) => c.url.includes('generativelanguage.googleapis.com'));
+    expect(call?.url).toContain('/v1beta/models/gemini-3.5-flash:generateContent');
+    expect(call?.url).not.toContain('AIza-test');
+    expect(new Headers(call?.init?.headers).get('x-goog-api-key')).toBe('AIza-test');
+    const body = JSON.parse(String(call?.init?.body));
+    expect(body.generationConfig.responseMimeType).toBe('application/json');
+    expect(body.generationConfig.responseSchema.required).toContain('confidence');
+    expect(body.contents[0].parts[0].inlineData.mimeType).toBe('image/png');
+    expect(JSON.stringify(body)).toContain('pot rouge');
+    const log = await t.prisma.recognitionLog.findFirstOrThrow();
+    expect(log).toMatchObject({ provider: 'gemini', succeeded: true, confidence: 0.92 });
+    expect(log.costCents?.toNumber()).toBeGreaterThan(0);
+    const stats = await agent.get('/api/v1/recognition/stats').expect(200);
+    expect(stats.body).toMatchObject({ visionCallsToday: 1, provider: 'gemini' });
+  });
+
+  it('traite un blocage de sécurité ou une clé refusée comme un échec de fournisseur', async () => {
+    http.on('generativelanguage.googleapis.com', () => new Response(JSON.stringify({ promptFeedback: { blockReason: 'SAFETY' } }), { status: 200 }));
+    const blocked = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(502);
+    expect(blocked.body.error.code).toBe('provider_unavailable');
+    http.reset();
+    http.on('generativelanguage.googleapis.com', () => new Response('{}', { status: 403 }));
+    const denied = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(502);
+    expect(denied.body.error.message).toBe('Clé API Gemini refusée');
   });
 });
 

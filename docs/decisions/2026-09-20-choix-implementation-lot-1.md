@@ -99,8 +99,10 @@ par la migration initiale :
 
 - `RecognitionProvider` est une interface TypeScript
   (`recognize(image, hint) → suggestion`). Implémentations livrées :
-  `none` (désactivé), `anthropic`, `openai`, `ollama`. Le fournisseur est
-  choisi par `VISION_PROVIDER` au démarrage.
+  `none` (désactivé), `gemini`, `anthropic`, `openai`, `ollama`. Le fournisseur
+  est choisi par `VISION_PROVIDER` au démarrage. Fournisseur retenu par Franck
+  le 2026-09-21 : Gemini (`gemini-3.5-flash` par défaut), déjà utilisé dans
+  magazine-search ; la clé passe en en-tête `x-goog-api-key`, jamais dans l'URL.
 - Le fournisseur reçoit une image redimensionnée à 1024 px de large côté
   client, avant envoi. Le serveur refuse au-delà de 4 Mo.
 - Le fournisseur renvoie un JSON strict validé par Zod : `name`,

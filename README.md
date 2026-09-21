@@ -20,8 +20,9 @@ La reconnaissance suit une cascade, du moins cher au plus coûteux :
 1. décodage du code-barres dans le navigateur, sans réseau ;
 2. cache local des produits déjà rencontrés ;
 3. [Open Food Facts](https://world.openfoodfacts.org), base publique sans clé ;
-4. modèle de vision (Anthropic, OpenAI ou Ollama en local), derrière une
-   interface qui permet d'en changer sans toucher au reste.
+4. modèle de vision (Google Gemini par défaut ; Anthropic, OpenAI ou Ollama
+   en local au choix), derrière une interface qui permet d'en changer sans
+   toucher au reste.
 
 Le tout tourne à la maison : trois conteneurs, PostgreSQL, un dossier de
 photos. Seules les photos d'articles envoyées au fournisseur de vision quittent
@@ -186,8 +187,8 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | --- | --- |
 | `SECRET_KEY` | Secret de signature des cookies, 32 caractères minimum, obligatoire |
 | `PUBLIC_URL` | URL publique HTTPS |
-| `VISION_PROVIDER` | `none`, `anthropic`, `openai` ou `ollama` |
-| `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Identifiants du fournisseur ; `VISION_BASE_URL` sert pour Ollama ou un proxy |
+| `VISION_PROVIDER` | `none`, `gemini` (retenu), `anthropic`, `openai` ou `ollama` |
+| `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.5-flash`) ; `VISION_BASE_URL` sert pour Ollama ou un proxy |
 | `VISION_DAILY_QUOTA` | Appels photo autorisés par jour (50) |
 | `OFF_USER_AGENT` | En-tête demandé par Open Food Facts |
 | `EXPIRY_ALERT_DAYS` | Seuil d'alerte par défaut (7), modifiable dans les réglages |

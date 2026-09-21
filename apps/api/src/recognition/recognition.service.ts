@@ -130,7 +130,7 @@ export class RecognitionService {
     const dayStart = startOfDay(now);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000);
-    const visionProviders = ['anthropic', 'openai', 'ollama'];
+    const visionProviders = ['gemini', 'anthropic', 'openai', 'ollama'];
     const [visionCallsToday, monthAgg, recent, pendingIdentification] = await Promise.all([
       this.countVisionCalls(dayStart),
       this.prisma.recognitionLog.aggregate({ where: { provider: { in: visionProviders }, createdAt: { gte: monthStart } }, _count: { _all: true }, _sum: { costCents: true } }),
