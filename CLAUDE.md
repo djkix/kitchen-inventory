@@ -90,6 +90,11 @@ paquet partagé n'a jamais été compilé. Voir le README, section Développemen
 
 ## Prochaine étape
 
+En attente, demandé puis reporté : saisie de la DLC directement dans le
+tiroir de validation du scan, pour le parcours « rangement des courses »
+(section 3, P2). Elle reste accessible après l'ajout, depuis le bandeau du
+dernier article.
+
 Lot 2 (décision 8) après quelques semaines d'usage réel : seuils et liste de
 courses, alertes de péremption, mode hors ligne (`POST /sync`, file IndexedDB,
 les écritures portent déjà `clientOpId`), export enrichi, module recettes
