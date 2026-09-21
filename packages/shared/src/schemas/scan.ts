@@ -53,6 +53,8 @@ export const recognitionStatsSchema = z.object({
   visionCallsThisMonth: z.number(),
   visionCostCentsThisMonth: z.number(),
   dailyQuota: z.number(),
+  /** Plafond de dépense mensuel en centimes ; 0 signifie « pas de plafond ». */
+  monthlyCapCents: z.number(),
   automaticRate30d: z.number().nullable(),
   cacheShare30d: z.number().nullable(),
   pendingIdentification: z.number(),

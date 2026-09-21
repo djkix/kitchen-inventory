@@ -1,5 +1,5 @@
 import type { LocationNode } from '@kitchen/shared';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router';
 import { BarcodeScanner } from '../../components/scanner/barcode-scanner';
 import { CameraError } from '../../components/scanner/camera-error';
@@ -49,7 +49,23 @@ export function ScanScreen() {
     // Sans caméra, l'explication passe d'abord ; le choix d'emplacement est demandé à la première saisie.
     if (!reconciled && !cameraBlocked) setPickerOpen(true);
   }, [locations.data, location, cameraBlocked]);
-  const flow = useScanFlow({ locationId: location?.id ?? null, videoRef: camera.videoRef });
+  const flow = useScanFlow({ locationId: location?.id ?? null });
+
+  // La photo passe par l'appareil natif du téléphone (autofocus, flash,
+  // stabilisation) plutôt que par une capture du flux vidéo. Le code-barres
+  // éventuellement lu juste avant est mémorisé le temps de la prise de vue.
+  const photoInput = useRef<HTMLInputElement>(null);
+  const photoBarcode = useRef<string | null>(null);
+  const requestPhoto = (barcode: string | null) => {
+    photoBarcode.current = barcode;
+    photoInput.current?.click();
+  };
+  const onPhotoPicked = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Réinitialisé pour que reprendre la même photo redéclenche l'événement.
+    event.target.value = '';
+    if (file) void flow.submitPhoto(file, photoBarcode.current);
+  };
 
   const detectionEnabled = camera.state.status === 'ready' && flow.phase.kind === 'scanning' && location !== null && !pickerOpen && dateEntry === null;
   const detector = useBarcodeDetector({ videoRef: camera.videoRef, enabled: detectionEnabled, onCode: (code) => void flow.handleCode(code) });
@@ -80,6 +96,16 @@ export function ScanScreen() {
 
   return (
     <div className="fixed inset-0 z-40 bg-black text-fg">
+      <input
+        ref={photoInput}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={onPhotoPicked}
+      />
       {cameraBlocked ? (
         <>
           <div className="safe-top absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-3">
@@ -87,7 +113,7 @@ export function ScanScreen() {
             <CloseButton onClick={leave} inline />
           </div>
           {camera.state.status !== 'ready' && camera.state.status !== 'starting' && camera.state.status !== 'idle' && (
-            <CameraError state={camera.state} onRetry={() => void camera.retry()} onManualCode={submitCode} />
+            <CameraError state={camera.state} onRetry={() => void camera.retry()} onManualCode={submitCode} onPhoto={() => requestPhoto(null)} />
           )}
         </>
       ) : (
@@ -112,8 +138,8 @@ export function ScanScreen() {
               <button
                 type="button"
                 aria-label="Photographier un produit sans code-barres"
-                disabled={!detectionEnabled}
-                onClick={() => void flow.takePhoto(null)}
+                disabled={flow.phase.kind !== 'scanning'}
+                onClick={() => requestPhoto(null)}
                 className={cn('flex size-[68px] items-center justify-center rounded-full border-4 border-white/90 bg-white/10 text-white active:bg-white/30 disabled:opacity-40')}
               >
                 <CameraIcon size={30} />
@@ -147,7 +173,7 @@ export function ScanScreen() {
         onCancel={flow.backToScanning}
       />
 
-      <RecognitionSheet phase={flow.phase} onPhoto={(barcode) => void flow.takePhoto(barcode)} onManual={flow.openManualForm} onDismiss={flow.backToScanning} />
+      <RecognitionSheet phase={flow.phase} onPhoto={requestPhoto} onManual={flow.openManualForm} onDismiss={flow.backToScanning} />
 
       {flow.phase.kind === 'form' && location && (
         <Sheet open onClose={flow.backToScanning} title={flow.phase.recognition ? 'Fiche proposée' : 'Nouveau produit'} description={`Sera rangé dans ${location.name}`}>

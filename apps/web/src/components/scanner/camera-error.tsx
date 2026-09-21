@@ -1,7 +1,7 @@
 import { barcodeSchema } from '@kitchen/shared';
 import { useState } from 'react';
 import { Button } from '../ui/button';
-import { KeyboardIcon, WarningIcon } from '../ui/icons';
+import { CameraIcon, KeyboardIcon, WarningIcon } from '../ui/icons';
 import { Input } from '../ui/input';
 import type { CameraState } from './use-camera';
 
@@ -9,6 +9,8 @@ interface CameraErrorProps {
   state: Exclude<CameraState, { status: 'ready' } | { status: 'starting' } | { status: 'idle' }>;
   onRetry: () => void;
   onManualCode: (code: string) => void;
+  /** L'appareil photo natif reste utilisable même sans accès caméra du navigateur. */
+  onPhoto?: () => void;
 }
 
 function browserHint(): string {
@@ -19,7 +21,7 @@ function browserHint(): string {
 }
 
 /** Section 17 : caméra refusée ou contexte non sécurisé → explication et repli sur la saisie manuelle. */
-export function CameraError({ state, onRetry, onManualCode }: CameraErrorProps) {
+export function CameraError({ state, onRetry, onManualCode, onPhoto }: CameraErrorProps) {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +63,16 @@ export function CameraError({ state, onRetry, onManualCode }: CameraErrorProps) 
         <Button size="lg" onClick={onRetry}>
           Réessayer la caméra
         </Button>
+      )}
+      {onPhoto && (
+        <div className="flex flex-col gap-2">
+          <Button variant="primary" size="lg" block icon={<CameraIcon size={20} />} onClick={onPhoto}>
+            Photographier le produit
+          </Button>
+          <p className="text-[13px] text-faint">
+            L’appareil photo du téléphone reste utilisable : la reconnaissance par photo fonctionne, seule la lecture des codes-barres exige la caméra du navigateur.
+          </p>
+        </div>
       )}
       <form
         className="flex flex-col gap-3 rounded-card bg-surface p-4"

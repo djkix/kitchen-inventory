@@ -216,6 +216,50 @@ describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
   });
 });
 
+describe('plafond de dépense mensuel', () => {
+  let t: TestApp;
+  let agent: TestAgent;
+  let http: FakeHttp;
+  beforeAll(async () => {
+    http = new FakeHttp();
+    // Plafond très bas : le premier appel le dépasse, le second est refusé.
+    t = await createTestApp({ VISION_PROVIDER: 'gemini', VISION_API_KEY: 'AIza-test', VISION_DAILY_QUOTA: '50', VISION_MONTHLY_CAP_CENTS: '1' }, http.client);
+  });
+  beforeEach(async () => {
+    await t.reset();
+    http.reset();
+    http.on('generativelanguage.googleapis.com', () => geminiFixture('vision-gochujang.json'));
+    agent = t.agent();
+    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+  });
+  afterAll(() => t.close());
+
+  it('refuse l’appel une fois la dépense du mois au-dessus du plafond', async () => {
+    await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
+    // Dépense forcée au-delà du plafond, comme après quelques dizaines de photos.
+    await t.prisma.recognitionLog.updateMany({ where: { provider: 'gemini' }, data: { costCents: 5 } });
+    const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(429);
+    expect(res.body.error).toMatchObject({ code: 'rate_limited', details: { spentCents: 5, monthlyCapCents: 1 } });
+    expect(res.body.error.message).toContain('le scan de code-barres reste disponible');
+    // Le code-barres continue de fonctionner (section 17).
+    await agent.post('/api/v1/products').send({ name: 'Riz', barcode: '3017620422003' }).expect(201);
+    await agent.post('/api/v1/scan/barcode').send({ barcode: '3017620422003' }).expect(200);
+  });
+
+  it('expose le plafond dans les compteurs', async () => {
+    const stats = await agent.get('/api/v1/recognition/stats').expect(200);
+    expect(stats.body).toMatchObject({ monthlyCapCents: 1, dailyQuota: 50 });
+  });
+
+  it('ne compte pas la dépense d’un mois précédent', async () => {
+    await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
+    const lastMonth = new Date();
+    lastMonth.setMonth(lastMonth.getMonth() - 1, 15);
+    await t.prisma.recognitionLog.updateMany({ where: { provider: 'gemini' }, data: { costCents: 500, createdAt: lastMonth } });
+    await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
+  });
+});
+
 describe('fournisseur de vision désactivé', () => {
   it('répond 422 avec un message explicite', async () => {
     const t = await createTestApp({ VISION_PROVIDER: 'none' });
