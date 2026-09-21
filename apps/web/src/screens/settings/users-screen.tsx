@@ -3,7 +3,7 @@ import { createUserSchema, type CreateUserInput } from '@kitchen/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Button } from '../../components/ui/button';
 import { ErrorState } from '../../components/ui/empty-state';

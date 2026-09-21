@@ -64,12 +64,7 @@ export function buildUrl(path: string, query?: Record<string, QueryValue>): stri
 
 /** Convertit une réponse HTTP en erreur cliente, en lisant l'enveloppe `{error:{code,message,details}}` si présente. */
 export async function toClientError(response: Response): Promise<ApiClientError> {
-  let payload: unknown = null;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
+  const payload: unknown = await response.json().catch(() => null);
   const parsed = apiErrorSchema.safeParse(payload);
   if (parsed.success) {
     const { code, message, details } = parsed.data.error;

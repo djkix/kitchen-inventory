@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { createLocationSchema, temperatureSchema, type CreateLocationInput, type LocationNode } from '@kitchen/shared';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { Button } from '../../components/ui/button';
 import { Input, Select } from '../../components/ui/input';
 import { Sheet } from '../../components/ui/sheet';
