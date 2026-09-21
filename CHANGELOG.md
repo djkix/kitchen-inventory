@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/djkix/kitchen-inventory/compare/v0.4.0...v0.5.0) (2026-09-21)
+
+
+### Features
+
+* **web:** afficher la version en service sur chaque écran ([a6cb5a6](https://github.com/djkix/kitchen-inventory/commit/a6cb5a6de108434bc19ad1d189113d732156d35a))
+
 ## [0.4.0](https://github.com/djkix/kitchen-inventory/compare/v0.3.0...v0.4.0) (2026-09-21)
 
 
