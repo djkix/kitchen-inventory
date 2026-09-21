@@ -112,7 +112,7 @@ async function main(): Promise<void> {
     });
     await prisma.stockMovement.create({ data: { stockItemId: item.id, type: 'INBOUND', delta: quantity, userId: admin.id, occurredAt: daysFromNow(-(i % 30)) } });
   }
-  // eslint-disable-next-line no-console
+   
   console.log(`Jeu de données : ${products.length} produits, 60 lots, 5 emplacements.`);
 }
 
@@ -122,7 +122,7 @@ function slug(value: string): string {
 
 main()
   .catch((error: unknown) => {
-    // eslint-disable-next-line no-console
+     
     console.error(error);
     process.exit(1);
   })

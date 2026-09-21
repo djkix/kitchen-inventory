@@ -44,7 +44,7 @@ export class ExportController {
         .join(';'),
     );
     // BOM pour qu'Excel ouvre l'UTF-8 (idéogrammes) correctement.
-    return `﻿${[header.join(';'), ...lines].join('\r\n')}\r\n`;
+    return `\uFEFF${[header.join(';'), ...lines].join('\r\n')}\r\n`;
   }
 
   private async rows(): Promise<ExportRow[]> {

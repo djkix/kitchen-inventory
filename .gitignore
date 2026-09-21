@@ -15,10 +15,11 @@ npm-debug.log*
 # Prisma
 apps/api/generated/
 
-# Données locales (montages de développement)
-media/
-pgdata/
-backups/
+# Données locales (montages de développement), à la racine seulement :
+# apps/api/src/media est du code source.
+/media/
+/pgdata/
+/backups/
 .embedded-postgres/
 
 # Tests

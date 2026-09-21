@@ -13,23 +13,27 @@
   ],
   "scripts": {
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
+    "lint": "eslint .",
     "test": "npm run build:shared && npm test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "prisma": "prisma --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
-    "build:shared": "npm run build -w @kitchen/shared"
+    "build:shared": "npm run build -w @kitchen/shared",
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@vitest/coverage-v8": "^4.1.11",
     "embedded-postgres": "^16.14.0-beta.17",
-    "prisma": "^6.19.3",
+    "eslint": "^10.11.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0",
     "vitest": "^4.1.11"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.3"
+    "@prisma/client": "^6.19.3",
+    "prisma": "^6.19.3"
   },
   "allowScripts": {
     "prisma@6.19.3": true,
