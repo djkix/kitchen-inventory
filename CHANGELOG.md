@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/djkix/kitchen-inventory/compare/v0.2.1...v0.2.2) (2026-09-21)
+
+
+### Bug Fixes
+
+* **docker:** droits du volume média ajustés au démarrage ([535c0be](https://github.com/djkix/kitchen-inventory/commit/535c0be39824763a04215d1599b8012b9ddcd4c0))
+
 ## [0.2.1](https://github.com/djkix/kitchen-inventory/compare/v0.2.0...v0.2.1) (2026-09-21)
 
 
