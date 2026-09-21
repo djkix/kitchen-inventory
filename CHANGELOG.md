@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/djkix/kitchen-inventory/compare/v0.3.0...v0.4.0) (2026-09-21)
+
+
+### Features
+
+* **scan:** photo par l'appareil natif et plafond de dépense mensuel (EF-03) ([c370cac](https://github.com/djkix/kitchen-inventory/commit/c370cac731f8a32f44cb148c33942a96a469cdca))
+
 ## [0.3.0](https://github.com/djkix/kitchen-inventory/compare/v0.2.2...v0.3.0) (2026-09-21)
 
 
