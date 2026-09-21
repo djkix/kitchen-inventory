@@ -45,8 +45,19 @@ function firstExisting(candidates: string[]): string {
   return candidates.find((c) => existsSync(c)) ?? candidates[0]!;
 }
 
+/**
+ * Docker Compose transmet `VAR=` comme une chaîne vide, pas comme une variable
+ * absente : sans ce nettoyage, `VISION_BASE_URL=` est une « URL invalide » et
+ * `VISION_MODEL=` deviendrait un nom de modèle vide.
+ */
+export function dropEmptyValues(env: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim() !== ''),
+  );
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const parsed = configSchema.safeParse(env);
+  const parsed = configSchema.safeParse(dropEmptyValues(env));
   if (!parsed.success) {
     const lines = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
     throw new Error(`Configuration invalide :\n${lines}`);
