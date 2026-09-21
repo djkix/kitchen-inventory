@@ -158,7 +158,7 @@ de la section 19, avec des dates relatives au jour d'exécution.
 | Élément | Reprise de magazine-search | Adaptation |
 | --- | --- | --- |
 | `ci.yml` | gitleaks, typecheck, lint, tests, migrations rejouées sur Postgres 16, build d'image sans push | Un seul job de build, `npm ci` à la racine, `prisma migrate deploy` puis `migrate reset` pour vérifier la rejouabilité |
-| `docker-build.yml` | Publication GHCR sur push `main` et tag `v*`, `workflow_call` depuis release-please | Une image, plateformes `linux/amd64,linux/arm64` |
+| `docker-build.yml` | Publication GHCR sur push `main` et tag `v*`, `workflow_call` depuis release-please | Une image, plateforme `linux/amd64` seule (décision du 2026-09-21 : l'hôte est un mini-PC x86, et l'émulation QEMU de l'arm64 échouait par intermittence) |
 | `release-please.yml` | Identique | Identique |
 | `docker-compose.yml` | Image GHCR avec `IMAGE_TAG`, `db-backup` avec script de rotation | Services `app`, `db`, `backup` ; le script sauvegarde aussi le dossier média |
 | `.env.example` | Documenté, sans secret | Variables de la section 9 |

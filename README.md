@@ -97,8 +97,10 @@ fiable : voir `docs/cahier-des-charges.md`, section 12.
 
 ### Prérequis
 
-- Un hôte Docker (mini-PC, NAS, Raspberry Pi : l'image existe en `amd64` et
-  `arm64`) avec `docker compose`.
+- Un hôte Docker `amd64` (mini-PC, NAS x86) avec `docker compose`. L'image
+  n'est publiée que pour cette architecture ; pour un Raspberry Pi ou un hôte
+  arm, la construire localement avec `docker compose -f docker-compose.yml -f
+  docker-compose.dev.yml build`.
 - Un reverse proxy qui termine le TLS avec un certificat valide (Nginx Proxy
   Manager, Caddy, Traefik…). **Ce n'est pas un confort : l'accès à la caméra
   du téléphone n'est autorisé qu'en HTTPS.**
@@ -287,13 +289,14 @@ Tailwind et `vite-plugin-pwa` côté front ; Zod pour les schémas partagés ;
 Argon2id pour les mots de passe ; Vitest pour les tests. Une seule image
 Docker sert l'API et le front compilé ; l'intégration continue GitHub Actions
 vérifie types, lint, tests, cohérence des migrations, puis publie l'image
-multi-architecture sur GitHub Container Registry à chaque version taguée par
+`amd64` sur GitHub Container Registry à chaque version taguée par
 release-please.
 
 ## Derniers changements
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.4.1 | 2026-09-21 | Publication de l'image limitée à amd64, l'architecture de l'hôte de déploiement |
 | 0.4.0 | 2026-09-21 | Photo prise par l'appareil natif du téléphone, plafond de dépense mensuel en euros |
 | 0.3.0 | 2026-09-21 | Scan : validation du produit et de la quantité avant ajout ; fin des ajouts répétés du même article |
 | 0.2.2 | 2026-09-21 | Déploiement : droits du volume `media` ajustés au démarrage, plus de `chown` manuel |
