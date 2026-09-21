@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/djkix/kitchen-inventory/compare/v0.1.0...v0.2.0) (2026-09-21)
+
+
+### Features
+
+* **scan:** fournisseur de vision Gemini, retenu par défaut (EF-03, EF-04) ([dd295ed](https://github.com/djkix/kitchen-inventory/commit/dd295ed0ebbc36f0500d65c39e2b88949d3aeaa2))
+
 ## 0.1.0 (2026-09-21)
 
 
