@@ -5,6 +5,7 @@ import { useToast } from '../../components/ui/toast';
 import { api, errorMessage, isApiError } from '../../lib/api';
 import { captureJpeg } from '../../lib/image';
 import { stockApi } from '../../lib/stock-api';
+import type { ConfirmTarget } from './confirm-sheet';
 import type { LastAdded } from './last-added-banner';
 import type { ProductFormDefaults, ProductFormResult } from './product-form';
 
@@ -12,6 +13,7 @@ import type { ProductFormDefaults, ProductFormResult } from './product-form';
 export type ScanPhase =
   | { kind: 'scanning' }
   | { kind: 'resolving'; barcode: string }
+  | { kind: 'confirm'; target: ConfirmTarget; saving: boolean }
   | { kind: 'unknown'; barcode: string }
   | { kind: 'photo'; barcode: string | null; slow: boolean }
   | { kind: 'rejected'; barcode: string | null }
@@ -45,7 +47,11 @@ export function useScanFlow({ locationId, videoRef }: Options) {
     setAddedCount((n) => n + 1);
   }, []);
 
-  /** Code lu ou saisi : cache produit ou Open Food Facts, puis entrée en stock quantité 1. */
+  /**
+   * Code lu ou saisi : cache produit ou Open Food Facts, puis validation
+   * explicite. Rien n'entre en stock avant que l'utilisateur ait confirmé le
+   * produit et sa quantité (voir `confirmAdd`).
+   */
   const handleCode = useCallback(
     async (barcode: string) => {
       if (!locationId || inFlight.current) return;
@@ -53,10 +59,8 @@ export function useScanFlow({ locationId, videoRef }: Options) {
       setPhase({ kind: 'resolving', barcode });
       try {
         const found = await api.post<ScanBarcodeResult>('/scan/barcode', { barcode });
-        const result = await stockApi.create({ productId: found.product.id, locationId, quantity: 1, estimateExpiry: false });
         scanFeedback();
-        recordAdded(result, found.product.name);
-        setPhase({ kind: 'scanning' });
+        setPhase({ kind: 'confirm', target: { product: found.product, source: found.source, barcode }, saving: false });
       } catch (error) {
         if (isApiError(error, 'not_found')) {
           errorFeedback();
@@ -68,6 +72,24 @@ export function useScanFlow({ locationId, videoRef }: Options) {
         }
       } finally {
         inFlight.current = false;
+      }
+    },
+    [locationId, recordAdded, toast],
+  );
+
+  /** Ajout effectif, après validation du produit et de la quantité proposés. */
+  const confirmAdd = useCallback(
+    async (target: ConfirmTarget, quantity: number) => {
+      if (!locationId) return;
+      setPhase({ kind: 'confirm', target, saving: true });
+      try {
+        const result = await stockApi.create({ productId: target.product.id, locationId, quantity, estimateExpiry: false });
+        recordAdded(result, target.product.name);
+        setPhase({ kind: 'scanning' });
+      } catch (error) {
+        errorFeedback();
+        toast.show({ message: errorMessage(error), tone: 'danger' });
+        setPhase({ kind: 'confirm', target, saving: false });
       }
     },
     [locationId, recordAdded, toast],
@@ -175,5 +197,5 @@ export function useScanFlow({ locationId, videoRef }: Options) {
     [],
   );
 
-  return { phase, lastAdded, addedCount, handleCode, takePhoto, openManualForm, backToScanning, onFormSaved, undoLast, setDate };
+  return { phase, lastAdded, addedCount, handleCode, confirmAdd, takePhoto, openManualForm, backToScanning, onFormSaved, undoLast, setDate };
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { createCodeDebouncer, normalizeBarcode } from '../../lib/scan-debounce';
+import { createScanGate, normalizeBarcode } from '../../lib/scan-debounce';
 import { createBarcodeDecoder, type BarcodeDecoder } from './barcode-decoder';
 
 interface Options {
@@ -12,13 +12,16 @@ interface Options {
 }
 
 /**
- * Boucle de lecture à ~10 images/s avec anti-rebond de 2 s par code.
- * Les lectures non numériques (QR d'URL) sont ignorées.
+ * Boucle de lecture à ~10 images/s. Les lectures non numériques (QR d'URL)
+ * sont ignorées. Le filtre anti-répétition vit hors de l'effet : il doit
+ * survivre aux pauses de la détection (tiroir de validation ouvert), sinon le
+ * même article encore devant l'objectif est relu à chaque reprise.
  */
 export function useBarcodeDetector({ videoRef, enabled, onCode, intervalMs = 100 }: Options) {
   const [engine, setEngine] = useState<BarcodeDecoder['engine'] | null>(null);
   const [failed, setFailed] = useState(false);
   const decoderRef = useRef<BarcodeDecoder | null>(null);
+  const gateRef = useRef(createScanGate(2000));
   const onCodeRef = useRef(onCode);
   onCodeRef.current = onCode;
 
@@ -45,7 +48,7 @@ export function useBarcodeDetector({ videoRef, enabled, onCode, intervalMs = 100
 
   useEffect(() => {
     if (!enabled || !engine) return;
-    const debouncer = createCodeDebouncer(2000);
+    const gate = gateRef.current;
     let timer: number | null = null;
     let running = true;
 
@@ -56,13 +59,8 @@ export function useBarcodeDetector({ videoRef, enabled, onCode, intervalMs = 100
       if (video && decoder && !video.paused) {
         try {
           const codes = await decoder.decode(video);
-          for (const raw of codes) {
-            const code = normalizeBarcode(raw);
-            if (code && debouncer.accept(code)) {
-              onCodeRef.current(code);
-              break;
-            }
-          }
+          const accepted = gate.offer(codes.map(normalizeBarcode).filter((code): code is string => code !== null));
+          if (accepted) onCodeRef.current(accepted);
         } catch {
           /* image non décodable à cet instant : on réessaie à la prochaine */
         }

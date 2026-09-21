@@ -47,6 +47,10 @@ le réseau, jamais l'inventaire.
 **Scan en rafale.** Code-barres EAN-8, EAN-13, UPC et QR décodés dans le
 navigateur (`BarcodeDetector` natif, repli ZXing en WebAssembly). Retour
 haptique et sonore, emplacement courant collant, annulation cinq secondes.
+Chaque lecture ouvre un tiroir de validation : le produit reconnu est affiché
+avec sa photo et sa marque, la quantité est ajustable au pas de son unité
+(une pièce, 100 g, 0,1 l), et rien n'entre en stock avant confirmation. Un
+article déjà validé n'est relu que lorsqu'il a quitté le champ de la caméra.
 
 **Reconnaissance photo.** Étiquettes japonaises, coréennes, chinoises et thaïes
 lues et traduites ; le nom d'origine est conservé avec ses idéogrammes. Entre
@@ -283,6 +287,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.3.0 | 2026-09-21 | Scan : validation du produit et de la quantité avant ajout ; fin des ajouts répétés du même article |
 | 0.2.2 | 2026-09-21 | Déploiement : droits du volume `media` ajustés au démarrage, plus de `chown` manuel |
 | 0.2.1 | 2026-09-21 | Configuration : les variables vides transmises par Compose (`VISION_BASE_URL=`) sont ignorées au lieu de bloquer le démarrage |
 | 0.2.0 | 2026-09-21 | Reconnaissance photo : fournisseur Google Gemini (`gemini-3.5-flash`), retenu par défaut ; port hôte 8888 |
