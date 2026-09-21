@@ -58,6 +58,16 @@ export async function anthropicFixture(file: string): Promise<Response> {
   });
 }
 
+/** Réponse au format `generateContent` de Gemini qui encapsule le JSON strict. */
+export async function geminiFixture(file: string): Promise<Response> {
+  const content = await readFile(resolve(import.meta.dirname, 'fixtures', file), 'utf8');
+  return json({
+    candidates: [{ content: { role: 'model', parts: [{ text: content }] }, finishReason: 'STOP' }],
+    usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 70, totalTokenCount: 970 },
+    modelVersion: 'gemini-3.5-flash',
+  });
+}
+
 /** Un PNG 1×1 valide : suffit pour tester le téléversement sans dépendre d'une vraie photo. */
 export const TINY_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
