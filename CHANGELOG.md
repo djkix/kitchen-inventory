@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/djkix/kitchen-inventory/compare/v0.2.2...v0.3.0) (2026-09-21)
+
+
+### Features
+
+* **scan:** valider le produit et la quantité avant l'ajout (EF-01, EF-07) ([194ee0b](https://github.com/djkix/kitchen-inventory/commit/194ee0b450e71e113739d61434c62d48993e546a))
+
 ## [0.2.2](https://github.com/djkix/kitchen-inventory/compare/v0.2.1...v0.2.2) (2026-09-21)
 
 
