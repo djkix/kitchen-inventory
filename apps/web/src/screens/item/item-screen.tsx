@@ -148,15 +148,20 @@ function ItemDetails({ item }: { item: StockItemDto }) {
             </span>
             <span className="truncate text-[15px] font-medium">{item.location.name}</span>
           </button>
-          <button type="button" onClick={() => setSheet('date')} disabled={archived} className={cn('flex min-h-[72px] flex-col items-start justify-center gap-1 rounded-card bg-surface px-4 text-left active:bg-raised disabled:opacity-60', item.expiryStatus !== 'none' && item.expiryStatus !== 'ok' && 'ring-1 ring-inset', look.text.replace('text-', 'ring-'))}>
+          <button type="button" onClick={() => setSheet('date')} disabled={archived} className="flex min-h-[72px] flex-col items-start justify-center gap-1 rounded-card bg-surface px-4 text-left active:bg-raised disabled:opacity-60">
             <span className="flex items-center gap-1.5 text-[13px] text-muted">
               {item.dateEstimated ? <EstimatedIcon size={15} /> : null}
               {dateTypeLabel(item.dateType)}
               {item.dateEstimated && ' estimée'}
             </span>
-            <span className={cn('tnum text-[15px] font-medium', look.text)}>
-              {item.expiryDate ? `${formatDate(item.effectiveExpiry ?? item.expiryDate)} · ${daysLabel(item.daysUntilExpiry)}` : 'Ajouter une date'}
-            </span>
+            {item.expiryDate ? (
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="tnum text-[15px] font-medium">{formatDate(item.effectiveExpiry ?? item.expiryDate)}</span>
+                <span className={cn('tnum rounded-md px-1.5 py-0.5 text-[13px] font-semibold', look.chip)}>{daysLabel(item.daysUntilExpiry)}</span>
+              </span>
+            ) : (
+              <span className="text-[15px] font-medium text-muted">Ajouter une date</span>
+            )}
           </button>
         </section>
 

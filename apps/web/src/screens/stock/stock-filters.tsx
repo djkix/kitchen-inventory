@@ -31,7 +31,7 @@ export function StockFilters({ query, onQueryChange, groupBy, onGroupByChange, c
           type="search"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Rechercher (« nouilles » trouve « ramen »)"
+          placeholder="Rechercher un article"
           enterKeyHint="search"
           autoComplete="off"
           className="min-h-touch w-full rounded-xl border border-line bg-surface pl-11 pr-3.5 text-[16px] placeholder:text-faint focus:border-accent focus:outline-none"
