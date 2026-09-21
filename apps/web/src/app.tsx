@@ -11,6 +11,8 @@ import { MaintenanceScreen } from './screens/maintenance-screen';
 import { ComingSoonScreen } from './screens/placeholder/coming-soon-screen';
 import { SetupScreen } from './screens/setup/setup-screen';
 import { StockScreen } from './screens/stock/stock-screen';
+import { ItemScreen } from './screens/item/item-screen';
+import { ExpiringScreen } from './screens/expiring/expiring-screen';
 import { SettingsScreen } from './screens/settings/settings-screen';
 
 const queryClient = new QueryClient({
@@ -39,6 +41,8 @@ export function App() {
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
                 <Route index element={<StockScreen />} />
+                <Route path="/stock/:id" element={<ItemScreen />} />
+                <Route path="/perime-bientot" element={<ExpiringScreen />} />
                 <Route path="/recettes" element={<ComingSoonScreen title="Recettes" />} />
                 <Route path="/courses" element={<ComingSoonScreen title="Courses" />} />
                 <Route path="/reglages" element={<SettingsScreen />} />
