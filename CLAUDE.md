@@ -39,6 +39,16 @@ tools/             utilitaires hors application
 
 ## Règles non négociables
 
+- Chaque évolution (fonctionnalité, correctif, changement de déploiement) met à
+  jour `README.md`, en français, dans le même commit : installation,
+  configuration, fonctionnalités décrites telles qu'elles sont réellement.
+- Chaque version a une entrée de changelog : `CHANGELOG.md` est généré par
+  release-please depuis les messages de commit (en français), et la section
+  « Derniers changements » du README reprend une ligne par version
+  (`| Version | Date | Changement |`, la plus récente en tête) avec un lien
+  vers `CHANGELOG.md`. Ajouter la ligne au moment de la modification, sans
+  attendre qu'on le demande.
+
 - `StockItem.quantity` est une valeur matérialisée. La vérité est la somme des
   `StockMovement`. Une consommation insère un mouvement puis recalcule ; elle
   n'écrit jamais la quantité directement.
