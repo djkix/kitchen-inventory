@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { AppShell } from './components/shell/app-shell';
 import { ListSkeleton } from './components/ui/skeleton';
@@ -13,9 +13,14 @@ import { SetupScreen } from './screens/setup/setup-screen';
 import { StockScreen } from './screens/stock/stock-screen';
 import { ItemScreen } from './screens/item/item-screen';
 import { ExpiringScreen } from './screens/expiring/expiring-screen';
-import { ScanScreen } from './screens/scan/scan-screen';
-import { ProductFormScreen } from './screens/products/product-form-screen';
 import { SettingsScreen } from './screens/settings/settings-screen';
+
+// Écrans secondaires chargés à la demande : l'onglet Stock arrive le premier.
+const ScanScreen = lazy(() => import('./screens/scan/scan-screen').then((m) => ({ default: m.ScanScreen })));
+const ProductFormScreen = lazy(() => import('./screens/products/product-form-screen').then((m) => ({ default: m.ProductFormScreen })));
+const LocationsScreen = lazy(() => import('./screens/settings/locations-screen').then((m) => ({ default: m.LocationsScreen })));
+const UsersScreen = lazy(() => import('./screens/settings/users-screen').then((m) => ({ default: m.UsersScreen })));
+const ServiceTokensScreen = lazy(() => import('./screens/settings/service-tokens-screen').then((m) => ({ default: m.ServiceTokensScreen })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,6 +42,7 @@ export function App() {
       <ToastProvider>
         <BrowserRouter>
           <UnauthenticatedRedirect />
+          <Suspense fallback={<LoadingScreen />}>
           <Routes>
             <Route path="/installation" element={<SetupScreen />} />
             <Route path="/connexion" element={<LoginScreen />} />
@@ -48,12 +54,16 @@ export function App() {
                 <Route path="/recettes" element={<ComingSoonScreen title="Recettes" />} />
                 <Route path="/courses" element={<ComingSoonScreen title="Courses" />} />
                 <Route path="/reglages" element={<SettingsScreen />} />
+                <Route path="/reglages/emplacements" element={<LocationsScreen />} />
+                <Route path="/reglages/utilisateurs" element={<UsersScreen />} />
+                <Route path="/reglages/jetons" element={<ServiceTokensScreen />} />
                 <Route path="/produits/nouveau" element={<ProductFormScreen />} />
               </Route>
               <Route path="/scan" element={<ScanScreen />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </ToastProvider>
     </QueryClientProvider>
