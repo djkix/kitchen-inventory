@@ -16,6 +16,10 @@ RUN npm ci
 
 # ---------------------------------------------------------------- compilation
 FROM deps AS build
+# Version figée dans l'interface compilée : comparée à celle de l'API, elle
+# révèle une coque servie depuis un cache de service worker périmé.
+ARG APP_VERSION=0.0.0-dev
+ENV APP_VERSION=${APP_VERSION}
 COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api

@@ -6,7 +6,12 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 const sharedSource = fileURLToPath(new URL('../../packages/shared/src/index.ts', import.meta.url));
 
+// Version de l'interface, figée à la construction de l'image. Comparée à celle
+// que renvoie l'API, elle révèle une coque servie depuis un cache périmé.
+const appVersion = process.env.APP_VERSION ?? 'dev';
+
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   plugins: [
     react(),
     tailwindcss(),

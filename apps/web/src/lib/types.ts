@@ -23,3 +23,11 @@ export interface MoveContentsResult {
   moved: number;
   targetId: string;
 }
+
+/** Réponse de `GET /api/v1/health` (section 21). */
+export interface HealthReport {
+  status: 'ok' | 'degraded' | 'error';
+  version: string;
+  checks: { database: 'ok' | 'error'; media: 'ok' | 'error'; migrations: 'ok' | 'pending' | 'error' };
+  degraded?: string[];
+}
