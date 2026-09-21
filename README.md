@@ -111,7 +111,9 @@ docker compose up -d
 docker compose logs -f app
 ```
 
-Le conteneur `app` joue les migrations de base avant de démarrer, puis répond
+Le conteneur `app` ajuste les droits du dossier `media` pour l'utilisateur
+`node` (l'entrypoint est le seul moment où root intervient ; le serveur tourne
+sans privilège), joue les migrations de base avant de démarrer, puis répond
 sur `http://127.0.0.1:8888` (port modifiable par `APP_PORT`). Pointer le
 reverse proxy vers ce port. Vérification :
 

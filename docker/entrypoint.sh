@@ -8,6 +8,20 @@ set -e
 # conteneur en boucle à la seconde, ce qui empilerait des demandes de verrou et
 # gênerait toute intervention manuelle.
 DELAY="${MIGRATION_FAILURE_DELAY_SECONDS:-30}"
+MEDIA="${MEDIA_DIR:-/app/media}"
+
+# Un montage « ./media:/app/media » créé par Docker appartient à root, alors
+# que l'application tourne sous « node » : elle ne pourrait pas y écrire les
+# photos. Démarré root, l'entrypoint corrige les droits puis se relance sous
+# node ; rien d'autre ne s'exécute en root.
+if [ "$(id -u)" = "0" ]; then
+  mkdir -p "$MEDIA"
+  if [ "$(stat -c '%u' "$MEDIA")" != "$(id -u node)" ]; then
+    echo "Droits du volume média ajustés pour l'utilisateur node."
+    chown -R node:node "$MEDIA"
+  fi
+  exec su-exec node "$0" "$@"
+fi
 
 case "$1" in
   node)
