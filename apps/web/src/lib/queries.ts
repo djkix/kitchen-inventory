@@ -11,7 +11,7 @@ import type {
   StockItemDto,
 } from '@kitchen/shared';
 import { api } from './api';
-import type { ServiceTokenDto, UserDto } from './types';
+import type { HealthReport, ServiceTokenDto, UserDto } from './types';
 
 export const PAGE_SIZE = 50;
 
@@ -36,6 +36,7 @@ export const queryKeys = {
   serviceTokens: ['service-tokens'] as const,
   recognitionStats: ['recognition', 'stats'] as const,
   products: (q: string) => ['products', q] as const,
+  health: ['health'] as const,
 };
 
 export function useAuthStatusQuery() {
@@ -78,6 +79,21 @@ export function useExpiringQuery() {
   return useQuery({
     queryKey: queryKeys.expiring,
     queryFn: () => api.get<{ items: StockItemDto[]; alertDays: number }>('/stock/expiring'),
+  });
+}
+
+/**
+ * État du service et version déployée. Interrogé une fois par session, puis
+ * rafraîchi au retour sur l'application : c'est ce qui révèle un déploiement
+ * récent alors que l'interface en cache est restée en arrière.
+ */
+export function useHealthQuery() {
+  return useQuery({
+    queryKey: queryKeys.health,
+    queryFn: () => api.get<HealthReport>('/health'),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: true,
+    retry: false,
   });
 }
 

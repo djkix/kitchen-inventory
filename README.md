@@ -296,6 +296,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.5.0 | 2026-09-21 | Version affichée au bas de chaque écran, alerte quand l'interface en cache est périmée |
 | 0.4.1 | 2026-09-21 | Publication de l'image limitée à amd64, l'architecture de l'hôte de déploiement |
 | 0.4.0 | 2026-09-21 | Photo prise par l'appareil natif du téléphone, plafond de dépense mensuel en euros |
 | 0.3.0 | 2026-09-21 | Scan : validation du produit et de la quantité avant ajout ; fin des ajouts répétés du même article |
@@ -306,7 +307,10 @@ release-please.
 
 **L'historique complet est dans [`CHANGELOG.md`](./CHANGELOG.md)**, généré
 automatiquement par release-please à chaque version publiée. La version en
-cours d'exécution est renvoyée par `GET /api/v1/health` (champ `version`).
+service est affichée au bas de chaque écran de l'application, et renvoyée par
+`GET /api/v1/health` (champ `version`). Quand l'interface conservée par le
+service worker est plus ancienne que le serveur, l'application le signale et
+invite à la rouvrir.
 
 ## Licence
 
