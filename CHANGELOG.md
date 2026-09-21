@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/djkix/kitchen-inventory/compare/v0.2.0...v0.2.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* **api:** variables d'environnement vides traitées comme absentes ([898ac46](https://github.com/djkix/kitchen-inventory/commit/898ac4683f3d46fcdbedec98e35a9db5c43cbbc9))
+
 ## [0.2.0](https://github.com/djkix/kitchen-inventory/compare/v0.1.0...v0.2.0) (2026-09-21)
 
 
