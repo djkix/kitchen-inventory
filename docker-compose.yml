@@ -25,7 +25,7 @@ services:
       - ${MEDIA_DIR:-./media}:/app/media
     ports:
       # Exposé au reverse proxy seulement, jamais publié tel quel sur Internet.
-      - "${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8090}:3000"
+      - "${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8888}:3000"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/v1/health"]
       interval: 30s
