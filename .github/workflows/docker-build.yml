@@ -22,10 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     concurrency:
-      # Une fusion release-please déclenche ce workflow deux fois pour le même
-      # commit (push sur main, puis workflow_call avec le tag) : on sérialise
-      # pour ne pas faire courir deux builds sur le même cache.
-      group: docker-build
+      # Un groupe par référence construite : un build de tag (publication d'une
+      # version) ne doit jamais être annulé par un push sur main arrivé entre-temps.
+      # GitHub ne garde qu'un seul job en attente par groupe et annule le
+      # précédent : avec un groupe unique, la 0.2.2 n'a jamais été publiée.
+      group: docker-build-${{ inputs.tag || github.ref }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
