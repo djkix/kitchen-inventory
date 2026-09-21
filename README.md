@@ -39,6 +39,7 @@ le réseau, jamais l'inventaire.
 - [Intégrations](#intégrations)
 - [Développement](#développement)
 - [Stack technique](#stack-technique)
+- [Derniers changements](#derniers-changements)
 - [Licence](#licence)
 
 ## Fonctionnalités
@@ -277,6 +278,19 @@ Docker sert l'API et le front compilé ; l'intégration continue GitHub Actions
 vérifie types, lint, tests, cohérence des migrations, puis publie l'image
 multi-architecture sur GitHub Container Registry à chaque version taguée par
 release-please.
+
+## Derniers changements
+
+| Version | Date | Changement |
+| --- | --- | --- |
+| 0.2.2 | 2026-09-21 | Déploiement : droits du volume `media` ajustés au démarrage, plus de `chown` manuel |
+| 0.2.1 | 2026-09-21 | Configuration : les variables vides transmises par Compose (`VISION_BASE_URL=`) sont ignorées au lieu de bloquer le démarrage |
+| 0.2.0 | 2026-09-21 | Reconnaissance photo : fournisseur Google Gemini (`gemini-3.5-flash`), retenu par défaut ; port hôte 8888 |
+| 0.1.0 | 2026-09-21 | Lot 1 : authentification, emplacements, produits, stock et mouvements, scan code-barres, Open Food Facts, vision, export, PWA mobile, stack Docker |
+
+**L'historique complet est dans [`CHANGELOG.md`](./CHANGELOG.md)**, généré
+automatiquement par release-please à chaque version publiée. La version en
+cours d'exécution est renvoyée par `GET /api/v1/health` (champ `version`).
 
 ## Licence
 
