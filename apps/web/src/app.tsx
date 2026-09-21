@@ -13,6 +13,8 @@ import { SetupScreen } from './screens/setup/setup-screen';
 import { StockScreen } from './screens/stock/stock-screen';
 import { ItemScreen } from './screens/item/item-screen';
 import { ExpiringScreen } from './screens/expiring/expiring-screen';
+import { ScanScreen } from './screens/scan/scan-screen';
+import { ProductFormScreen } from './screens/products/product-form-screen';
 import { SettingsScreen } from './screens/settings/settings-screen';
 
 const queryClient = new QueryClient({
@@ -46,7 +48,9 @@ export function App() {
                 <Route path="/recettes" element={<ComingSoonScreen title="Recettes" />} />
                 <Route path="/courses" element={<ComingSoonScreen title="Courses" />} />
                 <Route path="/reglages" element={<SettingsScreen />} />
+                <Route path="/produits/nouveau" element={<ProductFormScreen />} />
               </Route>
+              <Route path="/scan" element={<ScanScreen />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
