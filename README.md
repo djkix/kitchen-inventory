@@ -112,11 +112,11 @@ docker compose logs -f app
 ```
 
 Le conteneur `app` joue les migrations de base avant de démarrer, puis répond
-sur `http://127.0.0.1:8090` (port modifiable par `APP_PORT`). Pointer le
+sur `http://127.0.0.1:8888` (port modifiable par `APP_PORT`). Pointer le
 reverse proxy vers ce port. Vérification :
 
 ```bash
-curl -s http://127.0.0.1:8090/api/v1/health
+curl -s http://127.0.0.1:8888/api/v1/health
 ```
 
 La réponse détaille séparément la base, le volume média et les migrations. Un
