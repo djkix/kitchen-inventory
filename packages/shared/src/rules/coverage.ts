@@ -14,6 +14,15 @@ export interface StockEntry {
   netContent: number | null;
   netContentUnit: Unit | null;
   nearExpiry: boolean;
+  /**
+   * Au moins un lot de ce produit n'a pas pu être converti dans son unité par
+   * défaut lors de l'agrégation (API, pas ce module) : `quantity` ne reflète
+   * donc qu'une partie du stock réel. Un total mesurable déjà suffisant reste
+   * `available` ; sinon la réponse devient `unverifiable` plutôt que
+   * `insufficient` ou `missing`, pour ne pas écarter une recette sur la foi
+   * d'un total sous-estimé.
+   */
+  unmeasured?: boolean;
 }
 
 export interface StockSnapshot {
@@ -131,7 +140,9 @@ export function ingredientOutcome(ingredient: CoverageIngredient, snapshot: Stoc
 
   let total = 0;
   let measured = false;
+  let unmeasuredPresent = false;
   for (const entry of found) {
+    if (entry.unmeasured) unmeasuredPresent = true;
     const quantity = availableInUnit(entry, ingredient.unit);
     if (quantity === null) continue;
     measured = true;
@@ -139,9 +150,11 @@ export function ingredientOutcome(ingredient: CoverageIngredient, snapshot: Stoc
   }
   if (!measured) return { ...base, state: 'unverifiable', nearExpiry };
   const available = roundQuantity(total);
-  return available >= ingredient.quantity
-    ? { ...base, state: 'available', nearExpiry }
-    : { id: ingredient.id, state: 'insufficient', nearExpiry, availableQuantity: available, requiredQuantity: ingredient.quantity };
+  if (available >= ingredient.quantity) return { ...base, state: 'available', nearExpiry };
+  // Un total mesurable insuffisant ne vaut verdict ferme que si tout le stock
+  // du produit a pu être mesuré : sinon le manque n'est pas vérifié (A6, A10).
+  if (unmeasuredPresent) return { ...base, state: 'unverifiable', nearExpiry };
+  return { id: ingredient.id, state: 'insufficient', nearExpiry, availableQuantity: available, requiredQuantity: ingredient.quantity };
 }
 
 export function recipeCoverage(ingredients: readonly CoverageIngredient[], snapshot: StockSnapshot): RecipeCoverage {

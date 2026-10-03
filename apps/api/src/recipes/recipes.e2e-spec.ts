@@ -225,6 +225,26 @@ describe('recettes (EF-17, EF-21)', () => {
       expect((await agent.get('/api/v1/recipes').expect(200)).body.items[0].group).toBe('excluded');
     });
 
+    it('signale non vérifiable, pas manquant, quand seule une partie des lots d’un produit se convertit (EF-23)', async () => {
+      // Un produit fusionné garde son unité par défaut propre (ici PIECE) ; un
+      // lot peut encore être créé directement dessus après coup (l'API ne
+      // bloque pas l'ancien identifiant). Une fois rattaché à la cible (GRAM),
+      // ce lot ne se convertit plus, alors que le lot déjà présent sur la
+      // cible, lui, se convertit mais ne suffit pas seul : la ligne ne doit
+      // conclure ni `insufficient` ni `missing` sur ce total partiel.
+      const ancienId = await createProduct(agent, { name: 'Œufs (ancienne fiche)', defaultUnit: 'PIECE' });
+      const farineId = await createProduct(agent, { name: 'Farine', defaultUnit: 'GRAM' });
+      await agent.post(`/api/v1/products/${ancienId}/merge`).send({ targetId: farineId }).expect(200);
+      await createStock(agent, { productId: ancienId, locationId: placardId, quantity: 3, unit: 'PIECE' });
+      await createStock(agent, { productId: farineId, locationId: placardId, quantity: 50, unit: 'GRAM' });
+      const recipe = await createRecipe(agent, 'Pain', [{ label: 'Farine', productId: farineId, quantity: 200, unit: 'GRAM' }]);
+
+      const res = await agent.get(`/api/v1/recipes/${recipe.id}`).expect(200);
+      expect(res.body.ingredients[0]).toMatchObject({ state: 'unverifiable' });
+      // Non vérifiable compte comme disponible (A6, A10) : la recette reste réalisable.
+      expect(res.body.group).toBe('ready');
+    });
+
     it('suit la fusion de produits', async () => {
       const ancienId = await createProduct(agent, { name: 'Lait de soja ancien' });
       const cibleId = await createProduct(agent, { name: 'Lait de soja', defaultUnit: 'MILLILITER' });
