@@ -91,8 +91,10 @@ seule pour Home Assistant. Export CSV et JSON.
 
 **Module recettes.** Recettes du foyer, classées **par défaut selon la note**
 du foyer (les mieux notées en tête, puis les non notées, titre à l'alphabet
-en dernier recours) — le stock n'intervient pas dans ce tri par défaut.
-Quatre autres tris au choix, mémorisés avec les filtres par utilisateur :
+en dernier recours) — le stock n'intervient pas dans ce tri par défaut. La
+recherche par titre est tolérante aux accents et à la casse, comme la
+recherche produits (« crepes » trouve « Crêpes »). Quatre autres tris au
+choix, mémorisés avec les filtres par utilisateur :
 réalisables avec le stock (couverture), anti-gaspillage, les plus faites, les
 moins récentes. Filtres par difficulté, cuisine, type de plat, régime, temps
 (préparation + cuisson, repos exclu) et note minimale, plus des pastilles
@@ -105,20 +107,26 @@ bientôt.
 
 Depuis la fiche recette, « Cuisiner » ouvre un tiroir de cuisson : portions
 réalisées ajustables, chaque ligne décrémentable cochée par défaut, choix du
-produit retenu pour une ligne substituable (celui qui périme le plus tôt,
-modifiable) et note facultative à cinq étoiles. Le serveur fait l'unique mise
-à l'échelle des quantités. Une ligne décochée, sans quantité chiffrée ou non
-rattachée à un produit (hors inventaire) n'émet aucun mouvement ; si le stock
+produit retenu (celui qui périme le plus tôt, modifiable) pour toute ligne
+substituable ou visant directement une catégorie, et note facultative à cinq
+étoiles. Le serveur fait l'unique mise à l'échelle des quantités, exclut du
+choix les lots dont la date de péremption est dépassée (comme le calcul de
+couverture) et suit la fusion d'un produit s'il en a rejoint un autre
+depuis. Une ligne décochée ou sans quantité chiffrée (hors inventaire)
+n'émet aucun mouvement ; une ligne chiffrée qui ne résout aucun produit (cas
+catégorie sans choix) est signalée plutôt qu'ignorée en silence. Si le stock
 ne suffit pas, la quantité retirée est ramenée au disponible plutôt que de
-faire échouer la cuisson, et le tiroir le signale en clair. « J'ai fait cette
-recette » reste disponible pour une réalisation sans aucun décrément. La
+faire échouer la cuisson, et le tiroir le signale en clair ; cuisiner une
+recette archivée est refusé. « J'ai fait cette recette » reste disponible
+pour une réalisation sans aucun décrément. La
 fiche recette porte un bloc Historique (moyenne, nombre de réalisations,
 tendance, puis chaque réalisation avec qui a cuisiné et la note de chaque
 membre du foyer) : chaque membre note une réalisation de 1 à 5 étoiles, une
 fois, modifiable pendant les **sept jours** qui suivent, puis en lecture
 seule. Sur l'écran Recettes, un bandeau invite à noter la dernière
-réalisation récente encore sans note ; il se ferme pour la journée et se
-rouvre le lendemain tant qu'il reste quelque chose à noter.
+réalisation récente encore sans note (pas celle d'une recette depuis
+archivée) ; il se ferme pour la journée et se rouvre le lendemain tant qu'il
+reste quelque chose à noter.
 
 Une recette jamais cuisinée se supprime réellement ; une recette déjà
 réalisée ne se supprime pas (la suppression échoue avec le nombre de
@@ -359,6 +367,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.7.1 | 2026-10-04 | Corrections sur le socle recettes : décrément d'une ligne catégorie sans sélecteur (EF-18), lots périmés consommés avant les lots bons et fusion de produit ignorée à la cuisson (EF-18), difficulté affichée en direct divergente de celle enregistrée (EF-17), recherche de titre insensible aux accents (A22), cuisson d'une recette archivée refusée |
 | 0.7.0 | 2026-10-03 | Module recettes (socle) : écran Recettes trié par note avec filtres et tris mémorisés (EF-21, EF-22, EF-23) ; fiche recette avec état de chaque ingrédient et historique noté par membre (EF-23, EF-28) ; cuisson avec décrément plafonné au stock et choix du produit substitué, ou réalisation sans décrément (EF-18, EF-28) ; archivage d'une recette déjà cuisinée ; formulaire de saisie et de modification (EF-17) ; ajout aux courses (EF-24), import par URL (EF-25) et génération par IA (EF-26) laissés au lot 2 |
 | 0.6.1 | 2026-10-03 | Publication : « latest » ne suit plus que les versions publiées, les poussées sur main vont sous « main » |
 | 0.6.0 | 2026-10-03 | Bandeau de mise à jour : nouvelle version détectée et rechargement proposé, sans interrompre un scan |
