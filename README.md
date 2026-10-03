@@ -102,8 +102,19 @@ traiter en erreur. « J'ai fait cette recette » reste disponible pour une
 réalisation sans décrément. Notation à cinq étoiles par membre dans les sept
 jours qui suivent. Sur l'écran Recettes, un bandeau invite à noter la
 dernière réalisation récente encore sans note ; il se ferme pour la journée
-et se rouvre le lendemain tant qu'il reste quelque chose à noter. Voir
-`docs/cahier-des-charges.md`, section 12.
+et se rouvre le lendemain tant qu'il reste quelque chose à noter.
+
+Un même formulaire crée (bouton « + » sur l'écran Recettes) ou modifie
+(bouton « Modifier » sur la fiche) une recette : titre, cuisine (choisie ou
+créée à la volée), type de plat, régimes, portions, les quatre temps, étapes
+et ingrédients. Chaque ingrédient se rattache à un produit existant par la
+même recherche que le reste de l'application, à une catégorie, ou reste en
+texte libre. La difficulté suit automatiquement les étapes et le temps actif ;
+une correction manuelle la gèle définitivement, y compris lors des
+modifications suivantes. En modification, les ingrédients envoyés remplacent
+entièrement les précédents. Quitter le formulaire avec des changements non
+enregistrés demande confirmation. Voir `docs/cahier-des-charges.md`,
+section 12.
 
 ## Installation
 
@@ -318,7 +329,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.7.0 | 2026-10-03 | Recettes : tiroir de cuisson avec décompte du stock, choix du produit substitué et note (EF-18, EF-28) ; bandeau de rappel pour noter une réalisation récente, non notée, dans les sept jours (EF-28) |
+| 0.7.0 | 2026-10-03 | Recettes : tiroir de cuisson avec décompte du stock, choix du produit substitué et note (EF-18, EF-28) ; bandeau de rappel pour noter une réalisation récente, non notée, dans les sept jours (EF-28) ; formulaire de saisie et de modification d'une recette, ingrédients liés à un produit, une catégorie ou en texte libre (EF-17) |
 | 0.6.1 | 2026-10-03 | Publication : « latest » ne suit plus que les versions publiées, les poussées sur main vont sous « main » |
 | 0.6.0 | 2026-10-03 | Bandeau de mise à jour : nouvelle version détectée et rechargement proposé, sans interrompre un scan |
 | 0.5.0 | 2026-09-21 | Version affichée au bas de chaque écran, alerte quand l'interface en cache est périmée ; publication de l'image limitée à amd64, l'architecture de l'hôte |
