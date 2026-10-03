@@ -2,11 +2,7 @@ import { RECIPE_TREND_LABELS_FR, type RecipeLogDto, type RecipeStatsDto } from '
 import { Button } from '../../components/ui/button';
 import { TrashIcon } from '../../components/ui/icons';
 import { formatDateTime } from '../../lib/expiry-ui';
-
-function formatAverage(average: number | null): string {
-  if (average === null) return '—';
-  return average.toFixed(1).replace('.', ',');
-}
+import { formatRatingAverage } from '../../lib/quantity-ui';
 
 interface HistoryPanelProps {
   stats: RecipeStatsDto;
@@ -28,7 +24,7 @@ export function HistoryPanel({ stats, logs, currentUserId, hasNextPage, isFetchi
 
       <div className="flex items-center gap-4 rounded-card bg-surface px-4 py-3">
         <div>
-          <p className="tnum text-[22px] font-semibold leading-none">{formatAverage(stats.averageRating)}</p>
+          <p className="tnum text-[22px] font-semibold leading-none">{formatRatingAverage(stats.averageRating) ?? '—'}</p>
           <p className="text-[12px] text-muted">{stats.ratingCount > 0 ? `sur ${stats.ratingCount} note${stats.ratingCount > 1 ? 's' : ''}` : 'Aucune note'}</p>
         </div>
         <div className="h-8 w-px bg-line" aria-hidden />

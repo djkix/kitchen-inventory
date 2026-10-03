@@ -1,6 +1,7 @@
 import { COVERAGE_GROUP_LABELS_FR, DIFFICULTY_LABELS_FR, type RecipeSummaryDto } from '@kitchen/shared';
 import { formatRelativeDays } from '../../lib/expiry-ui';
 import { cn } from '../../lib/cn';
+import { formatMinutes, formatRatingAverage } from '../../lib/quantity-ui';
 
 interface RecipeCardProps {
   recipe: RecipeSummaryDto;
@@ -17,16 +18,9 @@ function formatHistory(stats: RecipeSummaryDto['stats']): string {
   if (stats.timesCooked === 0) return 'Jamais faite';
   const parts = [`Faite ${stats.timesCooked} fois`];
   if (stats.lastCookedAt) parts.push(formatRelativeDays(stats.lastCookedAt));
-  if (stats.averageRating !== null) parts.push(`★ ${stats.averageRating.toFixed(1).replace('.', ',')}`);
+  const averageLabel = formatRatingAverage(stats.averageRating);
+  if (averageLabel !== null) parts.push(`★ ${averageLabel}`);
   return parts.join(' · ');
-}
-
-function formatMinutes(totalMinutes: number | null): string | null {
-  if (totalMinutes === null) return null;
-  if (totalMinutes < 60) return `${totalMinutes} min`;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return minutes > 0 ? `${hours} h ${minutes}` : `${hours} h`;
 }
 
 export function RecipeCard({ recipe }: RecipeCardProps) {
