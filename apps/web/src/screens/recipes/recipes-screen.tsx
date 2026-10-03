@@ -1,5 +1,6 @@
 import type { RecipeFilters } from '@kitchen/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Button } from '../../components/ui/button';
 import { EmptyState, ErrorState } from '../../components/ui/empty-state';
@@ -81,7 +82,9 @@ export function RecipesScreen() {
           <ul className="flex flex-col gap-2 px-4">
             {items.map((recipe) => (
               <li key={recipe.id}>
-                <RecipeCard recipe={recipe} />
+                <Link to={`/recettes/${recipe.id}`} className="block rounded-card focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                  <RecipeCard recipe={recipe} />
+                </Link>
               </li>
             ))}
           </ul>

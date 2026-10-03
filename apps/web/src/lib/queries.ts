@@ -6,7 +6,9 @@ import type {
   LocationNode,
   Paginated,
   ProductDto,
+  RecipeDto,
   RecipeListQuery,
+  RecipeLogDto,
   RecipeSummaryDto,
   RecognitionStats,
   Settings,
@@ -42,6 +44,8 @@ export const queryKeys = {
   health: ['health'] as const,
   recipes: (params: RecipeListParams) => ['recipes', 'list', params] as const,
   recipesAll: ['recipes', 'list'] as const,
+  recipe: (id: string) => ['recipes', 'item', id] as const,
+  recipeLogs: (recipeId: string) => ['recipes', 'item', recipeId, 'logs'] as const,
   cuisines: ['cuisines'] as const,
   recipeFilters: ['preferences', 'recipe-filters'] as const,
   pendingRating: ['recipes', 'pending-rating'] as const,
@@ -145,6 +149,26 @@ export function useRecipesInfiniteQuery(params: RecipeListParams) {
     queryFn: ({ pageParam }) => api.get<Paginated<RecipeSummaryDto>>('/recipes', { query: { ...params, page: pageParam, limit: PAGE_SIZE } }),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.page * last.limit < last.total ? last.page + 1 : undefined),
+  });
+}
+
+/** Fiche recette (section 14/15) : ingrédients, étapes et statistiques déjà résolus par l'API. */
+export function useRecipeQuery(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.recipe(id ?? ''),
+    queryFn: () => api.get<RecipeDto>(`/recipes/${id}`),
+    enabled: Boolean(id),
+  });
+}
+
+/** Historique des réalisations d'une recette (A26), du plus récent au plus ancien. */
+export function useRecipeLogsInfiniteQuery(recipeId: string | undefined) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.recipeLogs(recipeId ?? ''),
+    queryFn: ({ pageParam }) => api.get<Paginated<RecipeLogDto>>(`/recipes/${recipeId}/logs`, { query: { page: pageParam, limit: PAGE_SIZE } }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page * last.limit < last.total ? last.page + 1 : undefined),
+    enabled: Boolean(recipeId),
   });
 }
 

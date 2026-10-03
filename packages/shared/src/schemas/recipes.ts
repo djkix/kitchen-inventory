@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { IngredientState } from '../rules/coverage.js';
 import { RECIPE_SORTS } from '../rules/recipe-sort.js';
 import { clientOpIdSchema, idSchema, paginationQuerySchema, positiveQuantitySchema, unitSchema } from './common.js';
 
@@ -33,6 +34,15 @@ export const RECIPE_TAG_LABELS_FR: Record<(typeof RECIPE_TAGS)[number], string> 
 };
 export const COVERAGE_GROUP_LABELS_FR: Record<z.infer<typeof coverageGroupSchema>, string> = {
   ready: 'Prête', almost: 'Presque', excluded: 'Incomplète',
+};
+/** État d'un ingrédient face au stock réel (section 15, A6, A10) : libellé court affiché par la fiche recette. */
+export const INGREDIENT_STATE_LABELS_FR: Record<IngredientState, string> = {
+  available: 'Disponible', insufficient: 'Insuffisant', unverifiable: 'Non vérifiable',
+  missing: 'Manquant', untracked: 'Hors inventaire',
+};
+/** Tendance récente des notes d'une recette (EF-28), affichée par le bloc Historique. */
+export const RECIPE_TREND_LABELS_FR: Record<NonNullable<RecipeStatsDto['recentTrend']>, string> = {
+  up: 'En hausse', stable: 'Stable', down: 'En baisse',
 };
 
 export const recipeIngredientInputSchema = z
