@@ -1,4 +1,4 @@
-import type { RecipeDto, RecipeLogDto } from '@kitchen/shared';
+import type { CookResult, RecipeDto, RecipeLogDto } from '@kitchen/shared';
 import type TestAgent from 'supertest/lib/agent.js';
 import type { TestApp } from '../../test/app.factory.js';
 import type { UserDto } from '../users/users.service.js';
@@ -58,6 +58,12 @@ export async function logCooked(agent: TestAgent, recipeId: string, body: Record
     .send({ servingsCooked: 4, ...body })
     .expect(201);
   return res.body as RecipeLogDto;
+}
+
+/** Cuisine une recette (EF-18) : décrémente le stock au prorata des portions cuisinées. */
+export async function cookRecipe(agent: TestAgent, recipeId: string, body: Record<string, unknown>): Promise<CookResult> {
+  const res = await agent.post(`/api/v1/recipes/${recipeId}/cook`).send(body).expect(200);
+  return res.body as CookResult;
 }
 
 /** Crée un membre du foyer (droits identiques à l'admin sur les recettes, section 22). */

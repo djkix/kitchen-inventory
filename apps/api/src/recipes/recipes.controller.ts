@@ -1,8 +1,11 @@
 import { Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import {
+  cookRecipeSchema,
   createRecipeSchema,
   recipeListQuerySchema,
   updateRecipeSchema,
+  type CookRecipeInput,
+  type CookResult,
   type CreateRecipeInput,
   type Paginated,
   type RecipeDto,
@@ -12,12 +15,16 @@ import {
 } from '@kitchen/shared';
 import { CurrentUser, type RequestUser } from '../auth/request-user.js';
 import { ZodBody, ZodQuery } from '../common/zod-validation.pipe.js';
+import { RecipesCookService } from './recipes.cook.js';
 import { RecipesService } from './recipes.service.js';
 
 /** Recettes du foyer (section 12) : tout membre a les mêmes droits, y compris l'archivage. */
 @Controller('recipes')
 export class RecipesController {
-  constructor(private readonly recipes: RecipesService) {}
+  constructor(
+    private readonly recipes: RecipesService,
+    private readonly cooking: RecipesCookService,
+  ) {}
 
   @Get()
   list(@ZodQuery(recipeListQuerySchema) query: RecipeListQuery): Promise<Paginated<RecipeSummaryDto>> {
@@ -55,5 +62,16 @@ export class RecipesController {
   @HttpCode(200)
   restore(@Param('id') id: string): Promise<RecipeDto> {
     return this.recipes.restore(id);
+  }
+
+  /** Cuisson (EF-18) : décrémente le stock au prorata des portions, en une transaction. */
+  @Post(':id/cook')
+  @HttpCode(200)
+  cook(
+    @Param('id') id: string,
+    @ZodBody(cookRecipeSchema) body: CookRecipeInput,
+    @CurrentUser() user: RequestUser,
+  ): Promise<CookResult> {
+    return this.cooking.cook(id, body, user);
   }
 }
