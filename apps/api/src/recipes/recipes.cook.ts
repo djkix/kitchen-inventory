@@ -2,22 +2,32 @@ import { Injectable } from '@nestjs/common';
 import {
   capConsumption,
   convertWithNetContent,
+  excludedFromRecipes,
+  expiryStatus,
   roundQuantity,
   type CookRecipeInput,
   type CookResult,
   type CookResultLine,
   type Unit,
 } from '@kitchen/shared';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type { RequestUser } from '../auth/request-user.js';
 import { ApiError } from '../common/api-error.js';
 import { toNumber } from '../common/decimal.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 import { applyMovement } from '../stock/stock.quantity.js';
+import { PRODUCT_MERGE_SELECT, resolveTargetProduct } from './recipes.coverage.js';
 
 const COOK_RECIPE_INCLUDE = { ingredients: true } satisfies Prisma.RecipeInclude;
 type RecipeWithIngredients = Prisma.RecipeGetPayload<{ include: typeof COOK_RECIPE_INCLUDE }>;
 type RecipeIngredient = RecipeWithIngredients['ingredients'][number];
+
+/** Même sélection, avec la même profondeur de fusion, que `recipes.coverage.ts`. */
+const PRODUCT_MERGE_CHAIN_SELECT = {
+  ...PRODUCT_MERGE_SELECT,
+  mergedInto: { select: { ...PRODUCT_MERGE_SELECT, mergedInto: { select: PRODUCT_MERGE_SELECT } } },
+} satisfies Prisma.ProductSelect;
 
 /** Message affiché quand au moins une ligne a dû être ramenée au stock disponible. */
 const CAPPED_MESSAGE = 'Quantité ramenée au stock disponible';
@@ -32,51 +42,69 @@ const CAPPED_MESSAGE = 'Quantité ramenée au stock disponible';
  */
 @Injectable()
 export class RecipesCookService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+  ) {}
 
   async cook(recipeId: string, input: CookRecipeInput, user: RequestUser): Promise<CookResult> {
-    return this.prisma.$transaction(async (tx) => {
-      if (input.clientOpId) {
-        const existing = await tx.recipeLog.findUnique({ where: { clientOpId: input.clientOpId } });
-        if (existing) return this.replay(tx, existing, input);
-      }
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (input.clientOpId) {
+          const existing = await tx.recipeLog.findUnique({ where: { clientOpId: input.clientOpId } });
+          if (existing) return this.replay(tx, existing, input);
+        }
 
-      const recipe = await tx.recipe.findUnique({ where: { id: recipeId }, include: COOK_RECIPE_INCLUDE });
-      if (!recipe) throw ApiError.notFound('Recette introuvable');
+        const recipe = await tx.recipe.findUnique({ where: { id: recipeId }, include: COOK_RECIPE_INCLUDE });
+        if (!recipe) throw ApiError.notFound('Recette introuvable');
+        if (recipe.archivedAt) throw ApiError.conflict('Cette recette est archivée : restaurez-la avant de la cuisiner');
 
-      const log = await tx.recipeLog.create({
-        data: {
-          recipeId,
-          userId: user.id,
-          servingsCooked: input.servingsCooked,
-          stockApplied: true,
-          clientOpId: input.clientOpId ?? null,
-          ratings:
-            input.stars != null ? { create: { userId: user.id, stars: input.stars, comment: input.comment ?? null } } : undefined,
-        },
-      });
-
-      const lines: CookResultLine[] = [];
-      for (const requestedLine of input.lines) {
-        const ingredient = recipe.ingredients.find((i) => i.id === requestedLine.ingredientId);
-        if (!ingredient) throw ApiError.notFound('Ingrédient introuvable', { ingredientId: requestedLine.ingredientId });
-
-        lines.push(
-          await this.applyLine(tx, {
-            ingredient,
-            recipe,
-            productOverride: requestedLine.productId,
-            servingsCooked: input.servingsCooked,
-            logId: log.id,
+        const log = await tx.recipeLog.create({
+          data: {
+            recipeId,
             userId: user.id,
-            clientOpId: input.clientOpId,
-          }),
-        );
-      }
+            servingsCooked: input.servingsCooked,
+            stockApplied: true,
+            clientOpId: input.clientOpId ?? null,
+            ratings:
+              input.stars != null ? { create: { userId: user.id, stars: input.stars, comment: input.comment ?? null } } : undefined,
+          },
+        });
 
-      const message = lines.some((l) => l.capped) ? CAPPED_MESSAGE : null;
-      return { logId: log.id, lines, message };
-    });
+        const lines: CookResultLine[] = [];
+        for (const requestedLine of input.lines) {
+          const ingredient = recipe.ingredients.find((i) => i.id === requestedLine.ingredientId);
+          if (!ingredient) throw ApiError.notFound('Ingrédient introuvable', { ingredientId: requestedLine.ingredientId });
+
+          lines.push(
+            await this.applyLine(tx, {
+              ingredient,
+              recipe,
+              productOverride: requestedLine.productId,
+              servingsCooked: input.servingsCooked,
+              logId: log.id,
+              userId: user.id,
+              clientOpId: input.clientOpId,
+            }),
+          );
+        }
+
+        const message = lines.some((l) => l.capped) ? CAPPED_MESSAGE : null;
+        return { logId: log.id, lines, message };
+      });
+    } catch (error) {
+      // Rejeu concurrent du même `clientOpId` : la vérification préalable laisse passer une course
+      // entre deux transactions (même filet que recipe-logs.service.ts et cuisines.controller.ts).
+      // Une erreur Postgres avorte le reste de la transaction en cours : le rejeu se fait donc dans
+      // une transaction neuve, une fois celle qui a gagné la course validée et visible.
+      if (input.clientOpId && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        return this.prisma.$transaction(async (tx) => {
+          const existing = await tx.recipeLog.findUniqueOrThrow({ where: { clientOpId: input.clientOpId! } });
+          return this.replay(tx, existing, input);
+        });
+      }
+      throw error;
+    }
   }
 
   private async applyLine(
@@ -111,14 +139,26 @@ export class RecipesCookService {
       return { ingredientId: ingredient.id, label: ingredient.label, requested, applied: 0, unit, capped: true };
     }
 
-    const product = await tx.product.findUnique({ where: { id: productId }, select: { netContent: true, netContentUnit: true } });
-    const netContent = toNumber(product?.netContent ?? null);
-    const netContentUnit = product?.netContentUnit ?? null;
+    // Suit la chaîne de fusion (section 9, tâche « défaut 3 ») : un produit fusionné depuis
+    // la création de la recette doit décrémenter la cible, comme le fait déjà l'instantané
+    // de couverture (`recipes.coverage.ts`), jamais une troisième résolution divergente.
+    const productRecord = await tx.product.findUnique({ where: { id: productId }, select: PRODUCT_MERGE_CHAIN_SELECT });
+    if (!productRecord) throw ApiError.notFound('Produit introuvable', { productId });
+    const target = resolveTargetProduct(productRecord);
+    const netContent = target.netContent;
+    const netContentUnit = target.netContentUnit;
 
-    const lots = await tx.stockItem.findMany({
-      where: { productId, archivedAt: null, quantity: { gt: 0 } },
+    const alertDays = await this.settings.expiryAlertDays();
+    const candidateLots = await tx.stockItem.findMany({
+      where: { productId: target.id, archivedAt: null, quantity: { gt: 0 } },
       orderBy: [{ effectiveExpiry: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
     });
+    // Une DLC dépassée écarte le lot de la cuisson, exactement comme du calcul de
+    // couverture (défaut 2) : sinon le lot périmé est vidé en premier (tri par date
+    // croissante) pendant que le lot encore bon reste en stock, intact.
+    const lots = candidateLots.filter(
+      (lot) => !excludedFromRecipes(expiryStatus({ effectiveExpiry: lot.effectiveExpiry, dateType: lot.dateType, dateEstimated: lot.dateEstimated }, new Date(), alertDays)),
+    );
 
     // `applied` et `unit` s'expriment toujours dans l'unité de l'ingrédient (celle de
     // `requested`), jamais dans celle d'un lot : un même ingrédient peut être servi par
@@ -210,11 +250,12 @@ export class RecipesCookService {
       }
 
       const productId = requestedLine.productId ?? ingredient.productId ?? null;
-      const product = productId
-        ? await tx.product.findUnique({ where: { id: productId }, select: { netContent: true, netContentUnit: true } })
+      const productRecord = productId
+        ? await tx.product.findUnique({ where: { id: productId }, select: PRODUCT_MERGE_CHAIN_SELECT })
         : null;
-      const netContent = toNumber(product?.netContent ?? null);
-      const netContentUnit = product?.netContentUnit ?? null;
+      const target = productRecord ? resolveTargetProduct(productRecord) : null;
+      const netContent = target?.netContent ?? null;
+      const netContentUnit = target?.netContentUnit ?? null;
 
       let applied = 0;
       let capped = false;

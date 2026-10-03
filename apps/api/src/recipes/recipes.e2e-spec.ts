@@ -206,6 +206,14 @@ describe('recettes (EF-17, EF-21)', () => {
         expect(res.body.pending).toBeNull();
       });
 
+      it('exclut une réalisation dont la recette a depuis été archivée', async () => {
+        const recipe = await createRecipe(agent, 'Dahl', []);
+        await logCooked(agent, recipe.id);
+        await agent.post(`/api/v1/recipes/${recipe.id}/archive`).expect(200);
+        const res = await agent.get('/api/v1/recipe-logs/pending-rating').expect(200);
+        expect(res.body.pending).toBeNull();
+      });
+
       it('reste en attente même notée par un autre membre : une note est propre à chacun', async () => {
         const recipe = await createRecipe(agent, 'Dahl', []);
         const log = await logCooked(agent, recipe.id);
@@ -343,6 +351,54 @@ describe('recettes (EF-17, EF-21)', () => {
       await cookRecipe(agent, recipe.id, body);
       expect((await t.prisma.stockItem.findFirstOrThrow()).quantity.toNumber()).toBe(800);
       expect(await t.prisma.recipeLog.count()).toBe(1);
+    });
+
+    it('exclut un lot dont la DLC est dépassée au lieu de le vider en premier (défaut 2)', async () => {
+      const perime = await createStock(agent, { productId: rizId, locationId: placardId, quantity: 300, unit: 'GRAM', expiryDate: isoIn(-1), dateType: 'USE_BY' });
+      const frais = await createStock(agent, { productId: rizId, locationId: placardId, quantity: 300, unit: 'GRAM', expiryDate: isoIn(5), dateType: 'USE_BY' });
+      const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' }], { servings: 4 });
+      const res = await cookRecipe(agent, recipe.id, { servingsCooked: 4, lines: [{ ingredientId: recipe.ingredients[0]!.id }] });
+      expect(res.lines[0]).toMatchObject({ applied: 200, capped: false });
+      // Le lot périmé reste intact : seul le lot encore bon a été entamé.
+      expect((await t.prisma.stockItem.findUniqueOrThrow({ where: { id: perime } })).quantity.toNumber()).toBe(300);
+      expect((await t.prisma.stockItem.findUniqueOrThrow({ where: { id: frais } })).quantity.toNumber()).toBe(100);
+    });
+
+    it('suit la fusion de produits à la cuisson, pas seulement sur la fiche (défaut 3)', async () => {
+      const ancienId = await createProduct(agent, { name: 'Lait de soja ancien' });
+      const cibleId = await createProduct(agent, { name: 'Lait de soja', defaultUnit: 'MILLILITER' });
+      const recipe = await createRecipe(agent, 'Soja', [{ label: 'Lait de soja', productId: ancienId, quantity: 100, unit: 'MILLILITER' }]);
+      await agent.post(`/api/v1/products/${ancienId}/merge`).send({ targetId: cibleId }).expect(200);
+      await createStock(agent, { productId: cibleId, locationId: placardId, quantity: 500, unit: 'MILLILITER' });
+
+      const res = await cookRecipe(agent, recipe.id, { servingsCooked: 4, lines: [{ ingredientId: recipe.ingredients[0]!.id }] });
+      expect(res.lines[0]).toMatchObject({ applied: 100, capped: false });
+      expect((await t.prisma.stockItem.findFirstOrThrow({ where: { productId: cibleId } })).quantity.toNumber()).toBe(400);
+    });
+
+    it('rattrape via la contrainte d’unicité deux cuissons concurrentes sur le même clientOpId (course, idempotence)', async () => {
+      await createStock(agent, { productId: rizId, locationId: placardId, quantity: 1000, unit: 'GRAM' });
+      const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' }], { servings: 4 });
+      const body = { servingsCooked: 4, lines: [{ ingredientId: recipe.ingredients[0]!.id }], clientOpId: 'op-course-0001' };
+      // Deux requêtes envoyées en parallèle : l'une des deux peut passer la vérification
+      // préalable (clientOpId pas encore vu) avant que l'autre n'ait inséré son journal —
+      // la contrainte d'unicité doit alors rattraper un 500, pas le laisser remonter.
+      const [a, b] = await Promise.all([
+        agent.post(`/api/v1/recipes/${recipe.id}/cook`).send(body),
+        agent.post(`/api/v1/recipes/${recipe.id}/cook`).send(body),
+      ]);
+      expect(a.status).toBe(200);
+      expect(b.status).toBe(200);
+      expect(await t.prisma.recipeLog.count()).toBe(1);
+      expect((await t.prisma.stockItem.findFirstOrThrow()).quantity.toNumber()).toBe(800);
+    });
+
+    it('refuse de cuisiner une recette archivée (409)', async () => {
+      const recipe = await createRecipe(agent, 'Archivée', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' }]);
+      await agent.post(`/api/v1/recipes/${recipe.id}/archive`).expect(200);
+      const res = await agent.post(`/api/v1/recipes/${recipe.id}/cook`).send({ servingsCooked: 4, lines: [] });
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toContain('archivée');
     });
 
     it('signale `capped` plutôt que de décrémenter en silence une ligne catégorie sans produit choisi (défaut 1)', async () => {

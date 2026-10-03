@@ -98,7 +98,9 @@ export class RecipeLogsService {
   async pendingRating(user: RequestUser, today = new Date()): Promise<PendingRatingDto | null> {
     const cutoff = new Date(today.getTime() - RATING_WINDOW_DAYS * 86_400_000);
     const log = await this.prisma.recipeLog.findFirst({
-      where: { cookedAt: { gte: cutoff }, ratings: { none: { userId: user.id } } },
+      // Une recette archivée ne se cuisine plus (voir RecipesCookService.cook) : son
+      // dernier rappel de notation ne doit pas non plus survivre à l'archivage.
+      where: { cookedAt: { gte: cutoff }, ratings: { none: { userId: user.id } }, recipe: { archivedAt: null } },
       include: { recipe: true },
       orderBy: { cookedAt: 'desc' },
     });
