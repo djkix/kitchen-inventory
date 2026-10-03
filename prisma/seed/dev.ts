@@ -63,6 +63,15 @@ const OTHERS: Array<[string, string | null, string, Unit]> = [
 ];
 
 const OFFSETS = [-12, -3, -1, 0, 2, 5, 9, 20, 45, 120, 400, null];
+/**
+ * Une DLC dépassée écarte un lot des suggestions de recettes (section 15) : si c'est le
+ * seul lot d'un produit, ce produit reste en permanence hors recette dans le jeu de dev,
+ * ce qui a caché un vrai bogue de cuisson (celle-ci décrémentait ces lots périmés avant
+ * les lots encore bons). Le premier lot de chaque produit (ci-dessous, `i < products.length`)
+ * ne pioche donc jamais un offset négatif ; les éventuels lots suivants du même produit, qui
+ * ne sont alors plus les seuls, peuvent de nouveau piocher dans `OFFSETS` au complet.
+ */
+const FIRST_LOT_OFFSETS = OFFSETS.filter((offset) => offset === null || offset >= 0);
 
 function daysFromNow(days: number): Date {
   const d = new Date();
@@ -115,7 +124,8 @@ async function main(): Promise<void> {
   for (let i = 0; i < 60; i++) {
     const product = products[i % products.length]!;
     if (OUT_OF_STOCK_PRODUCT_IDS.has(product.id)) continue;
-    const offset = OFFSETS[i % OFFSETS.length];
+    const offsetPool = i < products.length ? FIRST_LOT_OFFSETS : OFFSETS;
+    const offset = offsetPool[i % offsetPool.length];
     const locationByCategory: Record<string, string> = { Surgelés: congel.id, 'Produits laitiers': frigo.id, 'Viande fraîche': frigo.id, 'Poisson frais': frigo.id, 'Légumes frais': frigo.id, 'Restes et préparations maison': frigo.id };
     const locationId = locationByCategory[product.category] ?? (i % 3 === 0 ? etagere.id : placard.id);
     const quantity = ['GRAM', 'KILOGRAM', 'MILLILITER', 'LITER'].includes(product.unit) ? [0.5, 1, 1.5, 2][i % 4]! : [1, 1, 2, 3][i % 4]!;
