@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sortRecipes, type SortableRecipe } from './recipe-sort.js';
+import { RECIPE_SORTS, sortRecipes, type SortableRecipe } from './recipe-sort.js';
 
 const r = (title: string, over: Partial<SortableRecipe> = {}): SortableRecipe => ({
   title, coverage: 0.5, bonus: 0, averageRating: null, ratingCount: 0, timesCooked: 0, lastCookedAt: null, ...over,
@@ -46,5 +46,13 @@ describe('sortRecipes', () => {
     const list = [r('B'), r('A')];
     sortRecipes(list, 'rating');
     expect(titles(list)).toEqual(['B', 'A']);
+  });
+
+  it.each(RECIPE_SORTS)('est stable et ne modifie pas le tableau reçu (%s)', (sort) => {
+    const list = [r('Même'), r('Même')];
+    const sorted = sortRecipes(list, sort);
+    expect(sorted[0]).toBe(list[0]);
+    expect(sorted[1]).toBe(list[1]);
+    expect(titles(list)).toEqual(['Même', 'Même']);
   });
 });

@@ -33,8 +33,11 @@ const COMPARATORS: Record<RecipeSort, (a: SortableRecipe, b: SortableRecipe) => 
   coverage: (a, b) => b.coverage - a.coverage || byRating(a, b),
   antiWaste: (a, b) => b.bonus - a.bonus || b.coverage - a.coverage || byTitle(a, b),
   mostCooked: (a, b) => b.timesCooked - a.timesCooked || byTitle(a, b),
-  // Jamais faites en premier : une date absente vaut le passé le plus lointain.
-  leastRecent: (a, b) => (a.lastCookedAt?.getTime() ?? -1) - (b.lastCookedAt?.getTime() ?? -1) || byTitle(a, b),
+  // Jamais faites en premier : cas nul traité explicitement, pas de date sentinelle.
+  leastRecent: (a, b) =>
+    Number(a.lastCookedAt !== null) - Number(b.lastCookedAt !== null) ||
+    (a.lastCookedAt && b.lastCookedAt ? a.lastCookedAt.getTime() - b.lastCookedAt.getTime() : 0) ||
+    byTitle(a, b),
 };
 
 export function sortRecipes<T extends SortableRecipe>(recipes: readonly T[], sort: RecipeSort): T[] {
