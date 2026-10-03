@@ -33,7 +33,15 @@ export class BootstrapService implements OnApplicationBootstrap {
       });
     }
     for (const name of DEFAULT_CUISINES) {
-      await this.prisma.cuisine.upsert({ where: { name }, create: { name }, update: {} });
+      // normalizedName suit la même fonction que la recherche (migration 0002) :
+      // minuscules et sans accent, pour dédoublonner les saisies (A22).
+      const [{ normalized }] = await this.prisma.$queryRaw<Array<{ normalized: string }>>`
+        SELECT unaccent_lite(${name}) AS normalized`;
+      await this.prisma.cuisine.upsert({
+        where: { name },
+        create: { name, normalizedName: normalized },
+        update: {},
+      });
     }
   }
 }
