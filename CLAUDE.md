@@ -73,12 +73,17 @@ tools/             utilitaires hors application
   comprises, migration initiale commitée.
 - Lot 1 livré : `packages/shared` (unités, règles métier, schémas Zod),
   `apps/api` (auth par sessions, emplacements, produits, stock et mouvements,
-  cascade de reconnaissance avec fournisseurs `anthropic`/`openai`/`ollama`,
+  cascade de reconnaissance avec fournisseurs `gemini` (retenu), `anthropic`,
+  `openai` et `ollama`,
   export, healthcheck), `apps/web` (PWA : installation, connexion, stock,
   fiche article, périme bientôt, scan en rafale, réglages).
-- Livraison : image Docker unique multi-arch sur GHCR, `docker-compose.yml`
-  à trois services, CI GitHub Actions (types, lint, tests sur PostgreSQL 16,
-  dérive des migrations, build d'image), release-please.
+- Livraison : image Docker unique `linux/amd64` sur GHCR (l'hôte est un
+  mini-PC x86), `docker-compose.yml` à trois services, CI GitHub Actions
+  (types, lint, tests sur PostgreSQL 16, dérive des migrations, build
+  d'image), release-please. L'étiquette `latest` ne suit que les versions
+  publiées ; les poussées sur `main` sortent sous l'étiquette `main`.
+- En service chez Franck depuis la 0.6.1 : scan validé article par article,
+  photo par l'appareil natif, version affichée et bandeau de mise à jour.
 - Les choix laissés au jugement par le cahier des charges sont consignés dans
   `docs/decisions/`. Le plan d'exécution du lot 1 est dans `docs/plans/`.
 
