@@ -397,6 +397,9 @@ model RecipeLog {
   ratings   RecipeRating[]
 
   @@index([recipeId])
+  // Rappel de notation (EF-28) : cherche la réalisation la plus récente dans
+  // la fenêtre de sept jours, tous foyers confondus.
+  @@index([cookedAt])
 }
 
 // Une note par membre et par réalisation (A24) : la moyenne d'une recette
