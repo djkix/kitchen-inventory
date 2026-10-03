@@ -33,8 +33,7 @@ describe('scénario de réussite du socle', () => {
     await agent.patch('/api/v1/settings').send({ expiryAlertDays: 5 }).expect(200);
 
     const riz = await createProduct(agent, { name: 'Riz basmati', defaultUnit: 'GRAM' });
-    const nouilles = await createProduct(agent, { name: 'Nouilles', defaultUnit: 'PACK' });
-    await t.prisma.product.update({ where: { id: nouilles }, data: { netContent: 500, netContentUnit: 'GRAM' } });
+    const nouilles = await createProduct(agent, { name: 'Nouilles', defaultUnit: 'PACK', netContent: 500, netContentUnit: 'GRAM' });
     const soja = await createProduct(agent, { name: 'Sauce soja', defaultUnit: 'MILLILITER' });
     const tofu = await createProduct(agent, { name: 'Tofu', defaultUnit: 'GRAM' });
     const creme = await createProduct(agent, { name: 'Crème fraîche', defaultUnit: 'MILLILITER' });
