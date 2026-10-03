@@ -1,9 +1,24 @@
 import { Injectable } from '@nestjs/common';
-import { canRate, type LogCookedInput, type Paginated, type PaginationQuery, type RateLogInput, type RecipeLogDto } from '@kitchen/shared';
+import {
+  canRate,
+  RATING_WINDOW_DAYS,
+  type LogCookedInput,
+  type Paginated,
+  type PaginationQuery,
+  type RateLogInput,
+  type RecipeLogDto,
+} from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
 import type { RequestUser } from '../auth/request-user.js';
 import { ApiError } from '../common/api-error.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+
+export interface PendingRatingDto {
+  logId: string;
+  recipeId: string;
+  recipeTitle: string;
+  cookedAt: string;
+}
 
 const LOG_INCLUDE = {
   user: true,
@@ -68,6 +83,27 @@ export class RecipeLogsService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Dernière réalisation, tous recettes confondues, que l'utilisateur courant
+   * n'a pas encore notée et qui reste dans la fenêtre de notation (A25) — pour
+   * le bandeau de rappel de la liste des recettes (EF-28). La fenêtre vient de
+   * `canRate` (packages/shared) : jamais redérivée ici.
+   */
+  async pendingRating(user: RequestUser, today = new Date()): Promise<PendingRatingDto | null> {
+    const cutoff = new Date(today.getTime() - RATING_WINDOW_DAYS * 86_400_000);
+    const logs = await this.prisma.recipeLog.findMany({
+      where: { cookedAt: { gte: cutoff } },
+      include: { recipe: true, ratings: true },
+      orderBy: { cookedAt: 'desc' },
+    });
+    for (const log of logs) {
+      if (!canRate(log, today)) continue;
+      if (log.ratings.some((rating) => rating.userId === user.id)) continue;
+      return { logId: log.id, recipeId: log.recipeId, recipeTitle: log.recipe.title, cookedAt: log.cookedAt.toISOString() };
+    }
+    return null;
   }
 
   /** Note ou remplace sa propre note (A24) ; refuse hors fenêtre de sept jours (A25). */

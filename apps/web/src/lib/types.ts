@@ -38,3 +38,11 @@ export interface CuisineDto {
   name: string;
   region: string | null;
 }
+
+/** Réalisation récente non notée par l'utilisateur courant (`GET /api/v1/recipe-logs/pending-rating`, EF-28). */
+export interface PendingRatingDto {
+  logId: string;
+  recipeId: string;
+  recipeTitle: string;
+  cookedAt: string;
+}

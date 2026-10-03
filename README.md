@@ -89,9 +89,14 @@ nom d'origine et la marque.
 révocables, verrouillage après échecs répétés, jeton de service en lecture
 seule pour Home Assistant. Export CSV et JSON.
 
-Le module recettes (suggestions par taux de couverture du stock, filtres par
-difficulté et type de cuisine) est planifié au lot 2, une fois l'inventaire
-fiable : voir `docs/cahier-des-charges.md`, section 12.
+**Module recettes.** Recettes du foyer avec couverture calculée depuis le stock
+réel, filtres (difficulté, cuisine, type de plat, régime, temps, note
+minimale, pastilles rapides) et tri mémorisés par utilisateur. Réalisation
+enregistrée indépendamment d'un éventuel décrément, notation à cinq étoiles
+par membre dans les sept jours qui suivent. Sur l'écran Recettes, un bandeau
+invite à noter la dernière réalisation récente encore sans note ; il se ferme
+pour la journée et se rouvre le lendemain tant qu'il reste quelque chose à
+noter. Voir `docs/cahier-des-charges.md`, section 12.
 
 ## Installation
 
@@ -306,6 +311,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.7.0 | 2026-10-03 | Recettes : bandeau de rappel pour noter une réalisation récente, non notée, dans les sept jours (EF-28) |
 | 0.6.1 | 2026-10-03 | Publication : « latest » ne suit plus que les versions publiées, les poussées sur main vont sous « main » |
 | 0.6.0 | 2026-10-03 | Bandeau de mise à jour : nouvelle version détectée et rechargement proposé, sans interrompre un scan |
 | 0.5.0 | 2026-09-21 | Version affichée au bas de chaque écran, alerte quand l'interface en cache est périmée ; publication de l'image limitée à amd64, l'architecture de l'hôte |

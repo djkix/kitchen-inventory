@@ -41,8 +41,10 @@ export const queryKeys = {
   products: (q: string) => ['products', q] as const,
   health: ['health'] as const,
   recipes: (params: RecipeListParams) => ['recipes', 'list', params] as const,
+  recipesAll: ['recipes', 'list'] as const,
   cuisines: ['cuisines'] as const,
   recipeFilters: ['preferences', 'recipe-filters'] as const,
+  pendingRating: ['recipes', 'pending-rating'] as const,
 };
 
 export type RecipeListParams = Omit<RecipeListQuery, 'page' | 'limit'>;
@@ -156,6 +158,15 @@ export function useRecipeFiltersQuery() {
     queryKey: queryKeys.recipeFilters,
     queryFn: () => recipesApi.getFilters(),
     staleTime: Infinity,
+  });
+}
+
+/** Réalisation récente non notée par l'utilisateur courant, pour le bandeau de rappel (EF-28). */
+export function usePendingRatingQuery() {
+  return useQuery({
+    queryKey: queryKeys.pendingRating,
+    queryFn: () => recipesApi.getPendingRating(),
+    staleTime: 60_000,
   });
 }
 

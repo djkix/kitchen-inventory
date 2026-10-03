@@ -11,6 +11,7 @@ import { useCuisinesQuery, useRecipeFiltersQuery, useRecipesInfiniteQuery } from
 import { recipesApi } from '../../lib/recipes-api';
 import { RecipeCard } from './recipe-card';
 import { countActiveRecipeFilters, EMPTY_RECIPE_FILTERS, RecipeFiltersBar } from './recipe-filters';
+import { RatingReminderBanner } from './rating-reminder';
 
 export function RecipesScreen() {
   const [query, setQuery] = useState('');
@@ -48,6 +49,8 @@ export function RecipesScreen() {
   return (
     <>
       <ScreenHeader title="Recettes" subtitle={recipes.isSuccess ? <span className="tnum">{total} recette{total > 1 ? 's' : ''}</span> : undefined} />
+
+      <RatingReminderBanner />
 
       <div className="px-4 pb-3">
         <label className="relative block">
