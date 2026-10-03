@@ -55,12 +55,22 @@ function soonestExpiring(candidates: CookableIngredient['candidates']): Cookable
   })[0];
 }
 
-/** Présélection du produit retenu pour chaque ligne substituable (A15). */
+/**
+ * Ligne qui exige un choix de produit à la cuisson (A15) : toute ligne dont le
+ * serveur a calculé des candidats, substituable ou visant directement une
+ * catégorie — jamais seulement `substitutable`, qui laisserait une ligne
+ * « catégorie » sans sélecteur ni `productId` envoyé (défaut 1).
+ */
+function needsProductSelection(ingredient: CookableIngredient): boolean {
+  return ingredient.candidates.length > 0;
+}
+
+/** Présélection du produit retenu pour chaque ligne à choix de produit (A15). */
 function defaultProductSelections(ingredients: CookableIngredient[]): Record<string, string> {
   const entries: [string, string][] = [];
   for (const ingredient of ingredients) {
     const candidate = soonestExpiring(ingredient.candidates);
-    if (isDecrementable(ingredient) && ingredient.substitutable && candidate) entries.push([ingredient.id, candidate.productId]);
+    if (isDecrementable(ingredient) && needsProductSelection(ingredient) && candidate) entries.push([ingredient.id, candidate.productId]);
   }
   return Object.fromEntries(entries);
 }
@@ -102,7 +112,7 @@ export function CookSheetView({ recipe, busy, onConfirm, onCancel }: CookSheetVi
       .filter((ingredient) => isDecrementable(ingredient) && (checked[ingredient.id] ?? false))
       .map((ingredient) => ({
         ingredientId: ingredient.id,
-        productId: ingredient.substitutable ? selectedProduct[ingredient.id] : undefined,
+        productId: needsProductSelection(ingredient) ? selectedProduct[ingredient.id] : undefined,
       }));
     onConfirm({ servingsCooked, lines, stars });
   };
@@ -141,7 +151,7 @@ export function CookSheetView({ recipe, busy, onConfirm, onCancel }: CookSheetVi
                 disabled={busy}
                 onChange={(event) => setChecked((prev) => ({ ...prev, [ingredient.id]: event.target.checked }))}
               />
-              {ingredient.substitutable && ingredient.candidates.length > 0 && (
+              {needsProductSelection(ingredient) && (
                 <Select
                   label={`Produit pour ${ingredient.label}`}
                   value={selectedProduct[ingredient.id] ?? ''}
