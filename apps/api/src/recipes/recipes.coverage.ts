@@ -159,6 +159,10 @@ export class RecipesCoverageService {
           netContent: product.netContent,
           netContentUnit: product.netContentUnit,
           nearExpiry,
+          // Une partie du stock de ce produit n'a pas pu être convertie : le total
+          // ci-dessus la sous-estime, donc `ingredientOutcome` (règle partagée) ne
+          // doit pas conclure `insufficient` dessus, seulement `unverifiable`.
+          unmeasured: unmeasured.length > 0,
         });
       } else if (unmeasured.length > 0) {
         // Aucun lot ne se convertit dans l'unité par défaut du produit : on

@@ -10,6 +10,7 @@ import {
   type Paginated,
   type RecipeDto,
   type RecipeIngredientDto,
+  type RecipeCoverage,
   type RecipeListQuery,
   type RecipeSummaryDto,
   type SortableRecipe,
@@ -59,7 +60,10 @@ export class RecipesService {
       this.coverage.snapshot(),
     ]);
     const statsByRecipe = await this.stats.statsFor(rows.map((r) => r.id));
-    let summaries = rows.map((r) => toRecipeSummaryDto(r, statsByRecipe.get(r.id)!, this.summaryCoverage(r, snapshot)));
+    let summaries = rows.map((r) => {
+      const result = recipeCoverage(r.ingredients.map((i) => this.toCoverageIngredient(i)), snapshot);
+      return toRecipeSummaryDto(r, statsByRecipe.get(r.id)!, this.summaryCoverage(r, result));
+    });
 
     if (query.maxTime !== undefined) {
       const maxTime = query.maxTime;
@@ -203,11 +207,14 @@ export class RecipesService {
 
   private async toDto(recipe: RecipeWithRelations): Promise<RecipeDto> {
     const snapshot = await this.coverage.snapshot();
+    // Calculée une seule fois, puis réutilisée par la carte (résumé) et par le
+    // détail de chaque ligne (état, candidats) : même recette, même instantané.
+    const result = recipeCoverage(recipe.ingredients.map((i) => this.toCoverageIngredient(i)), snapshot);
     const [stats, ingredientCoverages] = await Promise.all([
       this.stats.statsForOne(recipe.id),
-      this.ingredientCoverages(recipe, snapshot),
+      this.ingredientCoverages(recipe, result, snapshot),
     ]);
-    return toRecipeDto(recipe, stats, this.summaryCoverage(recipe, snapshot), ingredientCoverages);
+    return toRecipeDto(recipe, stats, this.summaryCoverage(recipe, result), ingredientCoverages);
   }
 
   /** Ligne de couverture résolue (A15) : produit ou catégorie, jamais les deux, suivant la fusion (tâche 9). */
@@ -234,8 +241,7 @@ export class RecipesService {
     return null;
   }
 
-  private summaryCoverage(recipe: RecipeWithRelations, snapshot: StockSnapshot): SummaryCoverage {
-    const result = recipeCoverage(recipe.ingredients.map((i) => this.toCoverageIngredient(i)), snapshot);
+  private summaryCoverage(recipe: RecipeWithRelations, result: RecipeCoverage): SummaryCoverage {
     const labelById = new Map(recipe.ingredients.map((i) => [i.id, i.label]));
     const missingLabels = result.missingIds.map((id) => labelById.get(id)).filter((label): label is string => !!label);
     return { coverage: result.coverage, group: result.group, bonus: result.bonus, missingLabels };
@@ -244,9 +250,9 @@ export class RecipesService {
   /** Décoration complète d'une fiche recette (A15) : état, quantité disponible et candidats par ligne. */
   private async ingredientCoverages(
     recipe: RecipeWithRelations,
+    result: RecipeCoverage,
     snapshot: StockSnapshot,
   ): Promise<Map<string, IngredientCoverage>> {
-    const result = recipeCoverage(recipe.ingredients.map((i) => this.toCoverageIngredient(i)), snapshot);
     const outcomeById = new Map(result.outcomes.map((o) => [o.id, o]));
 
     // Les candidats (choix à la cuisson, A15) ne valent que pour une ligne

@@ -81,6 +81,21 @@ describe('ingredientOutcome', () => {
   it('reporte la proximité de date du lot qui satisfait l’ingrédient', () => {
     expect(ingredientOutcome(ing(), snap([entry({ nearExpiry: true })])).nearExpiry).toBe(true);
   });
+
+  describe('lot partiellement non convertible (correctif tâche 9)', () => {
+    it('reste disponible quand la part mesurable suffit déjà', () => {
+      const s = snap([entry({ quantity: 500, unmeasured: true })]);
+      expect(ingredientOutcome(ing({ quantity: 200 }), s).state).toBe('available');
+    });
+    it('devient non vérifiable, pas insuffisant, quand la part mesurable ne suffit pas', () => {
+      const s = snap([entry({ quantity: 100, unmeasured: true })]);
+      expect(ingredientOutcome(ing({ quantity: 200 }), s)).toMatchObject({ state: 'unverifiable', availableQuantity: null });
+    });
+    it('reste non vérifiable, sans changement, quand aucun lot n’est mesurable', () => {
+      const s = snap([entry({ unit: 'PACK', quantity: 2, unmeasured: true })]);
+      expect(ingredientOutcome(ing({ quantity: 200, unit: 'GRAM' }), s).state).toBe('unverifiable');
+    });
+  });
 });
 
 describe('recipeCoverage', () => {
