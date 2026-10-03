@@ -16,7 +16,12 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // « prompt » et non « autoUpdate » : l'application propose la mise à
+      // jour par un bandeau au lieu de recharger la page d'elle-même, ce qui
+      // interromprait une session de scan en cours. L'enregistrement est fait
+      // par le code (voir lib/pwa.ts), pas injecté automatiquement.
+      registerType: 'prompt',
+      injectRegister: false,
       includeAssets: ['icon.svg', 'icon-maskable.svg'],
       manifest: {
         name: 'Inventaire',

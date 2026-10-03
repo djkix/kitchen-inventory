@@ -4,6 +4,7 @@ import { cn } from '../../lib/cn';
 import { IconButton } from '../ui/button';
 import { BackIcon } from '../ui/icons';
 import { BottomNav } from './bottom-nav';
+import { UpdateBanner } from './update-banner';
 import { VersionBadge } from './version-badge';
 
 /** Coque des quatre onglets : contenu défilant, barre de navigation fixe en bas. */
@@ -14,6 +15,7 @@ export function AppShell() {
         <Outlet />
         <VersionBadge />
       </main>
+      <UpdateBanner />
       <BottomNav />
     </div>
   );
