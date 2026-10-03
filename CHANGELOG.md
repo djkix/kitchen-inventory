@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/djkix/kitchen-inventory/compare/v0.5.0...v0.6.0) (2026-10-03)
+
+
+### Features
+
+* **web:** bandeau de mise à jour quand une nouvelle version est déployée ([57bc8ce](https://github.com/djkix/kitchen-inventory/commit/57bc8ce199ea343f42c715a31a9820ce3a901393))
+
 ## [0.5.0](https://github.com/djkix/kitchen-inventory/compare/v0.4.0...v0.5.0) (2026-09-21)
 
 
