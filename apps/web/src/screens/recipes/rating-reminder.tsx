@@ -3,13 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { Sheet } from '../../components/ui/sheet';
+import { StarRating } from '../../components/ui/star-rating';
 import { Textarea } from '../../components/ui/input';
 import { useToast } from '../../components/ui/toast';
 import { errorMessage, isApiError } from '../../lib/api';
 import { queryKeys, usePendingRatingQuery } from '../../lib/queries';
 import { recipesApi } from '../../lib/recipes-api';
 import type { PendingRatingDto } from '../../lib/types';
-import { cn } from '../../lib/cn';
 
 export type PendingRating = PendingRatingDto;
 
@@ -73,8 +73,6 @@ export function RatingReminderView({ pending, onRate }: RatingReminderViewProps)
     </div>
   );
 }
-
-const STAR_VALUES = [1, 2, 3, 4, 5] as const;
 
 interface RatingSheetProps {
   open: boolean;
@@ -148,21 +146,7 @@ export function RatingSheet({ open, logId, recipeTitle, onClose, onRated, initia
   return (
     <Sheet open={open} onClose={close} locked={submitting} title={recipeTitle ? `Noter ${recipeTitle}` : 'Noter la réalisation'}>
       <div className="flex flex-col gap-4">
-        <div role="radiogroup" aria-label="Note" className="flex items-center justify-center gap-1">
-          {STAR_VALUES.map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={stars === value}
-              aria-label={`${value} étoile${value > 1 ? 's' : ''}`}
-              onClick={() => setStars(value)}
-              className={cn('min-h-touch min-w-touch rounded-xl text-[32px] leading-none', stars !== null && value <= stars ? 'text-accent' : 'text-faint')}
-            >
-              ★
-            </button>
-          ))}
-        </div>
+        <StarRating value={stars} onChange={setStars} disabled={submitting} />
         <Textarea label="Commentaire (facultatif)" value={comment} onChange={(event) => setComment(event.target.value)} rows={3} maxLength={500} />
         {error && (
           <p role="alert" className="rounded-xl bg-danger-deep px-3 py-2 text-[14px] text-danger">

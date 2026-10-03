@@ -8,7 +8,7 @@ const recipe: CookableRecipe = {
     { id: 'i1', label: 'Riz', quantity: 200, unit: 'GRAM', state: 'available', substitutable: false, candidates: [] },
     { id: 'i2', label: 'Sel', quantity: null, unit: null, state: 'untracked', substitutable: false, candidates: [] },
     { id: 'i3', label: 'Huile', quantity: 10, unit: 'MILLILITER', state: 'available', substitutable: true,
-      candidates: [{ productId: 'p9', name: 'Huile d’olive', nearestExpiry: '2026-10-10' }, { productId: 'p8', name: 'Huile de tournesol', nearestExpiry: null }] },
+      candidates: [{ productId: 'p8', name: 'Huile de tournesol', nearestExpiry: null }, { productId: 'p9', name: 'Huile d’olive', nearestExpiry: '2026-10-10' }] },
   ],
 };
 
@@ -40,7 +40,7 @@ describe('CookSheetView', () => {
     render(<CookSheetView recipe={recipe} busy={false} onConfirm={onConfirm} onCancel={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /Cuisiner/ }));
     expect(onConfirm.mock.calls[0]![0].stars).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: '4 étoiles' }));
+    fireEvent.click(screen.getByRole('radio', { name: '4 étoiles' }));
     fireEvent.click(screen.getByRole('button', { name: /Cuisiner/ }));
     expect(onConfirm.mock.calls[1]![0].stars).toBe(4);
   });
