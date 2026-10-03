@@ -1,4 +1,4 @@
-import type { RecipeDto } from '@kitchen/shared';
+import type { RecipeDto, RecipeLogDto } from '@kitchen/shared';
 import type TestAgent from 'supertest/lib/agent.js';
 import type { UserDto } from '../users/users.service.js';
 
@@ -48,6 +48,15 @@ export async function createRecipe(
     .send({ title, steps: ['Étape unique'], ingredients, ...extra })
     .expect(201);
   return res.body as RecipeDto;
+}
+
+/** Enregistre une réalisation sans décrément (A26), quatre portions par défaut. */
+export async function logCooked(agent: TestAgent, recipeId: string, body: Record<string, unknown> = {}): Promise<RecipeLogDto> {
+  const res = await agent
+    .post(`/api/v1/recipes/${recipeId}/logs`)
+    .send({ servingsCooked: 4, ...body })
+    .expect(201);
+  return res.body as RecipeLogDto;
 }
 
 /** Crée un membre du foyer (droits identiques à l'admin sur les recettes, section 22). */

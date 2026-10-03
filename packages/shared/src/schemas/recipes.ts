@@ -122,6 +122,7 @@ export const logCookedSchema = z.object({
   cookedAt: z.string().datetime().optional(),
   stars: z.number().int().min(1).max(5).nullable().optional(),
   comment: z.string().trim().max(500).nullable().optional(),
+  clientOpId: clientOpIdSchema.optional(),
 });
 export type LogCookedInput = z.infer<typeof logCookedSchema>;
 
