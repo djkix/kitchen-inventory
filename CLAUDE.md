@@ -84,6 +84,17 @@ tools/             utilitaires hors application
   publiées ; les poussées sur `main` sortent sous l'étiquette `main`.
 - En service chez Franck depuis la 0.6.1 : scan validé article par article,
   photo par l'appareil natif, version affichée et bandeau de mise à jour.
+- Module recettes (socle) livré : `apps/api/src/recipes` (CRUD, filtres et tri
+  mémorisés, couverture et groupe calculés depuis le stock, cuisson avec
+  décrément plafonné et choix du produit substitué, réalisation sans
+  décrément, historique et notation par membre sous sept jours, archivage),
+  `apps/web/src/screens/{recipes,recipe,recipe-form}` (écran Recettes trié par
+  note par défaut, fiche recette, formulaire de saisie et de modification),
+  migration `0003_recipes_socle` et jeu de développement (8 recettes, 5
+  cuisines, historique de réalisations). Spécification et 27 arbitrages dans
+  `docs/specs/2026-10-03-module-recettes-socle.md` ; EF-24 (ajout aux
+  courses), EF-25 (import par URL) et EF-26 (génération par IA) en restent
+  hors, remontés au lot 2 à la demande de Franck.
 - Les choix laissés au jugement par le cahier des charges sont consignés dans
   `docs/decisions/`. Le plan d'exécution du lot 1 est dans `docs/plans/`.
 
@@ -102,7 +113,8 @@ dernier article.
 
 Lot 2 (décision 8) après quelques semaines d'usage réel : seuils et liste de
 courses, alertes de péremption, mode hors ligne (`POST /sync`, file IndexedDB,
-les écritures portent déjà `clientOpId`), export enrichi, module recettes
-(section 12). Restent aussi à écrire les tests bout en bout Playwright des
-parcours P1 à P4 et le jeu de non-régression de reconnaissance sur photos
-réelles (section 19).
+les écritures portent déjà `clientOpId`), export enrichi, et pour le module
+recettes : ajout des ingrédients manquants aux courses (EF-24), import d'une
+recette depuis une URL (EF-25), génération d'une recette par IA (EF-26).
+Restent aussi à écrire les tests bout en bout Playwright des parcours P1 à P4
+et le jeu de non-régression de reconnaissance sur photos réelles (section 19).

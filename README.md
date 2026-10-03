@@ -89,20 +89,44 @@ nom d'origine et la marque.
 révocables, verrouillage après échecs répétés, jeton de service en lecture
 seule pour Home Assistant. Export CSV et JSON.
 
-**Module recettes.** Recettes du foyer avec couverture calculée depuis le stock
-réel, filtres (difficulté, cuisine, type de plat, régime, temps, note
-minimale, pastilles rapides) et tri mémorisés par utilisateur. Depuis la fiche
-recette, « Cuisiner » ouvre un tiroir de cuisson : portions réalisées
-ajustables, chaque ligne décrémentable cochée par défaut (hors inventaire
-exclu), choix du produit retenu pour une ligne substituable (celui qui périme
-le plus tôt, modifiable) et note facultative à cinq étoiles. Le serveur fait
-l'unique mise à l'échelle des quantités ; si le stock ne suffit pas, la
-cuisson aboutit quand même et le tiroir le dit en clair plutôt que de le
-traiter en erreur. « J'ai fait cette recette » reste disponible pour une
-réalisation sans décrément. Notation à cinq étoiles par membre dans les sept
-jours qui suivent. Sur l'écran Recettes, un bandeau invite à noter la
-dernière réalisation récente encore sans note ; il se ferme pour la journée
-et se rouvre le lendemain tant qu'il reste quelque chose à noter.
+**Module recettes.** Recettes du foyer, classées **par défaut selon la note**
+du foyer (les mieux notées en tête, puis les non notées, titre à l'alphabet
+en dernier recours) — le stock n'intervient pas dans ce tri par défaut.
+Quatre autres tris au choix, mémorisés avec les filtres par utilisateur :
+réalisables avec le stock (couverture), anti-gaspillage, les plus faites, les
+moins récentes. Filtres par difficulté, cuisine, type de plat, régime, temps
+(préparation + cuisson, repos exclu) et note minimale, plus des pastilles
+rapides (valeurs sûres, jamais faites, pas faites depuis longtemps,
+réalisables maintenant). Chaque carte affiche son **taux de couverture et son
+groupe** (prête, presque, incomplète) calculés depuis le stock réel, même si
+ce groupe ne change plus l'ordre ni la visibilité de la liste ; une pastille
+anti-gaspillage apparaît quand la recette consomme un article qui périme
+bientôt.
+
+Depuis la fiche recette, « Cuisiner » ouvre un tiroir de cuisson : portions
+réalisées ajustables, chaque ligne décrémentable cochée par défaut, choix du
+produit retenu pour une ligne substituable (celui qui périme le plus tôt,
+modifiable) et note facultative à cinq étoiles. Le serveur fait l'unique mise
+à l'échelle des quantités. Une ligne décochée, sans quantité chiffrée ou non
+rattachée à un produit (hors inventaire) n'émet aucun mouvement ; si le stock
+ne suffit pas, la quantité retirée est ramenée au disponible plutôt que de
+faire échouer la cuisson, et le tiroir le signale en clair. « J'ai fait cette
+recette » reste disponible pour une réalisation sans aucun décrément. La
+fiche recette porte un bloc Historique (moyenne, nombre de réalisations,
+tendance, puis chaque réalisation avec qui a cuisiné et la note de chaque
+membre du foyer) : chaque membre note une réalisation de 1 à 5 étoiles, une
+fois, modifiable pendant les **sept jours** qui suivent, puis en lecture
+seule. Sur l'écran Recettes, un bandeau invite à noter la dernière
+réalisation récente encore sans note ; il se ferme pour la journée et se
+rouvre le lendemain tant qu'il reste quelque chose à noter.
+
+Une recette jamais cuisinée se supprime réellement ; une recette déjà
+réalisée ne se supprime pas (la suppression échoue avec le nombre de
+réalisations) mais s'archive, avec restauration possible — l'historique et
+les notes sont conservés, la recette archivée ne ressort plus dans les
+listes ni les calculs sauf à la chercher explicitement. Une réalisation qui a
+décrémenté le stock ne se supprime jamais : la correction se fait depuis la
+fiche article, comme pour tout autre mouvement.
 
 Un même formulaire crée (bouton « + » sur l'écran Recettes) ou modifie
 (bouton « Modifier » sur la fiche) une recette : titre, cuisine (choisie ou
@@ -115,6 +139,12 @@ modifications suivantes. En modification, les ingrédients envoyés remplacent
 entièrement les précédents. Quitter le formulaire avec des changements non
 enregistrés demande confirmation. Voir `docs/cahier-des-charges.md`,
 section 12.
+
+**Limite connue de cet incrément.** La fiche recette affiche les ingrédients
+manquants mais ne propose pas encore de les ajouter à une liste de courses
+(EF-24, qui suppose cette liste), ni d'importer une recette depuis une URL
+(EF-25), ni de génération de recette par IA (EF-26) : ces trois exigences
+sont repoussées au lot 2. Voir `docs/decisions/`.
 
 ## Installation
 
@@ -290,7 +320,7 @@ export DATABASE_URL=postgresql://kitchen:kitchen@localhost:5432/kitchen
 export SECRET_KEY=$(openssl rand -hex 32)
 export NODE_ENV=development
 npm run db:migrate
-npm run seed:dev -w @kitchen/api   # jeu de données : 40 produits, 60 lots
+npm run seed:dev -w @kitchen/api   # jeu de données : 40 produits, 60 lots, 8 recettes avec historique
 npm run dev -w @kitchen/api         # http://localhost:3000
 npm run dev -w @kitchen/web         # http://localhost:5173, proxy /api
 ```
@@ -329,7 +359,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.7.0 | 2026-10-03 | Recettes : tiroir de cuisson avec décompte du stock, choix du produit substitué et note (EF-18, EF-28) ; bandeau de rappel pour noter une réalisation récente, non notée, dans les sept jours (EF-28) ; formulaire de saisie et de modification d'une recette, ingrédients liés à un produit, une catégorie ou en texte libre (EF-17) |
+| 0.7.0 | 2026-10-03 | Module recettes (socle) : écran Recettes trié par note avec filtres et tris mémorisés (EF-21, EF-22, EF-23) ; fiche recette avec état de chaque ingrédient et historique noté par membre (EF-23, EF-28) ; cuisson avec décrément plafonné au stock et choix du produit substitué, ou réalisation sans décrément (EF-18, EF-28) ; archivage d'une recette déjà cuisinée ; formulaire de saisie et de modification (EF-17) ; ajout aux courses (EF-24), import par URL (EF-25) et génération par IA (EF-26) laissés au lot 2 |
 | 0.6.1 | 2026-10-03 | Publication : « latest » ne suit plus que les versions publiées, les poussées sur main vont sous « main » |
 | 0.6.0 | 2026-10-03 | Bandeau de mise à jour : nouvelle version détectée et rechargement proposé, sans interrompre un scan |
 | 0.5.0 | 2026-09-21 | Version affichée au bas de chaque écran, alerte quand l'interface en cache est périmée ; publication de l'image limitée à amd64, l'architecture de l'hôte |
