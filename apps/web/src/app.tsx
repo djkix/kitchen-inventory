@@ -9,6 +9,7 @@ import { isApiError, setUnauthenticatedHandler } from './lib/api';
 import { LoginScreen } from './screens/login/login-screen';
 import { MaintenanceScreen } from './screens/maintenance-screen';
 import { ComingSoonScreen } from './screens/placeholder/coming-soon-screen';
+import { RecipesScreen } from './screens/recipes/recipes-screen';
 import { SetupScreen } from './screens/setup/setup-screen';
 import { StockScreen } from './screens/stock/stock-screen';
 import { ItemScreen } from './screens/item/item-screen';
@@ -51,7 +52,7 @@ export function App() {
                 <Route index element={<StockScreen />} />
                 <Route path="/stock/:id" element={<ItemScreen />} />
                 <Route path="/perime-bientot" element={<ExpiringScreen />} />
-                <Route path="/recettes" element={<ComingSoonScreen title="Recettes" />} />
+                <Route path="/recettes" element={<RecipesScreen />} />
                 <Route path="/courses" element={<ComingSoonScreen title="Courses" />} />
                 <Route path="/reglages" element={<SettingsScreen />} />
                 <Route path="/reglages/emplacements" element={<LocationsScreen />} />

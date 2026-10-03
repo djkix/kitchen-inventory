@@ -6,12 +6,15 @@ import type {
   LocationNode,
   Paginated,
   ProductDto,
+  RecipeListQuery,
+  RecipeSummaryDto,
   RecognitionStats,
   Settings,
   StockItemDto,
 } from '@kitchen/shared';
 import { api } from './api';
-import type { HealthReport, ServiceTokenDto, UserDto } from './types';
+import { recipesApi } from './recipes-api';
+import type { CuisineDto, HealthReport, ServiceTokenDto, UserDto } from './types';
 
 export const PAGE_SIZE = 50;
 
@@ -37,7 +40,12 @@ export const queryKeys = {
   recognitionStats: ['recognition', 'stats'] as const,
   products: (q: string) => ['products', q] as const,
   health: ['health'] as const,
+  recipes: (params: RecipeListParams) => ['recipes', 'list', params] as const,
+  cuisines: ['cuisines'] as const,
+  recipeFilters: ['preferences', 'recipe-filters'] as const,
 };
+
+export type RecipeListParams = Omit<RecipeListQuery, 'page' | 'limit'>;
 
 export function useAuthStatusQuery() {
   return useQuery({
@@ -126,6 +134,28 @@ export function useProductsQuery(q: string) {
     queryKey: queryKeys.products(q),
     queryFn: () => api.get<Paginated<ProductDto>>('/products', { query: { q, limit: 20 } }),
     enabled: q.trim().length > 0,
+  });
+}
+
+export function useRecipesInfiniteQuery(params: RecipeListParams) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.recipes(params),
+    queryFn: ({ pageParam }) => api.get<Paginated<RecipeSummaryDto>>('/recipes', { query: { ...params, page: pageParam, limit: PAGE_SIZE } }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page * last.limit < last.total ? last.page + 1 : undefined),
+  });
+}
+
+export function useCuisinesQuery() {
+  return useQuery({ queryKey: queryKeys.cuisines, queryFn: () => api.get<CuisineDto[]>('/cuisines'), staleTime: 10 * 60_000 });
+}
+
+/** Préférences de filtres et de tri de la liste des recettes (section 12), chargées une fois par session. */
+export function useRecipeFiltersQuery() {
+  return useQuery({
+    queryKey: queryKeys.recipeFilters,
+    queryFn: () => recipesApi.getFilters(),
+    staleTime: Infinity,
   });
 }
 
