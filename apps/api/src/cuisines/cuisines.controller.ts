@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Controller, Get, Post } from '@nestjs/common';
 import { createCuisineSchema, normalizeProductName, type CreateCuisineInput } from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
 import { ApiError } from '../common/api-error.js';
