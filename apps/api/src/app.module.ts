@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { AuthModule } from './auth/auth.module.js';
 import { BootstrapModule } from './bootstrap/bootstrap.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
+import { CuisinesModule } from './cuisines/cuisines.module.js';
 import { ExportModule } from './export/export.module.js';
 import { ApiErrorFilter } from './common/api-error.filter.js';
 import { ConfigModule } from './common/config.module.js';
@@ -15,6 +16,7 @@ import { defaultHttpClient, HTTP_CLIENT, type HttpClient } from './common/http-c
 import { HealthModule } from './health/health.module.js';
 import { LocationsModule } from './locations/locations.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { PreferencesModule } from './preferences/preferences.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { ServiceTokensModule } from './service-tokens/service-tokens.module.js';
 import { SpaModule } from './spa/spa.module.js';
@@ -49,6 +51,8 @@ export class AppModule {
         ServiceTokensModule,
         LocationsModule,
         CategoriesModule,
+        CuisinesModule,
+        PreferencesModule,
         ProductsModule,
         SettingsModule,
         StockModule,
