@@ -1,4 +1,4 @@
-import type { RecipeDto, RecipeIngredientDto, RecipeStatsDto, RecipeSummaryDto } from '@kitchen/shared';
+import type { CoverageGroup, IngredientState, RecipeDto, RecipeIngredientDto, RecipeStatsDto, RecipeSummaryDto } from '@kitchen/shared';
 import type { Prisma } from '@prisma/client';
 import { toNumber } from '../common/decimal.js';
 
@@ -23,17 +23,33 @@ export function totalMinutes(recipe: { prepMinutes: number | null; cookMinutes: 
   return (recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0);
 }
 
-/**
- * Couverture neutre : tant que la tâche 9 ne calcule pas la couverture réelle
- * à partir du stock, chaque recette est renvoyée comme « prête », sans
- * ingrédient manquant ni bonus anti-gaspillage. Ce bloc est le seul endroit
- * qui produit ces valeurs, pour la liste comme pour la fiche détaillée.
- */
-function placeholderCoverage(): Pick<RecipeSummaryDto, 'coverage' | 'group' | 'bonus' | 'missingLabels'> {
-  return { coverage: 1, group: 'ready', bonus: 0, missingLabels: [] };
+/** Couverture agrégée de la recette, calculée par `recipeCoverage` (tâche 9). */
+export interface SummaryCoverage {
+  coverage: number;
+  group: CoverageGroup;
+  bonus: number;
+  missingLabels: string[];
 }
 
-export function toRecipeIngredientDto(ingredient: RecipeIngredientWithRelations): RecipeIngredientDto {
+/** Couverture d'une ligne d'ingrédient, calculée par `ingredientOutcome` (tâche 9). */
+export interface IngredientCoverage {
+  state: IngredientState;
+  availableQuantity: number | null;
+  nearExpiry: boolean;
+  candidates: RecipeIngredientDto['candidates'];
+}
+
+const NEUTRAL_INGREDIENT_COVERAGE: IngredientCoverage = {
+  state: 'untracked',
+  availableQuantity: null,
+  nearExpiry: false,
+  candidates: [],
+};
+
+export function toRecipeIngredientDto(
+  ingredient: RecipeIngredientWithRelations,
+  coverage: IngredientCoverage = NEUTRAL_INGREDIENT_COVERAGE,
+): RecipeIngredientDto {
   return {
     id: ingredient.id,
     label: ingredient.label,
@@ -45,15 +61,14 @@ export function toRecipeIngredientDto(ingredient: RecipeIngredientWithRelations)
     unit: ingredient.unit,
     essential: ingredient.essential,
     substitutable: ingredient.substitutable,
-    // Neutre tant que la tâche 9 ne décore pas la fiche depuis l'instantané de stock.
-    state: 'untracked',
-    availableQuantity: null,
-    nearExpiry: false,
-    candidates: [],
+    state: coverage.state,
+    availableQuantity: coverage.availableQuantity,
+    nearExpiry: coverage.nearExpiry,
+    candidates: coverage.candidates,
   };
 }
 
-export function toRecipeSummaryDto(recipe: RecipeWithRelations, stats: RecipeStatsDto): RecipeSummaryDto {
+export function toRecipeSummaryDto(recipe: RecipeWithRelations, stats: RecipeStatsDto, coverage: SummaryCoverage): RecipeSummaryDto {
   return {
     id: recipe.id,
     title: recipe.title,
@@ -67,14 +82,22 @@ export function toRecipeSummaryDto(recipe: RecipeWithRelations, stats: RecipeSta
     diets: recipe.diets,
     imagePath: recipe.imagePath,
     archivedAt: recipe.archivedAt ? recipe.archivedAt.toISOString() : null,
-    ...placeholderCoverage(),
+    coverage: coverage.coverage,
+    group: coverage.group,
+    bonus: coverage.bonus,
+    missingLabels: coverage.missingLabels,
     stats,
   };
 }
 
-export function toRecipeDto(recipe: RecipeWithRelations, stats: RecipeStatsDto): RecipeDto {
+export function toRecipeDto(
+  recipe: RecipeWithRelations,
+  stats: RecipeStatsDto,
+  coverage: SummaryCoverage,
+  ingredientCoverages: ReadonlyMap<string, IngredientCoverage>,
+): RecipeDto {
   return {
-    ...toRecipeSummaryDto(recipe, stats),
+    ...toRecipeSummaryDto(recipe, stats, coverage),
     cuisineId: recipe.cuisineId,
     restMinutes: recipe.restMinutes,
     activeTime: recipe.activeTime,
@@ -83,6 +106,8 @@ export function toRecipeDto(recipe: RecipeWithRelations, stats: RecipeStatsDto):
     source: recipe.source,
     sourceUrl: recipe.sourceUrl,
     createdAt: recipe.createdAt.toISOString(),
-    ingredients: recipe.ingredients.map(toRecipeIngredientDto),
+    ingredients: recipe.ingredients.map((ingredient) =>
+      toRecipeIngredientDto(ingredient, ingredientCoverages.get(ingredient.id) ?? NEUTRAL_INGREDIENT_COVERAGE),
+    ),
   };
 }
