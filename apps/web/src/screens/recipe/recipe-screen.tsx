@@ -11,20 +11,12 @@ import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../hooks/use-auth';
 import { errorMessage, isApiError, newClientOpId } from '../../lib/api';
 import { queryKeys, useRecipeLogsInfiniteQuery, useRecipeQuery } from '../../lib/queries';
+import { formatMinutes } from '../../lib/quantity-ui';
 import { recipesApi } from '../../lib/recipes-api';
 import { CookSheet } from './cook-sheet';
 import { HistoryPanel } from './history-panel';
 import { IngredientRow } from './ingredient-row';
 import { RatingSheet } from '../recipes/rating-reminder';
-
-/** « 25 min », « 1 h 15 » : même présentation que la carte recette (section 14). */
-function formatMinutes(totalMinutes: number | null): string | null {
-  if (totalMinutes === null) return null;
-  if (totalMinutes < 60) return `${totalMinutes} min`;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return minutes > 0 ? `${hours} h ${minutes}` : `${hours} h`;
-}
 
 type ConfirmTarget = { kind: 'delete-recipe' } | { kind: 'delete-log'; log: RecipeLogDto };
 

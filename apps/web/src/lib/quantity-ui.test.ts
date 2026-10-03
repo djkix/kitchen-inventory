@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { consumeStep, formatQuantity, unitStep } from './quantity-ui';
+import { consumeStep, formatMinutes, formatQuantity, formatRatingAverage, unitStep } from './quantity-ui';
 
 describe('quantity-ui', () => {
   it('formate la quantité avec le libellé français de l’unité', () => {
@@ -24,5 +24,22 @@ describe('unitStep', () => {
     expect(unitStep('MILLILITER')).toBe(100);
     expect(unitStep('KILOGRAM')).toBe(0.1);
     expect(unitStep('LITER')).toBe(0.1);
+  });
+});
+
+describe('formatMinutes', () => {
+  it('bascule en heures au-delà de 59 minutes (section 14)', () => {
+    expect(formatMinutes(null)).toBeNull();
+    expect(formatMinutes(25)).toBe('25 min');
+    expect(formatMinutes(60)).toBe('1 h');
+    expect(formatMinutes(75)).toBe('1 h 15');
+  });
+});
+
+describe('formatRatingAverage', () => {
+  it('formate une décimale à la française, sans décider du rendu de l’absence de note (EF-28)', () => {
+    expect(formatRatingAverage(null)).toBeNull();
+    expect(formatRatingAverage(4)).toBe('4,0');
+    expect(formatRatingAverage(4.3)).toBe('4,3');
   });
 });
