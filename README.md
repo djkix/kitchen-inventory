@@ -91,12 +91,19 @@ seule pour Home Assistant. Export CSV et JSON.
 
 **Module recettes.** Recettes du foyer avec couverture calculée depuis le stock
 réel, filtres (difficulté, cuisine, type de plat, régime, temps, note
-minimale, pastilles rapides) et tri mémorisés par utilisateur. Réalisation
-enregistrée indépendamment d'un éventuel décrément, notation à cinq étoiles
-par membre dans les sept jours qui suivent. Sur l'écran Recettes, un bandeau
-invite à noter la dernière réalisation récente encore sans note ; il se ferme
-pour la journée et se rouvre le lendemain tant qu'il reste quelque chose à
-noter. Voir `docs/cahier-des-charges.md`, section 12.
+minimale, pastilles rapides) et tri mémorisés par utilisateur. Depuis la fiche
+recette, « Cuisiner » ouvre un tiroir de cuisson : portions réalisées
+ajustables, chaque ligne décrémentable cochée par défaut (hors inventaire
+exclu), choix du produit retenu pour une ligne substituable (celui qui périme
+le plus tôt, modifiable) et note facultative à cinq étoiles. Le serveur fait
+l'unique mise à l'échelle des quantités ; si le stock ne suffit pas, la
+cuisson aboutit quand même et le tiroir le dit en clair plutôt que de le
+traiter en erreur. « J'ai fait cette recette » reste disponible pour une
+réalisation sans décrément. Notation à cinq étoiles par membre dans les sept
+jours qui suivent. Sur l'écran Recettes, un bandeau invite à noter la
+dernière réalisation récente encore sans note ; il se ferme pour la journée
+et se rouvre le lendemain tant qu'il reste quelque chose à noter. Voir
+`docs/cahier-des-charges.md`, section 12.
 
 ## Installation
 
@@ -311,7 +318,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.7.0 | 2026-10-03 | Recettes : bandeau de rappel pour noter une réalisation récente, non notée, dans les sept jours (EF-28) |
+| 0.7.0 | 2026-10-03 | Recettes : tiroir de cuisson avec décompte du stock, choix du produit substitué et note (EF-18, EF-28) ; bandeau de rappel pour noter une réalisation récente, non notée, dans les sept jours (EF-28) |
 | 0.6.1 | 2026-10-03 | Publication : « latest » ne suit plus que les versions publiées, les poussées sur main vont sous « main » |
 | 0.6.0 | 2026-10-03 | Bandeau de mise à jour : nouvelle version détectée et rechargement proposé, sans interrompre un scan |
 | 0.5.0 | 2026-09-21 | Version affichée au bas de chaque écran, alerte quand l'interface en cache est périmée ; publication de l'image limitée à amd64, l'architecture de l'hôte |
