@@ -47,8 +47,8 @@ trois recettes réalisables proposées à partir du stock courant, filtres actif
 ## 3. Modèle de données
 
 Les entités `Recipe`, `RecipeIngredient`, `Cuisine` et `RecipeLog` existent
-déjà dans `prisma/schema.prisma` et suffisent. Deux ajouts, couverts par une
-migration versionnée :
+déjà dans `prisma/schema.prisma` et suffisent. Trois ajouts, couverts par des
+migrations versionnées :
 
 - `UserPreference { userId, key, value Json, updatedAt }`, clé unique
   `(userId, key)`. La section 12 exige que le réglage des filtres soit
@@ -56,6 +56,9 @@ migration versionnée :
   l'instance, ne permet pas. Première clé : `recipeFilters`.
 - Index `RecipeIngredient.categoryId`, absent aujourd'hui alors que la
   résolution des ingrédients visant une catégorie l'interroge.
+- `RecipeLog.clientOpId`, unique et facultatif. La cuisson écrit des
+  mouvements de stock : comme toute écriture, elle doit être idempotente, et
+  c'est le journal de cuisson qui porte l'identifiant d'opération.
 
 Le champ `steps` est un `Json` : il portera un tableau de chaînes, une par
 étape. Le schéma Zod partagé fixe cette forme ; aucune mise en forme riche au
