@@ -32,6 +32,7 @@ const DIFFICULTY_OPTIONS: Difficulty[] = ['VERY_EASY', 'EASY', 'INTERMEDIATE', '
 export interface DifficultyFieldProps {
   steps: string[];
   activeTime: number | null;
+  prepMinutes: number | null;
   value: Difficulty | null;
   onChange: (value: Difficulty) => void;
 }
@@ -42,9 +43,9 @@ export interface DifficultyFieldProps {
  * gèle la valeur : les modifications suivantes des étapes ou du temps actif
  * ne la font plus bouger (A20).
  */
-export function DifficultyField({ steps, activeTime, value, onChange }: DifficultyFieldProps) {
+export function DifficultyField({ steps, activeTime, prepMinutes, value, onChange }: DifficultyFieldProps) {
   const [editing, setEditing] = useState(false);
-  const computed = computeDifficulty({ steps, activeTime, prepMinutes: null });
+  const computed = computeDifficulty({ steps, activeTime, prepMinutes });
   const displayed = value ?? computed;
 
   return (
@@ -410,7 +411,7 @@ function RecipeFormBody({ recipe }: RecipeFormBodyProps) {
           <IntField label="Repos (min)" value={restMinutes} onChange={setRestMinutes} />
         </div>
 
-        <DifficultyField steps={steps} activeTime={activeTime} value={difficultyOverride} onChange={setDifficultyOverride} />
+        <DifficultyField steps={steps} activeTime={activeTime} prepMinutes={prepMinutes} value={difficultyOverride} onChange={setDifficultyOverride} />
 
         <StepsEditor steps={steps} onChange={setSteps} error={fieldErrors.steps} />
 
