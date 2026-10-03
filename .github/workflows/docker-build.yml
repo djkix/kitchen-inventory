@@ -75,9 +75,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
+          # « latest » ne suit que les versions publiées : un déploiement qui
+          # la vise ne reçoit jamais un commit de développement. Les poussées
+          # sur main sont publiées sous « main », pour essai seulement.
           tags: |
             type=raw,value=${{ steps.version.outputs.value }},enable=${{ steps.version.outputs.value != '' }}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ steps.version.outputs.value != '' }}
+            type=raw,value=main,enable=${{ steps.version.outputs.value == '' }}
 
       # amd64 seulement : l'hôte de déploiement est un mini-PC x86. La section 9
       # du cahier des charges prévoit aussi arm64, mais sa construction passait

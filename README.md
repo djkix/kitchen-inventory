@@ -116,8 +116,12 @@ cp .env.example .env
 ```
 
 Renseigner `.env` : `SECRET_KEY` et `POSTGRES_PASSWORD` (générés avec
-`openssl rand -hex 32`), `PUBLIC_URL` (l'adresse HTTPS publique), et fixer
-`IMAGE_TAG` sur une version précise plutôt que `latest`. Puis :
+`openssl rand -hex 32`), `PUBLIC_URL` (l'adresse HTTPS publique) et
+`IMAGE_TAG`. Ce dernier accepte `latest`, qui suit la dernière version
+publiée, ou un numéro figé comme `0.6.1` si vous préférez décider de chaque
+montée de version. `latest` ne reçoit jamais un commit de développement : les
+poussées sur `main` sont publiées sous l'étiquette `main`, réservée aux
+essais. Puis :
 
 ```bash
 docker compose up -d
@@ -156,9 +160,15 @@ Sur le téléphone, « Ajouter à l'écran d'accueil » installe l'application
 ## Mise à jour
 
 ```bash
-# Dans .env, passer IMAGE_TAG à la version voulue, puis :
+# Avec IMAGE_TAG=latest, rien à modifier :
 docker compose pull && docker compose up -d
+# Avec un numéro figé, le changer d'abord dans .env.
 ```
+
+Sous [Dockge](https://github.com/louislam/dockge), le bouton « Update » de la
+stack fait la même chose. Avec `IMAGE_TAG=latest`, il suffit donc d'un clic ;
+avec un numéro figé, il retélécharge la même image et ne change rien tant que
+`.env` n'a pas été modifié.
 
 Les migrations de schéma sont appliquées automatiquement au démarrage. Si une
 migration échoue, le conteneur affiche la cause, attend trente secondes et
@@ -296,6 +306,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.6.1 | 2026-10-03 | Publication : « latest » ne suit plus que les versions publiées, les poussées sur main vont sous « main » |
 | 0.6.0 | 2026-10-03 | Bandeau de mise à jour : nouvelle version détectée et rechargement proposé, sans interrompre un scan |
 | 0.5.0 | 2026-09-21 | Version affichée au bas de chaque écran, alerte quand l'interface en cache est périmée ; publication de l'image limitée à amd64, l'architecture de l'hôte |
 | 0.4.0 | 2026-09-21 | Photo prise par l'appareil natif du téléphone, plafond de dépense mensuel en euros |
