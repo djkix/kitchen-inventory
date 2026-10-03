@@ -5,3 +5,4 @@ export * from './products.js';
 export * from './stock.js';
 export * from './scan.js';
 export * from './settings.js';
+export * from './recipes.js';
