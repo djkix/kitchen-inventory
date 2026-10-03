@@ -1,6 +1,6 @@
 import { rateLogSchema } from '@kitchen/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { Sheet } from '../../components/ui/sheet';
 import { Textarea } from '../../components/ui/input';
@@ -83,6 +83,9 @@ interface RatingSheetProps {
   onClose: () => void;
   /** Appelé après une notation réussie, pour que l'appelant invalide ce qui lui appartient (ex. la fiche recette de la tâche 16). */
   onRated?: () => void;
+  /** Note déjà posée par l'utilisateur courant, pré-remplie à l'ouverture (modification depuis la fiche recette, tâche 16). */
+  initialStars?: number | null;
+  initialComment?: string | null;
 }
 
 /**
@@ -90,13 +93,21 @@ interface RatingSheetProps {
  * `PUT /api/v1/recipe-logs/{id}/rating`. Exporté séparément pour être réutilisé
  * par la fiche recette (tâche 16), sans dépendre du bandeau.
  */
-export function RatingSheet({ open, logId, recipeTitle, onClose, onRated }: RatingSheetProps) {
+export function RatingSheet({ open, logId, recipeTitle, onClose, onRated, initialStars = null, initialComment = null }: RatingSheetProps) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [stars, setStars] = useState<number | null>(null);
   const [comment, setComment] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Pré-remplit à l'ouverture avec la note déjà posée, le cas échéant, plutôt qu'avec le dernier état laissé par une fermeture précédente.
+  useEffect(() => {
+    if (!open) return;
+    setStars(initialStars ?? null);
+    setComment(initialComment ?? '');
+    setError(null);
+  }, [open, logId, initialStars, initialComment]);
 
   const reset = () => {
     setStars(null);
