@@ -289,16 +289,31 @@ Un test de charge, inscrit dans la suite d'intégration, sème ces volumes et v�
 
 Aucun test ne dépend du réseau, conformément aux consignes.
 
+### Irréversibilité d'une cuisson, confirmée le 2026-10-03
+
+Une réalisation avec décrément ne peut être ni annulée ni supprimée : elle a
+produit des mouvements de stock, et le journal des mouvements fait foi
+(section 8 du cahier). La question a été posée et le choix est confirmé.
+
+La porte de sortie en cas d'erreur est la correction manuelle du stock, déjà
+disponible depuis la fiche article : l'ajustement y insère un mouvement de
+compensation, visible dans l'historique, plutôt que d'effacer une trace. La
+fiche recette renvoie vers cette correction dans le message qui refuse la
+suppression d'une réalisation avec décrément.
+
 ## 9. Ce que cette spécification ne tranche pas
 
 - La photo de recette, dont le champ existe déjà en base.
 - Le format d'échange des recettes, qui sera déterminé par l'incrément d'import.
 - Le comptage à la pièce, à reprendre si l'état « quantité non vérifiable » s'avère trop fréquent à l'usage.
-- L'annulation d'une cuisson.
+- L'annulation d'une cuisson, écartée par la confirmation ci-dessus : à
+  rouvrir seulement si la correction manuelle se révèle trop pénible à l'usage.
 
 ## 10. Écart au cahier à valider
 
-**EF-27 et section 12 : priorité au stock et aux produits proches de leur date.** Le cahier demande de prioriser les recettes réalisables et celles qui consomment des articles proches de leur date. Le tri par défaut retenu ici est la note **[A27]**. Le stock et l'anti-gaspillage restent accessibles par les tris `coverage` et `antiWaste`, par la pastille « Réalisables maintenant » et par l'affichage du groupe sur chaque carte. Il ne s'agit plus du comportement par défaut. Si le cahier est normatif sur ce point, il faut l'amender en même temps que cette spécification.
+**EF-27 et section 12 : priorité au stock et aux produits proches de leur date.** Le cahier demandait de prioriser les recettes réalisables et celles qui consomment des articles proches de leur date. Le tri par défaut retenu ici est la note **[A27]**. Le stock et l'anti-gaspillage restent accessibles par les tris `coverage` et `antiWaste`, par la pastille « Réalisables maintenant » et par l'affichage du groupe sur chaque carte.
+
+**Écart levé le 2026-10-03.** Le cahier a été amendé en conséquence : sections 12 et 14, exigence EF-27, et journal des amendements en section 26. Cette spécification ne s'écarte donc plus du document de référence.
 
 ---
 
