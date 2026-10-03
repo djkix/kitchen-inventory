@@ -5,9 +5,9 @@ import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { Checkbox, Input, Select } from '../../components/ui/input';
 import { Sheet } from '../../components/ui/sheet';
+import { StarRating } from '../../components/ui/star-rating';
 import { useToast } from '../../components/ui/toast';
 import { errorMessage, newClientOpId } from '../../lib/api';
-import { cn } from '../../lib/cn';
 import { formatQuantity } from '../../lib/quantity-ui';
 import { queryKeys } from '../../lib/queries';
 import { recipesApi } from '../../lib/recipes-api';
@@ -36,18 +36,30 @@ export interface CookConfirmPayload {
   stars: number | null;
 }
 
-const STAR_VALUES = [1, 2, 3, 4, 5] as const;
-
 /** Hors inventaire : rien à décrémenter, donc aucune case à cocher (A17). */
 function isDecrementable(ingredient: CookableIngredient): boolean {
   return ingredient.state !== 'untracked';
 }
 
-/** Présélection du produit qui périme le plus tôt (A15) : `candidates` est déjà trié par le serveur. */
+/**
+ * Candidat qui périme le plus tôt (A15), date absente classée en dernier.
+ * Le serveur trie déjà `candidates` ainsi ; ce tri local est une ceinture et
+ * des bretelles délibérée, pour que la présélection reste correcte même si
+ * l'ordre reçu changeait un jour sans que ce composant soit mis à jour.
+ */
+function soonestExpiring(candidates: CookableIngredient['candidates']): CookableIngredient['candidates'][number] | undefined {
+  return [...candidates].sort((a, b) => {
+    if (a.nearestExpiry === null) return b.nearestExpiry === null ? 0 : 1;
+    if (b.nearestExpiry === null) return -1;
+    return a.nearestExpiry.localeCompare(b.nearestExpiry);
+  })[0];
+}
+
+/** Présélection du produit retenu pour chaque ligne substituable (A15). */
 function defaultProductSelections(ingredients: CookableIngredient[]): Record<string, string> {
   const entries: [string, string][] = [];
   for (const ingredient of ingredients) {
-    const candidate = ingredient.candidates[0];
+    const candidate = soonestExpiring(ingredient.candidates);
     if (isDecrementable(ingredient) && ingredient.substitutable && candidate) entries.push([ingredient.id, candidate.productId]);
   }
   return Object.fromEntries(entries);
@@ -145,23 +157,7 @@ export function CookSheetView({ recipe, busy, onConfirm, onCancel }: CookSheetVi
 
       <div>
         <p className="mb-1 text-[14px] font-medium">Note (facultatif)</p>
-        <div role="group" aria-label="Note" className="flex items-center gap-1">
-          {STAR_VALUES.map((value) => (
-            <button
-              key={value}
-              type="button"
-              aria-label={`${value} étoile${value > 1 ? 's' : ''}`}
-              onClick={() => setStars(value)}
-              disabled={busy}
-              className={cn(
-                'min-h-touch min-w-touch rounded-xl text-[28px] leading-none',
-                stars !== null && value <= stars ? 'text-accent' : 'text-faint',
-              )}
-            >
-              ★
-            </button>
-          ))}
-        </div>
+        <StarRating value={stars} onChange={setStars} disabled={busy} />
         <p className="mt-1 text-[13px] text-faint">Modifiable pendant sept jours depuis l’historique de la recette.</p>
       </div>
 
