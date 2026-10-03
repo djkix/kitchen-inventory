@@ -158,7 +158,7 @@ function Chip({ active, onClick, children }: { active?: boolean; onClick: () => 
       aria-pressed={Boolean(active)}
       onClick={onClick}
       className={cn(
-        'min-h-[40px] shrink-0 rounded-full border px-3.5 text-[14px] font-medium',
+        'min-h-touch shrink-0 rounded-full border px-3.5 text-[14px] font-medium',
         active ? 'border-accent bg-accent-deep text-accent' : 'border-line text-muted',
       )}
     >
