@@ -1,5 +1,5 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
-import { DEFAULT_CATEGORIES, DEFAULT_CUISINES } from '@kitchen/shared';
+import { DEFAULT_CATEGORIES, DEFAULT_CUISINES, normalizeProductName } from '@kitchen/shared';
 import { Logger } from 'nestjs-pino';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -33,13 +33,12 @@ export class BootstrapService implements OnApplicationBootstrap {
       });
     }
     for (const name of DEFAULT_CUISINES) {
-      // normalizedName suit la même fonction que la recherche (migration 0002) :
-      // minuscules et sans accent, pour dédoublonner les saisies (A22).
-      const [{ normalized }] = await this.prisma.$queryRaw<Array<{ normalized: string }>>`
-        SELECT unaccent_lite(${name}) AS normalized`;
+      // Même normalisation que la création par l'API (cuisines.controller.ts) : un seul
+      // chemin, `normalizeProductName` du paquet partagé, pour dédoublonner les saisies (A22).
+      const normalizedName = normalizeProductName(name);
       await this.prisma.cuisine.upsert({
         where: { name },
-        create: { name, normalizedName: normalized },
+        create: { name, normalizedName },
         update: {},
       });
     }

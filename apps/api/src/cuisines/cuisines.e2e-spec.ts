@@ -29,6 +29,11 @@ describe('cuisines et préférences de filtres (EF-22)', () => {
     expect(dup.body.error.code).toBe('conflict');
   });
 
+  it('refuse un doublon d’une cuisine semée à l’amorçage, aux accents près (A22)', async () => {
+    const dup = await agent.post('/api/v1/cuisines').send({ name: 'francaise' }).expect(409);
+    expect(dup.body.error.code).toBe('conflict');
+  });
+
   it('mémorise filtres et tri par utilisateur, chacun les siens', async () => {
     expect((await agent.get('/api/v1/preferences/recipe-filters').expect(200)).body).toEqual({});
     await agent.put('/api/v1/preferences/recipe-filters').send({ difficulty: ['EASY'], sort: 'antiWaste' }).expect(200);
