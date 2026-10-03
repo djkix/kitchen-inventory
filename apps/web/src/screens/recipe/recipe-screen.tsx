@@ -184,6 +184,11 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
           </ol>
         </section>
 
+        {/* La mention est visible, et pas seulement en infobulle : une infobulle
+            ne s'ouvre pas au toucher, or cet écran se lit au téléphone. */}
+        <p className="px-1 text-[13px] text-muted">
+          La modification d'une recette arrive bientôt.
+        </p>
         <div className="flex flex-wrap gap-2 px-1">
           <Button
             size="sm"
