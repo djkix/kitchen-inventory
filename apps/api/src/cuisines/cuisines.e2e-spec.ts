@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 
@@ -32,6 +32,21 @@ describe('cuisines et préférences de filtres (EF-22)', () => {
   it('refuse un doublon d’une cuisine semée à l’amorçage, aux accents près (A22)', async () => {
     const dup = await agent.post('/api/v1/cuisines').send({ name: 'francaise' }).expect(409);
     expect(dup.body.error.code).toBe('conflict');
+  });
+
+  it('rattrape via la contrainte d’unicité un doublon qui échappe à la vérification préalable (course, A22)', async () => {
+    // Un enregistrement concurrent, inséré directement en base (donc hors de la vérification du
+    // contrôleur), porte déjà le même normalizedName sous un autre nom.
+    await t.prisma.cuisine.create({ data: { name: 'Créole existante', normalizedName: 'creole', region: null } });
+    // On simule la course : la vérification préalable du contrôleur ne voit rien (comme si elle
+    // s'exécutait juste avant l'insertion concurrente), seule la contrainte d'unicité la rattrape.
+    const findUniqueSpy = vi.spyOn(t.prisma.cuisine, 'findUnique').mockResolvedValueOnce(null);
+    try {
+      const res = await agent.post('/api/v1/cuisines').send({ name: 'Créole' }).expect(409);
+      expect(res.body.error.code).toBe('conflict');
+    } finally {
+      findUniqueSpy.mockRestore();
+    }
   });
 
   it('mémorise filtres et tri par utilisateur, chacun les siens', async () => {
