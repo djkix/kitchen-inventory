@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import {
   capConsumption,
-  convertQuantity,
+  convertWithNetContent,
   roundQuantity,
-  sameFamily,
   type CookRecipeInput,
   type CookResult,
   type CookResultLine,
@@ -24,33 +23,12 @@ type RecipeIngredient = RecipeWithIngredients['ingredients'][number];
 const CAPPED_MESSAGE = 'Quantité ramenée au stock disponible';
 
 /**
- * Convertit un besoin exprimé dans `fromUnit` vers `toUnit`, en passant par le
- * pont de contenance (`netContent`/`netContentUnit`) quand les deux unités ne
- * partagent pas la même famille (A16). `null` quand aucune conversion n'est
- * possible, auquel cas le lot visé est ignoré plutôt que de fausser le calcul.
- */
-function convertNeed(amount: number, fromUnit: Unit, toUnit: Unit, netContent: number | null, netContentUnit: Unit | null): number | null {
-  if (sameFamily(fromUnit, toUnit)) return convertQuantity(amount, fromUnit, toUnit);
-  if (netContent === null || netContent <= 0 || netContentUnit === null) return null;
-  if (sameFamily(fromUnit, netContentUnit)) {
-    // `fromUnit` se mesure (ex. grammes), `toUnit` est un conditionnement (ex. paquet) :
-    // on convertit d'abord dans l'unité de contenance, puis on divise par son contenu.
-    const inNetContentUnit = convertQuantity(amount, fromUnit, netContentUnit);
-    return roundQuantity(inNetContentUnit / netContent);
-  }
-  if (sameFamily(toUnit, netContentUnit)) {
-    // Inverse : `fromUnit` est un conditionnement, `toUnit` se mesure.
-    const inNetContentUnit = roundQuantity(amount * netContent);
-    return convertQuantity(inNetContentUnit, netContentUnit, toUnit);
-  }
-  return null;
-}
-
-/**
  * Cuisson d'une recette (EF-18) : décrémente le stock au prorata des portions
  * réellement cuisinées, en une seule transaction avec la création du journal.
  * La mise à l'échelle (A14) ne se fait jamais sur la base d'une valeur reçue
- * du client : seule la quantité stockée sur l'ingrédient fait foi.
+ * du client : seule la quantité stockée sur l'ingrédient fait foi. Le pont de
+ * contenance (A16) est celui, unique, de `@kitchen/shared`
+ * (`convertWithNetContent`) : jamais réimplémenté ici.
  */
 @Injectable()
 export class RecipesCookService {
@@ -135,14 +113,16 @@ export class RecipesCookService {
       orderBy: [{ effectiveExpiry: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
     });
 
+    // `applied` et `unit` s'expriment toujours dans l'unité de l'ingrédient (celle de
+    // `requested`), jamais dans celle d'un lot : un même ingrédient peut être servi par
+    // plusieurs lots dont les unités diffèrent (ex. 500 g puis 1 kg du même produit).
     let remaining = requested;
     let applied = 0;
-    let appliedUnit: Unit | null = null;
     let capped = false;
 
     for (const [lotIndex, lot] of lots.entries()) {
       if (remaining <= 0) break;
-      const neededInLotUnit = convertNeed(remaining, unit, lot.unit, netContent, netContentUnit);
+      const neededInLotUnit = convertWithNetContent(remaining, unit, lot.unit, netContent, netContentUnit);
       if (neededInLotUnit === null || neededInLotUnit <= 0) continue;
 
       const available = toNumber(lot.quantity) ?? 0;
@@ -159,23 +139,23 @@ export class RecipesCookService {
       });
 
       const consumedInLotUnit = roundQuantity(-delta);
-      applied = roundQuantity(applied + consumedInLotUnit);
-      appliedUnit = lot.unit;
+      const consumedInIngredientUnit = convertWithNetContent(consumedInLotUnit, lot.unit, unit, netContent, netContentUnit);
+      if (consumedInIngredientUnit === null) {
+        // Le mouvement a bien été appliqué (le stock est décrémenté), mais ce lot ne se
+        // reconvertit pas dans l'unité de l'ingrédient : on ne l'additionne pas à `applied`
+        // pour ne pas fausser l'unité renvoyée, et la ligne est signalée `capped` puisqu'on
+        // ne peut plus garantir que le besoin affiché a été entièrement servi.
+        capped = true;
+        continue;
+      }
 
-      const consumedInRequestedUnit = convertNeed(consumedInLotUnit, lot.unit, unit, netContent, netContentUnit) ?? 0;
-      remaining = roundQuantity(remaining - consumedInRequestedUnit);
+      applied = roundQuantity(applied + consumedInIngredientUnit);
+      remaining = roundQuantity(remaining - consumedInIngredientUnit);
     }
 
     if (remaining > 0) capped = true;
 
-    return {
-      ingredientId: ingredient.id,
-      label: ingredient.label,
-      requested,
-      applied,
-      unit: appliedUnit ?? unit,
-      capped,
-    };
+    return { ingredientId: ingredient.id, label: ingredient.label, requested, applied, unit, capped };
   }
 
   /**
@@ -190,14 +170,17 @@ export class RecipesCookService {
       include: { stockItem: { select: { unit: true } } },
     });
 
-    const byIngredient = new Map<string, { applied: number; unit: Unit }>();
+    // Un même ingrédient a pu être servi par plusieurs lots : on garde chaque mouvement
+    // séparément (unité du lot comprise) plutôt que de les sommer prématurément, pour
+    // pouvoir reconvertir chacun dans l'unité de l'ingrédient au moment du regroupement.
+    const movementsByIngredient = new Map<string, { appliedInLotUnit: number; lotUnit: Unit }[]>();
     for (const movement of movements) {
       const parts = (movement.clientOpId ?? '').split(':');
       const ingredientId = parts.length >= 3 ? parts[parts.length - 2] : null;
       if (!ingredientId) continue;
-      const entry = byIngredient.get(ingredientId) ?? { applied: 0, unit: movement.stockItem.unit };
-      entry.applied = roundQuantity(entry.applied + -movement.delta.toNumber());
-      byIngredient.set(ingredientId, entry);
+      const list = movementsByIngredient.get(ingredientId) ?? [];
+      list.push({ appliedInLotUnit: roundQuantity(-movement.delta.toNumber()), lotUnit: movement.stockItem.unit });
+      movementsByIngredient.set(ingredientId, list);
     }
 
     const lines: CookResultLine[] = [];
@@ -213,8 +196,8 @@ export class RecipesCookService {
       }
 
       const requested = roundQuantity((quantity * log.servingsCooked) / recipe.servings);
-      const effect = byIngredient.get(ingredient.id);
-      if (!effect) {
+      const lotMovements = movementsByIngredient.get(ingredient.id);
+      if (!lotMovements) {
         lines.push({ ingredientId: ingredient.id, label: ingredient.label, requested, applied: 0, unit, capped: requested > 0 });
         continue;
       }
@@ -225,10 +208,20 @@ export class RecipesCookService {
         : null;
       const netContent = toNumber(product?.netContent ?? null);
       const netContentUnit = product?.netContentUnit ?? null;
-      const requestedInAppliedUnit = convertNeed(requested, unit, effect.unit, netContent, netContentUnit) ?? requested;
-      const capped = effect.applied < requestedInAppliedUnit;
 
-      lines.push({ ingredientId: ingredient.id, label: ingredient.label, requested, applied: effect.applied, unit: effect.unit, capped });
+      let applied = 0;
+      let capped = false;
+      for (const { appliedInLotUnit, lotUnit } of lotMovements) {
+        const inIngredientUnit = convertWithNetContent(appliedInLotUnit, lotUnit, unit, netContent, netContentUnit);
+        if (inIngredientUnit === null) {
+          capped = true;
+          continue;
+        }
+        applied = roundQuantity(applied + inIngredientUnit);
+      }
+      if (applied < requested) capped = true;
+
+      lines.push({ ingredientId: ingredient.id, label: ingredient.label, requested, applied, unit, capped });
     }
 
     return { logId: log.id, lines, message: lines.some((l) => l.capped) ? CAPPED_MESSAGE : null };

@@ -223,8 +223,26 @@ describe('recettes (EF-17, EF-21)', () => {
       await createStock(agent, { productId: paquets, locationId: placardId, quantity: 2, unit: 'PACK' });
       const recipe = await createRecipe(agent, 'Pâtes', [{ label: 'Pâtes', productId: paquets, quantity: 200, unit: 'GRAM' }], { servings: 4 });
       const res = await cookRecipe(agent, recipe.id, { servingsCooked: 4, lines: [{ ingredientId: recipe.ingredients[0]!.id }] });
-      expect(res.lines[0]).toMatchObject({ applied: 0.4, unit: 'PACK' });
+      // Le décrément du lot se fait bien en paquets (ci-dessous), mais la réponse exprime
+      // `applied`/`unit` dans l'unité de l'ingrédient (ici des grammes), jamais celle du lot.
+      expect(res.lines[0]).toMatchObject({ applied: 200, unit: 'GRAM' });
       expect((await t.prisma.stockItem.findFirstOrThrow()).quantity.toNumber()).toBe(1.6);
+    });
+
+    it('rend un applied/unit cohérents quand un ingrédient est servi par des lots d’unités différentes', async () => {
+      const proche = await createStock(agent, { productId: rizId, locationId: placardId, quantity: 500, unit: 'GRAM', expiryDate: isoIn(3), dateType: 'USE_BY' });
+      const loin = await createStock(agent, { productId: rizId, locationId: placardId, quantity: 1, unit: 'KILOGRAM', expiryDate: isoIn(90), dateType: 'USE_BY' });
+      const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 1200, unit: 'GRAM' }], { servings: 1 });
+      const body = { servingsCooked: 1, lines: [{ ingredientId: recipe.ingredients[0]!.id }], clientOpId: 'op-lots-mixtes-0001' };
+
+      const res = await cookRecipe(agent, recipe.id, body);
+      expect(res.lines[0]).toMatchObject({ requested: 1200, applied: 1200, unit: 'GRAM', capped: false });
+      expect((await t.prisma.stockItem.findUniqueOrThrow({ where: { id: proche } })).quantity.toNumber()).toBe(0);
+      expect((await t.prisma.stockItem.findUniqueOrThrow({ where: { id: loin } })).quantity.toNumber()).toBe(0.3);
+
+      const replay = await cookRecipe(agent, recipe.id, body);
+      expect(replay).toEqual(res);
+      expect((await t.prisma.stockItem.findUniqueOrThrow({ where: { id: loin } })).quantity.toNumber()).toBe(0.3);
     });
 
     it('plafonne au stock disponible et le signale', async () => {
