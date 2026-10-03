@@ -1,11 +1,34 @@
-import type { CookRecipeInput, CookResult, LogCookedInput, RateLogInput, RecipeDto, RecipeFilters, RecipeLogDto } from '@kitchen/shared';
+import type {
+  CookRecipeInput,
+  CookResult,
+  CreateCuisineInput,
+  CreateRecipeInput,
+  LogCookedInput,
+  RateLogInput,
+  RecipeDto,
+  RecipeFilters,
+  RecipeLogDto,
+  UpdateRecipeInput,
+} from '@kitchen/shared';
 import { api } from './api';
-import type { PendingRatingDto } from './types';
+import type { CuisineDto, PendingRatingDto } from './types';
 
 /** Écriture des préférences de filtres et de tri de la liste des recettes (section 12). */
 export const recipesApi = {
   getFilters(): Promise<Partial<RecipeFilters>> {
     return api.get<Partial<RecipeFilters>>('/preferences/recipe-filters');
+  },
+  /** Création (EF-17) : la difficulté n'est envoyée que si l'utilisateur l'a corrigée (A20). */
+  createRecipe(input: CreateRecipeInput): Promise<RecipeDto> {
+    return api.post<RecipeDto>('/recipes', input);
+  },
+  /** Modification (EF-17) : les ingrédients envoyés remplacent entièrement ceux de la recette. */
+  updateRecipe(id: string, input: UpdateRecipeInput): Promise<RecipeDto> {
+    return api.patch<RecipeDto>(`/recipes/${id}`, input);
+  },
+  /** Nouvelle cuisine créée depuis le formulaire de recette (section 12). */
+  createCuisine(input: CreateCuisineInput): Promise<CuisineDto> {
+    return api.post<CuisineDto>('/cuisines', input);
   },
   setFilters(filters: RecipeFilters): Promise<Partial<RecipeFilters>> {
     return api.put<Partial<RecipeFilters>>('/preferences/recipe-filters', filters);
