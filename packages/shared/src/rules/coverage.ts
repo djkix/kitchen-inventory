@@ -24,6 +24,17 @@ export interface StockSnapshot {
 export interface CoverageIngredient {
   id: string;
   productId: string | null;
+  /**
+   * Catégorie *résolue* par l'appelant (l'API, pas cette fonction pure) : soit
+   * la catégorie explicitement visée par l'ingrédient, soit — pour une ligne
+   * substituable qui vise un produit — la catégorie de ce produit, lue dans la
+   * table `Product`. Le produit visé n'a donc pas besoin d'être en stock pour
+   * que sa catégorie soit connue : c'est l'appelant qui la fournit, jamais cet
+   * instantané qui la devine. `productId` et `categoryId` peuvent donc
+   * coexister ici (l'un est résolu depuis l'autre) ; la contrainte « un
+   * ingrédient vise un produit ou une catégorie, pas les deux » appartient au
+   * schéma Zod de saisie d'une recette, pas à cette structure.
+   */
   categoryId: string | null;
   quantity: number | null;
   unit: Unit | null;
@@ -91,16 +102,14 @@ export function availableInUnit(entry: StockEntry, unit: Unit): number | null {
 }
 
 function candidates(ingredient: CoverageIngredient, snapshot: StockSnapshot): readonly StockEntry[] {
+  // `categoryId` est déjà la catégorie résolue par l'appelant (voir le
+  // commentaire sur `CoverageIngredient.categoryId`) : pour une ligne
+  // substituable, c'est celle du produit visé, donc aucun repli supplémentaire
+  // n'est nécessaire ici — `substitutable` ne joue aucun rôle dans ce choix.
   if (ingredient.categoryId) return snapshot.byCategory.get(ingredient.categoryId) ?? [];
   if (!ingredient.productId) return [];
   const direct = snapshot.byProduct.get(ingredient.productId);
-  if (!ingredient.substitutable) return direct ? [direct] : [];
-  // Substituable : toute la catégorie du produit visé convient. Si le produit
-  // visé n'a lui-même aucune entrée de stock, sa catégorie est inconnue : on
-  // élargit alors à tout le stock plutôt que de conclure trop vite au manque.
-  const categoryId = direct?.categoryId ?? null;
-  if (categoryId) return snapshot.byCategory.get(categoryId) ?? [];
-  return direct ? [direct] : [...snapshot.byProduct.values()];
+  return direct ? [direct] : [];
 }
 
 /** Les quantités à la pièce ne se comparent pas au socle (A6). */

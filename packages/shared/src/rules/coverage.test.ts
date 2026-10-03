@@ -64,8 +64,12 @@ describe('ingredientOutcome', () => {
   });
   it('un substituable accepte un autre produit de la catégorie de son produit', () => {
     const s = snap([entry({ productId: 'autre', quantity: 300 })]);
-    expect(ingredientOutcome(ing({ substitutable: true, quantity: 200 }), s).state).toBe('available');
+    expect(ingredientOutcome(ing({ substitutable: true, categoryId: 'c1', quantity: 200 }), s).state).toBe('available');
     expect(ingredientOutcome(ing({ substitutable: false, quantity: 200 }), s).state).toBe('missing');
+  });
+  it('un substituable dont la catégorie est inconnue n’est pas satisfait par un produit quelconque', () => {
+    const s = snap([entry({ productId: 'autre', quantity: 300 })]);
+    expect(ingredientOutcome(ing({ substitutable: true, quantity: 200 }), s).state).toBe('missing');
   });
   it('évalue chaque ligne indépendamment (A9)', () => {
     const s = snap([entry({ quantity: 300 })]);
