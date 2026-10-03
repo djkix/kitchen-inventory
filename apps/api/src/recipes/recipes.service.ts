@@ -3,6 +3,7 @@ import {
   computeDifficulty,
   excludedFromRecipes,
   expiryStatus,
+  normalizeProductName,
   recipeCoverage,
   sortRecipes,
   type CoverageIngredient,
@@ -49,7 +50,6 @@ export class RecipesService {
   async list(query: RecipeListQuery): Promise<Paginated<RecipeSummaryDto>> {
     const where: Prisma.RecipeWhereInput = {
       archivedAt: query.archived ? { not: null } : null,
-      ...(query.q ? { title: { contains: query.q, mode: 'insensitive' } } : {}),
       ...(query.difficulty?.length ? { difficulty: { in: query.difficulty } } : {}),
       ...(query.cuisine?.length ? { cuisineId: { in: query.cuisine } } : {}),
       ...(query.dishType?.length ? { dishType: { in: query.dishType } } : {}),
@@ -64,6 +64,14 @@ export class RecipesService {
       const result = recipeCoverage(r.ingredients.map((i) => this.toCoverageIngredient(i)), snapshot);
       return toRecipeSummaryDto(r, statsByRecipe.get(r.id)!, this.summaryCoverage(r, result));
     });
+
+    // Normalisé comme toute autre recherche de l'application (produits, cuisines, A22) :
+    // un `contains` SQL brut ne trouvait pas « Crêpes » depuis « crepes ». Filtré en mémoire
+    // plutôt qu'en base, faute de colonne de titre normalisée sur Recipe.
+    if (query.q) {
+      const normalizedQuery = normalizeProductName(query.q);
+      summaries = summaries.filter((s) => normalizeProductName(s.title).includes(normalizedQuery));
+    }
 
     if (query.maxTime !== undefined) {
       const maxTime = query.maxTime;

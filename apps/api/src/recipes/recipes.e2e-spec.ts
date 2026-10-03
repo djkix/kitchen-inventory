@@ -426,6 +426,13 @@ describe('recettes (EF-17, EF-21)', () => {
       placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
     });
 
+    it('trouve un titre accentué depuis une recherche sans accent (A22)', async () => {
+      await createRecipe(agent, 'Crêpes', []);
+      await createRecipe(agent, 'Gratin dauphinois', []);
+      const res = await agent.get('/api/v1/recipes?q=crepes').expect(200);
+      expect(res.body.items.map((r: { title: string }) => r.title)).toEqual(['Crêpes']);
+    });
+
     it('trie par note par défaut, sans que le stock intervienne (A27)', async () => {
       const absentId = await createProduct(agent, { name: 'Sans stock' });
       const bonne = await createRecipe(agent, 'Bien notée', [{ label: 'Sans stock', productId: absentId, quantity: 100, unit: 'GRAM' }]);
