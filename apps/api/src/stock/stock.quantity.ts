@@ -8,6 +8,8 @@ export interface MovementInput {
   reason?: string | null;
   userId?: string | null;
   clientOpId?: string | null;
+  /** Rattache le mouvement à une cuisson (tâche 10), pour remonter au journal depuis la fiche article. */
+  recipeLogId?: string | null;
 }
 
 export interface MovementResult {
@@ -38,6 +40,7 @@ export async function applyMovement(tx: Prisma.TransactionClient, input: Movemen
       reason: input.reason ?? null,
       userId: input.userId ?? null,
       clientOpId: input.clientOpId ?? null,
+      recipeLogId: input.recipeLogId ?? null,
     },
   });
   const item = await recomputeQuantity(tx, input.stockItemId);

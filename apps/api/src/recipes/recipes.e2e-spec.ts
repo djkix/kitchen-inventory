@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
-import { createLoggedInMember, createProduct, createRecipe, createStock, isoIn, logCooked } from './recipes.test-helpers.js';
+import { cookRecipe, createLoggedInMember, createProduct, createRecipe, createStock, isoIn, logCooked } from './recipes.test-helpers.js';
 
 const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-de-passe-long' };
 
@@ -157,11 +157,9 @@ describe('recettes (EF-17, EF-21)', () => {
       const sans = await logCooked(agent, recipe.id);
       await agent.delete(`/api/v1/recipe-logs/${sans.id}`).expect(204);
 
-      // POST /recipes/{id}/cook n'existe pas encore (tâche 10, qui s'exécute après celle-ci) :
-      // on simule directement un journal avec décrément pour vérifier le refus de suppression ;
-      // la tâche 10 exercera ensuite le vrai parcours de cuisson sur ce même cas.
-      const avec = await t.prisma.recipeLog.create({ data: { recipeId: recipe.id, servingsCooked: 4, stockApplied: true } });
-      const refus = await agent.delete(`/api/v1/recipe-logs/${avec.id}`).expect(409);
+      await createStock(agent, { productId: rizId, locationId: placardId, quantity: 1000, unit: 'GRAM' });
+      const avec = await cookRecipe(agent, recipe.id, { servingsCooked: 4, lines: [{ ingredientId: recipe.ingredients[0]!.id }] });
+      const refus = await agent.delete(`/api/v1/recipe-logs/${avec.logId}`).expect(409);
       expect(refus.body.error.message).toContain('correction');
     });
 
@@ -177,6 +175,122 @@ describe('recettes (EF-17, EF-21)', () => {
 
       await t.prisma.user.delete({ where: { id: marieId } });
       expect((await agent.get(`/api/v1/recipes/${recipe.id}`).expect(200)).body.stats).toMatchObject({ averageRating: 5, ratingCount: 1 });
+    });
+  });
+
+  describe('cuisson et décrément (EF-18)', () => {
+    let rizId: string;
+    let placardId: string;
+    let epicerieId: string;
+
+    beforeEach(async () => {
+      rizId = await createProduct(agent, { name: 'Riz', defaultUnit: 'GRAM' });
+      placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
+      epicerieId = (await t.prisma.category.findFirstOrThrow({ where: { name: 'Épicerie sèche' } })).id;
+    });
+
+    it('met à l’échelle une seule fois, côté serveur (A14)', async () => {
+      await createStock(agent, { productId: rizId, locationId: placardId, quantity: 1000, unit: 'GRAM' });
+      const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' }], { servings: 4 });
+      const res = await cookRecipe(agent, recipe.id, { servingsCooked: 2, lines: [{ ingredientId: recipe.ingredients[0]!.id }], stars: 4 });
+      expect(res.lines[0]).toMatchObject({ requested: 100, applied: 100, capped: false });
+      expect((await t.prisma.stockItem.findFirstOrThrow()).quantity.toNumber()).toBe(900);
+      const log = await t.prisma.recipeLog.findUniqueOrThrow({ where: { id: res.logId }, include: { ratings: true } });
+      expect(log).toMatchObject({ servingsCooked: 2, stockApplied: true });
+      expect(log.ratings[0]).toMatchObject({ stars: 4 });
+    });
+
+    it('n’émet aucun mouvement pour une ligne décochée, sans quantité, ou hors inventaire (A17)', async () => {
+      await createStock(agent, { productId: rizId, locationId: placardId, quantity: 1000, unit: 'GRAM' });
+      const recipe = await createRecipe(agent, 'Riz', [
+        { label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' },
+        { productId: rizId, label: 'Riz à l’œil' },
+        { label: 'Sel' },
+      ]);
+      await cookRecipe(agent, recipe.id, {
+        servingsCooked: 4,
+        // L'ordre renvoyé par Prisma n'est pas garanti : on cible explicitement les deux
+        // lignes sans quantité, plutôt que de supposer leur position dans le tableau.
+        lines: recipe.ingredients.filter((i) => i.quantity === null).map((i) => ({ ingredientId: i.id })),
+      });
+      expect(await t.prisma.stockMovement.count({ where: { type: 'RECIPE' } })).toBe(0);
+      expect((await t.prisma.stockItem.findFirstOrThrow()).quantity.toNumber()).toBe(1000);
+    });
+
+    it('décrémente en fraction de paquet, sans arrondi (A16)', async () => {
+      const paquets = await createProduct(agent, { name: 'Pâtes', defaultUnit: 'PACK' });
+      await t.prisma.product.update({ where: { id: paquets }, data: { netContent: 500, netContentUnit: 'GRAM' } });
+      await createStock(agent, { productId: paquets, locationId: placardId, quantity: 2, unit: 'PACK' });
+      const recipe = await createRecipe(agent, 'Pâtes', [{ label: 'Pâtes', productId: paquets, quantity: 200, unit: 'GRAM' }], { servings: 4 });
+      const res = await cookRecipe(agent, recipe.id, { servingsCooked: 4, lines: [{ ingredientId: recipe.ingredients[0]!.id }] });
+      expect(res.lines[0]).toMatchObject({ applied: 0.4, unit: 'PACK' });
+      expect((await t.prisma.stockItem.findFirstOrThrow()).quantity.toNumber()).toBe(1.6);
+    });
+
+    it('plafonne au stock disponible et le signale', async () => {
+      await createStock(agent, { productId: rizId, locationId: placardId, quantity: 150, unit: 'GRAM' });
+      const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' }], { servings: 2 });
+      const res = await cookRecipe(agent, recipe.id, { servingsCooked: 4, lines: [{ ingredientId: recipe.ingredients[0]!.id }] });
+      expect(res.lines[0]).toMatchObject({ requested: 400, applied: 150, capped: true });
+      expect(res.message).toContain('ramenée');
+      expect((await t.prisma.stockItem.findFirstOrThrow()).quantity.toNumber()).toBe(0);
+    });
+
+    it('plafonne la seconde ligne quand deux lignes visent le même produit (A9)', async () => {
+      await createStock(agent, { productId: rizId, locationId: placardId, quantity: 300, unit: 'GRAM' });
+      const recipe = await createRecipe(
+        agent,
+        'Riz deux fois',
+        [
+          { label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' },
+          { label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' },
+        ],
+        { servings: 4 },
+      );
+      // Les deux lignes paraissaient disponibles : elles sont évaluées séparément.
+      expect((await agent.get(`/api/v1/recipes/${recipe.id}`).expect(200)).body.group).toBe('ready');
+      const res = await cookRecipe(agent, recipe.id, {
+        servingsCooked: 4,
+        lines: recipe.ingredients.map((i) => ({ ingredientId: i.id })),
+      });
+      expect(res.lines.map((l) => [l.applied, l.capped])).toEqual([
+        [200, false],
+        [100, true],
+      ]);
+      expect((await t.prisma.stockItem.findFirstOrThrow()).quantity.toNumber()).toBe(0);
+    });
+
+    it('prend d’abord les lots dont la date est la plus proche', async () => {
+      const proche = await createStock(agent, { productId: rizId, locationId: placardId, quantity: 300, unit: 'GRAM', expiryDate: isoIn(3), dateType: 'USE_BY' });
+      const loin = await createStock(agent, { productId: rizId, locationId: placardId, quantity: 300, unit: 'GRAM', expiryDate: isoIn(90), dateType: 'USE_BY' });
+      const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' }], { servings: 4 });
+      await cookRecipe(agent, recipe.id, { servingsCooked: 4, lines: [{ ingredientId: recipe.ingredients[0]!.id }] });
+      expect((await t.prisma.stockItem.findUniqueOrThrow({ where: { id: proche } })).quantity.toNumber()).toBe(100);
+      expect((await t.prisma.stockItem.findUniqueOrThrow({ where: { id: loin } })).quantity.toNumber()).toBe(300);
+    });
+
+    it('décrémente le produit choisi pour une ligne substituable (A15)', async () => {
+      const autre = await createProduct(agent, { name: 'Riz rond', defaultUnit: 'GRAM', categoryId: epicerieId });
+      await createStock(agent, { productId: autre, locationId: placardId, quantity: 500, unit: 'GRAM' });
+      const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM', substitutable: true }], { servings: 4 });
+      await cookRecipe(agent, recipe.id, { servingsCooked: 4, lines: [{ ingredientId: recipe.ingredients[0]!.id, productId: autre }] });
+      expect((await t.prisma.stockItem.findFirstOrThrow({ where: { productId: autre } })).quantity.toNumber()).toBe(300);
+    });
+
+    it('rejoue une cuisson sans doubler le décrément', async () => {
+      await createStock(agent, { productId: rizId, locationId: placardId, quantity: 1000, unit: 'GRAM' });
+      const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' }], { servings: 4 });
+      const body = { servingsCooked: 4, lines: [{ ingredientId: recipe.ingredients[0]!.id }], clientOpId: 'op-cuisson-0001' };
+      await cookRecipe(agent, recipe.id, body);
+      await cookRecipe(agent, recipe.id, body);
+      expect((await t.prisma.stockItem.findFirstOrThrow()).quantity.toNumber()).toBe(800);
+      expect(await t.prisma.recipeLog.count()).toBe(1);
+    });
+
+    it('refuse un identifiant d’ingrédient inconnu', async () => {
+      const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' }], { servings: 4 });
+      const res = await agent.post(`/api/v1/recipes/${recipe.id}/cook`).send({ servingsCooked: 4, lines: [{ ingredientId: 'inconnu' }] });
+      expect(res.status).toBe(404);
     });
   });
 
