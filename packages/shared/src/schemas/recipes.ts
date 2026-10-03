@@ -117,8 +117,6 @@ export const cookRecipeSchema = z.object({
         ingredientId: idSchema,
         /** Produit retenu pour un ingrédient substituable ou visant une catégorie (A15). */
         productId: idSchema.optional(),
-        /** Quantité de base de la recette, jamais mise à l'échelle par le client (A14). */
-        quantity: positiveQuantitySchema.optional(),
       }),
     )
     .max(60),

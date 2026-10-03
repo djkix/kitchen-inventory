@@ -46,6 +46,12 @@ describe('cookRecipeSchema et rateLogSchema', () => {
       ingredientId: 'i1', productId: 'p2',
     });
   });
+  it('n’a pas de champ `quantity` par ligne : seul le serveur met à l’échelle (A14)', () => {
+    // Une quantité envoyée par erreur ne doit pas réapparaître après parsing, pour qu'aucun
+    // appelant ne puisse être tenté de s'y fier à la place du calcul serveur.
+    const parsed = cookRecipeSchema.parse({ servingsCooked: 4, lines: [{ ingredientId: 'i1', quantity: 999 }] });
+    expect(parsed.lines[0]).not.toHaveProperty('quantity');
+  });
   it('borne la note entre 1 et 5', () => {
     expect(rateLogSchema.safeParse({ stars: 6 }).success).toBe(false);
     expect(rateLogSchema.safeParse({ stars: 0 }).success).toBe(false);
