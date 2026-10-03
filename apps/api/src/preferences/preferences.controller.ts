@@ -10,16 +10,17 @@ import { PreferencesService, RECIPE_FILTERS_KEY } from './preferences.service.js
 export class PreferencesController {
   constructor(private readonly preferences: PreferencesService) {}
 
+  /** Partiels : un membre n'a pas forcément déjà enregistré tous les champs (ex. `{}` au premier accès). */
   @Get('recipe-filters')
-  getRecipeFilters(@CurrentUser() user: RequestUser): Promise<unknown> {
-    return this.preferences.get(user.id, RECIPE_FILTERS_KEY);
+  async getRecipeFilters(@CurrentUser() user: RequestUser): Promise<Partial<RecipeFilters>> {
+    return (await this.preferences.get(user.id, RECIPE_FILTERS_KEY)) as Partial<RecipeFilters>;
   }
 
   @Put('recipe-filters')
-  setRecipeFilters(
+  async setRecipeFilters(
     @ZodBody(recipeFiltersSchema) body: RecipeFilters,
     @CurrentUser() user: RequestUser,
-  ): Promise<unknown> {
-    return this.preferences.set(user.id, RECIPE_FILTERS_KEY, body as unknown as Prisma.InputJsonValue);
+  ): Promise<Partial<RecipeFilters>> {
+    return (await this.preferences.set(user.id, RECIPE_FILTERS_KEY, body as unknown as Prisma.InputJsonValue)) as Partial<RecipeFilters>;
   }
 }
