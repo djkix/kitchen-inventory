@@ -1,4 +1,4 @@
-import type { LogCookedInput, RateLogInput, RecipeDto, RecipeFilters, RecipeLogDto } from '@kitchen/shared';
+import type { CookRecipeInput, CookResult, LogCookedInput, RateLogInput, RecipeDto, RecipeFilters, RecipeLogDto } from '@kitchen/shared';
 import { api } from './api';
 import type { PendingRatingDto } from './types';
 
@@ -22,6 +22,10 @@ export const recipesApi = {
   /** « J'ai fait cette recette » (A26) : réalisation sans décrément de stock. */
   logCooked(recipeId: string, input: LogCookedInput): Promise<RecipeLogDto> {
     return api.post<RecipeLogDto>(`/recipes/${recipeId}/logs`, input);
+  },
+  /** Cuisson avec décompte du stock (EF-18) : le serveur fait l'unique mise à l'échelle (A14). */
+  cookRecipe(recipeId: string, input: CookRecipeInput): Promise<CookResult> {
+    return api.post<CookResult>(`/recipes/${recipeId}/cook`, input);
   },
   /** Supprime une réalisation ; `409` si elle a décrémenté le stock (A26). */
   removeLog(logId: string): Promise<void> {

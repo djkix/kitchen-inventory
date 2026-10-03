@@ -12,6 +12,7 @@ import { useAuth } from '../../hooks/use-auth';
 import { errorMessage, isApiError, newClientOpId } from '../../lib/api';
 import { queryKeys, useRecipeLogsInfiniteQuery, useRecipeQuery } from '../../lib/queries';
 import { recipesApi } from '../../lib/recipes-api';
+import { CookSheet } from './cook-sheet';
 import { HistoryPanel } from './history-panel';
 import { IngredientRow } from './ingredient-row';
 import { RatingSheet } from '../recipes/rating-reminder';
@@ -59,6 +60,7 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
   const [ratingLog, setRatingLog] = useState<RecipeLogDto | null>(null);
   const [confirm, setConfirm] = useState<ConfirmTarget | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [cooking, setCooking] = useState(false);
 
   const archived = recipe.archivedAt !== null;
   const hasHistory = recipe.stats.timesCooked > 0;
@@ -228,11 +230,8 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
 
       {!archived && (
         <div className="safe-bottom fixed inset-x-0 bottom-[calc(var(--spacing-nav)+env(safe-area-inset-bottom,0px))] z-20 mx-auto max-w-lg bg-gradient-to-t from-ink via-ink/95 to-transparent px-4 pb-3 pt-6">
-          <p className="mb-2 text-center text-[12px] text-muted">
-            Cuisiner avec décompte du stock arrive bientôt : enregistrez la réalisation en attendant.
-          </p>
           <div className="flex gap-2">
-            <Button size="lg" className="flex-1" disabled title="Cuisson avec décompte du stock : bientôt disponible">
+            <Button size="lg" className="flex-1" onClick={() => setCooking(true)}>
               Cuisiner
             </Button>
             <Button variant="primary" size="lg" className="flex-1" loading={busy === 'log'} onClick={() => void logCooked()}>
@@ -241,6 +240,8 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
           </div>
         </div>
       )}
+
+      <CookSheet open={cooking} recipe={recipe} onClose={() => setCooking(false)} onCooked={() => void refreshRecipe()} />
 
       <RatingSheet
         open={ratingLog !== null}
