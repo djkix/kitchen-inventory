@@ -32,6 +32,11 @@ const PRODUCT_MERGE_CHAIN_SELECT = {
 /** Message affiché quand au moins une ligne a dû être ramenée au stock disponible. */
 const CAPPED_MESSAGE = 'Quantité ramenée au stock disponible';
 
+/** Violation d'unicité, quelle que soit la contrainte touchée. */
+function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
 /**
  * Cuisson d'une recette (EF-18) : décrémente le stock au prorata des portions
  * réellement cuisinées, en une seule transaction avec la création du journal.
@@ -48,6 +53,11 @@ export class RecipesCookService {
   ) {}
 
   async cook(recipeId: string, input: CookRecipeInput, user: RequestUser): Promise<CookResult> {
+    // Lus avant d'ouvrir la transaction : une lecture de réglages par ligne, sur une
+    // seconde connexion pendant qu'une transaction interactive est tenue, épuise le
+    // pool dès que deux cuissons se croisent.
+    const alertDays = await this.settings.expiryAlertDays();
+    const today = new Date();
     try {
       return await this.prisma.$transaction(async (tx) => {
         if (input.clientOpId) {
@@ -85,6 +95,8 @@ export class RecipesCookService {
               logId: log.id,
               userId: user.id,
               clientOpId: input.clientOpId,
+              alertDays,
+              today,
             }),
           );
         }
@@ -97,11 +109,13 @@ export class RecipesCookService {
       // entre deux transactions (même filet que recipe-logs.service.ts et cuisines.controller.ts).
       // Une erreur Postgres avorte le reste de la transaction en cours : le rejeu se fait donc dans
       // une transaction neuve, une fois celle qui a gagné la course validée et visible.
-      if (input.clientOpId && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        return this.prisma.$transaction(async (tx) => {
-          const existing = await tx.recipeLog.findUniqueOrThrow({ where: { clientOpId: input.clientOpId! } });
-          return this.replay(tx, existing, input);
-        });
+      // La contrainte violée n'est pas forcément celle du `clientOpId` de la réalisation :
+      // les mouvements de stock en portent un, dérivé. On ne rejoue donc que si la
+      // réalisation gagnante existe vraiment ; sinon l'erreur d'origine remonte, plutôt
+      // qu'un 500 opaque sur une réalisation annulée par le retour arrière.
+      if (input.clientOpId && isUniqueViolation(error)) {
+        const winner = await this.prisma.recipeLog.findUnique({ where: { clientOpId: input.clientOpId } });
+        if (winner) return this.prisma.$transaction((tx) => this.replay(tx, winner, input));
       }
       throw error;
     }
@@ -117,9 +131,11 @@ export class RecipesCookService {
       logId: string;
       userId: string;
       clientOpId?: string;
+      alertDays: number;
+      today: Date;
     },
   ): Promise<CookResultLine> {
-    const { ingredient, recipe, productOverride, servingsCooked, logId, userId, clientOpId } = args;
+    const { ingredient, recipe, productOverride, servingsCooked, logId, userId, clientOpId, alertDays, today } = args;
     const quantity = toNumber(ingredient.quantity);
     const unit = ingredient.unit;
     const productId = productOverride ?? ingredient.productId ?? null;
@@ -148,7 +164,6 @@ export class RecipesCookService {
     const netContent = target.netContent;
     const netContentUnit = target.netContentUnit;
 
-    const alertDays = await this.settings.expiryAlertDays();
     const candidateLots = await tx.stockItem.findMany({
       where: { productId: target.id, archivedAt: null, quantity: { gt: 0 } },
       orderBy: [{ effectiveExpiry: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
@@ -157,7 +172,7 @@ export class RecipesCookService {
     // couverture (défaut 2) : sinon le lot périmé est vidé en premier (tri par date
     // croissante) pendant que le lot encore bon reste en stock, intact.
     const lots = candidateLots.filter(
-      (lot) => !excludedFromRecipes(expiryStatus({ effectiveExpiry: lot.effectiveExpiry, dateType: lot.dateType, dateEstimated: lot.dateEstimated }, new Date(), alertDays)),
+      (lot) => !excludedFromRecipes(expiryStatus({ effectiveExpiry: lot.effectiveExpiry, dateType: lot.dateType, dateEstimated: lot.dateEstimated }, today, alertDays)),
     );
 
     // `applied` et `unit` s'expriment toujours dans l'unité de l'ingrédient (celle de
