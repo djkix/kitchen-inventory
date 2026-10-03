@@ -296,6 +296,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.6.0 | 2026-10-03 | Bandeau de mise à jour : nouvelle version détectée et rechargement proposé, sans interrompre un scan |
 | 0.5.0 | 2026-09-21 | Version affichée au bas de chaque écran, alerte quand l'interface en cache est périmée ; publication de l'image limitée à amd64, l'architecture de l'hôte |
 | 0.4.0 | 2026-09-21 | Photo prise par l'appareil natif du téléphone, plafond de dépense mensuel en euros |
 | 0.3.0 | 2026-09-21 | Scan : validation du produit et de la quantité avant ajout ; fin des ajouts répétés du même article |
@@ -307,9 +308,15 @@ release-please.
 **L'historique complet est dans [`CHANGELOG.md`](./CHANGELOG.md)**, généré
 automatiquement par release-please à chaque version publiée. La version en
 service est affichée au bas de chaque écran de l'application, et renvoyée par
-`GET /api/v1/health` (champ `version`). Quand l'interface conservée par le
-service worker est plus ancienne que le serveur, l'application le signale et
-invite à la rouvrir.
+`GET /api/v1/health` (champ `version`).
+
+Quand une nouvelle version est déployée, l'application la détecte et propose un
+bandeau « Nouvelle version disponible · Recharger » au-dessus de la barre de
+navigation. La vérification a lieu au lancement, toutes les trente minutes
+application ouverte, et à chaque retour au premier plan — sans quoi une version
+déployée en journée n'arriverait sur le téléphone qu'au prochain démarrage
+complet. Le rechargement n'est jamais imposé : il interromprait une session de
+scan, et le bandeau reste d'ailleurs masqué derrière l'écran de scan.
 
 ## Licence
 

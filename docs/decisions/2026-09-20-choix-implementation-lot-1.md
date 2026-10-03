@@ -168,6 +168,18 @@ de la section 19, avec des dates relatives au jour d'exécution.
 Le compose de développement local (`docker-compose.dev.yml`) construit
 l'image depuis le Dockerfile ; le compose de production tire l'image publiée.
 
+## 10 bis. Mise à jour de l'application installée
+
+`vite-plugin-pwa` est en mode `prompt`, pas `autoUpdate` : l'application
+propose la mise à jour par un bandeau plutôt que de recharger la page d'elle-
+même, ce qui couperait une session de scan en cours. L'enregistrement du
+service worker est fait par le code (`apps/web/src/lib/pwa.ts`) et non injecté
+automatiquement, pour pouvoir relancer la vérification toutes les trente
+minutes et à chaque retour au premier plan. Le bandeau apparaît sur deux
+signaux : un service worker en attente, ou un écart entre la version renvoyée
+par `/health` et celle figée dans la coque, qui trahit un cache périmé que le
+service worker n'a pas encore vu.
+
 ## 11. Ce qui n'est pas fait dans la session de départ
 
 - Tests bout en bout Playwright (section 19) : le parcours de scan dépend de la
