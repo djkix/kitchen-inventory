@@ -1,4 +1,5 @@
-import { Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Param, Post, Put, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   logCookedSchema,
   paginationQuerySchema,
@@ -40,6 +41,19 @@ export class RecipeLogsController {
 @Controller('recipe-logs')
 export class RecipeLogRatingsController {
   constructor(private readonly logs: RecipeLogsService) {}
+
+  /**
+   * Rappel de notation (EF-28) : à déclarer avant `:id/*` pour ne pas être
+   * capturé par un paramètre. `@Res()` est nécessaire ici : Nest renvoie un
+   * corps vide (pas le littéral JSON `null`) pour une valeur de retour nulle,
+   * ce qui empêcherait le client de distinguer « rien en attente » d'une
+   * réponse tronquée.
+   */
+  @Get('pending-rating')
+  async pendingRating(@CurrentUser() user: RequestUser, @Res() res: Response): Promise<void> {
+    const pending = await this.logs.pendingRating(user);
+    res.json(pending);
+  }
 
   @Put(':id/rating')
   rate(

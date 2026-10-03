@@ -176,6 +176,46 @@ describe('recettes (EF-17, EF-21)', () => {
       await t.prisma.user.delete({ where: { id: marieId } });
       expect((await agent.get(`/api/v1/recipes/${recipe.id}`).expect(200)).body.stats).toMatchObject({ averageRating: 5, ratingCount: 1 });
     });
+
+    describe('rappel de notation (EF-28)', () => {
+      it('ne renvoie rien sans réalisation en attente', async () => {
+        const res = await agent.get('/api/v1/recipe-logs/pending-rating').expect(200);
+        expect(res.body).toBeNull();
+      });
+
+      it('renvoie la réalisation récente non notée par l’utilisateur courant', async () => {
+        const recipe = await createRecipe(agent, 'Dahl', []);
+        const log = await logCooked(agent, recipe.id);
+        const res = await agent.get('/api/v1/recipe-logs/pending-rating').expect(200);
+        expect(res.body).toMatchObject({ logId: log.id, recipeId: recipe.id, recipeTitle: 'Dahl' });
+      });
+
+      it('ne renvoie plus une réalisation déjà notée par l’utilisateur courant', async () => {
+        const recipe = await createRecipe(agent, 'Dahl', []);
+        const log = await logCooked(agent, recipe.id);
+        await agent.put(`/api/v1/recipe-logs/${log.id}/rating`).send({ stars: 4 }).expect(200);
+        const res = await agent.get('/api/v1/recipe-logs/pending-rating').expect(200);
+        expect(res.body).toBeNull();
+      });
+
+      it('ignore une réalisation hors fenêtre de sept jours', async () => {
+        const recipe = await createRecipe(agent, 'Dahl', []);
+        const log = await logCooked(agent, recipe.id);
+        await t.prisma.recipeLog.update({ where: { id: log.id }, data: { cookedAt: new Date(Date.now() - 8 * 86_400_000) } });
+        const res = await agent.get('/api/v1/recipe-logs/pending-rating').expect(200);
+        expect(res.body).toBeNull();
+      });
+
+      it('reste en attente même notée par un autre membre : une note est propre à chacun', async () => {
+        const recipe = await createRecipe(agent, 'Dahl', []);
+        const log = await logCooked(agent, recipe.id);
+        const marie = await createLoggedInMember(t, agent);
+        await marie.put(`/api/v1/recipe-logs/${log.id}/rating`).send({ stars: 3 }).expect(200);
+
+        const res = await agent.get('/api/v1/recipe-logs/pending-rating').expect(200);
+        expect(res.body).toMatchObject({ logId: log.id, recipeId: recipe.id });
+      });
+    });
   });
 
   describe('cuisson et décrément (EF-18)', () => {
