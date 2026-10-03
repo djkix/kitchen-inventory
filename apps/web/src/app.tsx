@@ -23,6 +23,7 @@ const ProductFormScreen = lazy(() => import('./screens/products/product-form-scr
 const LocationsScreen = lazy(() => import('./screens/settings/locations-screen').then((m) => ({ default: m.LocationsScreen })));
 const UsersScreen = lazy(() => import('./screens/settings/users-screen').then((m) => ({ default: m.UsersScreen })));
 const ServiceTokensScreen = lazy(() => import('./screens/settings/service-tokens-screen').then((m) => ({ default: m.ServiceTokensScreen })));
+const RecipeFormScreen = lazy(() => import('./screens/recipe-form/recipe-form-screen').then((m) => ({ default: m.RecipeFormScreen })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,7 +55,9 @@ export function App() {
                 <Route path="/stock/:id" element={<ItemScreen />} />
                 <Route path="/perime-bientot" element={<ExpiringScreen />} />
                 <Route path="/recettes" element={<RecipesScreen />} />
+                <Route path="/recettes/nouvelle" element={<RecipeFormScreen />} />
                 <Route path="/recettes/:id" element={<RecipeScreen />} />
+                <Route path="/recettes/:id/modifier" element={<RecipeFormScreen />} />
                 <Route path="/courses" element={<ComingSoonScreen title="Courses" />} />
                 <Route path="/reglages" element={<SettingsScreen />} />
                 <Route path="/reglages/emplacements" element={<LocationsScreen />} />
