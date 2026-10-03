@@ -1,5 +1,6 @@
 import type { RecipeDto, RecipeLogDto } from '@kitchen/shared';
 import type TestAgent from 'supertest/lib/agent.js';
+import type { TestApp } from '../../test/app.factory.js';
 import type { UserDto } from '../users/users.service.js';
 
 /**
@@ -66,4 +67,22 @@ export async function createMember(agent: TestAgent, body: Record<string, unknow
     .send({ email: `membre-${Date.now()}-${Math.random().toString(36).slice(2)}@example.org`, name: 'Membre', password: 'un-mot-de-passe-long', ...body })
     .expect(201);
   return res.body as UserDto;
+}
+
+/**
+ * Crée un second membre et renvoie un agent déjà connecté sous son identité
+ * (`createMember` ne connecte personne). Utilisé partout où un test a besoin
+ * d'un deuxième avis distinct de celui de l'administrateur (tâches 9, 10, 12).
+ */
+export async function createLoggedInMember(
+  t: Pick<TestApp, 'agent'>,
+  adminAgent: TestAgent,
+  body: Record<string, unknown> = {},
+): Promise<TestAgent> {
+  const email = (body.email as string | undefined) ?? `membre-${Date.now()}-${Math.random().toString(36).slice(2)}@example.org`;
+  const password = (body.password as string | undefined) ?? 'un-mot-de-passe-long';
+  await createMember(adminAgent, { name: 'Membre', ...body, email, password });
+  const memberAgent = t.agent();
+  await memberAgent.post('/api/v1/auth/login').send({ email, password }).expect(204);
+  return memberAgent;
 }

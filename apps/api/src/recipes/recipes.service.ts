@@ -1,19 +1,37 @@
 import { Injectable } from '@nestjs/common';
 import {
   computeDifficulty,
+  excludedFromRecipes,
+  expiryStatus,
+  recipeCoverage,
   sortRecipes,
+  type CoverageIngredient,
   type CreateRecipeInput,
   type Paginated,
   type RecipeDto,
+  type RecipeIngredientDto,
   type RecipeListQuery,
   type RecipeSummaryDto,
   type SortableRecipe,
+  type StockSnapshot,
   type UpdateRecipeInput,
 } from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
 import { ApiError } from '../common/api-error.js';
+import { formatCivilDate, toNumber } from '../common/decimal.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { RECIPE_INCLUDE, parseSteps, toRecipeDto, toRecipeSummaryDto, type RecipeWithRelations } from './recipe.mapper.js';
+import { SettingsService } from '../settings/settings.service.js';
+import {
+  RECIPE_INCLUDE,
+  parseSteps,
+  toRecipeDto,
+  toRecipeSummaryDto,
+  type IngredientCoverage,
+  type RecipeIngredientWithRelations,
+  type RecipeWithRelations,
+  type SummaryCoverage,
+} from './recipe.mapper.js';
+import { RecipesCoverageService } from './recipes.coverage.js';
 import { RecipesStatsService } from './recipes.stats.js';
 
 type IngredientInput = CreateRecipeInput['ingredients'][number];
@@ -23,6 +41,8 @@ export class RecipesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stats: RecipesStatsService,
+    private readonly coverage: RecipesCoverageService,
+    private readonly settings: SettingsService,
   ) {}
 
   async list(query: RecipeListQuery): Promise<Paginated<RecipeSummaryDto>> {
@@ -34,9 +54,12 @@ export class RecipesService {
       ...(query.dishType?.length ? { dishType: { in: query.dishType } } : {}),
       ...(query.diet?.length ? { diets: { hasSome: query.diet } } : {}),
     };
-    const rows = await this.prisma.recipe.findMany({ where, include: RECIPE_INCLUDE });
+    const [rows, snapshot] = await Promise.all([
+      this.prisma.recipe.findMany({ where, include: RECIPE_INCLUDE }),
+      this.coverage.snapshot(),
+    ]);
     const statsByRecipe = await this.stats.statsFor(rows.map((r) => r.id));
-    let summaries = rows.map((r) => toRecipeSummaryDto(r, statsByRecipe.get(r.id)!));
+    let summaries = rows.map((r) => toRecipeSummaryDto(r, statsByRecipe.get(r.id)!, this.summaryCoverage(r, snapshot)));
 
     if (query.maxTime !== undefined) {
       const maxTime = query.maxTime;
@@ -179,7 +202,137 @@ export class RecipesService {
   }
 
   private async toDto(recipe: RecipeWithRelations): Promise<RecipeDto> {
-    return toRecipeDto(recipe, await this.stats.statsForOne(recipe.id));
+    const snapshot = await this.coverage.snapshot();
+    const [stats, ingredientCoverages] = await Promise.all([
+      this.stats.statsForOne(recipe.id),
+      this.ingredientCoverages(recipe, snapshot),
+    ]);
+    return toRecipeDto(recipe, stats, this.summaryCoverage(recipe, snapshot), ingredientCoverages);
+  }
+
+  /** Ligne de couverture résolue (A15) : produit ou catégorie, jamais les deux, suivant la fusion (tâche 9). */
+  private toCoverageIngredient(ingredient: RecipeIngredientWithRelations): CoverageIngredient {
+    return {
+      id: ingredient.id,
+      productId: ingredient.productId ? (ingredient.product?.mergedIntoId ?? ingredient.productId) : null,
+      categoryId: this.resolvedIngredientCategoryId(ingredient),
+      quantity: toNumber(ingredient.quantity),
+      unit: ingredient.unit,
+      essential: ingredient.essential,
+      substitutable: ingredient.substitutable,
+    };
+  }
+
+  /**
+   * Catégorie déjà résolue par l'appelant (voir `CoverageIngredient.categoryId`
+   * dans `packages/shared`) : celle visée explicitement, ou — pour une ligne
+   * substituable qui cible un produit — celle de ce produit.
+   */
+  private resolvedIngredientCategoryId(ingredient: RecipeIngredientWithRelations): string | null {
+    if (ingredient.categoryId) return ingredient.categoryId;
+    if (ingredient.substitutable && ingredient.product) return ingredient.product.categoryId;
+    return null;
+  }
+
+  private summaryCoverage(recipe: RecipeWithRelations, snapshot: StockSnapshot): SummaryCoverage {
+    const result = recipeCoverage(recipe.ingredients.map((i) => this.toCoverageIngredient(i)), snapshot);
+    const labelById = new Map(recipe.ingredients.map((i) => [i.id, i.label]));
+    const missingLabels = result.missingIds.map((id) => labelById.get(id)).filter((label): label is string => !!label);
+    return { coverage: result.coverage, group: result.group, bonus: result.bonus, missingLabels };
+  }
+
+  /** Décoration complète d'une fiche recette (A15) : état, quantité disponible et candidats par ligne. */
+  private async ingredientCoverages(
+    recipe: RecipeWithRelations,
+    snapshot: StockSnapshot,
+  ): Promise<Map<string, IngredientCoverage>> {
+    const result = recipeCoverage(recipe.ingredients.map((i) => this.toCoverageIngredient(i)), snapshot);
+    const outcomeById = new Map(result.outcomes.map((o) => [o.id, o]));
+
+    // Les candidats (choix à la cuisson, A15) ne valent que pour une ligne
+    // substituable ou qui vise directement une catégorie.
+    const categoryByIngredient = new Map<string, string | null>();
+    for (const ingredient of recipe.ingredients) {
+      const needsCandidates = ingredient.substitutable || (!ingredient.productId && !!ingredient.categoryId);
+      categoryByIngredient.set(ingredient.id, needsCandidates ? this.resolvedIngredientCategoryId(ingredient) : null);
+    }
+    const categoryIds = [...new Set([...categoryByIngredient.values()].filter((c): c is string => c !== null))];
+    const candidatesByCategory = await this.candidatesByCategory(categoryIds, snapshot);
+
+    const map = new Map<string, IngredientCoverage>();
+    for (const ingredient of recipe.ingredients) {
+      const outcome = outcomeById.get(ingredient.id);
+      const categoryId = categoryByIngredient.get(ingredient.id) ?? null;
+      map.set(ingredient.id, {
+        state: outcome?.state ?? 'untracked',
+        availableQuantity: outcome?.availableQuantity ?? null,
+        nearExpiry: outcome?.nearExpiry ?? false,
+        candidates: categoryId ? (candidatesByCategory.get(categoryId) ?? []) : [],
+      });
+    }
+    return map;
+  }
+
+  /** Produits candidats d'une catégorie (et ses sous-catégories, A3), triés par date effective la plus proche. */
+  private async candidatesByCategory(
+    categoryIds: readonly string[],
+    snapshot: StockSnapshot,
+  ): Promise<Map<string, RecipeIngredientDto['candidates']>> {
+    const result = new Map<string, RecipeIngredientDto['candidates']>();
+    if (categoryIds.length === 0) return result;
+
+    const productIds = new Set<string>();
+    for (const categoryId of categoryIds) {
+      for (const entry of snapshot.byCategory.get(categoryId) ?? []) productIds.add(entry.productId);
+    }
+    if (productIds.size === 0) {
+      for (const categoryId of categoryIds) result.set(categoryId, []);
+      return result;
+    }
+
+    const [alertDays, products] = await Promise.all([
+      this.settings.expiryAlertDays(),
+      this.prisma.product.findMany({
+        where: { id: { in: [...productIds] } },
+        select: {
+          id: true,
+          name: true,
+          stockItems: { where: { archivedAt: null, quantity: { gt: 0 } }, select: { effectiveExpiry: true, dateType: true, dateEstimated: true } },
+        },
+      }),
+    ]);
+    const today = new Date();
+    const nearestByProduct = new Map<string, Date | null>();
+    const nameByProduct = new Map<string, string>();
+    for (const product of products) {
+      nameByProduct.set(product.id, product.name);
+      const dates = product.stockItems
+        .filter(
+          (lot) => !excludedFromRecipes(expiryStatus({ effectiveExpiry: lot.effectiveExpiry, dateType: lot.dateType, dateEstimated: lot.dateEstimated }, today, alertDays)),
+        )
+        .map((lot) => lot.effectiveExpiry)
+        .filter((date): date is Date => date !== null)
+        .sort((a, b) => a.getTime() - b.getTime());
+      nearestByProduct.set(product.id, dates[0] ?? null);
+    }
+
+    for (const categoryId of categoryIds) {
+      const entries = snapshot.byCategory.get(categoryId) ?? [];
+      const candidates = entries
+        .map((entry) => ({
+          productId: entry.productId,
+          name: nameByProduct.get(entry.productId) ?? '',
+          nearestExpiry: formatCivilDate(nearestByProduct.get(entry.productId) ?? null),
+        }))
+        .sort((a, b) => {
+          if (a.nearestExpiry === b.nearestExpiry) return 0;
+          if (a.nearestExpiry === null) return 1;
+          if (b.nearestExpiry === null) return -1;
+          return a.nearestExpiry.localeCompare(b.nearestExpiry);
+        });
+      result.set(categoryId, candidates);
+    }
+    return result;
   }
 
   private async require(id: string): Promise<RecipeWithRelations> {
