@@ -1,14 +1,18 @@
 /**
  * Jeu de données de développement (section 19) : 3 emplacements imbriqués,
- * 40 produits dont 10 asiatiques, 60 lots avec des dates étalées de part et
- * d'autre d'aujourd'hui, toujours relatives à la date d'exécution.
+ * 40 produits dont 10 asiatiques, jusqu'à 60 lots avec des dates étalées de
+ * part et d'autre d'aujourd'hui (un produit, la moutarde, est volontairement
+ * laissé sans stock pour illustrer un ingrédient manquant), huit recettes
+ * couvrant les quatre difficultés et cinq cuisines, et leur historique de
+ * réalisations, toujours relatifs à la date d'exécution (tâche 13).
  *
  *   DATABASE_URL=… npm run seed:dev -w @kitchen/api
  *
  * Compte créé : admin@example.org / inventaire-dev-2026 (si aucun utilisateur).
  */
 import { hash, Algorithm } from '@node-rs/argon2';
-import { PrismaClient, type Unit } from '@prisma/client';
+import { PrismaClient, type Diet, type Difficulty, type DishType, type Unit } from '@prisma/client';
+import { normalizeProductName } from '@kitchen/shared';
 
 const prisma = new PrismaClient();
 
@@ -88,19 +92,29 @@ async function main(): Promise<void> {
 
   const categories = new Map((await prisma.category.findMany()).map((c) => [c.name, c]));
   const products: Array<{ id: string; unit: Unit; category: string }> = [];
+  const productIdByName = new Map<string, string>();
   for (const [name, originalName, brand, category, unit] of ASIAN) {
     const p = await prisma.product.upsert({ where: { id: `seed-${slug(name)}` }, create: { id: `seed-${slug(name)}`, name, originalName, brand, categoryId: categories.get(category)?.id, defaultUnit: unit }, update: {} });
     products.push({ id: p.id, unit, category });
+    productIdByName.set(name, p.id);
   }
   for (const [name, brand, category, unit] of OTHERS) {
     const p = await prisma.product.upsert({ where: { id: `seed-${slug(name)}` }, create: { id: `seed-${slug(name)}`, name, brand, categoryId: categories.get(category)?.id, defaultUnit: unit }, update: {} });
     products.push({ id: p.id, unit, category });
+    productIdByName.set(name, p.id);
   }
+
+  // La moutarde reste volontairement sans lot : ingrédient essentiel manquant
+  // de la recette « Croque-monsieur » (tâche 13), pour que le groupe « incomplète »
+  // et les étiquettes d'ingrédient manquant soient visibles dans le jeu de dev.
+  const OUT_OF_STOCK_PRODUCT_IDS = new Set<string>([productIdByName.get('Moutarde')!]);
 
   await prisma.stockMovement.deleteMany({ where: { stockItem: { id: { startsWith: 'seed-lot-' } } } });
   await prisma.stockItem.deleteMany({ where: { id: { startsWith: 'seed-lot-' } } });
+  let stockCount = 0;
   for (let i = 0; i < 60; i++) {
     const product = products[i % products.length]!;
+    if (OUT_OF_STOCK_PRODUCT_IDS.has(product.id)) continue;
     const offset = OFFSETS[i % OFFSETS.length];
     const locationByCategory: Record<string, string> = { Surgelés: congel.id, 'Produits laitiers': frigo.id, 'Viande fraîche': frigo.id, 'Poisson frais': frigo.id, 'Légumes frais': frigo.id, 'Restes et préparations maison': frigo.id };
     const locationId = locationByCategory[product.category] ?? (i % 3 === 0 ? etagere.id : placard.id);
@@ -111,9 +125,336 @@ async function main(): Promise<void> {
       data: { id: `seed-lot-${i}`, productId: product.id, locationId, quantity, unit: product.unit, expiryDate, dateType, effectiveExpiry: expiryDate, dateEstimated: false },
     });
     await prisma.stockMovement.create({ data: { stockItemId: item.id, type: 'INBOUND', delta: quantity, userId: admin.id, occurredAt: daysFromNow(-(i % 30)) } });
+    stockCount++;
   }
-   
-  console.log(`Jeu de données : ${products.length} produits, 60 lots, 5 emplacements.`);
+
+  const camille = await prisma.user.upsert({
+    where: { email: 'camille@example.org' },
+    create: {
+      email: 'camille@example.org',
+      name: 'Camille',
+      role: 'MEMBER',
+      passwordHash: await hash('inventaire-dev-2026', { algorithm: Algorithm.Argon2id }),
+    },
+    update: {},
+  });
+
+  const recipeCount = await seedRecipes(productIdByName, categories, admin.id, camille.id);
+
+  console.log(`Jeu de données : ${products.length} produits, ${stockCount} lots, 5 emplacements, ${recipeCount} recettes.`);
+}
+
+/** Recette de développement (tâche 13) : rattachée aux produits déjà semés plus haut. */
+interface SeedIngredient {
+  label: string;
+  productName?: string;
+  categoryName?: string;
+  quantity?: number;
+  unit?: Unit;
+  essential?: boolean;
+  substitutable?: boolean;
+}
+interface SeedRating {
+  userId: 'admin' | 'camille';
+  stars: number;
+}
+interface SeedLog {
+  offsetDays: number;
+  servingsCooked: number;
+  ratings?: SeedRating[];
+}
+interface SeedRecipe {
+  slug: string;
+  title: string;
+  cuisineName: string;
+  difficulty: Difficulty;
+  dishType: DishType;
+  servings: number;
+  prepMinutes: number;
+  cookMinutes: number;
+  activeTime: number;
+  restMinutes?: number;
+  diets?: Diet[];
+  steps: string[];
+  ingredients: SeedIngredient[];
+  logs?: SeedLog[];
+}
+
+const CUISINE_NAMES = ['Japonaise', 'Coréenne', 'Thaïlandaise', 'Italienne', 'Française'];
+
+const RECIPES: SeedRecipe[] = [
+  {
+    slug: 'riz-saute-legumes',
+    title: 'Riz sauté aux légumes',
+    cuisineName: 'Japonaise',
+    difficulty: 'VERY_EASY',
+    dishType: 'MAIN',
+    servings: 4,
+    prepMinutes: 10,
+    cookMinutes: 15,
+    activeTime: 20,
+    diets: ['VEGETARIAN'],
+    steps: [
+      'Émincer les oignons et les carottes.',
+      'Faire revenir les légumes quelques minutes à la poêle.',
+      'Ajouter le riz cuit et la sauce soja, puis sauter 5 minutes à feu vif.',
+    ],
+    ingredients: [
+      { label: 'Riz basmati', productName: 'Riz basmati', quantity: 300, unit: 'GRAM', essential: true },
+      { label: 'Carottes', productName: 'Carottes', quantity: 0.15, unit: 'KILOGRAM' },
+      { label: 'Oignons', productName: 'Oignons', quantity: 0.08, unit: 'KILOGRAM' },
+      { label: 'Sauce soja', productName: 'Sauce soja', quantity: 15, unit: 'MILLILITER', essential: true },
+    ],
+  },
+  {
+    slug: 'ramen-miso-maison',
+    title: 'Ramen miso maison',
+    cuisineName: 'Japonaise',
+    difficulty: 'INTERMEDIATE',
+    dishType: 'MAIN',
+    servings: 2,
+    prepMinutes: 20,
+    cookMinutes: 25,
+    activeTime: 40,
+    steps: [
+      'Préparer le bouillon et y délayer la sauce soja.',
+      'Cuire les nouilles udon séparément.',
+      'Garnir d’algues nori et d’un filet de sauce huître.',
+      'Dresser les bols : bouillon, nouilles, algues.',
+    ],
+    ingredients: [
+      { label: 'Nouilles udon', productName: 'Nouilles udon', quantity: 2, unit: 'PACK', essential: true },
+      { label: 'Sauce soja', productName: 'Sauce soja', quantity: 20, unit: 'MILLILITER', essential: true },
+      { label: 'Sauce huître', productName: 'Sauce huître', quantity: 10, unit: 'MILLILITER' },
+      { label: 'Algues nori', productName: 'Algues nori', quantity: 1, unit: 'SACHET', essential: true },
+    ],
+    logs: [
+      { offsetDays: -1, servingsCooked: 2, ratings: [{ userId: 'admin', stars: 5 }] },
+      { offsetDays: -10, servingsCooked: 2, ratings: [{ userId: 'camille', stars: 4 }] },
+    ],
+  },
+  {
+    slug: 'bibimbap-simplifie',
+    title: 'Bibimbap simplifié',
+    cuisineName: 'Coréenne',
+    difficulty: 'HARD',
+    dishType: 'MAIN',
+    servings: 2,
+    prepMinutes: 30,
+    cookMinutes: 20,
+    activeTime: 45,
+    steps: [
+      'Cuire le riz basmati.',
+      'Faire sauter les légumes de saison séparément, chacun à sa cuisson.',
+      'Dresser le riz, les légumes et le kimchi, napper de gochujang.',
+    ],
+    ingredients: [
+      { label: 'Riz basmati', productName: 'Riz basmati', quantity: 250, unit: 'GRAM', essential: true },
+      { label: 'Gochujang', productName: 'Gochujang', quantity: 1, unit: 'PIECE', essential: true },
+      { label: 'Kimchi', productName: 'Kimchi', quantity: 1, unit: 'PIECE', essential: true },
+      { label: 'Légumes de saison', categoryName: 'Légumes frais', essential: true },
+    ],
+    logs: [{ offsetDays: -70, servingsCooked: 2, ratings: [{ userId: 'admin', stars: 3 }] }],
+  },
+  {
+    slug: 'curry-vert-thai-pois-chiches',
+    title: 'Curry vert thaï aux pois chiches',
+    cuisineName: 'Thaïlandaise',
+    difficulty: 'INTERMEDIATE',
+    dishType: 'MAIN',
+    servings: 4,
+    prepMinutes: 15,
+    cookMinutes: 25,
+    activeTime: 35,
+    diets: ['VEGETARIAN', 'VEGAN'],
+    steps: [
+      'Faire revenir la pâte de curry vert dans un peu d’huile.',
+      'Ajouter les pois chiches égouttés.',
+      'Mouiller avec le lait de coco (ou une autre crème végétale) et laisser mijoter 20 minutes.',
+    ],
+    ingredients: [
+      { label: 'Pâte de curry vert', productName: 'Pâte de curry vert', quantity: 1, unit: 'PIECE', essential: true },
+      { label: 'Lait de coco', productName: 'Lait de coco', quantity: 400, unit: 'MILLILITER', substitutable: true },
+      { label: 'Pois chiches', productName: 'Pois chiches', quantity: 1, unit: 'BOX', essential: true },
+    ],
+    logs: [
+      { offsetDays: -10, servingsCooked: 4, ratings: [{ userId: 'camille', stars: 4 }] },
+      { offsetDays: -1, servingsCooked: 3 },
+    ],
+  },
+  {
+    slug: 'pates-tomates-thon',
+    title: 'Pâtes aux tomates et au thon',
+    cuisineName: 'Italienne',
+    difficulty: 'EASY',
+    dishType: 'MAIN',
+    servings: 4,
+    prepMinutes: 10,
+    cookMinutes: 15,
+    activeTime: 20,
+    steps: [
+      'Cuire les pâtes ou nouilles selon le paquet.',
+      'Faire revenir les tomates pelées et le thon émietté.',
+      'Mélanger avec un filet d’huile d’olive.',
+    ],
+    ingredients: [
+      { label: 'Pâtes ou nouilles', categoryName: 'Épicerie sèche', essential: true },
+      { label: 'Tomates pelées', productName: 'Tomates pelées', quantity: 1, unit: 'BOX', essential: true },
+      { label: 'Thon au naturel', productName: 'Thon au naturel', quantity: 1, unit: 'BOX', essential: true },
+      { label: 'Huile d’olive', productName: 'Huile d’olive', quantity: 10, unit: 'MILLILITER' },
+    ],
+  },
+  {
+    slug: 'croque-monsieur',
+    title: 'Croque-monsieur',
+    cuisineName: 'Française',
+    difficulty: 'VERY_EASY',
+    dishType: 'MAIN',
+    servings: 2,
+    prepMinutes: 5,
+    cookMinutes: 10,
+    activeTime: 15,
+    steps: [
+      'Tartiner le pain de mie de moutarde.',
+      'Garnir de jambon blanc et de comté.',
+      'Passer au four ou à la poêle jusqu’à ce que le fromage fonde.',
+    ],
+    // Recette délibérément incomplète (tâche 13) : la moutarde n'a aucun lot
+    // en stock, ce qui exclut la recette malgré le reste des ingrédients.
+    ingredients: [
+      { label: 'Pain de mie', productName: 'Pain de mie', quantity: 1, unit: 'PACK', essential: true },
+      { label: 'Jambon blanc', productName: 'Jambon blanc', quantity: 2, unit: 'PIECE', essential: true },
+      { label: 'Comté', productName: 'Comté', quantity: 80, unit: 'GRAM', essential: true },
+      { label: 'Moutarde', productName: 'Moutarde', quantity: 1, unit: 'PIECE', essential: true },
+    ],
+  },
+  {
+    slug: 'saumon-fume-carottes',
+    title: 'Saumon fumé et carottes râpées',
+    cuisineName: 'Française',
+    difficulty: 'EASY',
+    dishType: 'STARTER',
+    servings: 4,
+    prepMinutes: 15,
+    cookMinutes: 0,
+    activeTime: 15,
+    steps: [
+      'Râper les carottes et émincer un oignon.',
+      'Assaisonner et dresser avec les tranches de saumon fumé.',
+    ],
+    ingredients: [
+      { label: 'Saumon fumé', productName: 'Saumon fumé', quantity: 1, unit: 'PIECE', essential: true },
+      { label: 'Carottes', productName: 'Carottes', quantity: 0.3, unit: 'KILOGRAM', essential: true },
+      { label: 'Oignons', productName: 'Oignons', quantity: 0.1, unit: 'KILOGRAM' },
+    ],
+    logs: [{ offsetDays: -10, servingsCooked: 4, ratings: [{ userId: 'camille', stars: 2 }] }],
+  },
+  {
+    slug: 'salade-pois-chiches',
+    title: 'Salade de pois chiches à l’huile d’olive',
+    cuisineName: 'Italienne',
+    difficulty: 'EASY',
+    dishType: 'STARTER',
+    servings: 4,
+    prepMinutes: 10,
+    cookMinutes: 0,
+    activeTime: 10,
+    diets: ['VEGETARIAN', 'VEGAN'],
+    steps: [
+      'Égoutter les pois chiches.',
+      'Émincer un oignon et assaisonner avec l’huile d’olive et le cumin.',
+      'Mélanger et servir frais.',
+    ],
+    ingredients: [
+      { label: 'Pois chiches', productName: 'Pois chiches', quantity: 1, unit: 'BOX', essential: true },
+      { label: 'Huile d’olive', productName: 'Huile d’olive', quantity: 15, unit: 'MILLILITER', essential: true },
+      { label: 'Oignons', productName: 'Oignons', quantity: 0.05, unit: 'KILOGRAM' },
+      { label: 'Cumin', productName: 'Cumin', quantity: 1, unit: 'PIECE' },
+    ],
+  },
+];
+
+/** Sème les huit recettes de développement et leur historique (tâche 13), ré-exécutable sans effet de bord. */
+async function seedRecipes(
+  productIdByName: ReadonlyMap<string, string>,
+  categories: ReadonlyMap<string, { id: string }>,
+  adminId: string,
+  camilleId: string,
+): Promise<number> {
+  const cuisineIdByName = new Map<string, string>();
+  for (const name of CUISINE_NAMES) {
+    const c = await prisma.cuisine.upsert({
+      where: { name },
+      create: { name, normalizedName: normalizeProductName(name) },
+      update: {},
+    });
+    cuisineIdByName.set(name, c.id);
+  }
+
+  // Ré-exécutable : les réalisations sont supprimées puis recréées (les notes
+  // suivent par la cascade déclarée sur RecipeRating), puis les recettes.
+  await prisma.recipeLog.deleteMany({ where: { recipeId: { startsWith: 'seed-recipe-' } } });
+  await prisma.recipe.deleteMany({ where: { id: { startsWith: 'seed-recipe-' } } });
+
+  const userIdByTag: Record<'admin' | 'camille', string> = { admin: adminId, camille: camilleId };
+
+  for (const recipe of RECIPES) {
+    const recipeId = `seed-recipe-${recipe.slug}`;
+    const created = await prisma.recipe.create({
+      data: {
+        id: recipeId,
+        title: recipe.title,
+        difficulty: recipe.difficulty,
+        difficultyOverride: true,
+        cuisineId: cuisineIdByName.get(recipe.cuisineName)!,
+        dishType: recipe.dishType,
+        prepMinutes: recipe.prepMinutes,
+        cookMinutes: recipe.cookMinutes,
+        activeTime: recipe.activeTime,
+        restMinutes: recipe.restMinutes ?? null,
+        servings: recipe.servings,
+        steps: recipe.steps,
+        diets: recipe.diets ?? [],
+        createdById: adminId,
+        ingredients: {
+          create: recipe.ingredients.map((ingredient) => ({
+            label: ingredient.label,
+            productId: ingredient.productName ? productIdByName.get(ingredient.productName) : undefined,
+            categoryId: ingredient.categoryName ? categories.get(ingredient.categoryName)?.id : undefined,
+            quantity: ingredient.quantity ?? null,
+            unit: ingredient.unit ?? null,
+            essential: ingredient.essential ?? false,
+            substitutable: ingredient.substitutable ?? false,
+          })),
+        },
+      },
+    });
+
+    for (const [logIndex, log] of (recipe.logs ?? []).entries()) {
+      const createdLog = await prisma.recipeLog.create({
+        data: {
+          id: `seed-recipe-log-${recipe.slug}-${logIndex}`,
+          recipeId: created.id,
+          userId: adminId,
+          cookedAt: daysFromNow(log.offsetDays),
+          servingsCooked: log.servingsCooked,
+          stockApplied: false,
+        },
+      });
+      for (const [ratingIndex, rating] of (log.ratings ?? []).entries()) {
+        await prisma.recipeRating.create({
+          data: {
+            id: `seed-recipe-rating-${recipe.slug}-${logIndex}-${ratingIndex}`,
+            recipeLogId: createdLog.id,
+            userId: userIdByTag[rating.userId],
+            stars: rating.stars,
+          },
+        });
+      }
+    }
+  }
+
+  return RECIPES.length;
 }
 
 function slug(value: string): string {
