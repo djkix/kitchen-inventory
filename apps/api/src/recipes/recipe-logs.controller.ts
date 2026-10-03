@@ -1,5 +1,4 @@
-import { Controller, Delete, Get, HttpCode, Param, Post, Put, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import { Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import {
   logCookedSchema,
   paginationQuerySchema,
@@ -12,7 +11,12 @@ import {
 } from '@kitchen/shared';
 import { CurrentUser, type RequestUser } from '../auth/request-user.js';
 import { ZodBody, ZodQuery } from '../common/zod-validation.pipe.js';
-import { RecipeLogsService } from './recipe-logs.service.js';
+import { type PendingRatingDto, RecipeLogsService } from './recipe-logs.service.js';
+
+/** Réponse de `GET /recipe-logs/pending-rating` : enveloppée pour que « rien en attente » reste un corps JSON normal (`{ pending: null }`), sans sortir du pipeline de réponse standard de Nest. */
+export interface PendingRatingResponse {
+  pending: PendingRatingDto | null;
+}
 
 /** Historique des réalisations d'une recette (A26), imbriqué sous `/recipes`. */
 @Controller('recipes/:recipeId/logs')
@@ -44,15 +48,15 @@ export class RecipeLogRatingsController {
 
   /**
    * Rappel de notation (EF-28) : à déclarer avant `:id/*` pour ne pas être
-   * capturé par un paramètre. `@Res()` est nécessaire ici : Nest renvoie un
-   * corps vide (pas le littéral JSON `null`) pour une valeur de retour nulle,
-   * ce qui empêcherait le client de distinguer « rien en attente » d'une
-   * réponse tronquée.
+   * capturé par un paramètre. Réponse enveloppée dans `{ pending }` : un
+   * retour `null` nu serait traduit par Nest en corps vide plutôt qu'en
+   * littéral JSON `null`, ce qui empêcherait le client de distinguer « rien
+   * en attente » d'une réponse tronquée — sans pour autant sortir ce point de
+   * terminaison du pipeline de réponse standard (`@Res()`).
    */
   @Get('pending-rating')
-  async pendingRating(@CurrentUser() user: RequestUser, @Res() res: Response): Promise<void> {
-    const pending = await this.logs.pendingRating(user);
-    res.json(pending);
+  async pendingRating(@CurrentUser() user: RequestUser): Promise<PendingRatingResponse> {
+    return { pending: await this.logs.pendingRating(user) };
   }
 
   @Put(':id/rating')

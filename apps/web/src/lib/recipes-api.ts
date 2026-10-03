@@ -11,8 +11,9 @@ export const recipesApi = {
     return api.put<Partial<RecipeFilters>>('/preferences/recipe-filters', filters);
   },
   /** Dernière réalisation non notée par l'utilisateur courant, ou `null` (bandeau de rappel, EF-28). */
-  getPendingRating(): Promise<PendingRatingDto | null> {
-    return api.get<PendingRatingDto | null>('/recipe-logs/pending-rating');
+  async getPendingRating(): Promise<PendingRatingDto | null> {
+    const { pending } = await api.get<{ pending: PendingRatingDto | null }>('/recipe-logs/pending-rating');
+    return pending;
   },
   /** Note (ou remplace sa propre note sur) une réalisation ; `409` hors fenêtre de sept jours (A25). */
   rateLog(logId: string, input: RateLogInput): Promise<RecipeLogDto> {
