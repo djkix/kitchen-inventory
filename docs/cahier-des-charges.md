@@ -1,6 +1,7 @@
 # Cahier des charges — Inventaire alimentaire maison (scan IA, self-hosted)
 
-2026-09-18 · @Franck
+2026-09-18 · @Franck · amendé le 2026-10-03 (section 12, classement des
+suggestions ; voir le journal des amendements en fin de document)
 
 Application web auto-hébergée qui inventorie tous les produits comestibles de la maison par scan photo depuis le téléphone, suit les dates de péremption, et propose des recettes réalisables avec ce qui est effectivement en stock, filtrables par difficulté et par type de cuisine.
 
@@ -318,11 +319,13 @@ L'application propose des recettes réalisables avec ce qui est réellement en s
 
 | Groupe | Règle | Affichage |
 | --- | --- | --- |
-| Réalisable | 100 % des ingrédients en stock, quantités suffisantes | En tête de liste |
+| Réalisable | 100 % des ingrédients en stock, quantités suffisantes | Pastille « prête » sur la carte |
 | Presque | 1 ou 2 ingrédients manquants, dont aucun ingrédient principal | Avec la liste de ce qui manque, ajoutable aux courses en un geste |
-| À écarter | Au-delà, ou ingrédient principal absent | Masqué par défaut |
+| À écarter | Au-delà, ou ingrédient principal absent | Pastille « incomplète » |
 
-Un bonus de classement est appliqué aux recettes qui consomment des articles proches de leur date de péremption : c'est le croisement qui a le plus de valeur au quotidien.
+**Classement des suggestions (amendé le 2026-10-03).** Le groupe est affiché sur chaque carte mais ne détermine ni l'ordre de la liste ni la visibilité : les recettes forment un seul ensemble, trié par défaut sur la note moyenne attribuée par le foyer. La version initiale classait par taux de couverture, ce qui mettait en tête des recettes réalisables mais peu appréciées, et reléguait des valeurs sûres auxquelles il ne manquait qu'un ingrédient. Le stock reste pleinement accessible : un tri « couverture » et un tri « anti-gaspillage » sont proposés, une pastille rapide « Réalisables maintenant » filtre sur le groupe, et le taux de couverture figure sur chaque carte.
+
+Un bonus de classement est appliqué aux recettes qui consomment des articles proches de leur date de péremption : c'est le croisement qui a le plus de valeur au quotidien. Depuis l'amendement, ce bonus alimente le tri « anti-gaspillage » et une pastille dédiée, au lieu de peser sur le classement par défaut.
 
 **Filtres exigés**
 
@@ -367,7 +370,7 @@ Le champ `principal` est ce qui fait la qualité des suggestions : sans lui, l'a
 | EF-24 | Ajouter les ingrédients manquants à la liste de courses en une action | Should |
 | EF-25 | Importer une recette depuis une URL par lecture des données structurées | Should |
 | EF-26 | Générer une recette par IA à partir du stock, de la difficulté et de l'origine demandées | Should |
-| EF-27 | Prioriser les recettes qui consomment des articles proches de péremption | Should |
+| EF-27 | Prioriser les recettes qui consomment des articles proches de péremption, par un tri dédié et une pastille, et non par le classement par défaut (amendé le 2026-10-03) | Should |
 | EF-28 | Noter une recette après l'avoir cuisinée et retrouver les recettes bien notées | Could |
 
 Ce module suppose un inventaire fiable pour être utile : une suggestion fondée sur un stock faux est pire que pas de suggestion. Il est donc planifié au lot 2, après quelques semaines d'usage réel du lot 1 : décision arrêtée (section 25, point 8).
@@ -409,7 +412,7 @@ flowchart TD
 | Stock | Liste ou grille des articles, groupée par emplacement ou par péremption, recherche en haut | Filtrer, consommer, ouvrir la fiche |
 | Scan | Caméra plein écran, emplacement courant affiché en bandeau haut, dernier article ajouté en bandeau bas avec annulation | Scanner, prendre en photo, changer d'emplacement, annuler |
 | Fiche article | Photo, nom, marque, quantité, unité, emplacement, date et son caractère estimé ou lu, historique des mouvements | Modifier, consommer, déplacer, supprimer |
-| Recettes | Liste triée par taux de couverture, barre de filtres persistante (difficulté, cuisine, temps, plat, régime) | Filtrer, ouvrir, générer par IA |
+| Recettes | Liste unique triée par note, choix du tri (note, couverture, anti-gaspillage, les plus faites, les moins récentes), barre de filtres persistante (difficulté, cuisine, temps, plat, régime) et pastilles rapides | Filtrer, trier, ouvrir, générer par IA |
 | Fiche recette | Ingrédients avec état en stock ou manquant, étapes, difficulté, temps | Cuisiner, ajouter les manquants aux courses, noter |
 | Courses | Liste cochable, articles issus des seuils et des recettes distingués | Cocher, ajouter, vider les cochés |
 | Périme bientôt | Vue dédiée atteignable depuis Stock et depuis une notification | Consommer, jeter, voir les recettes associées |
@@ -745,3 +748,12 @@ Dix décisions sur onze sont prises. Une seule reste ouverte, et elle est condit
 
 - [Open Food Facts](https://world.openfoodfacts.org) et sa [documentation API](https://openfoodfacts.github.io/openfoodfacts-server/api/)
 - [Grocy — dépôt du projet](https://github.com/grocy/grocy) et [fiche projet](https://dev.co/erp/open-source/grocy)
+
+## 26. Journal des amendements
+
+Ce cahier est normatif. Tout écart constaté en cours de réalisation est tranché
+ici, daté et motivé, plutôt que laissé à l'appréciation du code.
+
+| Date | Section | Amendement | Motif |
+| --- | --- | --- | --- |
+| 2026-10-03 | 12, 14, EF-27 | Le classement par défaut des suggestions passe du taux de couverture à la note moyenne du foyer. Le groupe reste affiché sur chaque carte, et le stock comme l'anti-gaspillage restent accessibles par des tris dédiés et une pastille de filtre. | Classer par couverture met en tête des recettes réalisables mais peu appréciées, et relègue des valeurs sûres auxquelles il manque un ingrédient. La question quotidienne est « on mange quoi ce soir », pas « que puis-je faire sans courses ». Arbitrage A27 de la révision 2 de `docs/specs/2026-10-03-module-recettes-socle.md`. |
