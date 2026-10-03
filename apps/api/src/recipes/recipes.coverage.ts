@@ -21,7 +21,7 @@ import { toNumber } from '../common/decimal.js';
  * niveau ne devrait jamais servir) avant de se rabattre sur le dernier produit
  * connu, avec un ensemble visité pour écarter tout cycle.
  */
-const PRODUCT_MERGE_SELECT = {
+export const PRODUCT_MERGE_SELECT = {
   id: true,
   categoryId: true,
   defaultUnit: true,
@@ -30,7 +30,7 @@ const PRODUCT_MERGE_SELECT = {
   mergedIntoId: true,
 } as const;
 
-interface MergeChainProduct {
+export interface MergeChainProduct {
   id: string;
   categoryId: string | null;
   defaultUnit: Unit;
@@ -40,7 +40,7 @@ interface MergeChainProduct {
   mergedInto?: MergeChainProduct | null;
 }
 
-interface ResolvedProduct {
+export interface ResolvedProduct {
   id: string;
   categoryId: string | null;
   defaultUnit: Unit;
@@ -48,7 +48,12 @@ interface ResolvedProduct {
   netContentUnit: Unit | null;
 }
 
-function resolveTargetProduct(product: MergeChainProduct): ResolvedProduct {
+/**
+ * Suit la chaîne de fusion d'un produit (section 9) jusqu'à la cible finale.
+ * Partagée par l'instantané de couverture et la cuisson (tâche « défaut 3 »)
+ * pour qu'un produit fusionné ne soit jamais résolu deux fois différemment.
+ */
+export function resolveTargetProduct(product: MergeChainProduct): ResolvedProduct {
   let current: MergeChainProduct = product;
   const seen = new Set<string>([current.id]);
   while (current.mergedIntoId && current.mergedInto && !seen.has(current.mergedInto.id)) {
