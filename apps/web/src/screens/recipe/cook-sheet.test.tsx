@@ -12,6 +12,19 @@ const recipe: CookableRecipe = {
   ],
 };
 
+/**
+ * Ligne visant une catégorie, non `substitutable` (défaut 1) : le serveur
+ * calcule quand même des candidats (recipes.service.ts), le tiroir doit donc
+ * proposer le sélecteur et envoyer un `productId` pour elle aussi.
+ */
+const recipeWithCategoryLine: CookableRecipe = {
+  id: 'r2', title: 'Gratin', servings: 4,
+  ingredients: [
+    { id: 'i4', label: 'Fromage râpé', quantity: 100, unit: 'GRAM', state: 'available', substitutable: false,
+      candidates: [{ productId: 'p20', name: 'Comté', nearestExpiry: '2026-10-05' }] },
+  ],
+};
+
 describe('CookSheetView', () => {
   it('recalcule les quantités au prorata des portions', () => {
     render(<CookSheetView recipe={recipe} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />);
@@ -30,6 +43,13 @@ describe('CookSheetView', () => {
   it('ne propose pas de décrémenter un ingrédient hors inventaire', () => {
     render(<CookSheetView recipe={recipe} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />);
     expect(screen.queryByRole('checkbox', { name: /Sel/ })).toBeNull();
+  });
+  it('propose le sélecteur de produit et envoie son productId pour une ligne catégorie non substituable (défaut 1)', () => {
+    const onConfirm = vi.fn();
+    render(<CookSheetView recipe={recipeWithCategoryLine} busy={false} onConfirm={onConfirm} onCancel={vi.fn()} />);
+    expect(screen.getByLabelText('Produit pour Fromage râpé')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Cuisiner/ }));
+    expect(onConfirm.mock.calls[0]![0].lines).toEqual([{ ingredientId: 'i4', productId: 'p20' }]);
   });
   it('présélectionne le produit qui périme le plus tôt (A15)', () => {
     render(<CookSheetView recipe={recipe} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />);

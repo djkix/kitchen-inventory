@@ -345,6 +345,13 @@ describe('recettes (EF-17, EF-21)', () => {
       expect(await t.prisma.recipeLog.count()).toBe(1);
     });
 
+    it('signale `capped` plutôt que de décrémenter en silence une ligne catégorie sans produit choisi (défaut 1)', async () => {
+      const recipe = await createRecipe(agent, 'Gratin', [{ label: 'Fromage râpé', categoryId: epicerieId, quantity: 100, unit: 'GRAM' }]);
+      const res = await cookRecipe(agent, recipe.id, { servingsCooked: 4, lines: [{ ingredientId: recipe.ingredients[0]!.id }] });
+      expect(res.lines[0]).toMatchObject({ requested: 100, applied: 0, capped: true });
+      expect(await t.prisma.stockMovement.count({ where: { type: 'RECIPE' } })).toBe(0);
+    });
+
     it('refuse un identifiant d’ingrédient inconnu', async () => {
       const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' }], { servings: 4 });
       const res = await agent.post(`/api/v1/recipes/${recipe.id}/cook`).send({ servingsCooked: 4, lines: [{ ingredientId: 'inconnu' }] });

@@ -96,13 +96,20 @@ export class RecipesCookService {
     const unit = ingredient.unit;
     const productId = productOverride ?? ingredient.productId ?? null;
 
-    // A17 : une ligne sans quantité, ou qui ne vise aucun produit de l'inventaire, est ignorée.
-    if (quantity === null || unit === null || !productId) {
+    // A17 : une ligne vraiment sans quantité (ex. « Sel », à l'œil) est ignorée, silencieusement.
+    if (quantity === null || unit === null) {
       return { ingredientId: ingredient.id, label: ingredient.label, requested: null, applied: 0, unit: null, capped: false };
     }
 
     // A14 : mise à l'échelle unique, côté serveur, jamais à partir d'une valeur envoyée par le client.
     const requested = roundQuantity((quantity * servingsCooked) / recipe.servings);
+
+    // Une ligne qui vise une catégorie (A15) exige que le client résolve un produit ;
+    // sans lui, impossible de décrémenter. Signalé `capped` plutôt qu'ignoré en silence
+    // (défaut 1) : la quantité demandée reste visible, rien n'a été appliqué.
+    if (!productId) {
+      return { ingredientId: ingredient.id, label: ingredient.label, requested, applied: 0, unit, capped: true };
+    }
 
     const product = await tx.product.findUnique({ where: { id: productId }, select: { netContent: true, netContentUnit: true } });
     const netContent = toNumber(product?.netContent ?? null);
