@@ -29,7 +29,7 @@ export function isApiError(error: unknown, code?: ClientErrorCode): error is Api
   return error instanceof ApiClientError && (code === undefined || error.code === code);
 }
 
-type QueryValue = string | number | boolean | null | undefined;
+type QueryValue = string | number | boolean | null | undefined | readonly (string | number)[];
 
 export interface RequestOptions {
   query?: Record<string, QueryValue>;
@@ -56,6 +56,10 @@ export function buildUrl(path: string, query?: Record<string, QueryValue>): stri
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined || value === null || value === '') continue;
+    if (Array.isArray(value)) {
+      for (const entry of value) params.append(key, String(entry));
+      continue;
+    }
     params.set(key, String(value));
   }
   const qs = params.toString();
@@ -122,6 +126,7 @@ export const api = {
   post: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('POST', path, { ...options, body }),
   postForm: <T>(path: string, formData: FormData, options?: RequestOptions) => request<T>('POST', path, { ...options, formData }),
   patch: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PATCH', path, { ...options, body }),
+  put: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PUT', path, { ...options, body }),
   delete: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('DELETE', path, { ...options, body }),
 };
 

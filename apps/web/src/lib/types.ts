@@ -31,3 +31,10 @@ export interface HealthReport {
   checks: { database: 'ok' | 'error'; media: 'ok' | 'error'; migrations: 'ok' | 'pending' | 'error' };
   degraded?: string[];
 }
+
+/** Référentiel des cuisines (`GET /api/v1/cuisines`, section 12). */
+export interface CuisineDto {
+  id: string;
+  name: string;
+  region: string | null;
+}

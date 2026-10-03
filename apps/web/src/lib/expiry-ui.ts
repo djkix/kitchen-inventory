@@ -61,6 +61,16 @@ export function formatDateTime(value: string): string {
   return Number.isNaN(date.getTime()) ? value : DATETIME_FORMAT.format(date);
 }
 
+/** « Aujourd’hui », « Hier », « il y a 12 jours » : lisible dans une ligne d'historique. */
+export function formatRelativeDays(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const days = Math.floor((Date.now() - date.getTime()) / (24 * 60 * 60 * 1000));
+  if (days <= 0) return 'Aujourd’hui';
+  if (days === 1) return 'Hier';
+  return `il y a ${days} jours`;
+}
+
 /** Date du jour au format civil accepté par l'API. */
 export function todayIso(): string {
   const now = new Date();
