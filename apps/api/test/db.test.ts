@@ -27,4 +27,30 @@ describe('base de test et migration initiale', () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((r) => r.finished_at !== null)).toBe(true);
   });
+
+  it('porte le schéma du module recettes', async () => {
+    const columns = async (table: string) =>
+      (await prisma.$queryRaw<Array<{ column_name: string }>>`
+        SELECT column_name FROM information_schema.columns WHERE table_name = ${table}`).map((c) => c.column_name).sort();
+
+    expect(await columns('UserPreference')).toEqual(['key', 'updatedAt', 'userId', 'value']);
+    expect(await columns('RecipeRating')).toEqual(['comment', 'createdAt', 'id', 'recipeLogId', 'stars', 'updatedAt', 'userId']);
+    expect(await columns('Recipe')).toEqual(expect.arrayContaining(['activeTime', 'restMinutes', 'archivedAt']));
+    expect(await columns('Recipe')).not.toContain('rating');
+    expect(await columns('Cuisine')).toContain('normalizedName');
+    expect(await columns('RecipeLog')).toContain('clientOpId');
+    expect(await columns('RecipeLog')).not.toContain('rating');
+
+    const [essential] = await prisma.$queryRaw<Array<{ column_default: string | null }>>`
+      SELECT column_default FROM information_schema.columns WHERE table_name = 'RecipeIngredient' AND column_name = 'essential'`;
+    expect(essential?.column_default).toBe('false');
+
+    const dishTypes = await prisma.$queryRaw<Array<{ enumlabel: string }>>`
+      SELECT enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'DishType'`;
+    expect(dishTypes.map((d) => d.enumlabel).sort()).toEqual(['APERITIF', 'BREAKFAST', 'DESSERT', 'DRINK', 'MAIN', 'SIDE', 'STARTER']);
+
+    const indexes = await prisma.$queryRaw<Array<{ indexname: string }>>`
+      SELECT indexname FROM pg_indexes WHERE tablename = 'RecipeIngredient'`;
+    expect(indexes.map((i) => i.indexname)).toContain('RecipeIngredient_categoryId_idx');
+  });
 });

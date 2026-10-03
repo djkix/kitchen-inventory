@@ -41,6 +41,21 @@ model User {
   recipes       Recipe[]
   recipeLogs    RecipeLog[]
   sessions      Session[]
+  preferences   UserPreference[]
+  recipeRatings RecipeRating[]
+}
+
+// Réglages propres à un utilisateur, là où « Setting » vaut pour l'instance.
+// Les filtres et le tri des recettes sont « mémorisés par utilisateur »
+// (section 12 du cahier), chacun ayant ses habitudes.
+model UserPreference {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, key])
 }
 
 // Session par cookie httpOnly. Seul le hachage SHA-256 du jeton est stocké :
@@ -278,10 +293,19 @@ enum Difficulty {
 enum DishType {
   STARTER
   MAIN
-  SIDE
   DESSERT
-  SAUCE
+  SIDE
+  APERITIF
+  BREAKFAST
   DRINK
+}
+
+enum Diet {
+  VEGETARIAN
+  VEGAN
+  GLUTEN_FREE
+  LACTOSE_FREE
+  PORK_FREE
 }
 
 enum RecipeSource {
@@ -291,10 +315,12 @@ enum RecipeSource {
 }
 
 model Cuisine {
-  id      String   @id @default(cuid())
-  name    String   @unique
-  region  String?
-  recipes Recipe[]
+  id             String   @id @default(cuid())
+  name           String   @unique
+  // Minuscules et sans accent (A22) : permet de dédoublonner les saisies.
+  normalizedName String   @unique
+  region         String?
+  recipes        Recipe[]
 }
 
 model Recipe {
@@ -307,16 +333,20 @@ model Recipe {
   cuisine   Cuisine? @relation(fields: [cuisineId], references: [id])
   dishType  DishType?
   prepMinutes  Int?
+  // Temps effectivement actif en cuisine, hors repos (note sur restMinutes).
+  activeTime   Int?
   cookMinutes  Int?
+  // Repos (pousse, marinade…) : exclu du filtre de temps (A13).
+  restMinutes  Int?
   servings     Int @default(4)
   steps        Json
-  diets        String[] // vegetarian, vegan, no-pork, gluten-free, lactose-free
+  diets        Diet[]
   imagePath    String?
   source       RecipeSource @default(HOUSEHOLD)
   sourceUrl    String?
   createdById  String?
   createdBy    User?  @relation(fields: [createdById], references: [id])
-  rating       Int?
+  archivedAt   DateTime?
   createdAt    DateTime @default(now())
 
   ingredients RecipeIngredient[]
@@ -324,6 +354,7 @@ model Recipe {
 
   @@index([cuisineId])
   @@index([difficulty])
+  @@index([archivedAt])
 }
 
 // Un ingrédient vise soit un produit précis, soit une catégorie entière
@@ -341,11 +372,12 @@ model RecipeIngredient {
   quantity   Decimal? @db.Decimal(10, 2)
   unit       Unit?
   // Un ingrédient principal absent exclut la recette des « presque réalisables ».
-  essential     Boolean @default(true)
+  essential     Boolean @default(false)
   substitutable Boolean @default(false)
 
   @@index([recipeId])
   @@index([productId])
+  @@index([categoryId])
 }
 
 model RecipeLog {
@@ -356,12 +388,32 @@ model RecipeLog {
   user           User?    @relation(fields: [userId], references: [id])
   cookedAt       DateTime @default(now())
   servingsCooked Int
-  rating         Int?
   stockApplied   Boolean  @default(false)
+  // Identifiant généré par le client : garantit qu'une opération rejouée
+  // deux fois par la file hors ligne ne compte qu'une fois.
+  clientOpId     String?  @unique
 
   movements StockMovement[]
+  ratings   RecipeRating[]
 
   @@index([recipeId])
+}
+
+// Une note par membre et par réalisation (A24) : la moyenne d'une recette
+// agrège les avis de tout le foyer, au lieu d'une note unique écrasée.
+model RecipeRating {
+  id          String    @id @default(cuid())
+  recipeLogId String
+  recipeLog   RecipeLog @relation(fields: [recipeLogId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stars       Int
+  comment     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([recipeLogId, userId])
+  @@index([recipeLogId])
 }
 
 // ---------------------------------------------------------------- traçabilité
