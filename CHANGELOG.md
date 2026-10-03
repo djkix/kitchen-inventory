@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/djkix/kitchen-inventory/compare/v0.6.0...v0.6.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **ci:** « latest » ne suit que les versions publiées ([02c735d](https://github.com/djkix/kitchen-inventory/commit/02c735dc8266c88fb4b988e1691e7abeb9481172))
+
 ## [0.6.0](https://github.com/djkix/kitchen-inventory/compare/v0.5.0...v0.6.0) (2026-10-03)
 
 
