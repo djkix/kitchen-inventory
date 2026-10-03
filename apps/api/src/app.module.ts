@@ -18,6 +18,7 @@ import { LocationsModule } from './locations/locations.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PreferencesModule } from './preferences/preferences.module.js';
 import { ProductsModule } from './products/products.module.js';
+import { RecipesModule } from './recipes/recipes.module.js';
 import { ServiceTokensModule } from './service-tokens/service-tokens.module.js';
 import { SpaModule } from './spa/spa.module.js';
 import { SettingsModule } from './settings/settings.module.js';
@@ -56,6 +57,7 @@ export class AppModule {
         ProductsModule,
         SettingsModule,
         StockModule,
+        RecipesModule,
         MediaModule,
         RecognitionModule,
         ExportModule,
