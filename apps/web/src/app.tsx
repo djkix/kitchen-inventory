@@ -16,6 +16,7 @@ import { StockScreen } from './screens/stock/stock-screen';
 import { ItemScreen } from './screens/item/item-screen';
 import { ExpiringScreen } from './screens/expiring/expiring-screen';
 import { SettingsScreen } from './screens/settings/settings-screen';
+import { SuggestionsScreen } from './screens/suggestions/suggestions-screen';
 
 // Écrans secondaires chargés à la demande : l'onglet Stock arrive le premier.
 const ScanScreen = lazy(() => import('./screens/scan/scan-screen').then((m) => ({ default: m.ScanScreen })));
@@ -54,7 +55,8 @@ export function App() {
                 <Route index element={<StockScreen />} />
                 <Route path="/stock/:id" element={<ItemScreen />} />
                 <Route path="/perime-bientot" element={<ExpiringScreen />} />
-                <Route path="/recettes" element={<RecipesScreen />} />
+                <Route path="/recettes" element={<SuggestionsScreen />} />
+                <Route path="/recettes/bibliotheque" element={<RecipesScreen />} />
                 <Route path="/recettes/:id" element={<RecipeScreen />} />
                 <Route path="/recettes/:id/modifier" element={<RecipeFormScreen />} />
                 <Route path="/courses" element={<ComingSoonScreen title="Courses" />} />

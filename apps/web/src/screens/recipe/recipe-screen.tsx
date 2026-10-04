@@ -30,7 +30,7 @@ export function RecipeScreen() {
     const missing = isApiError(recipe.error, 'not_found');
     return (
       <>
-        <ScreenHeader title="Recette" back="/recettes" />
+        <ScreenHeader title="Recette" back="/recettes/bibliotheque" />
         <ErrorState
           title={missing ? 'Recette introuvable' : undefined}
           message={missing ? 'Cette recette n’existe plus : elle a peut-être été supprimée depuis un autre téléphone.' : errorMessage(recipe.error)}
@@ -114,7 +114,7 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
         await recipesApi.removeRecipe(recipe.id);
         toast.show({ message: 'Recette supprimée', tone: 'success', durationMs: 3000 });
         setConfirm(null);
-        navigate('/recettes', { replace: true });
+        navigate('/recettes/bibliotheque', { replace: true });
         return;
       }
       await recipesApi.removeLog(confirm.log.id);
@@ -135,7 +135,7 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
 
   return (
     <>
-      <ScreenHeader title={recipe.title} back="/recettes" subtitle={archived ? 'Archivée' : undefined} />
+      <ScreenHeader title={recipe.title} back="/recettes/bibliotheque" subtitle={archived ? 'Archivée' : undefined} />
 
       <div className="flex flex-col gap-5 px-4 pb-32">
         <section className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-muted">
@@ -271,7 +271,7 @@ function TimeField({ label, minutes }: { label: string; minutes: number | null }
 function RecipeSkeleton() {
   return (
     <>
-      <ScreenHeader title=" " back="/recettes" />
+      <ScreenHeader title=" " back="/recettes/bibliotheque" />
       <div className="flex flex-col gap-5 px-4" aria-busy>
         <Skeleton className="h-5 w-2/3" />
         <Skeleton className="h-24 rounded-card" />

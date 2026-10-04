@@ -2,7 +2,12 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiClientError } from '../../lib/api';
-import { SuggestionsErrorState } from './suggestions-screen';
+import { useSuggestionsQuery } from '../../lib/queries';
+import { SuggestionsErrorState, SuggestionsScreen } from './suggestions-screen';
+
+vi.mock('../../lib/queries', () => ({
+  useSuggestionsQuery: vi.fn(),
+}));
 
 describe('SuggestionsErrorState', () => {
   it('relaie le message du serveur quand le fournisseur est désactivé, sans en inventer un autre (round 1)', () => {
@@ -30,5 +35,26 @@ describe('SuggestionsErrorState', () => {
     );
     expect(screen.getByText(serverMessage)).toBeTruthy();
     expect(screen.queryByText(/fournée connue est affichée/i)).toBeNull();
+  });
+});
+
+describe('SuggestionsScreen', () => {
+  it('donne accès à Mes recettes depuis Suggestions', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: true,
+      isError: false,
+      isFetching: true,
+      data: undefined,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    render(
+      <MemoryRouter>
+        <SuggestionsScreen />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: /Mes recettes/i }).getAttribute('href')).toBe('/recettes/bibliotheque');
   });
 });

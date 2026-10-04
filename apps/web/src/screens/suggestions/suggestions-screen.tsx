@@ -27,7 +27,15 @@ export function SuggestionsScreen() {
 
   return (
     <>
-      <ScreenHeader title="Suggestions" subtitle="À partir de votre stock" />
+      <ScreenHeader
+        title="Suggestions"
+        subtitle="À partir de votre stock"
+        actions={
+          <Link to="/recettes/bibliotheque" className="inline-flex min-h-touch items-center rounded-xl px-3 text-[14px] font-medium text-accent active:bg-raised">
+            Mes recettes
+          </Link>
+        }
+      />
 
       <OrientationBar value={orientation} onChange={setOrientation} />
 
