@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { normalizeProductName, VISION_REJECT_THRESHOLD, VISION_REVIEW_THRESHOLD, type ProductDto, type RecognitionStats, type ScanBarcodeResult, type ScanImageResult } from '@kitchen/shared';
 import { Logger } from 'nestjs-pino';
-import { ApiError } from '../common/api-error.js';
+import { ApiError, assertProviderEnabled } from '../common/api-error.js';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { MediaService } from '../media/media.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -66,9 +66,7 @@ export class RecognitionService {
 
   /** Niveau 4 : photo envoyée au fournisseur de vision, sous quota journalier. */
   async recognizeImage(image: Buffer, mimeType: string, hint: string | undefined, barcode: string | undefined): Promise<ScanImageResult> {
-    if (!this.provider.enabled) {
-      throw ApiError.businessRule('Fournisseur de vision désactivé : renseignez VISION_PROVIDER et VISION_API_KEY');
-    }
+    assertProviderEnabled(this.provider, 'vision');
     const callsToday = await this.countVisionCalls(startOfDay(new Date()));
     if (callsToday >= this.config.VISION_DAILY_QUOTA) {
       throw ApiError.rateLimited('Quota journalier de reconnaissance photo atteint ; le scan de code-barres reste disponible', {

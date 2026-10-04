@@ -281,6 +281,7 @@ describe('fournisseur de vision désactivé', () => {
     const agent = t.agent();
     await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(422);
+    expect(res.body.error.code).toBe('provider_disabled');
     expect(res.body.error.message).toBe('Fournisseur de vision désactivé : renseignez VISION_PROVIDER et VISION_API_KEY');
     await t.close();
   });

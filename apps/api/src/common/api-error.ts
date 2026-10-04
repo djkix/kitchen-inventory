@@ -36,8 +36,26 @@ export class ApiError extends Error {
   static providerUnavailable(message: string, details?: unknown): ApiError {
     return new ApiError(502, 'provider_unavailable', message, details);
   }
-  /** Fournisseur non configuré (clé absente) : un état du serveur, pas un échec d'appel — jamais 502. */
+  /**
+   * Fournisseur non configuré (clé absente) : un état du serveur qui interdit
+   * de poursuivre, pas un échec d'appel (jamais 502) ni un conflit de
+   * ressource (jamais 409) — 422, comme le reste des règles métier du projet,
+   * mais avec un code dédié pour que l'écran distingue « configurez une clé »
+   * d'une règle métier générique.
+   */
   static providerDisabled(message: string, details?: unknown): ApiError {
-    return new ApiError(409, 'provider_disabled', message, details);
+    return new ApiError(422, 'provider_disabled', message, details);
+  }
+}
+
+/**
+ * Garde commune à `RecognitionService` et `SuggestionsService` : même condition
+ * (`provider.enabled === false`), même code d'erreur, même gabarit de message —
+ * seul le nom du fournisseur change. `label` est le nom tel qu'il apparaît dans
+ * le message français (« vision », « suggestions »).
+ */
+export function assertProviderEnabled(provider: { enabled: boolean }, label: string): void {
+  if (!provider.enabled) {
+    throw ApiError.providerDisabled(`Fournisseur de ${label} désactivé : renseignez VISION_PROVIDER et VISION_API_KEY`);
   }
 }

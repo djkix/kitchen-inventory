@@ -368,9 +368,9 @@ describe('GET /suggestions, fournisseur désactivé (EF-26, tâche 7)', () => {
       const agent = t.agent();
       await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
 
-      const res = await agent.get('/api/v1/suggestions').expect(409);
+      const res = await agent.get('/api/v1/suggestions').expect(422);
       expect(res.body.error.code).toBe('provider_disabled');
-      expect(res.body.error.message).toMatch(/non configuré/);
+      expect(res.body.error.message).toBe('Fournisseur de suggestions désactivé : renseignez VISION_PROVIDER et VISION_API_KEY');
     } finally {
       await t.close();
     }
