@@ -53,6 +53,22 @@ describe('GeminiSuggestionProvider (EF-26)', () => {
     expect(secondPrompt).toContain("n'était pas exploitable");
   });
 
+  it('écarte la seule recette mal formée et garde les autres, sans second appel payant', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-une-recette-cassee.json'));
+    const result = await provider.suggest(BASE_REQUEST);
+    // Onze recettes sur douze : la quatrième porte une URL `http://`, elle seule est écartée.
+    expect(result.recipes).toHaveLength(11);
+    expect(result.recipes.map((r) => r.title)).not.toContain('Recette web 4');
+    // Une seule recette fautive ne déclenche plus la reprise : un appel, pas deux.
+    expect(http.calls).toHaveLength(1);
+  });
+
+  it('accepte une URL source écrite « HTTPS:// » en majuscules', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-une-recette-cassee.json'));
+    const result = await provider.suggest(BASE_REQUEST);
+    expect(result.recipes.find((r) => r.title === 'Recette web 6')?.sourceUrl).toBe('HTTPS://exemple-cuisine-6.test/recette-6');
+  });
+
   it("n'envoie pas responseSchema quand la recherche web est activée (vigilance 1)", async () => {
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch.json'));
     await provider.suggest(BASE_REQUEST);

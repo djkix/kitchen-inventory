@@ -1,0 +1,280 @@
+{
+  "recipes": [
+    {
+      "title": "Recette web 1",
+      "origin": "Site de cuisine 1",
+      "region": "mediterraneenne",
+      "totalMinutes": 30,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-1.test/recette-1",
+      "steps": [
+        "Préparer les ingrédients de la recette 1.",
+        "Cuire et servir."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": 2,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Huile d’olive",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Recette web 2",
+      "origin": "Site de cuisine 2",
+      "region": "mediterraneenne",
+      "totalMinutes": 30,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-2.test/recette-2",
+      "steps": [
+        "Préparer les ingrédients de la recette 2.",
+        "Cuire et servir."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": 2,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Huile d’olive",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Recette web 3",
+      "origin": "Site de cuisine 3",
+      "region": "mediterraneenne",
+      "totalMinutes": 30,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-3.test/recette-3",
+      "steps": [
+        "Préparer les ingrédients de la recette 3.",
+        "Cuire et servir."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": 2,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Huile d’olive",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Recette web 4",
+      "origin": "Site de cuisine 4",
+      "region": "mediterraneenne",
+      "totalMinutes": 30,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "http://exemple-cuisine-4.test/recette-4",
+      "steps": [
+        "Préparer les ingrédients de la recette 4.",
+        "Cuire et servir."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": 2,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Huile d’olive",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Recette web 5",
+      "origin": "Site de cuisine 5",
+      "region": "mediterraneenne",
+      "totalMinutes": 30,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-5.test/recette-5",
+      "steps": [
+        "Préparer les ingrédients de la recette 5.",
+        "Cuire et servir."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": 2,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Huile d’olive",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Recette web 6",
+      "origin": "Site de cuisine 6",
+      "region": "mediterraneenne",
+      "totalMinutes": 30,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "HTTPS://exemple-cuisine-6.test/recette-6",
+      "steps": [
+        "Préparer les ingrédients de la recette 6.",
+        "Cuire et servir."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": 2,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Huile d’olive",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Recette web 7",
+      "origin": "Site de cuisine 7",
+      "region": "mediterraneenne",
+      "totalMinutes": 30,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-7.test/recette-7",
+      "steps": [
+        "Préparer les ingrédients de la recette 7.",
+        "Cuire et servir."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": 2,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Huile d’olive",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Recette web 8",
+      "origin": "Site de cuisine 8",
+      "region": "mediterraneenne",
+      "totalMinutes": 30,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-8.test/recette-8",
+      "steps": [
+        "Préparer les ingrédients de la recette 8.",
+        "Cuire et servir."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": 2,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Huile d’olive",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Recette composée 1",
+      "origin": "Composition Gemini",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "VERY_EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Étape unique de composition pour la recette 1."
+      ],
+      "ingredients": [
+        {
+          "label": "Pâtes",
+          "quantity": 200,
+          "unit": "GRAM"
+        }
+      ]
+    },
+    {
+      "title": "Recette composée 2",
+      "origin": "Composition Gemini",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "VERY_EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Étape unique de composition pour la recette 2."
+      ],
+      "ingredients": [
+        {
+          "label": "Pâtes",
+          "quantity": 200,
+          "unit": "GRAM"
+        }
+      ]
+    },
+    {
+      "title": "Recette composée 3",
+      "origin": "Composition Gemini",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "VERY_EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Étape unique de composition pour la recette 3."
+      ],
+      "ingredients": [
+        {
+          "label": "Pâtes",
+          "quantity": 200,
+          "unit": "GRAM"
+        }
+      ]
+    },
+    {
+      "title": "Recette composée 4",
+      "origin": "Composition Gemini",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "VERY_EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Étape unique de composition pour la recette 4."
+      ],
+      "ingredients": [
+        {
+          "label": "Pâtes",
+          "quantity": 200,
+          "unit": "GRAM"
+        }
+      ]
+    }
+  ]
+}

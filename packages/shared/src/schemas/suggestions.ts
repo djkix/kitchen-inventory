@@ -76,7 +76,10 @@ const modelRecipeBaseSchema = z.object({
  */
 export const modelRecipeSchema = modelRecipeBaseSchema.superRefine((recipe, ctx) => {
   if (recipe.provenance === 'web') {
-    const isHttps = recipe.sourceUrl !== null && recipe.sourceUrl.startsWith('https://');
+    // Test insensible à la casse : `HTTPS://…` est une URL https valide, le
+    // rejeter faisait tomber la recette (et, avant la validation recette par
+    // recette ci-dessous, le lot entier avec elle).
+    const isHttps = recipe.sourceUrl !== null && /^https:\/\//i.test(recipe.sourceUrl);
     if (!isHttps) {
       ctx.addIssue({
         code: 'custom',
@@ -108,10 +111,33 @@ export type ModelRecipe = z.infer<typeof modelRecipeSchema>;
  * Pas de borne haute ici : la taille du lot est décidée par `SuggestionRequest.count`
  * au moment de l'appel (huit recettes web et quatre composées, dosage ajustable),
  * pas par une limite arbitraire sur la forme validée.
+ *
+ * Validation **recette par recette** : les entrées arrivent non typées et sont
+ * validées une à une, les valides étant conservées et les autres écartées en
+ * silence. Un tableau validé d'un bloc faisait échouer le lot entier — donc une
+ * reprise, donc un second appel payant, puis `provider_unavailable` et un écran
+ * en erreur — pour une seule recette sur seize mal formée.
  */
-export const modelBatchSchema = z.object({
-  recipes: z.array(modelRecipeSchema),
-});
+export const modelBatchSchema = z
+  .object({ recipes: z.array(z.unknown()) })
+  .transform((batch, ctx) => {
+    const kept: ModelRecipe[] = [];
+    for (const entry of batch.recipes) {
+      const parsed = modelRecipeSchema.safeParse(entry);
+      if (parsed.success) kept.push(parsed.data);
+    }
+    // Un lot vide est une réponse légitime (« je ne propose rien ») ; un lot
+    // dont *aucune* entrée ne tient debout, non : c'est une réponse à reprendre.
+    if (batch.recipes.length > 0 && kept.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Aucune recette exploitable dans le lot rendu par le modèle',
+        path: ['recipes'],
+      });
+      return z.NEVER;
+    }
+    return { recipes: kept };
+  });
 export type ModelBatch = z.infer<typeof modelBatchSchema>;
 
 /** Conserve une suggestion d'un lot déjà généré, pour en faire une recette du foyer. */
