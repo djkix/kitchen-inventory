@@ -2,7 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { DynamicModule, Global, Module, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import type { SuggestionQuery } from '@kitchen/shared';
+import type { ModelRecipe, SuggestionQuery } from '@kitchen/shared';
+import type { Prisma } from '@prisma/client';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ConfigModule } from '../common/config.module.js';
@@ -60,6 +61,18 @@ async function fixtureText(file: string): Promise<string> {
   return readFile(resolve(import.meta.dirname, '../../test/fixtures', file), 'utf8');
 }
 
+async function fixtureHtml(file: string): Promise<string> {
+  return readFile(resolve(import.meta.dirname, '../../test/fixtures/suggestions', file), 'utf8');
+}
+
+function htmlResponse(html: string, status = 200): Response {
+  return new Response(html, { status, headers: { 'content-type': 'text/html; charset=utf-8' } });
+}
+
+/** Hôte IP littéral (RFC 5737) : atteint sans résolution DNS, pour qu'aucun test ne dépende du réseau (section 19). */
+const WEB_RECIPE_HOST = '203.0.113.20';
+const UNREACHABLE_HOST = '203.0.113.21';
+
 /** Même forme que `geminiFixture`, avec un `usageMetadata` choisi pour gonfler le coût (plafond mensuel). */
 async function costlyFixture(file: string, candidatesTokenCount: number): Promise<Response> {
   const content = await fixtureText(file);
@@ -91,6 +104,16 @@ describe('SuggestionsService (EF-26)', () => {
     return { service: ctx.get(SuggestionsService), db };
   }
 
+  /**
+   * `keep` écrit `createdById` (tâche 9) : contrairement à `list`, qui ne
+   * persiste rien au nom de l'utilisateur, il faut ici un `User` réel en base
+   * pour que la contrainte de clé étrangère soit respectée.
+   */
+  async function seedUser(db: PrismaService): Promise<RequestUser> {
+    const user = await db.user.create({ data: { email: 'franck.keep@example.org', name: 'Franck', passwordHash: 'x', role: 'ADMIN' } });
+    return { id: user.id, email: user.email, name: user.name, role: 'ADMIN', via: 'session', sessionId: 's1' };
+  }
+
   async function seedLocation(db: PrismaService): Promise<string> {
     const location = await db.location.create({ data: { name: 'Test', path: '/test', depth: 0 } });
     return location.id;
@@ -105,6 +128,19 @@ describe('SuggestionsService (EF-26)', () => {
     const product = await db.product.create({ data: { name: opts.name, categoryId: opts.categoryId ?? null, defaultUnit: unit as never } });
     await db.stockItem.create({ data: { productId: product.id, locationId, quantity: opts.quantity, unit: unit as never } });
     return product.id;
+  }
+
+  /** Dépose directement une fournée en base (tâche 9) : la conservation lit un lot déjà rendu, pas besoin de rejouer `list`. */
+  async function seedBatch(db: PrismaService, recipes: ModelRecipe[]): Promise<string> {
+    const row = await db.suggestionBatch.create({
+      data: {
+        signature: `test-keep-${Math.random().toString(36).slice(2)}`,
+        payload: { recipes } as unknown as Prisma.InputJsonValue,
+        model: 'test-model',
+        costCents: null,
+      },
+    });
+    return row.id;
   }
 
   const QUERY: SuggestionQuery = { refresh: false };
@@ -315,6 +351,124 @@ describe('SuggestionsService (EF-26)', () => {
     expect(item.group).toBe('almost');
     expect(item.coverage).toBeCloseTo(0.8);
     expect(item.missingLabels).toEqual(['Introuvable XYZ']);
+  });
+
+  describe('conservation d’une suggestion (EF-25, EF-26, tâche 9)', () => {
+    const WEB_RECIPE: ModelRecipe = {
+      title: 'Tarte aux pommes',
+      origin: 'Cuisine Test',
+      region: 'europeenne',
+      totalMinutes: 30,
+      difficulty: 'HARD',
+      provenance: 'web',
+      sourceUrl: `https://${WEB_RECIPE_HOST}/tarte-aux-pommes`,
+      steps: [],
+      ingredients: [{ label: 'Pommes', quantity: 4, unit: 'PIECE' }],
+    };
+
+    const AI_RECIPE: ModelRecipe = {
+      title: 'Riz sauté maison',
+      origin: 'Composition',
+      region: 'asiatique',
+      totalMinutes: 20,
+      difficulty: 'EASY',
+      provenance: 'ai',
+      sourceUrl: null,
+      steps: ['Cuire le riz.', 'Faire revenir les légumes.', 'Mélanger le tout.'],
+      ingredients: [
+        { label: 'Riz', quantity: 200, unit: 'GRAM' },
+        { label: 'Épice mystère introuvable', quantity: null, unit: null },
+      ],
+    };
+
+    it('conserve une recette web : page lue, contenu réécrit par Gemini, source IMPORTED', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const batchId = await seedBatch(db, [WEB_RECIPE]);
+      const html = await fixtureHtml('page-schema-simple.html');
+      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
+
+      const recipe = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-web-000001' }, keeper);
+
+      expect(recipe.source).toBe('IMPORTED');
+      expect(recipe.sourceUrl).toBe(WEB_RECIPE.sourceUrl);
+      expect(recipe.title).toBe('Tarte aux pommes (réécrite)');
+      expect(recipe.steps.length).toBeGreaterThan(0);
+      expect(http.calls.some((c) => c.url.includes('generateContent'))).toBe(true);
+    });
+
+    it('conserve une composition sans appeler le réseau, source GENERATED', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const batchId = await seedBatch(db, [WEB_RECIPE, AI_RECIPE]);
+
+      const recipe = await service.keep({ batchId, suggestionId: '1', clientOpId: 'op-keep-ai-0000001' }, keeper);
+
+      expect(recipe.source).toBe('GENERATED');
+      expect(recipe.sourceUrl).toBeNull();
+      expect(recipe.title).toBe('Riz sauté maison');
+      expect(http.calls).toHaveLength(0);
+    });
+
+    it('recalcule la difficulté avec le barème du foyer à la conservation (B15)', async () => {
+      // la suggestion annonçait HARD, les étapes conservées donnent INTERMEDIATE
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const batchId = await seedBatch(db, [WEB_RECIPE]);
+      const html = await fixtureHtml('page-schema-simple.html');
+      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
+
+      const recipe = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-diff-0000001' }, keeper);
+
+      expect(recipe.difficulty).toBe('INTERMEDIATE');
+      expect(recipe.difficultyOverride).toBe(false);
+    });
+
+    it('rattache les ingrédients aux produits rapprochés, laisse les autres en texte libre', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Riz', quantity: 500, unit: 'GRAM' });
+      const batchId = await seedBatch(db, [WEB_RECIPE, AI_RECIPE]);
+
+      const recipe = await service.keep({ batchId, suggestionId: '1', clientOpId: 'op-keep-match-0000001' }, keeper);
+
+      const riz = recipe.ingredients.find((i) => i.label === 'Riz');
+      const mystere = recipe.ingredients.find((i) => i.label === 'Épice mystère introuvable');
+      expect(riz?.productId).not.toBeNull();
+      expect(riz?.productName).toBe('Riz');
+      expect(mystere?.productId).toBeNull();
+    });
+
+    it('échoue en français quand la page ne répond pas, sans créer de recette', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const unreachable: ModelRecipe = { ...WEB_RECIPE, sourceUrl: `https://${UNREACHABLE_HOST}/injoignable` };
+      const batchId = await seedBatch(db, [unreachable]);
+      http.fail(UNREACHABLE_HOST);
+
+      await expect(service.keep({ batchId, suggestionId: '0' }, keeper)).rejects.toMatchObject({ status: 502 });
+      try {
+        await service.keep({ batchId, suggestionId: '0' }, keeper);
+      } catch (error) {
+        expect(String((error as Error).message)).toMatch(/page/i);
+      }
+      expect(await db.recipe.count()).toBe(0);
+    });
+
+    it('est idempotente : deux conservations du même clientOpId ne créent qu’une recette', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const batchId = await seedBatch(db, [AI_RECIPE]);
+
+      const first = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-idempotent-01' }, keeper);
+      const second = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-idempotent-01' }, keeper);
+
+      expect(second.id).toBe(first.id);
+      expect(await db.recipe.count()).toBe(1);
+    });
   });
 });
 

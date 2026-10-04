@@ -1,0 +1,17 @@
+{
+  "title": "Tarte aux pommes (réécrite)",
+  "steps": [
+    "Préchauffer le four.",
+    "Éplucher les pommes.",
+    "Couper les pommes en lamelles.",
+    "Préparer la pâte brisée.",
+    "Étaler la pâte dans le moule.",
+    "Disposer les pommes sur la pâte.",
+    "Enfourner pendant trente minutes.",
+    "Laisser tiédir avant de démouler."
+  ],
+  "ingredients": [
+    { "label": "Pommes", "quantity": 4, "unit": "PIECE" },
+    { "label": "Farine", "quantity": 200, "unit": "GRAM" }
+  ]
+}

@@ -18,7 +18,7 @@ import {
   type StockSnapshot,
   type UpdateRecipeInput,
 } from '@kitchen/shared';
-import { Prisma } from '@prisma/client';
+import { Prisma, type RecipeSource } from '@prisma/client';
 import { ApiError } from '../common/api-error.js';
 import { formatCivilDate, toNumber } from '../common/decimal.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -115,6 +115,19 @@ export class RecipesService {
   }
 
   async create(input: CreateRecipeInput, userId: string | null): Promise<RecipeDto> {
+    return this.createRecipe(input, { source: 'HOUSEHOLD', sourceUrl: null }, userId);
+  }
+
+  /**
+   * Conservation d'une suggestion (EF-25, EF-26, tâche 9) : même création que
+   * `create`, source et lien tracés jusqu'à la recette — jamais recopiée, la
+   * seule différence est l'origine inscrite sur la ligne.
+   */
+  async createFromSuggestion(input: CreateRecipeInput, source: 'IMPORTED' | 'GENERATED', sourceUrl: string | null, userId: string | null): Promise<RecipeDto> {
+    return this.createRecipe(input, { source, sourceUrl }, userId);
+  }
+
+  private async createRecipe(input: CreateRecipeInput, origin: { source: RecipeSource; sourceUrl: string | null }, userId: string | null): Promise<RecipeDto> {
     if (input.cuisineId) await this.requireCuisine(input.cuisineId);
     await this.requireIngredientRefs(input.ingredients);
 
@@ -137,6 +150,8 @@ export class RecipesService {
         servings: input.servings,
         steps: input.steps,
         diets: input.diets,
+        source: origin.source,
+        sourceUrl: origin.sourceUrl,
         createdById: userId,
         ingredients: { create: input.ingredients.map(toIngredientCreateData) },
       },

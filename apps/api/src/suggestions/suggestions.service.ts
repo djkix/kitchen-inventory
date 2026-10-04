@@ -2,26 +2,35 @@ import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   classifyMatch,
+  createRecipeSchema,
   modelBatchSchema,
   pickSeedIngredients,
   recipeCoverage,
   type CoverageIngredient,
+  type CreateRecipeInput,
+  type KeepSuggestionInput,
   type ModelRecipe,
+  type RecipeDto,
+  type RecipeRewrite,
   type StockSnapshot,
   type SuggestionBatchDto,
   type SuggestionDto,
   type SuggestionIngredientDto,
   type SuggestionQuery,
+  type Unit,
 } from '@kitchen/shared';
 import { Prisma, type SuggestionBatch } from '@prisma/client';
 import { ApiError, assertProviderEnabled } from '../common/api-error.js';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import type { RequestUser } from '../auth/request-user.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { RecipesService } from '../recipes/recipes.service.js';
 import { loadCategoryRows, loadSeedCandidates, RecipesCoverageService } from '../recipes/recipes.coverage.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
-import { SUGGESTION_PROVIDER, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
+import type { GeminiRecipeRewriter, RecipeRewriteInput } from './gemini-recipe-rewriter.js';
+import { RecipePageRefusedError, type PageRecipe, type RecipePageFetcher } from './recipe-page.fetcher.js';
+import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER, SUGGESTION_PROVIDER, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
 
 /** Taille visée d'une fournée (section 5.1, B8) : douze recettes, huit web pour quatre composées. */
 export const SUGGESTION_BATCH_SIZE = 12;
@@ -61,8 +70,15 @@ const MATCH_CANDIDATES_PER_LABEL = 5;
  */
 const ABSENT_MATCH_SENTINEL = '__suggestion_absent_match__';
 
+/**
+ * `kept` vit dans le même JSON que les recettes du lot (tâche 9) : conserver
+ * une suggestion n'a pas besoin d'une table dédiée tant que la fournée qui la
+ * contient existe déjà pour la porter. Clé : `suggestionId` (index dans le
+ * lot, tel que rendu par `SuggestionDto.id`).
+ */
 interface StoredBatchPayload {
   recipes: ModelRecipe[];
+  kept?: Record<string, { recipeId: string; clientOpId: string | null }>;
 }
 
 /** Fournée validée, prête à être rendue : signature de stockage nettoyée de la ligne Prisma brute. */
@@ -126,7 +142,10 @@ export class SuggestionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly coverage: RecipesCoverageService,
+    private readonly recipes: RecipesService,
     @Inject(SUGGESTION_PROVIDER) private readonly provider: SuggestionProvider,
+    @Inject(RECIPE_PAGE_FETCHER) private readonly pageFetcher: RecipePageFetcher,
+    @Inject(RECIPE_REWRITER) private readonly rewriter: GeminiRecipeRewriter,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -353,6 +372,153 @@ export class SuggestionsService {
         missingLabels,
       };
       return dto;
+    });
+  }
+
+  /**
+   * Conservation d'une suggestion (EF-25, EF-26, tâche 9) : « l'application
+   * n'envoie jamais Franck vers le site » — pour `web`, la page est récupérée
+   * en sécurité, lue si elle porte `schema.org/Recipe` [B14], sinon soumise en
+   * texte nettoyé, puis réécrite par Gemini au format de l'application. Pour
+   * `ai`, la composition est déjà au bon format : aucun appel réseau [B6].
+   * Idempotente par `clientOpId` (section 8) : rejouée, elle rend la recette
+   * déjà créée plutôt que d'en créer une seconde.
+   */
+  async keep(input: KeepSuggestionInput, user: RequestUser): Promise<RecipeDto> {
+    const row = await this.prisma.suggestionBatch.findUnique({ where: { id: input.batchId } });
+    if (!row) throw ApiError.notFound('Fournée de suggestions introuvable');
+
+    // Lu une seule fois, sans repasser par `modelBatchSchema.parse` sur tout le
+    // document : `kept` est une extension du payload que ce schéma ignore
+    // (champ inconnu) et qui n'a donc pas à être validée par lui.
+    const payload = row.payload as unknown as StoredBatchPayload;
+    const validated = modelBatchSchema.safeParse(payload);
+    if (!validated.success) throw ApiError.notFound('Fournée de suggestions introuvable');
+    const recipes = validated.data.recipes;
+
+    const index = Number(input.suggestionId);
+    const suggestion = Number.isInteger(index) ? recipes[index] : undefined;
+    if (!suggestion) throw ApiError.notFound('Suggestion introuvable dans cette fournée');
+
+    const kept = payload.kept ?? {};
+    const existing = kept[input.suggestionId];
+    if (existing && (input.clientOpId === undefined || existing.clientOpId === input.clientOpId)) {
+      return this.recipes.get(existing.recipeId);
+    }
+
+    const createInput = await this.buildCreateInput(suggestion);
+    const source = suggestion.provenance === 'web' ? 'IMPORTED' : 'GENERATED';
+    const sourceUrl = suggestion.provenance === 'web' ? suggestion.sourceUrl : null;
+    const recipe = await this.recipes.createFromSuggestion(createInput, source, sourceUrl, user.id);
+
+    const nextKept: StoredBatchPayload['kept'] = { ...kept, [input.suggestionId]: { recipeId: recipe.id, clientOpId: input.clientOpId ?? null } };
+    await this.prisma.suggestionBatch.update({
+      where: { id: row.id },
+      data: { payload: toJson({ recipes, kept: nextKept } satisfies StoredBatchPayload) },
+    });
+
+    return recipe;
+  }
+
+  /**
+   * Matière de la recette à créer, selon la provenance [B6]. `ai` reprend les
+   * étapes déjà rendues sans aucun appel ; `web` récupère la page puis la fait
+   * réécrire par Gemini au format de l'application.
+   */
+  private async buildCreateInput(suggestion: ModelRecipe): Promise<CreateRecipeInput> {
+    let title = suggestion.title;
+    let steps: string[];
+    let rawIngredients: { label: string; quantity: number | null; unit: Unit | null }[];
+
+    if (suggestion.provenance === 'ai') {
+      steps = suggestion.steps;
+      rawIngredients = suggestion.ingredients;
+    } else {
+      // `modelRecipeSchema` exige déjà une URL https pour `web` (vigilance 2) : une
+      // absence ici serait une donnée corrompue, jamais un cas normal à deviner.
+      const sourceUrl = suggestion.sourceUrl;
+      if (!sourceUrl) throw ApiError.notFound('Suggestion introuvable dans cette fournée');
+
+      assertProviderEnabled(this.rewriter, 'suggestions');
+      const material = await this.fetchWebRecipeMaterial(sourceUrl);
+      const rewriteInput: RecipeRewriteInput =
+        material.kind === 'structured'
+          ? { title: suggestion.title, origin: suggestion.origin, ingredients: material.recipe.ingredients, steps: material.recipe.steps, pageText: null }
+          : { title: suggestion.title, origin: suggestion.origin, ingredients: [], steps: [], pageText: material.text };
+
+      let rewritten: RecipeRewrite;
+      try {
+        rewritten = (await this.rewriter.rewrite(rewriteInput)).recipe;
+      } catch (error) {
+        const message = error instanceof ProviderError ? error.message : 'Fournisseur de suggestions injoignable';
+        throw ApiError.providerUnavailable(message);
+      }
+      title = rewritten.title;
+      steps = rewritten.steps;
+      rawIngredients = rewritten.ingredients;
+    }
+
+    const ingredients = await this.attachProducts(rawIngredients);
+    const draft = {
+      title,
+      servings: 4,
+      steps,
+      diets: [],
+      // La durée annoncée par le modèle reste crédible (seule la difficulté est
+      // recalculée au barème du foyer, B15) ; faute de détail cuisson/préparation
+      // séparé dans la fournée, elle est portée en préparation.
+      prepMinutes: suggestion.totalMinutes,
+      ingredients,
+      // `difficulty` délibérément omis : `RecipesService.create` la calcule via
+      // `computeDifficulty`, jamais recopiée ici (B15, règle métier partagée).
+    };
+    const parsed = createRecipeSchema.safeParse(draft);
+    if (!parsed.success) throw ApiError.providerUnavailable('Réponse de réécriture non exploitable pour créer la recette', parsed.error.issues);
+    return parsed.data;
+  }
+
+  /**
+   * Récupère la page de la recette en sécurité (vigilance « the application
+   * never sends him to the website ») : lue structurée si `schema.org/Recipe`
+   * est présent, sinon son texte nettoyé. Un refus de sécurité (HTTPS,
+   * adresse privée) arrête tout de suite, sans jamais tenter la suite. Une
+   * page qui ne répond pas — même en texte — échoue en français, sans créer
+   * de recette.
+   */
+  private async fetchWebRecipeMaterial(url: string): Promise<{ kind: 'structured'; recipe: PageRecipe } | { kind: 'text'; text: string }> {
+    let structured: PageRecipe | null;
+    try {
+      structured = await this.pageFetcher.fetch(url);
+    } catch (error) {
+      if (error instanceof RecipePageRefusedError) {
+        throw ApiError.businessRule(`La page de la recette ne peut pas être récupérée : ${error.message}`);
+      }
+      throw error;
+    }
+    if (structured) return { kind: 'structured', recipe: structured };
+
+    const text = await this.pageFetcher.fetchText(url);
+    if (!text) throw ApiError.providerUnavailable('La page de la recette n’a pas répondu ; aucune recette n’a été créée');
+    return { kind: 'text', text };
+  }
+
+  /** Rattache chaque ingrédient à un produit rapproché (sûr ou probable, A11) ; les autres restent en texte libre. */
+  private async attachProducts(
+    ingredients: readonly { label: string; quantity: number | null; unit: Unit | null }[],
+  ): Promise<CreateRecipeInput['ingredients']> {
+    const matchesByLabel = await this.matchLabels(ingredients.map((i) => i.label));
+    return ingredients.map((ingredient) => {
+      const match = classifyMatch(ingredient.label, matchesByLabel.get(ingredient.label.trim()) ?? []);
+      return {
+        label: ingredient.label,
+        productId: match.productId,
+        categoryId: null,
+        quantity: ingredient.quantity,
+        // Une unité sans quantité chiffrée violerait `recipeIngredientInputSchema` (quantité ↔ unité) : alignée ici.
+        unit: ingredient.quantity === null ? null : ingredient.unit,
+        essential: false,
+        substitutable: false,
+      };
     });
   }
 
