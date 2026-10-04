@@ -48,7 +48,7 @@ Le périmètre se lit en deux fonctions complémentaires : inventorier (lot 1), 
 
 **Lot 2 — module recettes et usage quotidien**
 
-- Suggestions de recettes réalisables avec le stock disponible, classées par taux de couverture des ingrédients.
+- Suggestions de recettes construites à partir du stock disponible, trouvées sur le web ou composées par IA, catégorisées par origine, durée et facilité (amendé le 2026-10-04).
 - Filtres sur les suggestions : difficulté, type de cuisine (origine), temps, type de plat, régime alimentaire.
 - Priorité donnée aux recettes qui consomment les articles proches de leur date de péremption.
 - Ajout en un geste des ingrédients manquants à la liste de courses.
@@ -323,9 +323,9 @@ L'application propose des recettes réalisables avec ce qui est réellement en s
 | Presque | 1 ou 2 ingrédients manquants, dont aucun ingrédient principal | Avec la liste de ce qui manque, ajoutable aux courses en un geste |
 | À écarter | Au-delà, ou ingrédient principal absent | Pastille « incomplète » |
 
-**Classement des suggestions (amendé le 2026-10-03).** Le groupe est affiché sur chaque carte mais ne détermine ni l'ordre de la liste ni la visibilité : les recettes forment un seul ensemble, trié par défaut sur la note moyenne attribuée par le foyer. La version initiale classait par taux de couverture, ce qui mettait en tête des recettes réalisables mais peu appréciées, et reléguait des valeurs sûres auxquelles il ne manquait qu'un ingrédient. Le stock reste pleinement accessible : un tri « couverture » et un tri « anti-gaspillage » sont proposés, une pastille rapide « Réalisables maintenant » filtre sur le groupe, et le taux de couverture figure sur chaque carte.
+**Classement des suggestions (amendé le 2026-10-03).** Le groupe est affiché sur chaque carte mais ne détermine ni l'ordre de la liste ni la visibilité : les recettes forment un seul ensemble, trié par défaut sur la note moyenne attribuée par le foyer. La version initiale classait par taux de couverture, ce qui mettait en tête des recettes réalisables mais peu appréciées, et reléguait des valeurs sûres auxquelles il ne manquait qu'un ingrédient. Le stock reste pleinement accessible : un tri « couverture » est proposé, une pastille rapide « Réalisables maintenant » filtre sur le groupe, et le taux de couverture figure sur chaque carte. Le tri « anti-gaspillage » annoncé par cet amendement a été retiré le 2026-10-04. Ce classement régit la bibliothèque du foyer ; les suggestions, elles, arrivent dans l'ordre rendu par le modèle.
 
-Un bonus de classement est appliqué aux recettes qui consomment des articles proches de leur date de péremption : c'est le croisement qui a le plus de valeur au quotidien. Depuis l'amendement, ce bonus alimente le tri « anti-gaspillage » et une pastille dédiée, au lieu de peser sur le classement par défaut.
+**Péremption (amendé le 2026-10-04).** Les dates de péremption n'interviennent plus dans le module recettes : ni dans le choix des ingrédients envoyés au modèle, ni dans le classement, ni par une mention sur les cartes. Le suivi des péremptions reste entier dans l'écran « Périme bientôt », qui est sa place.
 
 **Filtres exigés**
 
@@ -339,11 +339,11 @@ Un bonus de classement est appliqué aux recettes qui consomment des articles pr
 
 Les filtres se combinent et restent actifs pendant la navigation. Le réglage par défaut est mémorisé par utilisateur.
 
-**Origine des recettes.** Trois sources cumulables, implémentées dans cet ordre de priorité :
+**Origine des recettes (amendé le 2026-10-04).** La suggestion assistée est l'entrée du module. Le stock est le point de départ de la recherche, et non un filtre appliqué à une bibliothèque préexistante.
 
-1. **Recettes saisies par le foyer** — priorité 1. Formulaire complet : titre, difficulté, cuisine, type de plat, temps, portions, ingrédients rattachés aux produits de l'inventaire, étapes. C'est la seule source indispensable au lot 2.
-2. **Import depuis une URL** — priorité 2. Extraction des données structurées `schema.org/Recipe`, présentes sur la plupart des sites de cuisine. Les ingrédients importés sont proposés à l'appariement avec les produits existants, jamais créés silencieusement.
-3. **Génération par IA** — priorité 3. À partir du stock disponible, de la difficulté et de l'origine demandées. Une recette générée est marquée comme telle et n'entre au référentiel que si l'utilisateur la conserve après l'avoir cuisinée.
+1. **Suggestion assistée par IA** — priorité 1, et seule porte d'entrée. À partir d'une sélection d'ingrédients composée automatiquement depuis le stock, le modèle rend des recettes réellement publiées sur le web et des recettes qu'il compose lui-même, catégorisées par origine, durée et facilité. Les suggestions sont éphémères : elles n'entrent au référentiel que si l'utilisateur les conserve.
+2. **Extraction d'une page web** — mécanisme interne au service de la priorité 1, et non fonctionnalité distincte. À la conservation d'une recette venant d'un site, la page est récupérée, ses données structurées `schema.org/Recipe` lues quand elles existent, et son contenu restitué au format unique de l'application. L'application ne renvoie jamais l'utilisateur vers le site.
+3. **Saisie par le foyer** — supprimée comme porte d'entrée. Le formulaire ne sert plus qu'à modifier une recette conservée.
 
 La génération par IA est ce qui rend le module intéressant avec un stock inhabituel : les produits asiatiques du placard donnent peu de résultats dans un livre de recettes français, mais un modèle sait quoi faire de nouilles de riz, de sauce gochujang et d'un reste de poulet.
 
@@ -368,9 +368,9 @@ Le champ `principal` est ce qui fait la qualité des suggestions : sans lui, l'a
 | EF-22 | Filtrer par type de cuisine, en multi-sélection, sur une liste extensible | Must du lot 2 |
 | EF-23 | Afficher pour chaque recette le taux de couverture et la liste des ingrédients manquants | Must du lot 2 |
 | EF-24 | Ajouter les ingrédients manquants à la liste de courses en une action | Should |
-| EF-25 | Importer une recette depuis une URL par lecture des données structurées | Should |
-| EF-26 | Générer une recette par IA à partir du stock, de la difficulté et de l'origine demandées | Should |
-| EF-27 | Prioriser les recettes qui consomment des articles proches de péremption, par un tri dédié et une pastille, et non par le classement par défaut (amendé le 2026-10-03) | Should |
+| EF-25 | Extraire une recette d'une page web par lecture des données structurées, au service de EF-26 (amendé le 2026-10-04 : mécanisme interne, non fonctionnalité distincte) | Must |
+| EF-26 | Suggérer des recettes par IA à partir du stock, catégorisées par origine, durée et facilité, l'orientation demandée relançant une recherche ciblée (amendé le 2026-10-04 : porte d'entrée du module) | Must |
+| EF-27 | ~~Prioriser les recettes qui consomment des articles proches de péremption~~ — retirée le 2026-10-04 | — |
 | EF-28 | Noter une recette après l'avoir cuisinée et retrouver les recettes bien notées | Could |
 
 Ce module suppose un inventaire fiable pour être utile : une suggestion fondée sur un stock faux est pire que pas de suggestion. Il est donc planifié au lot 2, après quelques semaines d'usage réel du lot 1 : décision arrêtée (section 25, point 8).
@@ -388,7 +388,8 @@ Ce module suppose un inventaire fiable pour être utile : une suggestion fondée
 | Internationalisation | Interface en français ; stockage en UTF-8 avec prise en charge des caractères CJK dans les noms de produits |
 | Maintenabilité | Tests automatisés sur le parcours de scan et les règles de stock ; documentation d'installation en un seul fichier |
 | Reprise | Restauration complète depuis une sauvegarde en moins de 30 minutes |
-| Suggestions de recettes | Correspondances calculées sous 2 s pour 300 recettes et 1 500 articles en stock, filtres appliqués côté serveur |
+| Bibliothèque de recettes | Correspondances calculées sous 2 s pour 300 recettes et 1 500 articles en stock, filtres appliqués côté serveur |
+| Suggestions par IA | Fournée rendue sous 10 s ; une fournée déjà en cache s'affiche sans attente |
 
 ## 14. Écrans et navigation
 
@@ -397,7 +398,9 @@ Navigation par barre inférieure à quatre onglets, plus un bouton de scan flott
 ```mermaid
 flowchart TD
   T1[Onglet Stock] --> F[Fiche article]
-  T2[Onglet Recettes] --> R[Fiche recette]
+  T2[Onglet Recettes] --> S[Suggestions]
+  S --> MR[Mes recettes]
+  MR --> R[Fiche recette]
   T3[Onglet Courses]
   T4[Onglet Réglages] --> L[Emplacements]
   T4 --> U[Utilisateurs]
@@ -412,7 +415,8 @@ flowchart TD
 | Stock | Liste ou grille des articles, groupée par emplacement ou par péremption, recherche en haut | Filtrer, consommer, ouvrir la fiche |
 | Scan | Caméra plein écran, emplacement courant affiché en bandeau haut, dernier article ajouté en bandeau bas avec annulation | Scanner, prendre en photo, changer d'emplacement, annuler |
 | Fiche article | Photo, nom, marque, quantité, unité, emplacement, date et son caractère estimé ou lu, historique des mouvements | Modifier, consommer, déplacer, supprimer |
-| Recettes | Liste unique triée par note, choix du tri (note, couverture, anti-gaspillage, les plus faites, les moins récentes), barre de filtres persistante (difficulté, cuisine, temps, plat, régime) et pastilles rapides | Filtrer, trier, ouvrir, générer par IA |
+| Suggestions | Écran d'entrée du module (amendé le 2026-10-04). Fournée de recettes construite sur le stock, chaque carte portant origine, durée, facilité, couverture, manquants et provenance. Orientation par région, durée ou facilité, qui relance une recherche ciblée | Parcourir, orienter, rafraîchir, conserver |
+| Mes recettes | Bibliothèque des recettes conservées. Liste unique triée par note, choix du tri (note, couverture, les plus faites, les moins récentes), barre de filtres persistante (difficulté, cuisine, temps, plat, régime) et pastilles rapides | Filtrer, trier, ouvrir, cuisiner, modifier |
 | Fiche recette | Ingrédients avec état en stock ou manquant, étapes, difficulté, temps | Cuisiner, ajouter les manquants aux courses, noter |
 | Courses | Liste cochable, articles issus des seuils et des recettes distingués | Cocher, ajouter, vider les cochés |
 | Périme bientôt | Vue dédiée atteignable depuis Stock et depuis une notification | Consommer, jeter, voir les recettes associées |
@@ -756,4 +760,5 @@ ici, daté et motivé, plutôt que laissé à l'appréciation du code.
 
 | Date | Section | Amendement | Motif |
 | --- | --- | --- | --- |
+| 2026-10-04 | 12, EF-25, EF-26, EF-27 | La suggestion assistée par IA devient la porte d'entrée du module : le stock est le point de départ de la recherche. La saisie manuelle est supprimée comme source, l'extraction d'une page web devient un mécanisme interne, EF-26 passe en `Must`, et EF-27 est retirée — les dates de péremption n'interviennent plus dans le module. | À la livraison du socle le 2026-10-04, Franck a constaté que l'approche ne répondait pas à son intention : il voulait que l'application propose des recettes trouvées sur internet à partir de son stock, pas qu'il remplisse lui-même un carnet. Cette intention avait déjà été exprimée par sa réponse « tout, génération IA comprise » lors du cadrage du module. Arbitrages de `docs/specs/2026-10-04-recettes-suggerees.md`. |
 | 2026-10-03 | 12, 14, EF-27 | Le classement par défaut des suggestions passe du taux de couverture à la note moyenne du foyer. Le groupe reste affiché sur chaque carte, et le stock comme l'anti-gaspillage restent accessibles par des tris dédiés et une pastille de filtre. | Classer par couverture met en tête des recettes réalisables mais peu appréciées, et relègue des valeurs sûres auxquelles il manque un ingrédient. La question quotidienne est « on mange quoi ce soir », pas « que puis-je faire sans courses ». Arbitrage A27 de la révision 2 de `docs/specs/2026-10-03-module-recettes-socle.md`. |
