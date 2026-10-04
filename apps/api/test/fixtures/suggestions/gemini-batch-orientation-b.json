@@ -1,0 +1,23 @@
+{
+  "recipes": [
+    {
+      "title": "Recette orientation B",
+      "origin": "Composition Gemini",
+      "region": "asiatique",
+      "totalMinutes": 20,
+      "difficulty": "EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Étape unique de la recette B."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": 2,
+          "unit": "PIECE"
+        }
+      ]
+    }
+  ]
+}

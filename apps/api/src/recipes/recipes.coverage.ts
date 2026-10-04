@@ -4,7 +4,9 @@ import {
   buildStockSnapshot,
   excludedFromRecipes,
   expiryStatus,
+  normalizeProductName,
   roundQuantity,
+  type SeedCandidate,
   type StockEntry,
   type StockSnapshot,
   type Unit,
@@ -189,4 +191,51 @@ export class RecipesCoverageService {
 
     return buildStockSnapshot(entries, parentByCategory);
   }
+}
+
+/**
+ * Chemin de catégorie normalisé (racine → feuille), pour les candidats de départ
+ * des suggestions (EF-26, `SeedCandidate.categoryPath`). Une seule requête pour
+ * tout l'arbre des catégories, jamais une par produit.
+ */
+export async function loadCategoryPaths(prisma: PrismaService): Promise<Map<string, readonly string[]>> {
+  const categories = await prisma.category.findMany({ select: { id: true, parentId: true, name: true } });
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  const paths = new Map<string, readonly string[]>();
+  const resolve = (id: string): readonly string[] => {
+    const cached = paths.get(id);
+    if (cached) return cached;
+    const category = byId.get(id);
+    if (!category) return [];
+    const parentPath = category.parentId ? resolve(category.parentId) : [];
+    const path = [...parentPath, normalizeProductName(category.name)];
+    paths.set(id, path);
+    return path;
+  };
+  for (const category of categories) resolve(category.id);
+  return paths;
+}
+
+/**
+ * Candidats de départ pour la sélection des ingrédients (EF-26, `pickSeedIngredients`) :
+ * un par produit présent dans l'instantané de stock, trié par importance — profondeur
+ * de catégorie (la plus spécifique d'abord) puis quantité décroissante. Les noms de
+ * produits sont chargés en une seule requête pour tout le stock, jamais un par produit.
+ */
+export async function loadSeedCandidates(prisma: PrismaService, snapshot: StockSnapshot): Promise<SeedCandidate[]> {
+  const entries = [...snapshot.byProduct.values()];
+  if (entries.length === 0) return [];
+  const [products, categoryPaths] = await Promise.all([
+    prisma.product.findMany({ where: { id: { in: entries.map((e) => e.productId) } }, select: { id: true, name: true } }),
+    loadCategoryPaths(prisma),
+  ]);
+  const nameById = new Map(products.map((p) => [p.id, p.name]));
+  const depthOf = (categoryId: string | null): number => (categoryId ? (categoryPaths.get(categoryId)?.length ?? 0) : 0);
+  // Importance décroissante : catégorie la plus spécifique d'abord, puis quantité (B4).
+  const sorted = [...entries].sort((a, b) => depthOf(b.categoryId) - depthOf(a.categoryId) || b.quantity - a.quantity);
+  return sorted.map((entry) => ({
+    productId: entry.productId,
+    name: nameById.get(entry.productId) ?? entry.productId,
+    categoryPath: entry.categoryId ? (categoryPaths.get(entry.categoryId) ?? []) : [],
+  }));
 }
