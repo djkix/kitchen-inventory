@@ -185,7 +185,8 @@ et se confirme ou se corrige au moment de cuisiner, jamais avant ; une recette
 composée par l'IA peut inventer une proportion, annoncé par sa mention
 « proposée par l'IA », jamais masqué. Sans fournisseur d'IA configuré
 (`VISION_PROVIDER=none`), l'écran Suggestions n'appelle rien : il l'explique
-et renvoie vers **Mes recettes**. Voir `docs/decisions/`.
+et renvoie vers les **Réglages** ; le scan photo affiche de même son écran
+dédié plutôt qu'un message passager. Voir `docs/decisions/`.
 
 ## Installation
 
@@ -338,7 +339,8 @@ la session ou un jeton de service.
 **API.** REST sous `/api/v1`, JSON, erreurs normalisées
 `{ "error": { "code", "message", "details" } }` avec des codes stables
 (`validation_failed`, `unauthenticated`, `forbidden`, `not_found`, `conflict`,
-`business_rule`, `rate_limited`, `provider_unavailable`, `not_ready`). Les
+`business_rule`, `provider_disabled`, `rate_limited`, `provider_unavailable`,
+`provider_invalid_response`, `not_ready`). Les
 routes sont décrites dans `docs/cahier-des-charges.md`, section 16.
 
 ## Développement

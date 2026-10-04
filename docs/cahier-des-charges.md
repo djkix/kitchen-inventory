@@ -508,8 +508,10 @@ REST sous `/api/v1`, JSON en entrée et en sortie, schéma OpenAPI généré dep
 | 404 | `not_found` | Ressource ou code-barres inconnu |
 | 409 | `conflict` | Doublon détecté, emplacement non vide, version obsolète |
 | 422 | `business_rule` | Règle métier violée (unités incompatibles, quantité négative) |
+| 422 | `provider_disabled` | Fournisseur de vision ou de suggestions non configuré (clé absente) |
 | 429 | `rate_limited` | Quota de reconnaissance ou de connexion dépassé |
 | 502 | `provider_unavailable` | Open Food Facts ou fournisseur de vision injoignable |
+| 502 | `provider_invalid_response` | Le fournisseur a répondu, mais sa réponse est inexploitable (hors schéma) |
 | 503 | `not_ready` | Migration en cours au démarrage |
 
 ## 17. Cas limites et erreurs

@@ -152,7 +152,11 @@ export function useScanFlow({ locationId }: Options) {
             barcode,
             imagePath: error.detail<string>('imagePath') ?? null,
           });
-        } else if (isApiError(error, 'business_rule')) {
+        } else if (isApiError(error, 'provider_disabled')) {
+          // `provider_disabled`, et non plus `business_rule` : la garde commune
+          // (`assertProviderEnabled`) porte un code dédié depuis le module
+          // recettes. Sans cette correction, `VISION_PROVIDER=none` ne montrait
+          // plus l'écran bloquant dédié mais un simple message passager.
           setPhase({ kind: 'blocked', reason: 'disabled', message: error.message, barcode, imagePath: null });
         } else {
           toast.show({ message: errorMessage(error), tone: 'danger' });
