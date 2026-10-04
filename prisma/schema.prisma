@@ -421,19 +421,44 @@ model RecipeRating {
 
 // ---------------------------------------------------------------- traçabilité
 
+// Partagé entre le scan (photo/code-barres) et les suggestions de recettes :
+// les deux comptent sur le même plafond mensuel (B12).
+enum AiPurpose {
+  VISION
+  RECIPE_SUGGESTION
+}
+
 // Conserve aussi les échecs : ce sont les cas à rejouer quand le modèle change.
 model RecognitionLog {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   imagePath   String?
   barcode     String?
   provider    String
+  // Distingue le scan des suggestions de recettes dans le même journal,
+  // sans rien changer au scan existant (valeur par défaut VISION).
+  purpose     AiPurpose @default(VISION)
   rawResult   Json?
   confidence  Float?
-  costCents   Decimal? @db.Decimal(10, 4)
+  costCents   Decimal?  @db.Decimal(10, 4)
   latencyMs   Int?
-  succeeded   Boolean  @default(false)
+  succeeded   Boolean   @default(false)
   correctedTo String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([purpose, createdAt])
+}
+
+// Cache des fournées retournées par le modèle pour une même situation de
+// départ (B12) : évite de repayer un appel identique au fournisseur.
+model SuggestionBatch {
+  id        String   @id @default(cuid())
+  /** Signature du point de départ et de l'orientation : clé de cache (B12). */
+  signature String   @unique
+  payload   Json
+  model     String
+  costCents Decimal? @db.Decimal(10, 4)
+  createdAt DateTime @default(now())
 
   @@index([createdAt])
 }
