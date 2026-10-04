@@ -105,7 +105,9 @@ export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRe
     );
   }
 
-  if (isApiError(error, 'conflict')) {
+  // Clé sur le code, jamais sur le statut : un autre 409 sur cette route ne
+  // doit pas se faire passer pour un stock insuffisant.
+  if (isApiError(error, 'insufficient_stock')) {
     return (
       <EmptyState
         title="Stock insuffisant pour suggérer"

@@ -339,8 +339,8 @@ la session ou un jeton de service.
 **API.** REST sous `/api/v1`, JSON, erreurs normalisées
 `{ "error": { "code", "message", "details" } }` avec des codes stables
 (`validation_failed`, `unauthenticated`, `forbidden`, `not_found`, `conflict`,
-`business_rule`, `provider_disabled`, `rate_limited`, `provider_unavailable`,
-`provider_invalid_response`, `not_ready`). Les
+`insufficient_stock`, `business_rule`, `provider_disabled`, `rate_limited`,
+`provider_unavailable`, `provider_invalid_response`, `not_ready`). Les
 routes sont décrites dans `docs/cahier-des-charges.md`, section 16.
 
 ## Développement

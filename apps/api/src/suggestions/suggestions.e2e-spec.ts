@@ -175,7 +175,7 @@ describe('SuggestionsService (EF-26)', () => {
     // Exclu par le nom du produit (sel/poivre, B5) : aucune catégorie nécessaire.
     await seedProduct(db, locationId, { name: 'Poivre', quantity: 1, unit: 'SACHET' });
 
-    await expect(service.list(QUERY, USER)).rejects.toMatchObject({ status: 409 });
+    await expect(service.list(QUERY, USER)).rejects.toMatchObject({ status: 409, code: 'insufficient_stock' });
     try {
       await service.list(QUERY, USER);
     } catch (error) {
