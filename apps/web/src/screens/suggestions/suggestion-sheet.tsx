@@ -65,12 +65,12 @@ export function SuggestionSheet({ suggestion, batchId, open, onClose, keep = sug
     setError(null);
     try {
       const recipe = await keep({ batchId, suggestionId: suggestion.id, clientOpId });
-      // Au succès : la liste des recettes porte la nouvelle venue, la fournée
-      // n'a plus à proposer ce qui vient d'être conservé.
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.recipesAll }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.suggestionsAll }),
-      ]);
+      // Au succès : seule la liste des recettes change, la nouvelle venue y entre.
+      // La fournée, elle, n'est pas invalidée : elle est mise en cache 24 heures
+      // côté serveur et conserver une suggestion ne la modifie pas — la rejouer
+      // ne ferait que redemander la même chose, sur la seule route payante du
+      // module.
+      await queryClient.invalidateQueries({ queryKey: queryKeys.recipesAll });
       onClose();
       // C'est là, et seulement là, que Franck lit enfin les étapes.
       navigate(`/recettes/${recipe.id}`);

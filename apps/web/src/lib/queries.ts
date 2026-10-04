@@ -51,8 +51,6 @@ export const queryKeys = {
   recipeFilters: ['preferences', 'recipe-filters'] as const,
   pendingRating: ['recipes', 'pending-rating'] as const,
   suggestions: (orientation: SuggestionOrientation) => ['suggestions', 'list', orientation] as const,
-  /** Préfixe commun à toutes les orientations, pour invalider la fournée entière après une conservation (tâche 12). */
-  suggestionsAll: ['suggestions', 'list'] as const,
 };
 
 export type RecipeListParams = Omit<RecipeListQuery, 'page' | 'limit'>;

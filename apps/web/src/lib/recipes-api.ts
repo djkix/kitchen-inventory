@@ -2,7 +2,6 @@ import type {
   CookRecipeInput,
   CookResult,
   CreateCuisineInput,
-  CreateRecipeInput,
   LogCookedInput,
   RateLogInput,
   RecipeDto,
@@ -17,10 +16,6 @@ import type { CuisineDto, PendingRatingDto } from './types';
 export const recipesApi = {
   getFilters(): Promise<Partial<RecipeFilters>> {
     return api.get<Partial<RecipeFilters>>('/preferences/recipe-filters');
-  },
-  /** Création (EF-17) : la difficulté n'est envoyée que si l'utilisateur l'a corrigée (A20). */
-  createRecipe(input: CreateRecipeInput): Promise<RecipeDto> {
-    return api.post<RecipeDto>('/recipes', input);
   },
   /** Modification (EF-17) : les ingrédients envoyés remplacent entièrement ceux de la recette. */
   updateRecipe(id: string, input: UpdateRecipeInput): Promise<RecipeDto> {
