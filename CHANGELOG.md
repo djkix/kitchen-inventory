@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.7.0](https://github.com/djkix/kitchen-inventory/compare/v0.6.1...v0.7.0) (2026-10-04)
+
+
+### Features
+
+* **prisma:** schéma du module recettes, notation par membre et archivage (EF-28) ([af0b2d0](https://github.com/djkix/kitchen-inventory/commit/af0b2d0ac659d0c7be3e8d3ce8338ccabe46d0ca))
+* **recipes:** création, modification, suppression et archivage des recettes (EF-17, EF-21) ([c94b14d](https://github.com/djkix/kitchen-inventory/commit/c94b14d28200e3e73f227eb093078df8c0a3259b))
+* **recipes:** cuisines sans doublon et filtres mémorisés par utilisateur (EF-22) ([5355cde](https://github.com/djkix/kitchen-inventory/commit/5355cde5f57f5a9f4ab0562fcda48c287b529236))
+* **recipes:** cuisson avec décrément au prorata des portions (EF-18) ([4788531](https://github.com/djkix/kitchen-inventory/commit/4788531ece552617bf27203dd667e8d4921b9bfc))
+* **recipes:** historique des réalisations et notation par membre (EF-28) ([15b3a7a](https://github.com/djkix/kitchen-inventory/commit/15b3a7a58b4161271d45dc106b6d1a3e88816a64))
+* **recipes:** liste triée, couverture et indicateurs d'historique (EF-17, EF-23, EF-27) ([06ab9a6](https://github.com/djkix/kitchen-inventory/commit/06ab9a60726ca05bca92011e9d273737713ed36d))
+* **recipes:** rappel de notation des réalisations récentes (EF-28) ([4d8e532](https://github.com/djkix/kitchen-inventory/commit/4d8e5321c75a1da2e72ae5a3a4738735a526535d))
+* **shared:** difficulté calculée, techniques par mots entiers (EF-21) ([f31794d](https://github.com/djkix/kitchen-inventory/commit/f31794d733c0df34b301b0117fcc2616d8e59939))
+* **shared:** disponibilité et couverture des recettes (EF-17, EF-23, EF-27) ([d81ed98](https://github.com/djkix/kitchen-inventory/commit/d81ed988e8111a8e02d684a1a5833221b78b516b))
+* **shared:** indicateurs d'historique et étiquettes de recette (EF-28) ([e6a05d0](https://github.com/djkix/kitchen-inventory/commit/e6a05d003f75b1401b11e62d0bda9f3745c3bc9f))
+* **shared:** les cinq tris de la liste de recettes (EF-23, EF-27, EF-28) ([1f4da6d](https://github.com/djkix/kitchen-inventory/commit/1f4da6d15d3bc2f0f7a1ddf077d123ddd51fb030))
+* **shared:** schémas Zod du module recettes (EF-17, EF-21, EF-22) ([2d7f792](https://github.com/djkix/kitchen-inventory/commit/2d7f792f7e23fbe8129796536b95d1d282de451a))
+* **web:** écran Recettes, filtres et tris persistants (EF-21, EF-22, EF-23) ([fb4d63c](https://github.com/djkix/kitchen-inventory/commit/fb4d63cbc9d6f658afd08eac8cdc966b925dc387))
+* **web:** fiche recette, états des ingrédients et historique (EF-23, EF-28) ([936c2cc](https://github.com/djkix/kitchen-inventory/commit/936c2cc2fdaa014aa35953d5b3dcaf65f24b389e))
+* **web:** saisie et modification d'une recette (EF-17) ([18ec2aa](https://github.com/djkix/kitchen-inventory/commit/18ec2aac4ec2b00a0ae33b9b88953d788f241de1))
+* **web:** tiroir de cuisson avec choix du produit et note (EF-18, EF-28) ([f393ead](https://github.com/djkix/kitchen-inventory/commit/f393ead082e718e2431553b40822fb3678735a91))
+
+
+### Bug Fixes
+
+* **api,web:** décrémenter aussi une ligne catégorie non substituable (EF-18) ([24d95f5](https://github.com/djkix/kitchen-inventory/commit/24d95f55e6d55e0e283fd163eb79300d7d579dab))
+* **api:** lots périmés et fusion ignorés à la cuisson, idempotence et archivage (EF-18) ([e1fcdda](https://github.com/djkix/kitchen-inventory/commit/e1fcdda5e74480da0526adb2f2e492a142689181))
+* **api:** normaliser la recherche de titre de recette comme ailleurs (A22) ([31b1b1f](https://github.com/djkix/kitchen-inventory/commit/31b1b1fd97729930ba3e5e01963e7db5d965b14a))
+* **api:** sortir les aides de test du périmètre de compilation ([4ece3a0](https://github.com/djkix/kitchen-inventory/commit/4ece3a06988c19f3662876548dd73f1ff4bcf034))
+* **recipes:** enveloppe de réponse et requête indexée pour le rappel de notation (EF-28) ([fcfc839](https://github.com/djkix/kitchen-inventory/commit/fcfc8397204c8504cc79bbd71952b8a2a083f6d7))
+* **recipes:** filet contre la course sur la création d'une cuisine (EF-22) ([e068102](https://github.com/djkix/kitchen-inventory/commit/e06810257fd1ae197a281de59ba5ecf28a70a2b4))
+* **recipes:** pont de contenance partagé et unité cohérente du décrément (EF-18) ([8141605](https://github.com/djkix/kitchen-inventory/commit/814160500f9b4ec792e4f95a7b7644d125467e65))
+* **recipes:** remonter l'incertitude des lots non convertibles dans la couverture (EF-23) ([c580f19](https://github.com/djkix/kitchen-inventory/commit/c580f19b27df0e1f55543dba4d8e9ce3de50a479))
+* **recipes:** sortir la lecture des réglages de la transaction de cuisson et cibler le rejeu (EF-18) ([bf1d003](https://github.com/djkix/kitchen-inventory/commit/bf1d003bdc41d3c9f6df489595b368989a5f27fe))
+* **recipes:** unifier la normalisation des cuisines entre amorçage et API (EF-22) ([235b6bd](https://github.com/djkix/kitchen-inventory/commit/235b6bdb28ab99c98ec375f8a8d3613c05ba68d9))
+* **seed:** éviter qu’un produit n’ait que des lots périmés (section 19) ([7e859eb](https://github.com/djkix/kitchen-inventory/commit/7e859ebdf8ed72aaa5e9f9ec739c621c941ee850))
+* **shared:** catégorie résolue par l'appelant pour un substituable (EF-17, EF-23) ([8cde8df](https://github.com/djkix/kitchen-inventory/commit/8cde8dff42e58cf57fe746aed80c8b9ad04e3fe8))
+* **shared:** sentinelle explicite pour leastRecent, stabilité testée sur les cinq tris (EF-23, EF-27, EF-28) ([69024e8](https://github.com/djkix/kitchen-inventory/commit/69024e84634e45782627b8112809dad2fd2f07ad))
+* **web:** aligner les pastilles de filtre sur la cible tactile du projet (EF-23) ([4040d69](https://github.com/djkix/kitchen-inventory/commit/4040d6969c5611867ff7204eebcb938cd5d8f525))
+* **web:** rendre le groupe d'étoiles navigable au clavier (EF-28) ([a13f5cb](https://github.com/djkix/kitchen-inventory/commit/a13f5cb044563ca63ec9cd8d6896277f9652747c))
+* **web:** rendre visible la raison du bouton Modifier désactivé (EF-23) ([d2cee89](https://github.com/djkix/kitchen-inventory/commit/d2cee892317a52a5fde725371742a0df1d0e6ce7))
+* **web:** transmettre le temps de préparation au calcul de difficulté (EF-17) ([c8cf205](https://github.com/djkix/kitchen-inventory/commit/c8cf20573c26c3134347751be8524e22d5ba03ce))
+
 ## [0.6.1](https://github.com/djkix/kitchen-inventory/compare/v0.6.0...v0.6.1) (2026-10-03)
 
 
