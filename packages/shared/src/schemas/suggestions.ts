@@ -44,8 +44,16 @@ export const suggestionQuerySchema = z.object({
     })
     .optional(),
   difficulty: difficultySchema.optional(),
-  /** Redemande un lot plutôt que de resservir le dernier (notice de B-cache). */
-  refresh: z.coerce.boolean().default(false),
+  /**
+   * Redemande un lot plutôt que de resservir le dernier (notice de B-cache).
+   * Jamais `z.coerce.boolean()` : il rend `true` pour la chaîne `"false"`, si
+   * bien qu'un `refresh=false` posé par défaut dans l'orientation ferait payer
+   * un appel à chaque chargement. Seule la chaîne `"true"` vaut vrai.
+   */
+  refresh: z
+    .union([z.literal('true'), z.literal('false'), z.boolean()])
+    .optional()
+    .transform((value) => value === 'true' || value === true),
 });
 export type SuggestionQuery = z.infer<typeof suggestionQuerySchema>;
 

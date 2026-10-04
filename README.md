@@ -100,9 +100,9 @@ site, ou « proposée par l'IA »). Trois rangées permettent de s'orienter par
 **région** (asiatique, méditerranéenne…), **durée** (≤ 15, ≤ 30, ≤ 60 min) ou
 **facilité** : chaque choix relance une vraie recherche ciblée auprès du
 modèle, il ne filtre jamais ce qui est déjà affiché. Une fournée est mise en
-cache 24 heures par point de départ et orientation ; un tiré vers le bas en
-force une nouvelle. Les épices, le sel et le poivre ne sont jamais retenus
-comme point de départ (l'huile et le vinaigre le restent) ; les dates de
+cache 24 heures par point de départ et orientation. Les épices, le sel et le
+poivre ne sont jamais retenus comme point de départ (l'huile et le vinaigre
+le restent) ; les dates de
 péremption n'interviennent à aucun titre dans les suggestions.
 
 La fiche d'une suggestion montre les ingrédients et ce qui manque, jamais les
