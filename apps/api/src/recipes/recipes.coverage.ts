@@ -88,8 +88,14 @@ export class RecipesCoverageService {
     private readonly settings: SettingsService,
   ) {}
 
-  async snapshot(today = new Date()): Promise<StockSnapshot> {
-    const [lots, categories, alertDays] = await Promise.all([
+  /**
+   * `categories`, si fourni, évite une deuxième lecture de la table `Category` quand
+   * l'appelant l'a déjà chargée pour son propre usage (ex. `SuggestionsService`, qui
+   * en a aussi besoin pour `loadSeedCandidates` — revue de tâche 6 : les deux
+   * interrogeaient chacun la table séparément).
+   */
+  async snapshot(today = new Date(), categories?: readonly CategoryRow[]): Promise<StockSnapshot> {
+    const [lots, loadedCategories, alertDays] = await Promise.all([
       this.prisma.stockItem.findMany({
         where: { archivedAt: null, quantity: { gt: 0 } },
         select: {
@@ -106,11 +112,11 @@ export class RecipesCoverageService {
           },
         },
       }),
-      this.prisma.category.findMany({ select: { id: true, parentId: true } }),
+      categories ? Promise.resolve(categories) : loadCategoryRows(this.prisma),
       this.settings.expiryAlertDays(),
     ]);
 
-    const parentByCategory = new Map<string, string | null>(categories.map((c) => [c.id, c.parentId]));
+    const parentByCategory = new Map<string, string | null>(loadedCategories.map((c) => [c.id, c.parentId]));
 
     const groups = new Map<string, { product: ResolvedProduct; lots: LotContribution[] }>();
     for (const lot of lots) {
@@ -193,13 +199,27 @@ export class RecipesCoverageService {
   }
 }
 
+export interface CategoryRow {
+  id: string;
+  parentId: string | null;
+  name: string;
+}
+
+/**
+ * Une seule requête pour tout l'arbre des catégories (id, parent, nom) — partagée
+ * par `RecipesCoverageService.snapshot()` et `loadSeedCandidates` (revue de tâche 6)
+ * plutôt qu'interrogée séparément par chacun.
+ */
+export function loadCategoryRows(prisma: PrismaService): Promise<CategoryRow[]> {
+  return prisma.category.findMany({ select: { id: true, parentId: true, name: true } });
+}
+
 /**
  * Chemin de catégorie normalisé (racine → feuille), pour les candidats de départ
- * des suggestions (EF-26, `SeedCandidate.categoryPath`). Une seule requête pour
- * tout l'arbre des catégories, jamais une par produit.
+ * des suggestions (EF-26, `SeedCandidate.categoryPath`). Fonction pure : ne fait
+ * aucune requête, construit le chemin à partir de lignes déjà chargées.
  */
-export async function loadCategoryPaths(prisma: PrismaService): Promise<Map<string, readonly string[]>> {
-  const categories = await prisma.category.findMany({ select: { id: true, parentId: true, name: true } });
+export function buildCategoryPaths(categories: readonly CategoryRow[]): Map<string, readonly string[]> {
   const byId = new Map(categories.map((c) => [c.id, c]));
   const paths = new Map<string, readonly string[]>();
   const resolve = (id: string): readonly string[] => {
@@ -219,23 +239,28 @@ export async function loadCategoryPaths(prisma: PrismaService): Promise<Map<stri
 /**
  * Candidats de départ pour la sélection des ingrédients (EF-26, `pickSeedIngredients`) :
  * un par produit présent dans l'instantané de stock, trié par importance — profondeur
- * de catégorie (la plus spécifique d'abord) puis quantité décroissante. Les noms de
- * produits sont chargés en une seule requête pour tout le stock, jamais un par produit.
+ * de catégorie (la plus spécifique d'abord), puis nom de produit (ordre alphabétique
+ * stable). Les noms de produits sont chargés en une seule requête pour tout le stock,
+ * jamais un par produit ; `categories` est fourni par l'appelant (voir `snapshot`),
+ * jamais rechargé ici.
+ *
+ * Le tri n'utilise jamais la quantité : une consommation ordinaire la fait varier en
+ * continu et ferait glisser le 8ᵉ ou 9ᵉ candidat d'un appel à l'autre, changeant la
+ * signature de cache et déclenchant un appel payant évitable au fournisseur
+ * (défaut corrigé en revue de tâche 6).
  */
-export async function loadSeedCandidates(prisma: PrismaService, snapshot: StockSnapshot): Promise<SeedCandidate[]> {
+export async function loadSeedCandidates(prisma: PrismaService, snapshot: StockSnapshot, categories: readonly CategoryRow[]): Promise<SeedCandidate[]> {
   const entries = [...snapshot.byProduct.values()];
   if (entries.length === 0) return [];
-  const [products, categoryPaths] = await Promise.all([
-    prisma.product.findMany({ where: { id: { in: entries.map((e) => e.productId) } }, select: { id: true, name: true } }),
-    loadCategoryPaths(prisma),
-  ]);
+  const products = await prisma.product.findMany({ where: { id: { in: entries.map((e) => e.productId) } }, select: { id: true, name: true } });
   const nameById = new Map(products.map((p) => [p.id, p.name]));
+  const categoryPaths = buildCategoryPaths(categories);
   const depthOf = (categoryId: string | null): number => (categoryId ? (categoryPaths.get(categoryId)?.length ?? 0) : 0);
-  // Importance décroissante : catégorie la plus spécifique d'abord, puis quantité (B4).
-  const sorted = [...entries].sort((a, b) => depthOf(b.categoryId) - depthOf(a.categoryId) || b.quantity - a.quantity);
-  return sorted.map((entry) => ({
+  const withNames = entries.map((entry) => ({ entry, name: nameById.get(entry.productId) ?? entry.productId }));
+  const sorted = withNames.sort((a, b) => depthOf(b.entry.categoryId) - depthOf(a.entry.categoryId) || a.name.localeCompare(b.name));
+  return sorted.map(({ entry, name }) => ({
     productId: entry.productId,
-    name: nameById.get(entry.productId) ?? entry.productId,
+    name,
     categoryPath: entry.categoryId ? (categoryPaths.get(entry.categoryId) ?? []) : [],
   }));
 }

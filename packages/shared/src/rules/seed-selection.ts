@@ -1,3 +1,5 @@
+import { normalizeProductName } from './duplicates.js';
+
 /**
  * Sélection des ingrédients qui amorcent la recherche de recettes par IA
  * (EF-26) : on ne peut pas envoyer tout le stock à Gemini, il faut choisir
@@ -7,18 +9,42 @@
 export interface SeedCandidate {
   productId: string;
   name: string;
-  /** Chemin de catégorie, de la racine à la feuille, en minuscules sans accent. */
+  /** Chemin de catégorie, de la racine à la feuille, normalisé par `normalizeProductName`. */
   categoryPath: readonly string[];
 }
 
-/** Catégories qui n'ont jamais à décrire un repas (B5). Comparées sur le chemin normalisé. */
-export const NON_STRUCTURING_CATEGORIES: readonly string[] = ['epices', 'sel-et-poivre', 'herbes-aromatiques'];
+/**
+ * Catégories qui n'ont jamais à décrire un repas (B5), comparées au chemin de
+ * catégorie normalisé par `normalizeProductName` (accents retirés, minuscules —
+ * jamais de slug à tirets : `normalizeProductName` ne transforme pas les espaces).
+ * Dérivée des catégories réellement semées par défaut (`DEFAULT_CATEGORIES`,
+ * `packages/shared/src/constants.ts`) : seule « Épices et aromates » qualifie
+ * aujourd'hui (revue de tâche 6 — les anciens segments `sel-et-poivre` et
+ * `herbes-aromatiques` ne correspondaient à aucune catégorie réelle et ne
+ * déclenchaient donc jamais rien en production).
+ */
+export const NON_STRUCTURING_CATEGORIES: readonly string[] = [normalizeProductName('Épices et aromates')];
+
+/**
+ * Sel et poivre n'ont pas de catégorie dédiée dans `DEFAULT_CATEGORIES` (ils sont
+ * rangés par le foyer dans n'importe quelle catégorie d'épicerie) : Franck les a
+ * demandés hors par leur nom, pas par catégorie (B5). Comparaison mot à mot sur
+ * le nom normalisé, jamais par sous-chaîne : « poivron » ne doit jamais être
+ * confondu avec « poivre ».
+ */
+export const NON_STRUCTURING_PRODUCT_WORDS: readonly string[] = ['sel', 'poivre'];
+
+function hasExcludedWord(name: string): boolean {
+  const words = normalizeProductName(name).split(/[^a-z0-9]+/).filter((word) => word.length > 0);
+  return words.some((word) => NON_STRUCTURING_PRODUCT_WORDS.includes(word));
+}
 
 export const SEED_MAX = 8;
 export const SEED_STABLE = 5;
 
 export function isStructuring(candidate: SeedCandidate): boolean {
-  return !candidate.categoryPath.some((segment) => NON_STRUCTURING_CATEGORIES.includes(segment));
+  if (candidate.categoryPath.some((segment) => NON_STRUCTURING_CATEGORIES.includes(segment))) return false;
+  return !hasExcludedWord(candidate.name);
 }
 
 /** Numéro du jour, pour que la rotation ne dépende pas de l'heure. */

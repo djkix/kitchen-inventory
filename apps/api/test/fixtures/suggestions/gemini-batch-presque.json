@@ -1,0 +1,23 @@
+{
+  "recipes": [
+    {
+      "title": "Recette presque complète",
+      "origin": "Composition Gemini",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Étape unique de composition."
+      ],
+      "ingredients": [
+        { "label": "Tomate", "quantity": null, "unit": null },
+        { "label": "Pâtes", "quantity": null, "unit": null },
+        { "label": "Riz", "quantity": null, "unit": null },
+        { "label": "Huile d'olive", "quantity": null, "unit": null },
+        { "label": "Introuvable XYZ", "quantity": null, "unit": null }
+      ]
+    }
+  ]
+}

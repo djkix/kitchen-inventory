@@ -104,14 +104,16 @@ describe('SuggestionsService (EF-26)', () => {
   it('compose la requête depuis le stock, sans les épices ni le sel (B5)', async () => {
     const { service, db } = await createService();
     const locationId = await seedLocation(db);
-    // Catégories nommées exactement comme les segments de `NON_STRUCTURING_CATEGORIES`
-    // (normalizeProductName ne fait que retirer les accents et mettre en minuscules,
-    // il ne transforme pas les espaces en tirets : voir le rapport de tâche).
-    const epices = await db.category.create({ data: { name: 'epices' } });
-    const selEtPoivre = await db.category.create({ data: { name: 'sel-et-poivre' } });
+    // Catégorie réellement semée par défaut (`DEFAULT_CATEGORIES`, `packages/shared`),
+    // pas une catégorie inventée pour le test (revue de tâche 6 : l'ancienne version
+    // créait des catégories nommées littéralement `epices`/`sel-et-poivre`, qui ne
+    // prouvaient rien sur le comportement réel en production).
+    const epices = await db.category.create({ data: { name: 'Épices et aromates' } });
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
     await seedProduct(db, locationId, { name: 'Paprika fumé', categoryId: epices.id, quantity: 1, unit: 'SACHET' });
-    await seedProduct(db, locationId, { name: 'Sel fin', categoryId: selEtPoivre.id, quantity: 1, unit: 'PACK' });
+    // Sel et poivre n'ont aucune catégorie dédiée dans `DEFAULT_CATEGORIES` : exclus
+    // par le nom du produit, sans catégorie du tout ici.
+    await seedProduct(db, locationId, { name: 'Sel fin', quantity: 1, unit: 'PACK' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
     await service.list(QUERY, USER);
@@ -126,8 +128,8 @@ describe('SuggestionsService (EF-26)', () => {
   it('refuse d’appeler le modèle quand le stock ne donne aucun ingrédient (vigilance 3)', async () => {
     const { service, db } = await createService();
     const locationId = await seedLocation(db);
-    const epices = await db.category.create({ data: { name: 'epices' } });
-    await seedProduct(db, locationId, { name: 'Poivre', categoryId: epices.id, quantity: 1, unit: 'SACHET' });
+    // Exclu par le nom du produit (sel/poivre, B5) : aucune catégorie nécessaire.
+    await seedProduct(db, locationId, { name: 'Poivre', quantity: 1, unit: 'SACHET' });
 
     await expect(service.list(QUERY, USER)).rejects.toMatchObject({ status: 409 });
     try {
@@ -270,5 +272,40 @@ describe('SuggestionsService (EF-26)', () => {
     const logs = await db.recognitionLog.findMany({ where: { purpose: 'RECIPE_SUGGESTION' } });
     expect(logs).toHaveLength(1);
     expect(logs[0]).toMatchObject({ provider: 'gemini', succeeded: true });
+  });
+
+  it('marque une recette dont aucun ingrédient n’est rapproché comme exclue, jamais prête (revue de tâche 6)', async () => {
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    // Stock sans aucun rapport avec les ingrédients de la fixture : suffit pour
+    // franchir la vigilance 3, mais aucun ingrédient de la recette n'y trouvera
+    // de candidat.
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-absent.json'));
+    const result = await service.list(QUERY, USER);
+
+    const item = result.items[0]!;
+    expect(item.group).toBe('excluded');
+    expect(item.coverage).toBe(0);
+    expect(item.missingLabels.sort()).toEqual(['Essence de phénix', 'Poudre de dragée licorne'].sort());
+    expect(item.ingredients.every((i) => i.state === 'missing')).toBe(true);
+  });
+
+  it('range une recette à qui il manque un ingrédient sur cinq dans le groupe presque', async () => {
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+    await seedProduct(db, locationId, { name: 'Pâtes', quantity: 500, unit: 'GRAM' });
+    await seedProduct(db, locationId, { name: 'Riz', quantity: 500, unit: 'GRAM' });
+    await seedProduct(db, locationId, { name: "Huile d'olive", quantity: 1, unit: 'LITER' });
+
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-presque.json'));
+    const result = await service.list(QUERY, USER);
+
+    const item = result.items[0]!;
+    expect(item.group).toBe('almost');
+    expect(item.coverage).toBeCloseTo(0.8);
+    expect(item.missingLabels).toEqual(['Introuvable XYZ']);
   });
 });
