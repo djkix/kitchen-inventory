@@ -22,10 +22,12 @@
     "build:shared": "npm run build -w @kitchen/shared",
     "lint:fix": "eslint . --fix",
     "e2e:up": "docker compose -f docker-compose.e2e.yml up -d --wait",
-    "e2e:down": "docker compose -f docker-compose.e2e.yml down -v"
+    "e2e:down": "docker compose -f docker-compose.e2e.yml down -v",
+    "e2e": "playwright test --config e2e/playwright.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@vitest/coverage-v8": "^4.1.11",
     "embedded-postgres": "^16.14.0-beta.17",
     "eslint": "^10.11.0",

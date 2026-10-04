@@ -184,22 +184,17 @@ jobs:
           reponse="$(curl -fsS http://localhost:3100/api/v1/health)"
           echo "$reponse"
           echo "$reponse" | jq -e '.checks.migrations == "ok"'
-      # Playwright et son montage (npm run e2e, playwright.config.ts) arrivent
-      # dans une tâche suivante du plan : la tâche 1 n'a livré que le montage
-      # ci-dessus et sa doublure. La garde `hashFiles(...) != ''` évite de
-      # faire échouer ce job tant que la suite n'existe pas ; elle disparaîtra
-      # dans la même tâche qui écrira playwright.config.ts.
       - name: Installation de Playwright
-        if: hashFiles('playwright.config.ts') != ''
+        if: hashFiles('e2e/playwright.config.ts') != ''
         run: npx playwright install --with-deps chromium
       - name: Parcours bout en bout
-        if: hashFiles('playwright.config.ts') != ''
+        if: hashFiles('e2e/playwright.config.ts') != ''
         run: npm run e2e
       - name: Journaux du conteneur applicatif
         if: always()
         run: docker compose -f docker-compose.e2e.yml logs app > app-e2e.log || true
       - name: Publication du rapport Playwright
-        if: always() && hashFiles('playwright.config.ts') != ''
+        if: always() && hashFiles('e2e/playwright.config.ts') != ''
         uses: actions/upload-artifact@v4
         with:
           name: rapport-e2e
