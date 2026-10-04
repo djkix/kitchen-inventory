@@ -103,4 +103,79 @@ describe('RecipePageFetcher (tâche 9, B6, B14)', () => {
 
     await expect(fetcher.fetch('https://192.168.1.50/recette')).rejects.toBeInstanceOf(RecipePageRefusedError);
   });
+
+  it('refuse une redirection qui vise http://, localhost ou une adresse privée, au second saut', async () => {
+    const refusedTargets = [
+      `http://${PUBLIC_HOST}/ailleurs`, // rétrogradation HTTPS → HTTP
+      'https://localhost/ailleurs',
+      'https://192.168.1.50/ailleurs',
+    ];
+
+    for (const target of refusedTargets) {
+      const http: HttpClient = async (url) => {
+        if (url.includes('premier-saut')) {
+          return new Response(null, { status: 302, headers: { location: target } });
+        }
+        throw new Error(`ne devrait jamais être atteint : ${url}`);
+      };
+      const fetcher = new RecipePageFetcher(http);
+
+      await expect(fetcher.fetch(`https://${PUBLIC_HOST}/premier-saut`)).rejects.toBeInstanceOf(RecipePageRefusedError);
+    }
+  });
+
+  it('rend null, sans faire échouer l’appelant, quand le corps se bloque après les en-têtes (Important 1)', async () => {
+    // Le serveur répond vite (le corps n'est pas `null`), puis ne pousse plus
+    // jamais rien : `readBodyCapped` vivait hors du `try/catch` de `fetchHtml`,
+    // laissant un `AbortError` tardif s'échapper en exception non gérée.
+    const stream = new ReadableStream<Uint8Array>({
+      start() {
+        // Ne pousse jamais aucune donnée.
+      },
+    });
+    const http: HttpClient = async () => new Response(stream, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
+    const fetcher = new RecipePageFetcher(http, 20);
+
+    await expect(fetcher.fetch(`https://${PUBLIC_HOST}/flux-bloque`)).resolves.toBeNull();
+  });
+
+  it('coupe une réponse qui dépasse le plafond de taille, plutôt que de la mettre en mémoire en entier', async () => {
+    const chunkSize = 1_000_000; // le plafond (`MAX_BODY_BYTES`) est à 2 Mo
+    let cancelled = false;
+    let chunksPulled = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        chunksPulled += 1;
+        controller.enqueue(new Uint8Array(chunkSize));
+        // Ne se termine jamais tout seul : sans le plafond, la lecture ne s'arrêterait jamais.
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const http: HttpClient = async () => new Response(stream, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
+    const fetcher = new RecipePageFetcher(http);
+
+    const recipe = await fetcher.fetch(`https://${PUBLIC_HOST}/page-trop-grosse`);
+
+    expect(recipe).toBeNull();
+    expect(cancelled).toBe(true);
+    // Coupé après quelques morceaux, jamais après avoir tout mis en mémoire.
+    expect(chunksPulled).toBeLessThan(10);
+  });
+
+  it('lit la page une seule fois pour la structure et pour le texte nettoyé (fetchContent)', async () => {
+    const html = await fixtureHtml('page-schema-simple.html');
+    let calls = 0;
+    const fetcher = new RecipePageFetcher(async () => {
+      calls += 1;
+      return htmlResponse(html);
+    });
+
+    const content = await fetcher.fetchContent(`https://${PUBLIC_HOST}/tarte-aux-pommes`);
+
+    expect(calls).toBe(1);
+    expect(content?.structured?.title).toBe('Tarte aux pommes');
+    expect(content?.text).toContain('Tarte aux pommes');
+  });
 });

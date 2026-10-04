@@ -113,21 +113,39 @@ export function cleanPageText(html: string): string {
 function isPrivateIPv4(address: string): boolean {
   const parts = address.split('.').map((part) => Number(part));
   if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return true;
-  const [a, b] = parts as [number, number, number, number];
+  const [a, b, c, d] = parts as [number, number, number, number];
   if (a === 10 || a === 127 || a === 0) return true;
   if (a === 169 && b === 254) return true;
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 192 && b === 168) return true;
+  if (a === 192 && b === 0 && c === 0) return true; // IETF Protocol Assignments (RFC 6890)
+  if (a === 198 && (b === 18 || b === 19)) return true; // tests de débit (RFC 2544)
   if (a === 100 && b >= 64 && b <= 127) return true; // plage partagée CGNAT (RFC 6598)
+  if (a >= 224 && a <= 239) return true; // multicast (RFC 5771)
+  if (a === 255 && b === 255 && c === 255 && d === 255) return true; // diffusion limitée
   return false;
+}
+
+/** Premier groupe (16 bits) de l'adresse, en tenant compte de la compression « :: ». */
+function firstIPv6Group(address: string): number | null {
+  const withoutZone = address.split('%')[0] ?? '';
+  const head = withoutZone.includes('::') ? (withoutZone.split('::')[0] ?? '') : withoutZone;
+  const firstGroup = head.split(':')[0];
+  if (!firstGroup) return 0; // l'adresse commence par « :: » : premier groupe nul
+  const value = Number.parseInt(firstGroup, 16);
+  return Number.isNaN(value) ? null : value;
 }
 
 function isPrivateIPv6(address: string): boolean {
   const normalized = address.toLowerCase();
   if (normalized === '::1' || normalized === '::') return true;
-  if (normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
   const mapped = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
   if (mapped?.[1]) return isPrivateIPv4(mapped[1]);
+  const first = firstIPv6Group(normalized);
+  if (first === null) return true;
+  if (first >= 0xfc00 && first <= 0xfdff) return true; // adresses locales uniques, fc00::/7
+  if (first >= 0xfe80 && first <= 0xfebf) return true; // lien-local, fe80::/10
+  if (first >= 0xff00 && first <= 0xffff) return true; // multicast, ff00::/8
   return false;
 }
 
@@ -154,17 +172,27 @@ export class RecipePageFetcher {
 
   /** Lit `schema.org/Recipe` sur la page ; `null` si absent, non conforme, ou si la page ne répond pas à temps. */
   async fetch(url: string): Promise<PageRecipe | null> {
-    const html = await this.fetchHtml(url);
-    if (html === null) return null;
-    return extractPageRecipe(html);
+    const content = await this.fetchContent(url);
+    return content?.structured ?? null;
   }
 
   /** Texte nettoyé de la page, pour la réécriture quand aucune donnée structurée n'est exploitable. */
   async fetchText(url: string): Promise<string | null> {
+    const content = await this.fetchContent(url);
+    if (!content || content.text.length === 0) return null;
+    return content.text;
+  }
+
+  /**
+   * Récupère la page une seule fois et en tire les deux lectures possibles
+   * (revue de tâche 9 : la page ne doit pas être récupérée deux fois — une
+   * pour chercher `schema.org/Recipe`, une autre pour le repli en texte —
+   * alors qu'un seul GET donne déjà tout ce qu'il faut pour les deux).
+   */
+  async fetchContent(url: string): Promise<{ structured: PageRecipe | null; text: string } | null> {
     const html = await this.fetchHtml(url);
     if (html === null) return null;
-    const text = cleanPageText(html);
-    return text.length > 0 ? text : null;
+    return { structured: extractPageRecipe(html), text: cleanPageText(html) };
   }
 
   private async fetchHtml(rawUrl: string): Promise<string | null> {
@@ -175,38 +203,43 @@ export class RecipePageFetcher {
       throw new RecipePageRefusedError('Lien de la recette invalide');
     }
 
-    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      await assertFetchable(current);
+    // Un seul délai pour toute la chaîne de redirection (vigilance « a five-second
+    // ceiling ») : un délai par saut porterait le pire cas à `timeoutMs * MAX_REDIRECTS`,
+    // bien au-delà de ce que le brief promet.
+    const signal = AbortSignal.timeout(this.timeoutMs);
 
-      let response: Response;
-      try {
-        response = await this.http(current.toString(), {
+    try {
+      for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+        await assertFetchable(current);
+
+        const response = await this.http(current.toString(), {
           redirect: 'manual',
           headers: { accept: 'text/html,application/xhtml+xml' },
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal,
         });
-      } catch {
-        // Réseau injoignable ou délai dépassé : échec doux, jamais une exception qui remonte.
-        return null;
-      }
 
-      if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get('location');
-        if (!location) return null;
-        try {
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.get('location');
+          if (!location) return null;
           current = new URL(location, current);
-        } catch {
-          return null;
+          continue;
         }
-        continue;
+        if (!response.ok) return null;
+        return await this.readBodyCapped(response, signal);
       }
-      if (!response.ok) return null;
-      return this.readBodyCapped(response);
+      return null; // trop de sauts de redirection
+    } catch (error) {
+      if (error instanceof RecipePageRefusedError) throw error;
+      // Réseau injoignable, délai dépassé — y compris pendant la lecture du
+      // corps, un flux qui démarre puis se bloque (revue de tâche 9 : ce
+      // `readBodyCapped` vivait hors de ce `try`, laissant un `AbortError`
+      // tardif s'échapper en 500) —, ou URL de redirection invalide : échec
+      // doux, jamais une exception qui remonte à l'appelant.
+      return null;
     }
-    return null; // trop de sauts de redirection
   }
 
-  private async readBodyCapped(response: Response): Promise<string | null> {
+  private async readBodyCapped(response: Response, signal: AbortSignal): Promise<string | null> {
     const declared = response.headers.get('content-length');
     if (declared && Number(declared) > MAX_BODY_BYTES) return null;
     if (!response.body) {
@@ -217,7 +250,17 @@ export class RecipePageFetcher {
     const chunks: Uint8Array[] = [];
     let total = 0;
     for (;;) {
-      const { done, value } = await reader.read();
+      // Course explicite contre le même délai que le reste de la chaîne : un
+      // corps qui démarre (en-têtes reçus) puis se bloque doit rendre `null`
+      // comme n'importe quel autre dépassement, pas seulement quand
+      // l'environnement d'exécution lie lui-même le flux au signal (revue de
+      // tâche 9, Important 1).
+      const outcome = await raceWithAbort(reader.read(), signal);
+      if (outcome === 'aborted') {
+        await reader.cancel().catch(() => undefined);
+        return null;
+      }
+      const { done, value } = outcome;
       if (done) break;
       if (!value) continue;
       total += value.byteLength;
@@ -229,6 +272,25 @@ export class RecipePageFetcher {
     }
     return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString('utf8');
   }
+}
+
+/** Résout `'aborted'` dès que `signal` s'abandonne, sans jamais attendre que `promise` se règle elle-même. */
+function raceWithAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T | 'aborted'> {
+  if (signal.aborted) return Promise.resolve('aborted');
+  return new Promise<T | 'aborted'>((resolve, reject) => {
+    const onAbort = (): void => resolve('aborted');
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
 }
 
 /** Refuse tout ce qui n'est pas HTTPS vers un hôte public (vigilance 2) ; jamais suivi en silence. */
