@@ -1,0 +1,168 @@
+{
+  "recipes": [
+    {
+      "title": "Spaghetti à la tomate",
+      "origin": "Site de cuisine 1",
+      "region": "europeenne",
+      "totalMinutes": 30,
+      "difficulty": "HARD",
+      "provenance": "web",
+      "sourceUrl": "https://203.0.113.20/spaghetti-tomate",
+      "steps": [],
+      "ingredients": [
+        { "label": "Spaghettis", "quantity": null, "unit": null },
+        { "label": "Sauce tomate", "quantity": null, "unit": null },
+        { "label": "Parmesan", "quantity": null, "unit": null }
+      ]
+    },
+    {
+      "title": "Riz au parmesan râpé",
+      "origin": "Site de cuisine 2",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-2.test/riz-parmesan",
+      "steps": [],
+      "ingredients": [
+        { "label": "Riz", "quantity": null, "unit": null },
+        { "label": "parmesan râpé", "quantity": null, "unit": null }
+      ]
+    },
+    {
+      "title": "Pâtes à l'huile et au basilic",
+      "origin": "Site de cuisine 3",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-3.test/pates-huile-basilic",
+      "steps": [],
+      "ingredients": [
+        { "label": "Spaghettis", "quantity": null, "unit": null },
+        { "label": "Huile d'olive", "quantity": null, "unit": null },
+        { "label": "Basilic frais", "quantity": null, "unit": null }
+      ]
+    },
+    {
+      "title": "Gratin à la crème de parmesan",
+      "origin": "Site de cuisine 4",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-4.test/gratin-creme-parmesan",
+      "steps": [],
+      "ingredients": [
+        { "label": "crème", "quantity": null, "unit": null },
+        { "label": "Parmesan", "quantity": null, "unit": null }
+      ]
+    },
+    {
+      "title": "Riz pilaf nature",
+      "origin": "Site de cuisine 5",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-5.test/riz-pilaf",
+      "steps": [],
+      "ingredients": [{ "label": "Riz", "quantity": null, "unit": null }]
+    },
+    {
+      "title": "Tomates farcies au riz et à la viande",
+      "origin": "Site de cuisine 6",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-6.test/tomates-farcies",
+      "steps": [],
+      "ingredients": [
+        { "label": "Sauce tomate", "quantity": null, "unit": null },
+        { "label": "Riz", "quantity": null, "unit": null },
+        { "label": "Viande hachée", "quantity": null, "unit": null }
+      ]
+    },
+    {
+      "title": "Salade exotique mangue avocat",
+      "origin": "Site de cuisine 7",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-7.test/salade-exotique",
+      "steps": [],
+      "ingredients": [
+        { "label": "Mangue", "quantity": null, "unit": null },
+        { "label": "Avocat", "quantity": null, "unit": null }
+      ]
+    },
+    {
+      "title": "Huile d'olive aromatisée",
+      "origin": "Site de cuisine 8",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "EASY",
+      "provenance": "web",
+      "sourceUrl": "https://exemple-cuisine-8.test/huile-aromatisee",
+      "steps": [],
+      "ingredients": [{ "label": "Huile d'olive", "quantity": null, "unit": null }]
+    },
+    {
+      "title": "Riz sauté maison",
+      "origin": "Composition Gemini",
+      "region": "asiatique",
+      "totalMinutes": 20,
+      "difficulty": "VERY_EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": ["Cuire le riz.", "Faire revenir avec la sauce tomate."],
+      "ingredients": [
+        { "label": "Riz", "quantity": null, "unit": null },
+        { "label": "Sauce tomate", "quantity": null, "unit": null }
+      ]
+    },
+    {
+      "title": "Pâtes au parmesan et au beurre",
+      "origin": "Composition Gemini",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "VERY_EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": ["Cuire les pâtes.", "Mélanger avec le parmesan et le beurre."],
+      "ingredients": [
+        { "label": "Spaghettis", "quantity": null, "unit": null },
+        { "label": "Parmesan", "quantity": null, "unit": null },
+        { "label": "Beurre", "quantity": null, "unit": null }
+      ]
+    },
+    {
+      "title": "Riz épicé à l'huile et au paprika",
+      "origin": "Composition Gemini",
+      "region": "africaine",
+      "totalMinutes": 20,
+      "difficulty": "VERY_EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": ["Cuire le riz.", "Assaisonner avec l'huile et le paprika."],
+      "ingredients": [
+        { "label": "Riz", "quantity": null, "unit": null },
+        { "label": "Huile d'olive", "quantity": null, "unit": null },
+        { "label": "Paprika", "quantity": null, "unit": null }
+      ]
+    },
+    {
+      "title": "Dessert improvisé au chocolat",
+      "origin": "Composition Gemini",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "VERY_EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": ["Faire fondre le chocolat et dresser."],
+      "ingredients": [{ "label": "Chocolat", "quantity": null, "unit": null }]
+    }
+  ]
+}
