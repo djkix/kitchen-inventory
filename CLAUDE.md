@@ -88,13 +88,27 @@ tools/             utilitaires hors application
   mémorisés, couverture et groupe calculés depuis le stock, cuisson avec
   décrément plafonné et choix du produit substitué, réalisation sans
   décrément, historique et notation par membre sous sept jours, archivage),
-  `apps/web/src/screens/{recipes,recipe,recipe-form}` (écran Recettes trié par
-  note par défaut, fiche recette, formulaire de saisie et de modification),
   migration `0003_recipes_socle` et jeu de développement (8 recettes, 5
   cuisines, historique de réalisations). Spécification et 27 arbitrages dans
-  `docs/specs/2026-10-03-module-recettes-socle.md` ; EF-24 (ajout aux
-  courses), EF-25 (import par URL) et EF-26 (génération par IA) en restent
-  hors, remontés au lot 2 à la demande de Franck.
+  `docs/specs/2026-10-03-module-recettes-socle.md`.
+- Recettes suggérées à partir du stock livrées (EF-25, EF-26) :
+  `apps/api/src/suggestions` (composition du point de départ depuis le stock,
+  appel à Gemini avec recherche web et composition par le modèle, orientation
+  par région/durée/facilité relançant une recherche ciblée, cache de fournée
+  24 h, quota journalier et plafond mensuel partagés avec le scan photo,
+  rapprochement des ingrédients au stock, conservation d'une suggestion —
+  page récupérée et réécrite par Gemini au format de l'application, jamais de
+  renvoi vers le site), `apps/web/src/screens/suggestions` (écran Suggestions,
+  désormais écran d'entrée du module recettes), `apps/web/src/screens/recipes`
+  (devenu « Mes recettes », bouton de création retiré) et `recipe-form`
+  (formulaire de modification seule, la création manuelle a disparu),
+  migrations `0005_recipe_suggestions` et `0006_recipe_client_op_id`.
+  `VISION_MONTHLY_CAP_CENTS` plafonne désormais l'ensemble des appels au
+  modèle (scan et suggestions), porté à 5 € ; `RECIPE_SUGGESTION_DAILY_QUOTA`
+  borne les fournées par jour. Spécification et dix-sept arbitrages dans
+  `docs/specs/2026-10-04-recettes-suggerees.md` ; cahier des charges amendé le
+  2026-10-04 (section 26). EF-24 (ajout aux courses, qui suppose une liste de
+  courses qui n'existe pas encore) en reste hors, remonté au lot 2.
 - Les choix laissés au jugement par le cahier des charges sont consignés dans
   `docs/decisions/`. Le plan d'exécution du lot 1 est dans `docs/plans/`.
 
@@ -114,7 +128,7 @@ dernier article.
 Lot 2 (décision 8) après quelques semaines d'usage réel : seuils et liste de
 courses, alertes de péremption, mode hors ligne (`POST /sync`, file IndexedDB,
 les écritures portent déjà `clientOpId`), export enrichi, et pour le module
-recettes : ajout des ingrédients manquants aux courses (EF-24), import d'une
-recette depuis une URL (EF-25), génération d'une recette par IA (EF-26).
-Restent aussi à écrire les tests bout en bout Playwright des parcours P1 à P4
-et le jeu de non-régression de reconnaissance sur photos réelles (section 19).
+recettes : ajout des ingrédients manquants aux courses (EF-24, qui suppose
+cette liste). Restent aussi à écrire les tests bout en bout Playwright des
+parcours P1 à P4 et le jeu de non-régression de reconnaissance sur photos
+réelles (section 19).

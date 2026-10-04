@@ -1,8 +1,9 @@
 # Kitchen Inventory — inventaire alimentaire maison
 
 Application web auto-hébergée qui inventorie les produits comestibles de la
-maison par scan depuis le téléphone, suit les dates de péremption et, à terme,
-propose des recettes réalisables avec ce qui est réellement en stock.
+maison par scan depuis le téléphone, suit les dates de péremption et suggère
+des recettes à partir de ce qui est réellement en stock, trouvées sur le web
+ou composées par une IA.
 
 ## Le principe
 
@@ -89,21 +90,50 @@ nom d'origine et la marque.
 révocables, verrouillage après échecs répétés, jeton de service en lecture
 seule pour Home Assistant. Export CSV et JSON.
 
-**Module recettes.** Recettes du foyer, classées **par défaut selon la note**
-du foyer (les mieux notées en tête, puis les non notées, titre à l'alphabet
-en dernier recours) — le stock n'intervient pas dans ce tri par défaut. La
-recherche par titre est tolérante aux accents et à la casse, comme la
-recherche produits (« crepes » trouve « Crêpes »). Quatre autres tris au
-choix, mémorisés avec les filtres par utilisateur :
-réalisables avec le stock (couverture), anti-gaspillage, les plus faites, les
+**Module recettes.** L'écran **Suggestions** est la porte d'entrée : sans
+rien demander, l'application compose un point de départ depuis le stock réel
+(huit ingrédients au plus, les plus structurants, trois places tournant d'un
+jour à l'autre pour renouveler les idées), interroge Google Gemini et affiche
+une fournée d'une douzaine de recettes — certaines trouvées sur de vrais
+sites, d'autres composées par le modèle, chaque carte disant laquelle (nom du
+site, ou « proposée par l'IA »). Trois rangées permettent de s'orienter par
+**région** (asiatique, méditerranéenne…), **durée** (≤ 15, ≤ 30, ≤ 60 min) ou
+**facilité** : chaque choix relance une vraie recherche ciblée auprès du
+modèle, il ne filtre jamais ce qui est déjà affiché. Une fournée est mise en
+cache 24 heures par point de départ et orientation ; un tiré vers le bas en
+force une nouvelle. Les épices, le sel et le poivre ne sont jamais retenus
+comme point de départ (l'huile et le vinaigre le restent) ; les dates de
+péremption n'interviennent à aucun titre dans les suggestions.
+
+La fiche d'une suggestion montre les ingrédients et ce qui manque, jamais les
+étapes avant conservation. **Conserver** une recette récupère sa page (HTTPS
+uniquement, 5 secondes maximum), lit ses données structurées `schema.org/Recipe`
+quand elles existent, et la fait **réécrire par Gemini au format propre à
+l'application** — l'application n'envoie jamais vers le site d'origine, pour
+une recette composée les étapes déjà produites sont reprises telles quelles.
+La difficulté est alors recalculée par le barème du foyer (elle peut changer
+d'un cran par rapport à celle affichée avant conservation). La recette entre
+dans **Mes recettes**, qui reprend le socle du foyer : cuisson, historique,
+notation par membre.
+
+**Mes recettes**, classées **par défaut selon la note** du foyer (les mieux
+notées en tête, puis les non notées, titre à l'alphabet en dernier recours) —
+le stock n'intervient pas dans ce tri par défaut. La recherche par titre est
+tolérante aux accents et à la casse, comme la recherche produits (« crepes »
+trouve « Crêpes »). Trois autres tris au choix, mémorisés avec les filtres par
+utilisateur : réalisables avec le stock (couverture), les plus faites, les
 moins récentes. Filtres par difficulté, cuisine, type de plat, régime, temps
 (préparation + cuisson, repos exclu) et note minimale, plus des pastilles
 rapides (valeurs sûres, jamais faites, pas faites depuis longtemps,
 réalisables maintenant). Chaque carte affiche son **taux de couverture et son
 groupe** (prête, presque, incomplète) calculés depuis le stock réel, même si
-ce groupe ne change plus l'ordre ni la visibilité de la liste ; une pastille
-anti-gaspillage apparaît quand la recette consomme un article qui périme
-bientôt.
+ce groupe ne change plus l'ordre ni la visibilité de la liste.
+
+Il n'y a **plus de création manuelle** : le bouton d'ajout a disparu, et le
+formulaire ne sert plus qu'à **modifier** une recette déjà conservée (titre,
+cuisine, type de plat, régimes, portions, temps, étapes, ingrédients). Une
+recette de famille qu'on ne trouve pas sur le web n'a, de ce fait, plus sa
+place dans l'application.
 
 Depuis la fiche recette, « Cuisiner » ouvre un tiroir de cuisson : portions
 réalisées ajustables, chaque ligne décrémentable cochée par défaut, choix du
@@ -123,7 +153,7 @@ fiche recette porte un bloc Historique (moyenne, nombre de réalisations,
 tendance, puis chaque réalisation avec qui a cuisiné et la note de chaque
 membre du foyer) : chaque membre note une réalisation de 1 à 5 étoiles, une
 fois, modifiable pendant les **sept jours** qui suivent, puis en lecture
-seule. Sur l'écran Recettes, un bandeau invite à noter la dernière
+seule. Sur l'écran Mes recettes, un bandeau invite à noter la dernière
 réalisation récente encore sans note (pas celle d'une recette depuis
 archivée) ; il se ferme pour la journée et se rouvre le lendemain tant qu'il
 reste quelque chose à noter.
@@ -136,23 +166,26 @@ listes ni les calculs sauf à la chercher explicitement. Une réalisation qui a
 décrémenté le stock ne se supprime jamais : la correction se fait depuis la
 fiche article, comme pour tout autre mouvement.
 
-Un même formulaire crée (bouton « + » sur l'écran Recettes) ou modifie
-(bouton « Modifier » sur la fiche) une recette : titre, cuisine (choisie ou
-créée à la volée), type de plat, régimes, portions, les quatre temps, étapes
-et ingrédients. Chaque ingrédient se rattache à un produit existant par la
-même recherche que le reste de l'application, à une catégorie, ou reste en
-texte libre. La difficulté suit automatiquement les étapes et le temps actif ;
-une correction manuelle la gèle définitivement, y compris lors des
-modifications suivantes. En modification, les ingrédients envoyés remplacent
-entièrement les précédents. Quitter le formulaire avec des changements non
-enregistrés demande confirmation. Voir `docs/cahier-des-charges.md`,
-section 12.
+Le formulaire (bouton « Modifier » sur la fiche d'une recette conservée)
+permet d'ajuster titre, cuisine (choisie ou créée à la volée), type de plat,
+régimes, portions, les quatre temps, étapes et ingrédients. Chaque ingrédient
+se rattache à un produit existant par la même recherche que le reste de
+l'application, à une catégorie, ou reste en texte libre. La difficulté suit
+automatiquement les étapes et le temps actif ; une correction manuelle la
+gèle définitivement, y compris lors des modifications suivantes. Les
+ingrédients envoyés remplacent entièrement les précédents. Quitter le
+formulaire avec des changements non enregistrés demande confirmation. Voir
+`docs/cahier-des-charges.md`, section 12.
 
-**Limite connue de cet incrément.** La fiche recette affiche les ingrédients
-manquants mais ne propose pas encore de les ajouter à une liste de courses
-(EF-24, qui suppose cette liste), ni d'importer une recette depuis une URL
-(EF-25), ni de génération de recette par IA (EF-26) : ces trois exigences
-sont repoussées au lot 2. Voir `docs/decisions/`.
+**Limites connues.** Pas d'ajout des ingrédients manquants à une liste de
+courses (EF-24, qui suppose l'existence de cette liste, repoussée au lot 2) ;
+un ingrédient rapproché par approximation (« crème » → *Crème fraîche épaisse
+30 %*) est affiché comme probable, compte comme disponible dans la couverture,
+et se confirme ou se corrige au moment de cuisiner, jamais avant ; une recette
+composée par l'IA peut inventer une proportion, annoncé par sa mention
+« proposée par l'IA », jamais masqué. Sans fournisseur d'IA configuré
+(`VISION_PROVIDER=none`), l'écran Suggestions n'appelle rien : il l'explique
+et renvoie vers **Mes recettes**. Voir `docs/decisions/`.
 
 ## Installation
 
@@ -368,6 +401,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.8.0 | 2026-10-04 | Recettes suggérées à partir du stock (EF-26) : écran Suggestions en entrée du module, point de départ composé depuis le stock réel, recherche web et composition par Gemini, orientation par région/durée/facilité relançant une recherche ciblée, conservation d'une suggestion réécrite au format de l'application dans Mes recettes (EF-25) ; création manuelle retirée, le formulaire ne sert plus qu'à modifier ; `VISION_MONTHLY_CAP_CENTS` plafonne désormais scan et suggestions ensemble, porté à 5 € ; `RECIPE_SUGGESTION_DAILY_QUOTA` ; migrations `0005_recipe_suggestions` et `0006_recipe_client_op_id` |
 | 0.7.0 | 2026-10-04 | Module recettes (socle) : écran Recettes trié par note avec filtres et tris mémorisés (EF-21, EF-22, EF-23) ; fiche recette avec état de chaque ingrédient et historique noté par membre (EF-23, EF-28) ; cuisson avec décrément plafonné au stock, lots périmés écartés, fusion de produit suivie et choix du produit substitué, ou réalisation sans décrément (EF-18, EF-28) ; archivage d'une recette déjà cuisinée, cuisson d'une recette archivée refusée ; formulaire de saisie et de modification (EF-17) ; recherche de titre insensible aux accents (A22) ; ajout aux courses (EF-24), import par URL (EF-25) et génération par IA (EF-26) laissés au lot 2 |
 | 0.6.1 | 2026-10-03 | Publication : « latest » ne suit plus que les versions publiées, les poussées sur main vont sous « main » |
 | 0.6.0 | 2026-10-03 | Bandeau de mise à jour : nouvelle version détectée et rechargement proposé, sans interrompre un scan |
