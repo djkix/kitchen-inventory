@@ -50,7 +50,8 @@ export function RecipesScreen() {
   return (
     <>
       <ScreenHeader
-        title="Recettes"
+        title="Mes recettes"
+        back="/recettes"
         subtitle={recipes.isSuccess ? <span className="tnum">{total} recette{total > 1 ? 's' : ''}</span> : undefined}
       />
 
@@ -119,7 +120,7 @@ function RecipesEmpty({ hasActiveQuery, hasActiveFilters }: { hasActiveQuery: bo
   return (
     <EmptyState
       title="Aucune recette pour l’instant"
-      description="Ajoutez une première recette pour commencer : le module recettes vous suggérera ensuite quoi cuisiner avec le stock réel."
+      description="Conservez une suggestion pour qu’elle rejoigne votre bibliothèque : les recettes se créent depuis l’écran Suggestions, à partir du stock réel."
     />
   );
 }

@@ -83,14 +83,12 @@ export function DifficultyField({ steps, activeTime, prepMinutes, value, onChang
   );
 }
 
-/** Fiche recette (section 12) : création et modification, formulaire unique. */
+/** Fiche recette (section 12) : modification d'une recette existante — la création se fait en conservant une suggestion (EF-26). */
 export function RecipeFormScreen() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const editing = Boolean(id);
   const recipe = useRecipeQuery(id);
 
-  if (!editing) return <RecipeFormBody recipe={null} />;
   if (recipe.isPending) return <RecipeFormSkeleton onBack={() => navigate(-1)} />;
   if (recipe.isError) {
     const missing = isApiError(recipe.error, 'not_found');
@@ -253,28 +251,27 @@ function CuisineField({ value, onChange }: { value: string | null; onChange: (id
 }
 
 interface RecipeFormBodyProps {
-  recipe: RecipeDto | null;
+  recipe: RecipeDto;
 }
 
-/** Corps du formulaire, une fois la recette éventuelle chargée (ou absente en création). */
+/** Corps du formulaire, une fois la recette chargée : toujours une modification (EF-26). */
 function RecipeFormBody({ recipe }: RecipeFormBodyProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const editing = recipe !== null;
 
-  const [title, setTitle] = useState(recipe?.title ?? '');
-  const [cuisineId, setCuisineId] = useState<string | null>(recipe?.cuisineId ?? null);
-  const [dishType, setDishType] = useState<DishType | null>(recipe?.dishType ?? null);
-  const [servings, setServings] = useState<number | null>(recipe?.servings ?? 4);
-  const [prepMinutes, setPrepMinutes] = useState<number | null>(recipe?.prepMinutes ?? null);
-  const [cookMinutes, setCookMinutes] = useState<number | null>(recipe?.cookMinutes ?? null);
-  const [restMinutes, setRestMinutes] = useState<number | null>(recipe?.restMinutes ?? null);
-  const [activeTime, setActiveTime] = useState<number | null>(recipe?.activeTime ?? null);
-  const [steps, setSteps] = useState<string[]>(recipe?.steps && recipe.steps.length > 0 ? recipe.steps : ['']);
-  const [diets, setDiets] = useState<Diet[]>(recipe?.diets ?? []);
-  const [difficultyOverride, setDifficultyOverride] = useState<Difficulty | null>(recipe?.difficultyOverride ? recipe.difficulty : null);
+  const [title, setTitle] = useState(recipe.title);
+  const [cuisineId, setCuisineId] = useState<string | null>(recipe.cuisineId);
+  const [dishType, setDishType] = useState<DishType | null>(recipe.dishType);
+  const [servings, setServings] = useState<number | null>(recipe.servings);
+  const [prepMinutes, setPrepMinutes] = useState<number | null>(recipe.prepMinutes);
+  const [cookMinutes, setCookMinutes] = useState<number | null>(recipe.cookMinutes);
+  const [restMinutes, setRestMinutes] = useState<number | null>(recipe.restMinutes);
+  const [activeTime, setActiveTime] = useState<number | null>(recipe.activeTime);
+  const [steps, setSteps] = useState<string[]>(recipe.steps.length > 0 ? recipe.steps : ['']);
+  const [diets, setDiets] = useState<Diet[]>(recipe.diets);
+  const [difficultyOverride, setDifficultyOverride] = useState<Difficulty | null>(recipe.difficultyOverride ? recipe.difficulty : null);
   const [ingredients, setIngredients] = useState<IngredientLineValue[]>(() =>
-    recipe && recipe.ingredients.length > 0 ? recipe.ingredients.map(ingredientLineFromDto) : [emptyIngredientLine()],
+    recipe.ingredients.length > 0 ? recipe.ingredients.map(ingredientLineFromDto) : [emptyIngredientLine()],
   );
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -288,7 +285,7 @@ function RecipeFormBody({ recipe }: RecipeFormBodyProps) {
   if (initialSnapshot.current === null) initialSnapshot.current = snapshot();
   const dirty = snapshot() !== initialSnapshot.current;
 
-  const leaveTarget = editing ? `/recettes/${recipe.id}` : '/recettes';
+  const leaveTarget = `/recettes/${recipe.id}`;
   const leaveNow = () => navigate(leaveTarget);
   const requestLeave = () => (dirty ? setConfirmLeave(true) : leaveNow());
 
@@ -330,7 +327,7 @@ function RecipeFormBody({ recipe }: RecipeFormBodyProps) {
     setFieldErrors({});
     setSaving(true);
     try {
-      const saved = editing ? await recipesApi.updateRecipe(recipe.id, parsed.data) : await recipesApi.createRecipe(parsed.data);
+      const saved = await recipesApi.updateRecipe(recipe.id, parsed.data);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.recipesAll }),
         queryClient.invalidateQueries({ queryKey: queryKeys.recipe(saved.id) }),
@@ -358,7 +355,7 @@ function RecipeFormBody({ recipe }: RecipeFormBodyProps) {
 
   return (
     <>
-      <FormHeader title={editing ? 'Modifier la recette' : 'Nouvelle recette'} onBack={requestLeave} />
+      <FormHeader title="Modifier la recette" onBack={requestLeave} />
 
       <div className="flex flex-col gap-5 px-4 pb-32">
         {serverError && (
