@@ -31,9 +31,10 @@ function htmlResponse(html: string, status = 200): Response {
  * riz 1 kg. Le sel est exclu de la sélection de départ par son nom, le paprika par
  * sa catégorie (B5) — les deux restent par ailleurs des produits du stock, et
  * peuvent donc être rapprochés comme n'importe quel autre s'ils sont cités par une
- * recette (recette 11). Le seuil d'alerte de péremption (7 jours) et le quota
- * journalier de suggestions (10) sont fixés explicitement : aucun lot de stock ne
- * porte de DLC ici, mais une valeur par défaut qui changerait un jour ne doit pas
+ * recette (recette 11). Le seuil d'alerte de péremption (7 jours), le quota
+ * journalier de suggestions (10) et le plafond de dépense mensuel (0, désactivé)
+ * sont fixés explicitement : aucun lot de stock ne porte de DLC ici et aucun coût
+ * n'est en jeu, mais une valeur par défaut qui changerait un jour ne doit pas
  * faire dériver ce scénario en silence.
  *
  * Fournée Gemini figée (`gemini-batch-scenario-pates.json`) : douze recettes, huit
@@ -51,7 +52,12 @@ function htmlResponse(html: string, status = 200): Response {
  * - Recette 4 « Gratin à la crème de parmesan » (web) : « crème » absent (aucun
  *   produit de ce nom en stock), parmesan sûr → couverture 1/2 = 0,5, exclue (sous
  *   le seuil de 0,6).
- * - Recette 5 « Riz pilaf nature » (web) : riz seul, sûr → couverture 1, prête.
+ * - Recette 5 « Riz pilaf nature » (web) : riz sûr, « Spaghettis complets au blé »
+ *   probable (score pg_trgm = 11/27 ≈ 0,4074, juste au-dessus du seuil 0,40),
+ *   « Spaghettis complets de riz complet » absent (score = 11/28 ≈ 0,3929, juste
+ *   en dessous) — ces deux derniers encadrent `MATCH_SIMILARITY_FLOOR` à dessein
+ *   (voir le commentaire du test correspondant pour l'arithmétique, vérifiée par
+ *   `show_trgm`) → couverture 2/3 ≈ 0,67, presque.
  * - Recette 6 « Tomates farcies au riz et à la viande » (web) : 2 sûrs, « Viande
  *   hachée » absente → couverture 2/3 ≈ 0,67, presque.
  * - Recette 7 « Salade exotique mangue avocat » (web) : mangue et avocat, tous deux
@@ -96,7 +102,7 @@ describe('scénario de réussite figé des suggestions', () => {
   });
   afterAll(() => t.close());
 
-  /** Sème exactement le stock décrit dans l'en-tête, et renvoie les identifiants utiles. */
+  /** Sème exactement le stock décrit dans l'en-tête. */
   async function seedScenario(): Promise<void> {
     const placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
     const epices = await t.prisma.category.findFirstOrThrow({ where: { name: 'Épices et aromates' } });
@@ -167,7 +173,7 @@ describe('scénario de réussite figé des suggestions', () => {
       { title: 'Riz au parmesan râpé', group: 'ready', coverage: 1, missingLabels: [] },
       { title: "Pâtes à l'huile et au basilic", group: 'almost', coverage: 0.67, missingLabels: ['Basilic frais'] },
       { title: 'Gratin à la crème de parmesan', group: 'excluded', coverage: 0.5, missingLabels: ['crème'] },
-      { title: 'Riz pilaf nature', group: 'ready', coverage: 1, missingLabels: [] },
+      { title: 'Riz pilaf nature', group: 'almost', coverage: 0.67, missingLabels: ['Spaghettis complets de riz complet'] },
       { title: 'Tomates farcies au riz et à la viande', group: 'almost', coverage: 0.67, missingLabels: ['Viande hachée'] },
       { title: 'Salade exotique mangue avocat', group: 'excluded', coverage: 0, missingLabels: ['Mangue', 'Avocat'] },
       { title: "Huile d'olive aromatisée", group: 'ready', coverage: 1, missingLabels: [] },
@@ -186,10 +192,10 @@ describe('scénario de réussite figé des suggestions', () => {
       })),
     ).toEqual(expected);
 
-    // Six recettes prêtes, trois presque, trois exclues (A8) : vérifié aussi en bloc,
-    // pour que l'énumération ci-dessus et le compte global ne divergent jamais.
-    expect(res.body.items.filter((i: { group: string }) => i.group === 'ready')).toHaveLength(6);
-    expect(res.body.items.filter((i: { group: string }) => i.group === 'almost')).toHaveLength(3);
+    // Cinq recettes prêtes, quatre presque, trois exclues (A8) : vérifié aussi en
+    // bloc, pour que l'énumération ci-dessus et le compte global ne divergent jamais.
+    expect(res.body.items.filter((i: { group: string }) => i.group === 'ready')).toHaveLength(5);
+    expect(res.body.items.filter((i: { group: string }) => i.group === 'almost')).toHaveLength(4);
     expect(res.body.items.filter((i: { group: string }) => i.group === 'excluded')).toHaveLength(3);
   });
 
@@ -207,6 +213,58 @@ describe('scénario de réussite figé des suggestions', () => {
     const parmesanRape = rizParmesan.ingredients.find((i: { label: string }) => i.label === 'parmesan râpé');
     expect(parmesanRape?.match).toBe('probable');
     expect(parmesanRape?.productName).toBe('Parmesan');
+  });
+
+  /**
+   * « parmesan râpé » (ci-dessus) vaut ≈ 0,64 contre « Parmesan » : largement
+   * au-dessus du seuil, ce qui prouve qu'un seuil existe mais pas où il est
+   * exactement. Les deux libellés ci-dessous encadrent `MATCH_SIMILARITY_FLOOR`
+   * (0,40) lui-même, à dessein : un déplacement du seuil de seulement 0,015
+   * dans un sens ou l'autre changerait le verdict de l'un des deux.
+   *
+   * pg_trgm découpe une chaîne en mots (séparés par les espaces), complète
+   * chaque mot de deux blancs en tête et un en fin, en tire les trigrammes
+   * (fenêtre glissante de 3 caractères, jamais à cheval sur un espace), puis
+   * prend l'union de ces trigrammes pour toute la chaîne — jamais une seule
+   * fenêtre glissante sur la chaîne entière. Les deux libellés ci-dessous
+   * commencent par le mot « Spaghettis » (nom exact du produit en stock) :
+   * ses 11 trigrammes se retrouvent donc tels quels dans l'union du libellé,
+   * et comme le produit n'apporte rien d'autre, `word_similarity` se réduit
+   * à 11 / (nombre de trigrammes distincts du libellé entier) :
+   *   - trigrammes(« spaghettis ») = {"  s"," sp","spa","pag","agh","ghe",
+   *     "het","ett","tti","tis","is "} → 11.
+   *   - « Spaghettis complets au blé » : mots « complets » (9 trigrammes),
+   *     « au » (3), « blé » (4), aucun ne partage de trigramme avec un autre
+   *     mot → union = 11 + 9 + 3 + 4 = 27.
+   *     score = 11 / 27 ≈ 0,4074 → au-dessus du seuil → probable. (Vérifié
+   *     avec `word_similarity` directement sur la base de test : 0,4074074.)
+   *   - « Spaghettis complets de riz complet » : mots « complets » (9),
+   *     « de » (3), « riz » (4), « complet » (8, sans le « s » final). Les deux
+   *     derniers mots partagent la même racine : « complet » = {"  c"," co",
+   *     "com","omp","mpl","ple","let","et "}, dont les 7 premiers sont déjà
+   *     dans « complets » — seul "et " est nouveau ("ets" et "ts " restent
+   *     propres à « complets »). Leur union ne vaut donc que 7 + 2 + 1 = 10,
+   *     pas 9 + 8 = 17 : union totale = 11 + 10 + 3 + 4 = 28.
+   *     score = 11 / 28 ≈ 0,3929 → en dessous du seuil → absent. (Vérifié de
+   *     même : 0,39285713.)
+   * Un déplacement du seuil de seulement 0,015 suffirait à inverser le
+   * verdict de l'un des deux — contrairement à « parmesan râpé », loin du
+   * seuil, ce couple épingle la valeur 0,40 elle-même, pas seulement son
+   * existence.
+   */
+  it('encadre le seuil de similarité : juste au-dessus résout probable, juste en dessous résout absent', async () => {
+    const res = await agent.get('/api/v1/suggestions').expect(200);
+
+    const rizPilaf = res.body.items[4];
+    expect(rizPilaf.title).toBe('Riz pilaf nature');
+
+    const justeAuDessus = rizPilaf.ingredients.find((i: { label: string }) => i.label === 'Spaghettis complets au blé');
+    expect(justeAuDessus?.match).toBe('probable');
+    expect(justeAuDessus?.productName).toBe('Spaghettis');
+
+    const justeEnDessous = rizPilaf.ingredients.find((i: { label: string }) => i.label === 'Spaghettis complets de riz complet');
+    expect(justeEnDessous?.match).toBe('absent');
+    expect(justeEnDessous?.productId).toBeNull();
   });
 
   it('conserve la première recette en Recipe IMPORTED, difficulté recalculée au barème du foyer', async () => {

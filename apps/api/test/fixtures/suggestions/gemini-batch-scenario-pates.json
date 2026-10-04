@@ -67,7 +67,11 @@
       "provenance": "web",
       "sourceUrl": "https://exemple-cuisine-5.test/riz-pilaf",
       "steps": [],
-      "ingredients": [{ "label": "Riz", "quantity": null, "unit": null }]
+      "ingredients": [
+        { "label": "Riz", "quantity": null, "unit": null },
+        { "label": "Spaghettis complets au blé", "quantity": null, "unit": null },
+        { "label": "Spaghettis complets de riz complet", "quantity": null, "unit": null }
+      ]
     },
     {
       "title": "Tomates farcies au riz et à la viande",
