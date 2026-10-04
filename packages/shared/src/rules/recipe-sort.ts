@@ -1,10 +1,9 @@
-export const RECIPE_SORTS = ['rating', 'coverage', 'antiWaste', 'mostCooked', 'leastRecent'] as const;
+export const RECIPE_SORTS = ['rating', 'coverage', 'mostCooked', 'leastRecent'] as const;
 export type RecipeSort = (typeof RECIPE_SORTS)[number];
 
 export const RECIPE_SORT_LABELS_FR: Record<RecipeSort, string> = {
   rating: 'Les mieux notées',
   coverage: 'Réalisables avec le stock',
-  antiWaste: 'Anti-gaspillage',
   mostCooked: 'Les plus faites',
   leastRecent: 'Les moins récentes',
 };
@@ -12,7 +11,6 @@ export const RECIPE_SORT_LABELS_FR: Record<RecipeSort, string> = {
 export interface SortableRecipe {
   title: string;
   coverage: number;
-  bonus: number;
   averageRating: number | null;
   ratingCount: number;
   timesCooked: number;
@@ -31,7 +29,6 @@ const byRating = (a: SortableRecipe, b: SortableRecipe): number =>
 const COMPARATORS: Record<RecipeSort, (a: SortableRecipe, b: SortableRecipe) => number> = {
   rating: byRating,
   coverage: (a, b) => b.coverage - a.coverage || byRating(a, b),
-  antiWaste: (a, b) => b.bonus - a.bonus || b.coverage - a.coverage || byTitle(a, b),
   mostCooked: (a, b) => b.timesCooked - a.timesCooked || byTitle(a, b),
   // Jamais faites en premier : cas nul traité explicitement, pas de date sentinelle.
   leastRecent: (a, b) =>

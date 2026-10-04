@@ -50,7 +50,6 @@ export function IngredientRow({ ingredient }: IngredientRowProps) {
           <p className="tnum text-[13px] text-muted">{formatQuantity(ingredient.quantity, ingredient.unit)}</p>
         )}
         <p className={cn('text-[13px]', STATE_TEXT_LOOK[ingredient.state])}>{stateDetail(ingredient)}</p>
-        {ingredient.nearExpiry && <p className="text-[13px] text-soon">Périme bientôt</p>}
       </div>
     </li>
   );

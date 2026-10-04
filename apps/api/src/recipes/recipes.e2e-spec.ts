@@ -504,7 +504,7 @@ describe('recettes (EF-17, EF-21)', () => {
       expect(rapides.body.items.every((r: { totalMinutes: number | null }) => (r.totalMinutes ?? 0) <= 20)).toBe(true);
       const faciles = await agent.get('/api/v1/recipes?difficulty=VERY_EASY').expect(200);
       expect(faciles.body.items.every((r: { difficulty: string }) => r.difficulty === 'VERY_EASY')).toBe(true);
-      await agent.get('/api/v1/recipes?sort=antiWaste').expect(200);
+      await agent.get('/api/v1/recipes?sort=coverage').expect(200);
     });
 
     it('exclut d’un filtre de régime les recettes qui ne le déclarent pas', async () => {

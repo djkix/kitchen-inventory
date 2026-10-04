@@ -159,7 +159,6 @@ export interface RecipeIngredientDto {
   substitutable: boolean;
   state: 'available' | 'insufficient' | 'unverifiable' | 'missing' | 'untracked';
   availableQuantity: number | null;
-  nearExpiry: boolean;
   /**
    * Produits en stock qui peuvent satisfaire cette ligne, pour le choix exigé
    * par A15 à la cuisson. Vide pour une ligne visant un produit précis non
@@ -193,7 +192,6 @@ export interface RecipeSummaryDto {
   archivedAt: string | null;
   coverage: number;
   group: z.infer<typeof coverageGroupSchema>;
-  bonus: number;
   missingLabels: string[];
   stats: RecipeStatsDto;
 }

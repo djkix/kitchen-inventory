@@ -252,7 +252,7 @@ export class RecipesService {
   private summaryCoverage(recipe: RecipeWithRelations, result: RecipeCoverage): SummaryCoverage {
     const labelById = new Map(recipe.ingredients.map((i) => [i.id, i.label]));
     const missingLabels = result.missingIds.map((id) => labelById.get(id)).filter((label): label is string => !!label);
-    return { coverage: result.coverage, group: result.group, bonus: result.bonus, missingLabels };
+    return { coverage: result.coverage, group: result.group, missingLabels };
   }
 
   /** Décoration complète d'une fiche recette (A15) : état, quantité disponible et candidats par ligne. */
@@ -280,7 +280,6 @@ export class RecipesService {
       map.set(ingredient.id, {
         state: outcome?.state ?? 'untracked',
         availableQuantity: outcome?.availableQuantity ?? null,
-        nearExpiry: outcome?.nearExpiry ?? false,
         candidates: categoryId ? (candidatesByCategory.get(categoryId) ?? []) : [],
       });
     }

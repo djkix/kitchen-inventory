@@ -44,10 +44,6 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
 
       <p className="tnum text-[13px] text-muted">{formatHistory(recipe.stats)}</p>
 
-      {recipe.bonus > 0 && (
-        <span className="inline-flex w-fit items-center rounded-md bg-warn-deep px-1.5 py-0.5 text-[12px] font-semibold text-warn">Anti-gaspillage</span>
-      )}
-
       {recipe.missingLabels.length > 0 && (
         <p className="truncate text-[13px] text-faint">Manque : {recipe.missingLabels.join(', ')}</p>
       )}

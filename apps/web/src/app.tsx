@@ -55,7 +55,6 @@ export function App() {
                 <Route path="/stock/:id" element={<ItemScreen />} />
                 <Route path="/perime-bientot" element={<ExpiringScreen />} />
                 <Route path="/recettes" element={<RecipesScreen />} />
-                <Route path="/recettes/nouvelle" element={<RecipeFormScreen />} />
                 <Route path="/recettes/:id" element={<RecipeScreen />} />
                 <Route path="/recettes/:id/modifier" element={<RecipeFormScreen />} />
                 <Route path="/courses" element={<ComingSoonScreen title="Courses" />} />

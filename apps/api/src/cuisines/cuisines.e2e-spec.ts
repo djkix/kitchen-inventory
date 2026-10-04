@@ -51,8 +51,8 @@ describe('cuisines et préférences de filtres (EF-22)', () => {
 
   it('mémorise filtres et tri par utilisateur, chacun les siens', async () => {
     expect((await agent.get('/api/v1/preferences/recipe-filters').expect(200)).body).toEqual({});
-    await agent.put('/api/v1/preferences/recipe-filters').send({ difficulty: ['EASY'], sort: 'antiWaste' }).expect(200);
-    expect((await agent.get('/api/v1/preferences/recipe-filters').expect(200)).body).toMatchObject({ difficulty: ['EASY'], sort: 'antiWaste' });
+    await agent.put('/api/v1/preferences/recipe-filters').send({ difficulty: ['EASY'], sort: 'coverage' }).expect(200);
+    expect((await agent.get('/api/v1/preferences/recipe-filters').expect(200)).body).toMatchObject({ difficulty: ['EASY'], sort: 'coverage' });
 
     await agent.post('/api/v1/users').send({ email: 'marie@example.org', name: 'Marie', password: 'encore-un-mot-de-passe' }).expect(201);
     const marie = t.agent();

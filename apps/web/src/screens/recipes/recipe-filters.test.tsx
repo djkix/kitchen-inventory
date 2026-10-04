@@ -14,8 +14,8 @@ describe('RecipeFiltersBar', () => {
   it('change le tri', () => {
     const onChange = vi.fn();
     render(<RecipeFiltersBar value={empty} cuisines={[]} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText('Trier par'), { target: { value: 'antiWaste' } });
-    expect(onChange).toHaveBeenCalledWith({ ...empty, sort: 'antiWaste' });
+    fireEvent.change(screen.getByLabelText('Trier par'), { target: { value: 'coverage' } });
+    expect(onChange).toHaveBeenCalledWith({ ...empty, sort: 'coverage' });
   });
   it('traduit les pastilles rapides en filtres', () => {
     const onChange = vi.fn();

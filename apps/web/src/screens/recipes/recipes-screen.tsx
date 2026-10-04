@@ -2,9 +2,9 @@ import type { RecipeFilters } from '@kitchen/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
-import { Button, IconButton } from '../../components/ui/button';
+import { Button } from '../../components/ui/button';
 import { EmptyState, ErrorState } from '../../components/ui/empty-state';
-import { PlusIcon, SearchIcon } from '../../components/ui/icons';
+import { SearchIcon } from '../../components/ui/icons';
 import { ListSkeleton } from '../../components/ui/skeleton';
 import { useDebouncedValue } from '../../hooks/use-debounced-value';
 import { errorMessage } from '../../lib/api';
@@ -52,13 +52,6 @@ export function RecipesScreen() {
       <ScreenHeader
         title="Recettes"
         subtitle={recipes.isSuccess ? <span className="tnum">{total} recette{total > 1 ? 's' : ''}</span> : undefined}
-        actions={
-          <Link to="/recettes/nouvelle">
-            <IconButton label="Ajouter une recette" className="active:bg-raised">
-              <PlusIcon size={22} />
-            </IconButton>
-          </Link>
-        }
       />
 
       <RatingReminderBanner />
