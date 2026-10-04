@@ -71,6 +71,7 @@ export const ERROR_CODES = [
   'business_rule',
   'rate_limited',
   'provider_unavailable',
+  'provider_disabled',
   'not_ready',
   'internal_error',
 ] as const;

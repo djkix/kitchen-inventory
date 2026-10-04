@@ -276,7 +276,8 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `VISION_PROVIDER` | `none`, `gemini` (retenu), `anthropic`, `openai` ou `ollama` |
 | `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.5-flash`) ; `VISION_BASE_URL` sert pour Ollama ou un proxy |
 | `VISION_DAILY_QUOTA` | Appels photo autorisés par jour (50) |
-| `VISION_MONTHLY_CAP_CENTS` | Plafond de dépense mensuel en centimes (200, soit 2 €) ; 0 le désactive |
+| `VISION_MONTHLY_CAP_CENTS` | Plafond de dépense mensuel en centimes, partagé avec les suggestions de recettes (500, soit 5 €) ; 0 le désactive |
+| `RECIPE_SUGGESTION_DAILY_QUOTA` | Fournées de suggestions de recettes autorisées par jour (20) |
 | `OFF_USER_AGENT` | En-tête demandé par Open Food Facts |
 | `EXPIRY_ALERT_DAYS` | Seuil d'alerte par défaut (7), modifiable dans les réglages |
 | `LOG_LEVEL` | Niveau des journaux JSON sur la sortie standard |
