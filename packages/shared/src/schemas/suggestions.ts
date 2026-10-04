@@ -103,9 +103,14 @@ export const modelRecipeSchema = modelRecipeBaseSchema.superRefine((recipe, ctx)
 });
 export type ModelRecipe = z.infer<typeof modelRecipeSchema>;
 
-/** Réponse brute attendue du fournisseur de suggestions (Gemini, retenu). */
+/**
+ * Réponse brute attendue du fournisseur de suggestions (Gemini, retenu).
+ * Pas de borne haute ici : la taille du lot est décidée par `SuggestionRequest.count`
+ * au moment de l'appel (huit recettes web et quatre composées, dosage ajustable),
+ * pas par une limite arbitraire sur la forme validée.
+ */
 export const modelBatchSchema = z.object({
-  recipes: z.array(modelRecipeSchema).max(20),
+  recipes: z.array(modelRecipeSchema),
 });
 export type ModelBatch = z.infer<typeof modelBatchSchema>;
 
