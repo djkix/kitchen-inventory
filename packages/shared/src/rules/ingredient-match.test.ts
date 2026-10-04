@@ -35,4 +35,12 @@ describe('classifyMatch', () => {
   it('expose un seuil de 0,40', () => {
     expect(MATCH_SIMILARITY_FLOOR).toBe(0.4);
   });
+  it('rend « probable » exactement au seuil (plancher inclusif)', () => {
+    expect(classifyMatch('crème', [{ productId: 'p1', name: 'Crème fraîche', similarity: 0.4 }]))
+      .toMatchObject({ state: 'probable', productId: 'p1' });
+  });
+  it('rend « absent » juste en dessous du seuil', () => {
+    expect(classifyMatch('crème', [{ productId: 'p1', name: 'Crème fraîche', similarity: 0.39 }]))
+      .toEqual({ state: 'absent', productId: null, productName: null });
+  });
 });
