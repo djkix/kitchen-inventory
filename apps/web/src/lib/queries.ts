@@ -16,6 +16,7 @@ import type {
 } from '@kitchen/shared';
 import { api } from './api';
 import { recipesApi } from './recipes-api';
+import { suggestionsApi, type SuggestionOrientation } from './suggestions-api';
 import type { CuisineDto, HealthReport, ServiceTokenDto, UserDto } from './types';
 
 export const PAGE_SIZE = 50;
@@ -49,6 +50,7 @@ export const queryKeys = {
   cuisines: ['cuisines'] as const,
   recipeFilters: ['preferences', 'recipe-filters'] as const,
   pendingRating: ['recipes', 'pending-rating'] as const,
+  suggestions: (orientation: SuggestionOrientation) => ['suggestions', 'list', orientation] as const,
 };
 
 export type RecipeListParams = Omit<RecipeListQuery, 'page' | 'limit'>;
@@ -191,6 +193,20 @@ export function usePendingRatingQuery() {
     queryKey: queryKeys.pendingRating,
     queryFn: () => recipesApi.getPendingRating(),
     staleTime: 60_000,
+  });
+}
+
+/**
+ * Fournée de suggestions (EF-25, EF-26) : jamais rejouée automatiquement en cas
+ * d'échec, l'appel interroge un fournisseur payant et soumis à quota — une
+ * nouvelle tentative est un choix de l'utilisateur (bouton « Réessayer »),
+ * jamais un automatisme du client de requêtes.
+ */
+export function useSuggestionsQuery(orientation: SuggestionOrientation) {
+  return useQuery({
+    queryKey: queryKeys.suggestions(orientation),
+    queryFn: () => suggestionsApi.list(orientation),
+    retry: false,
   });
 }
 
