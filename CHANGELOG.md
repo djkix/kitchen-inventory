@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.8.0](https://github.com/djkix/kitchen-inventory/compare/v0.7.0...v0.8.0) (2026-10-04)
+
+
+### Features
+
+* **prisma:** fournées de suggestions et journal d'appels partagé (EF-26) ([d345e66](https://github.com/djkix/kitchen-inventory/commit/d345e66c2a3ec60555f864d1d435e820d54373ee))
+* **recipes:** conserver une suggestion, page extraite et réécrite (EF-25, EF-26) ([566ce38](https://github.com/djkix/kitchen-inventory/commit/566ce3841363f8263041f0d26f0fd31091ce83aa))
+* **recipes:** fournisseur de suggestions Gemini avec recherche web (EF-26) ([ea212fb](https://github.com/djkix/kitchen-inventory/commit/ea212fbaa11beeae0ed9c1e5e3cac5c3d5362720))
+* **recipes:** routes de suggestion de recettes (EF-26) ([9b72937](https://github.com/djkix/kitchen-inventory/commit/9b72937fc8da36afb224f0f2e36fcd122db0482b))
+* **recipes:** service de suggestion, rapprochement au stock et cache (EF-26) ([73de7df](https://github.com/djkix/kitchen-inventory/commit/73de7dfe1220b9881f0d8c1b2307e6dceee3296c))
+* **shared:** classement des rapprochements d'ingrédients (EF-26) ([c1e6ede](https://github.com/djkix/kitchen-inventory/commit/c1e6edeb2f50d40a105e6f3c0336efd456277255))
+* **shared:** schémas Zod des suggestions de recettes (EF-26) ([0c7beee](https://github.com/djkix/kitchen-inventory/commit/0c7beee5b273894940e04107b88fe823a85c87df))
+* **shared:** sélection du point de départ des suggestions (EF-26) ([3ced5ad](https://github.com/djkix/kitchen-inventory/commit/3ced5ad224f31b1ad194bd76928b99b37b44cdd0))
+* **web:** écran Suggestions de recettes (EF-26) ([8ba454e](https://github.com/djkix/kitchen-inventory/commit/8ba454e04873086f0cea794dc9a987bbef028919))
+* **web:** fiche de suggestion et conservation en bibliothèque (EF-26) ([c289553](https://github.com/djkix/kitchen-inventory/commit/c289553765b544683577e36e5be5c2f91641c55f))
+* **web:** orientation des suggestions par région, durée et facilité (EF-26) ([cbea100](https://github.com/djkix/kitchen-inventory/commit/cbea10000a7adbc7c8949dd55d882f752ae19430))
+* **web:** Suggestions devient l'écran d'entrée du module recettes (EF-26) ([e821af0](https://github.com/djkix/kitchen-inventory/commit/e821af03d49fde623da9102a0c98e4d7619df34f))
+
+
+### Bug Fixes
+
+* **api:** un seul code d'erreur pour un fournisseur d'IA non configuré (EF-26) ([914a721](https://github.com/djkix/kitchen-inventory/commit/914a7210885b9fce6b445c38a3cb08703257c3f2))
+* **deploy:** propager le plafond à 5 € et le quota de suggestions à la configuration de déploiement (EF-26) ([97e79e1](https://github.com/djkix/kitchen-inventory/commit/97e79e19141cfd80dbe0c9b9b1ba7b41c95b54ef))
+* **recipes:** borner la fournée et distinguer une réponse tronquée (EF-26) ([09b90a6](https://github.com/djkix/kitchen-inventory/commit/09b90a62211702af80b7815669b731510a5ec185))
+* **recipes:** dédupliquer avant tout appel payant et distinguer les échecs du réécriveur (EF-26) ([f0d910b](https://github.com/djkix/kitchen-inventory/commit/f0d910ba60ae6f810f9c2df11fbea7f99ed64ff1))
+* **recipes:** distinguer deux suggestions composées de même titre (EF-26) ([e14db76](https://github.com/djkix/kitchen-inventory/commit/e14db76ca87ecc2f3a1eac1a1717906631c1d727))
+* **recipes:** idempotence, comptage et garde-fous de la conservation (EF-25, EF-26) ([e654db2](https://github.com/djkix/kitchen-inventory/commit/e654db21bb10f7aee39d0bec6bc02180e15c0ce7))
+* **recipes:** ingrédient introuvable compté comme manquant et exclusions effectives (EF-26) ([ec70c10](https://github.com/djkix/kitchen-inventory/commit/ec70c10ee058f11b73d4a18f45de6953c390b942))
+* **recognition:** avertir au démarrage d'un VISION_MODEL hors table de prix (EF-26) ([aacdd91](https://github.com/djkix/kitchen-inventory/commit/aacdd91bf71c089600021cb639610fcdc1d30e9a))
+* **recognition:** les suggestions ne pèsent plus sur les compteurs du scan (EF-26) ([2c032cf](https://github.com/djkix/kitchen-inventory/commit/2c032cf7bdc865b991f860a34ecf6a09579052cb))
+* **suggestions:** code d'erreur dédié au stock insuffisant (EF-26) ([4427d95](https://github.com/djkix/kitchen-inventory/commit/4427d95a09d56eec470a8b2d0b0553b23098cdea))
+* **suggestions:** garde-fous du lecteur de page de recette (EF-25) ([d2302f6](https://github.com/djkix/kitchen-inventory/commit/d2302f66bc4dcc3af3db88a1ced79b7a1b7c6839))
+* **suggestions:** identité d'une suggestion dérivée de son contenu (EF-26) ([fb7841d](https://github.com/djkix/kitchen-inventory/commit/fb7841d8cd856cecde1c8b31e787a71e3e291a2d))
+* **suggestions:** refresh ne prend plus la chaîne « false » pour un vrai (EF-26) ([ac2cb4d](https://github.com/djkix/kitchen-inventory/commit/ac2cb4d6bd4aa483939ff63632c1c8ccc22bf54b))
+* **suggestions:** une ligne de registre par appel au fournisseur (EF-26) ([9521576](https://github.com/djkix/kitchen-inventory/commit/9521576aa4f7cafa3833986b9fbc91adee76a032))
+* **suggestions:** valider le lot recette par recette, sans perdre la fournée (EF-26) ([62965b5](https://github.com/djkix/kitchen-inventory/commit/62965b5e6e852518e03ec08bd3dbe75e270daa19))
+* **web:** accorder le code et les commentaires du tiroir de conservation (EF-25) ([7368098](https://github.com/djkix/kitchen-inventory/commit/73680981ef1084eb0bbdb0ff78cd3f712330a58c))
+* **web:** dire la vérité quand le fournisseur manque ou que le plafond est atteint (EF-26) ([375fb5e](https://github.com/djkix/kitchen-inventory/commit/375fb5e528c3ec7b01796987cca512e0392f3fb8))
+* **web:** identifiant de conservation déterministe, stable d'une tentative à l'autre (EF-26) ([e1d7eed](https://github.com/djkix/kitchen-inventory/commit/e1d7eed414d1fb55c0ce869b74f0811f175e916e))
+* **web:** rétablir l'écran bloquant du scan quand aucun fournisseur n'est configuré (EF-03) ([8457c3e](https://github.com/djkix/kitchen-inventory/commit/8457c3ec269ee84cbd9253b1959b30ce31bbe2e3))
+
 ## [0.7.0](https://github.com/djkix/kitchen-inventory/compare/v0.6.1...v0.7.0) (2026-10-04)
 
 
