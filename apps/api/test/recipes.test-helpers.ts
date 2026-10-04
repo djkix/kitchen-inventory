@@ -1,7 +1,7 @@
 import type { CookResult, RecipeDto, RecipeLogDto } from '@kitchen/shared';
 import type TestAgent from 'supertest/lib/agent.js';
-import type { TestApp } from '../../test/app.factory.js';
-import type { UserDto } from '../users/users.service.js';
+import type { TestApp } from './app.factory.js';
+import type { UserDto } from '../src/users/users.service.js';
 
 /**
  * Fonctions d'aide communes aux specs d'intégration du module recettes
