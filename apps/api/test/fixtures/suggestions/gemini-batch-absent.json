@@ -1,0 +1,28 @@
+{
+  "recipes": [
+    {
+      "title": "Recette introuvable",
+      "origin": "Composition Gemini",
+      "region": "europeenne",
+      "totalMinutes": 20,
+      "difficulty": "EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Étape unique, sans rapport avec le stock du foyer."
+      ],
+      "ingredients": [
+        {
+          "label": "Poudre de dragée licorne",
+          "quantity": 100,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Essence de phénix",
+          "quantity": 2,
+          "unit": "PIECE"
+        }
+      ]
+    }
+  ]
+}

@@ -1,15 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { pickSeedIngredients, isStructuring, SEED_MAX, type SeedCandidate } from './seed-selection.js';
+import { DEFAULT_CATEGORIES } from '../constants.js';
+import { normalizeProductName } from './duplicates.js';
+import { pickSeedIngredients, isStructuring, NON_STRUCTURING_CATEGORIES, SEED_MAX, type SeedCandidate } from './seed-selection.js';
 
 const c = (name: string, ...categoryPath: string[]): SeedCandidate => ({ productId: name, name, categoryPath });
 const many = (n: number): SeedCandidate[] => Array.from({ length: n }, (_, i) => c(`produit ${i}`, 'feculents'));
 const JOUR = new Date('2026-10-04T12:00:00Z');
 const LENDEMAIN = new Date('2026-10-05T08:00:00Z');
 
+/** Chemin de catégorie d'une des catégories réellement semées par défaut (revue de tâche 6). */
+const defaultCategoryPath = (name: string): string => {
+  const category = DEFAULT_CATEGORIES.find((cat) => cat.name === name);
+  if (!category) throw new Error(`Catégorie par défaut introuvable : ${name}`);
+  return normalizeProductName(category.name);
+};
+
 describe('isStructuring', () => {
-  it('écarte les épices, le sel et le poivre (B5)', () => {
-    expect(isStructuring(c('Paprika fumé', 'epicerie', 'epices'))).toBe(false);
-    expect(isStructuring(c('Sel fin', 'epicerie', 'sel-et-poivre'))).toBe(false);
+  it('écarte les épices par la catégorie réellement semée par défaut (B5)', () => {
+    const epices = defaultCategoryPath('Épices et aromates');
+    expect(NON_STRUCTURING_CATEGORIES).toContain(epices);
+    expect(isStructuring(c('Paprika fumé', 'epicerie', epices))).toBe(false);
+  });
+  it('écarte le sel et le poivre par le nom du produit, faute de catégorie dédiée (B5)', () => {
+    expect(isStructuring(c('Sel fin'))).toBe(false);
+    expect(isStructuring(c('Gros sel de Guérande'))).toBe(false);
+    expect(isStructuring(c('Poivre noir moulu'))).toBe(false);
+  });
+  it('ne confond jamais le poivron avec le poivre', () => {
+    expect(isStructuring(c('Poivron rouge'))).toBe(true);
   });
   it('garde l’huile et le vinaigre, qui font des plats (B5)', () => {
     expect(isStructuring(c('Huile d’olive', 'epicerie', 'huiles-et-vinaigres'))).toBe(true);
@@ -27,7 +45,7 @@ describe('pickSeedIngredients', () => {
     expect(pickSeedIngredients(many(3), JOUR)).toHaveLength(3);
   });
   it('rend une liste vide plutôt que d’inventer, quand tout est exclu', () => {
-    expect(pickSeedIngredients([c('Sel', 'epicerie', 'sel-et-poivre')], JOUR)).toEqual([]);
+    expect(pickSeedIngredients([c('Sel')], JOUR)).toEqual([]);
   });
   it('garde les cinq premières places stables d’un jour à l’autre (B4)', () => {
     const stock = many(20);

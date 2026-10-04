@@ -11,8 +11,11 @@ import { ProviderError, RECOGNITION_PROVIDER, type RecognitionProvider } from '.
 
 const OFF_PROVIDER = 'open_food_facts';
 
-/** Fournisseurs facturables, pour les compteurs et le plafond de dépense. */
-const VISION_PROVIDER_NAMES = ['gemini', 'anthropic', 'openai', 'ollama'];
+/**
+ * Fournisseurs facturables, pour les compteurs et le plafond de dépense — partagée
+ * avec `SuggestionsService` (même plafond mensuel, EF-26) plutôt que dupliquée.
+ */
+export const VISION_PROVIDER_NAMES = ['gemini', 'anthropic', 'openai', 'ollama'];
 
 /** Cascade de reconnaissance de la section 5 : cache local → Open Food Facts → vision. */
 @Injectable()
@@ -180,8 +183,14 @@ export class RecognitionService {
     return aggregate._sum.costCents?.toNumber() ?? 0;
   }
 
+  /**
+   * Filtré sur `purpose: 'VISION'` (revue de tâche 6) : sans lui, un appel de
+   * suggestion de recettes journalisé sous le même fournisseur (`gemini`)
+   * grignoterait le quota journalier du scan photo, qui est l'usage principal
+   * de l'application.
+   */
   private countVisionCalls(since: Date): Promise<number> {
-    return this.prisma.recognitionLog.count({ where: { provider: this.provider.name, createdAt: { gte: since } } });
+    return this.prisma.recognitionLog.count({ where: { provider: this.provider.name, purpose: 'VISION', createdAt: { gte: since } } });
   }
 
   private async matchCategory(name: string): Promise<string | null> {

@@ -136,6 +136,20 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
     expect(stats.body).toMatchObject({ visionCallsToday: 2, dailyQuota: 2, provider: 'anthropic' });
   });
 
+  it('un appel de suggestion de recettes n’entame pas le quota journalier du scan (revue de tâche 6)', async () => {
+    // Deux lignes `RECIPE_SUGGESTION`, même fournisseur et même jour : si le
+    // compteur du scan ne filtrait pas par `purpose`, elles suffiraient déjà à
+    // épuiser le quota de 2 avant le moindre scan photo.
+    await t.prisma.recognitionLog.create({ data: { provider: 'anthropic', purpose: 'RECIPE_SUGGESTION', succeeded: true } });
+    await t.prisma.recognitionLog.create({ data: { provider: 'anthropic', purpose: 'RECIPE_SUGGESTION', succeeded: true } });
+
+    http.on('api.anthropic.com', () => anthropicFixture('vision-gochujang.json'));
+    await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
+
+    const stats = await agent.get('/api/v1/recognition/stats').expect(200);
+    expect(stats.body.visionCallsToday).toBe(1);
+  });
+
   it('un fournisseur injoignable donne 502 provider_unavailable et garde la photo « à identifier »', async () => {
     http.fail('api.anthropic.com');
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(502);
