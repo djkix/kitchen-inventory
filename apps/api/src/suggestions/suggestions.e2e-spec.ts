@@ -305,6 +305,26 @@ describe('SuggestionsService (EF-26)', () => {
     expect(http.calls).toHaveLength(1);
   });
 
+  it('refuse l’appel au-delà du quota journalier sans promettre de fournée quand aucune n’existe (round 1, EF-26)', async () => {
+    // Quota dépassé dès le premier appel : aucune fournée n'a jamais été stockée,
+    // `readLatestBatch` ne peut donc rien servir. Le message d'erreur ne doit
+    // jamais prétendre afficher « la dernière fournée connue » dans ce cas.
+    const { service, db } = await createService({ RECIPE_SUGGESTION_DAILY_QUOTA: '0' });
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+
+    await expect(service.list(QUERY, USER)).rejects.toMatchObject({ status: 429 });
+    try {
+      await service.list(QUERY, USER);
+      expect.unreachable('devait rejeter');
+    } catch (error) {
+      const message = String((error as Error).message);
+      expect(message).toMatch(/quota/i);
+      expect(message).not.toMatch(/fournée/i);
+    }
+    expect(http.calls).toHaveLength(0);
+  });
+
   it('journalise l’appel avec purpose RECIPE_SUGGESTION', async () => {
     const { service, db } = await createService();
     const locationId = await seedLocation(db);
