@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { RECIPE_SORTS, sortRecipes, type SortableRecipe } from './recipe-sort.js';
 
 const r = (title: string, over: Partial<SortableRecipe> = {}): SortableRecipe => ({
-  title, coverage: 0.5, bonus: 0, averageRating: null, ratingCount: 0, timesCooked: 0, lastCookedAt: null, ...over,
+  title, coverage: 0.5, averageRating: null, ratingCount: 0, timesCooked: 0, lastCookedAt: null, ...over,
 });
 const titles = (list: SortableRecipe[]): string[] => list.map((x) => x.title);
 
@@ -22,10 +22,6 @@ describe('sortRecipes', () => {
   it('par couverture, puis note, puis titre', () => {
     const list = [r('A', { coverage: 0.5 }), r('B', { coverage: 1 }), r('C', { coverage: 1, averageRating: 5, ratingCount: 1 })];
     expect(titles(sortRecipes(list, 'coverage'))).toEqual(['C', 'B', 'A']);
-  });
-  it('par anti-gaspillage, puis couverture, puis titre', () => {
-    const list = [r('A', { bonus: 0, coverage: 1 }), r('B', { bonus: 2 }), r('C', { bonus: 2, coverage: 0.9 })];
-    expect(titles(sortRecipes(list, 'antiWaste'))).toEqual(['C', 'B', 'A']);
   });
   it('par nombre de réalisations', () => {
     expect(titles(sortRecipes([r('A'), r('B', { timesCooked: 3 })], 'mostCooked'))).toEqual(['B', 'A']);

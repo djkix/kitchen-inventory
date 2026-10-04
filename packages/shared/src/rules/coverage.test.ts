@@ -78,10 +78,6 @@ describe('ingredientOutcome', () => {
       ingredientOutcome(ing({ id: 'b', quantity: 200 }), s).state,
     ]).toEqual(['available', 'available']);
   });
-  it('reporte la proximité de date du lot qui satisfait l’ingrédient', () => {
-    expect(ingredientOutcome(ing(), snap([entry({ nearExpiry: true })])).nearExpiry).toBe(true);
-  });
-
   describe('lot partiellement non convertible (correctif tâche 9)', () => {
     it('reste disponible quand la part mesurable suffit déjà', () => {
       const s = snap([entry({ quantity: 500, unmeasured: true })]);
@@ -121,10 +117,7 @@ describe('recipeCoverage', () => {
     expect(recipeCoverage([ing(), ing({ id: 'sel', productId: null })], s)).toMatchObject({ coverage: 1, group: 'ready' });
   });
   it('tient pour réalisable une recette sans ingrédient retenu (A7)', () => {
-    expect(recipeCoverage([], s)).toMatchObject({ coverage: 1, group: 'ready', bonus: 0 });
+    expect(recipeCoverage([], s)).toMatchObject({ coverage: 1, group: 'ready' });
     expect(recipeCoverage([ing({ productId: null })], s).coverage).toBe(1);
-  });
-  it('compte un bonus par ingrédient satisfait depuis un lot proche de sa date', () => {
-    expect(recipeCoverage([ing()], snap([entry({ nearExpiry: true })])).bonus).toBe(1);
   });
 });

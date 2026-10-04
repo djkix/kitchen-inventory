@@ -4,7 +4,7 @@ import { IngredientRow } from './ingredient-row';
 
 const base = {
   id: 'i1', label: 'Riz', productId: 'p1', productName: 'Riz basmati', categoryId: null, categoryName: null,
-  quantity: 200, unit: 'GRAM' as const, essential: false, substitutable: false, availableQuantity: null, nearExpiry: false,
+  quantity: 200, unit: 'GRAM' as const, essential: false, substitutable: false, availableQuantity: null,
 };
 
 describe('IngredientRow', () => {
@@ -24,9 +24,5 @@ describe('IngredientRow', () => {
     render(<IngredientRow ingredient={{ ...base, state: 'missing', essential: true }} />);
     expect(screen.getByText('Manquant')).toBeTruthy();
     expect(screen.getByLabelText('Ingrédient essentiel')).toBeTruthy();
-  });
-  it('signale un ingrédient qui périme bientôt', () => {
-    render(<IngredientRow ingredient={{ ...base, state: 'available', nearExpiry: true }} />);
-    expect(screen.getByText(/périme bientôt/i)).toBeTruthy();
   });
 });

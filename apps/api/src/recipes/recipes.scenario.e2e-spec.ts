@@ -13,8 +13,7 @@ const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-d
  * Stock : riz 1 kg · nouilles 2 paquets de 500 g · sauce soja 500 ml qui périme
  * dans 3 jours · tofu 400 g · crème absente. Le seuil d'alerte de péremption
  * est fixé explicitement à 5 jours (plutôt que d'hériter du défaut) : la sauce
- * soja (3 jours) compte alors comme proche de péremption, ce qui détermine le
- * bonus anti-gaspillage et l'ordre de tri ci-dessous.
+ * soja (3 jours) reste malgré tout utilisable pour le calcul de couverture.
  * Recettes : « Ramen » (nouilles, soja, tofu) · « Riz sauté » (riz, soja) ·
  * « Salade » (aucun ingrédient suivi) · « Gratin » (crème essentielle, riz).
  */
@@ -82,18 +81,17 @@ describe('scénario de réussite du socle', () => {
 
   it('rend le classement attendu, recette par recette', async () => {
     const expected = [
-      { title: 'Ramen', group: 'ready', coverage: 1, bonus: 1, missingLabels: [] },
-      { title: 'Riz sauté', group: 'ready', coverage: 1, bonus: 1, missingLabels: [] },
-      { title: 'Salade', group: 'ready', coverage: 1, bonus: 0, missingLabels: [] },
-      { title: 'Gratin', group: 'excluded', coverage: 0.5, bonus: 0, missingLabels: ['Crème fraîche'] },
+      { title: 'Ramen', group: 'ready', coverage: 1, missingLabels: [] },
+      { title: 'Riz sauté', group: 'ready', coverage: 1, missingLabels: [] },
+      { title: 'Salade', group: 'ready', coverage: 1, missingLabels: [] },
+      { title: 'Gratin', group: 'excluded', coverage: 0.5, missingLabels: ['Crème fraîche'] },
     ];
-    const res = await agent.get('/api/v1/recipes?sort=antiWaste').expect(200);
+    const res = await agent.get('/api/v1/recipes?sort=coverage').expect(200);
     expect(
       res.body.items.map((r: Record<string, unknown>) => ({
         title: r.title,
         group: r.group,
         coverage: r.coverage,
-        bonus: r.bonus,
         missingLabels: r.missingLabels,
       })),
     ).toEqual(expected);

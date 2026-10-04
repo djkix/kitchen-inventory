@@ -27,7 +27,6 @@ export function totalMinutes(recipe: { prepMinutes: number | null; cookMinutes: 
 export interface SummaryCoverage {
   coverage: number;
   group: CoverageGroup;
-  bonus: number;
   missingLabels: string[];
 }
 
@@ -35,14 +34,12 @@ export interface SummaryCoverage {
 export interface IngredientCoverage {
   state: IngredientState;
   availableQuantity: number | null;
-  nearExpiry: boolean;
   candidates: RecipeIngredientDto['candidates'];
 }
 
 const NEUTRAL_INGREDIENT_COVERAGE: IngredientCoverage = {
   state: 'untracked',
   availableQuantity: null,
-  nearExpiry: false,
   candidates: [],
 };
 
@@ -63,7 +60,6 @@ export function toRecipeIngredientDto(
     substitutable: ingredient.substitutable,
     state: coverage.state,
     availableQuantity: coverage.availableQuantity,
-    nearExpiry: coverage.nearExpiry,
     candidates: coverage.candidates,
   };
 }
@@ -84,7 +80,6 @@ export function toRecipeSummaryDto(recipe: RecipeWithRelations, stats: RecipeSta
     archivedAt: recipe.archivedAt ? recipe.archivedAt.toISOString() : null,
     coverage: coverage.coverage,
     group: coverage.group,
-    bonus: coverage.bonus,
     missingLabels: coverage.missingLabels,
     stats,
   };

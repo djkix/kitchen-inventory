@@ -54,7 +54,6 @@ export interface CoverageIngredient {
 export interface IngredientOutcome {
   id: string;
   state: IngredientState;
-  nearExpiry: boolean;
   availableQuantity: number | null;
   requiredQuantity: number | null;
 }
@@ -62,7 +61,6 @@ export interface IngredientOutcome {
 export interface RecipeCoverage {
   coverage: number;
   group: CoverageGroup;
-  bonus: number;
   missingIds: string[];
   outcomes: IngredientOutcome[];
 }
@@ -159,14 +157,13 @@ function comparable(unit: Unit): boolean {
 
 export function ingredientOutcome(ingredient: CoverageIngredient, snapshot: StockSnapshot): IngredientOutcome {
   const base = { id: ingredient.id, availableQuantity: null, requiredQuantity: null };
-  if (!ingredient.productId && !ingredient.categoryId) return { ...base, state: 'untracked', nearExpiry: false };
+  if (!ingredient.productId && !ingredient.categoryId) return { ...base, state: 'untracked' };
 
   const found = candidates(ingredient, snapshot);
-  if (found.length === 0) return { ...base, state: 'missing', nearExpiry: false };
-  const nearExpiry = found.some((entry) => entry.nearExpiry);
+  if (found.length === 0) return { ...base, state: 'missing' };
 
-  if (ingredient.quantity === null || ingredient.unit === null) return { ...base, state: 'available', nearExpiry };
-  if (!comparable(ingredient.unit)) return { ...base, state: 'unverifiable', nearExpiry };
+  if (ingredient.quantity === null || ingredient.unit === null) return { ...base, state: 'available' };
+  if (!comparable(ingredient.unit)) return { ...base, state: 'unverifiable' };
 
   let total = 0;
   let measured = false;
@@ -178,13 +175,13 @@ export function ingredientOutcome(ingredient: CoverageIngredient, snapshot: Stoc
     measured = true;
     total += quantity;
   }
-  if (!measured) return { ...base, state: 'unverifiable', nearExpiry };
+  if (!measured) return { ...base, state: 'unverifiable' };
   const available = roundQuantity(total);
-  if (available >= ingredient.quantity) return { ...base, state: 'available', nearExpiry };
+  if (available >= ingredient.quantity) return { ...base, state: 'available' };
   // Un total mesurable insuffisant ne vaut verdict ferme que si tout le stock
   // du produit a pu être mesuré : sinon le manque n'est pas vérifié (A6, A10).
-  if (unmeasuredPresent) return { ...base, state: 'unverifiable', nearExpiry };
-  return { id: ingredient.id, state: 'insufficient', nearExpiry, availableQuantity: available, requiredQuantity: ingredient.quantity };
+  if (unmeasuredPresent) return { ...base, state: 'unverifiable' };
+  return { id: ingredient.id, state: 'insufficient', availableQuantity: available, requiredQuantity: ingredient.quantity };
 }
 
 export function recipeCoverage(ingredients: readonly CoverageIngredient[], snapshot: StockSnapshot): RecipeCoverage {
@@ -203,6 +200,5 @@ export function recipeCoverage(ingredients: readonly CoverageIngredient[], snaps
   else if (!essentialMissing && missing.length <= 2 && coverage >= ALMOST_COVERAGE_FLOOR) group = 'almost';
   else group = 'excluded';
 
-  const bonus = tracked.filter(({ outcome }) => outcome.nearExpiry && countsAsAvailable(outcome.state)).length;
-  return { coverage, group, bonus, missingIds: missing.map(({ outcome }) => outcome.id), outcomes };
+  return { coverage, group, missingIds: missing.map(({ outcome }) => outcome.id), outcomes };
 }
