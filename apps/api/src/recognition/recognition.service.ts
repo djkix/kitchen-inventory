@@ -148,19 +148,25 @@ export class RecognitionService {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000);
     const visionProviders = VISION_PROVIDER_NAMES;
-    const [visionCallsToday, monthAgg, recent, pendingIdentification] = await Promise.all([
+    // Les compteurs d'activité du scan sont filtrés sur `purpose: 'VISION'` : une
+    // fournée de suggestions est journalisée sous le même fournisseur (`gemini`)
+    // et faisait chuter le taux d'automatisation affiché dans les réglages sans
+    // qu'aucune reconnaissance ait échoué. Seule la **dépense** du mois reste
+    // partagée — le plafond l'est délibérément (section 9).
+    const [visionCallsToday, monthCount, monthSpend, recent, pendingIdentification] = await Promise.all([
       this.countVisionCalls(dayStart),
-      this.prisma.recognitionLog.aggregate({ where: { provider: { in: visionProviders }, createdAt: { gte: monthStart } }, _count: { _all: true }, _sum: { costCents: true } }),
-      this.prisma.recognitionLog.findMany({ where: { createdAt: { gte: thirtyDaysAgo }, provider: { not: 'cache' } }, select: { provider: true, succeeded: true } }),
-      this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, succeeded: false, correctedTo: null, imagePath: { not: null } } }),
+      this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, purpose: 'VISION', createdAt: { gte: monthStart } } }),
+      this.prisma.recognitionLog.aggregate({ where: { provider: { in: visionProviders }, createdAt: { gte: monthStart } }, _sum: { costCents: true } }),
+      this.prisma.recognitionLog.findMany({ where: { createdAt: { gte: thirtyDaysAgo }, provider: { not: 'cache' }, purpose: 'VISION' }, select: { provider: true, succeeded: true } }),
+      this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, purpose: 'VISION', succeeded: false, correctedTo: null, imagePath: { not: null } } }),
     ]);
-    const cacheHits = await this.prisma.recognitionLog.count({ where: { createdAt: { gte: thirtyDaysAgo }, provider: 'cache' } });
+    const cacheHits = await this.prisma.recognitionLog.count({ where: { createdAt: { gte: thirtyDaysAgo }, provider: 'cache', purpose: 'VISION' } });
     const attempts = recent.length + cacheHits;
     const automatic = cacheHits + recent.filter((r) => r.succeeded).length;
     return {
       visionCallsToday,
-      visionCallsThisMonth: monthAgg._count._all,
-      visionCostCentsThisMonth: Math.round((monthAgg._sum.costCents?.toNumber() ?? 0) * 100) / 100,
+      visionCallsThisMonth: monthCount,
+      visionCostCentsThisMonth: Math.round((monthSpend._sum.costCents?.toNumber() ?? 0) * 100) / 100,
       dailyQuota: this.config.VISION_DAILY_QUOTA,
       monthlyCapCents: this.config.VISION_MONTHLY_CAP_CENTS,
       automaticRate30d: attempts > 0 ? Math.round((automatic / attempts) * 1000) / 1000 : null,
