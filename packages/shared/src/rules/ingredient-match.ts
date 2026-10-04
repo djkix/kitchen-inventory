@@ -10,7 +10,11 @@ import { normalizeProductName } from './duplicates.js';
  */
 export type MatchState = 'sure' | 'probable' | 'absent';
 
-/** En dessous de ce score de similarité (pg_trgm), un candidat n'est pas retenu. */
+/**
+ * Score de similarité (pg_trgm) minimal pour retenir un candidat. C'est un
+ * plancher inclusif : un candidat exactement à ce score est retenu
+ * (`probable`), en dessous il ne l'est pas (`absent`).
+ */
 export const MATCH_SIMILARITY_FLOOR = 0.4;
 
 export interface MatchCandidate {
@@ -43,6 +47,8 @@ export function classifyMatch(label: string, candidates: readonly MatchCandidate
 
   let best: MatchCandidate | null = null;
   for (const candidate of candidates) {
+    // Comparaison stricte (`>`) : en cas d'égalité de score, on garde le premier
+    // candidat rencontré plutôt qu'un dernier arbitraire — choix délibéré, pas un hasard.
     if (candidate.similarity >= MATCH_SIMILARITY_FLOOR && (!best || candidate.similarity > best.similarity)) {
       best = candidate;
     }
