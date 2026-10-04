@@ -1,0 +1,23 @@
+{
+  "recipes": [
+    {
+      "title": "Gratin improvisé",
+      "origin": "Composition Gemini",
+      "region": "europeenne",
+      "totalMinutes": 25,
+      "difficulty": "EASY",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Mélanger les ingrédients et gratiner au four."
+      ],
+      "ingredients": [
+        {
+          "label": "Crème",
+          "quantity": 200,
+          "unit": "MILLILITER"
+        }
+      ]
+    }
+  ]
+}

@@ -19,9 +19,14 @@ const configSchema = z.object({
   VISION_MODEL: z.string().optional(),
   VISION_BASE_URL: z.string().url().optional(),
   VISION_DAILY_QUOTA: z.coerce.number().int().min(0).default(50),
-  // Plafond de dépense mensuel, en centimes. La cible du cahier des charges
-  // est de 2 € par mois (section 13) ; 0 désactive le plafond.
-  VISION_MONTHLY_CAP_CENTS: z.coerce.number().int().min(0).default(200),
+  // Plafond de dépense mensuel, en centimes, partagé par la reconnaissance photo et
+  // les suggestions de recettes (EF-26, section 9 de la spec). Porté de 2 € à 5 €
+  // par mois quand les suggestions ont été ajoutées au même compteur ; 0 désactive
+  // le plafond.
+  VISION_MONTHLY_CAP_CENTS: z.coerce.number().int().min(0).default(500),
+  // Quota journalier propre aux suggestions de recettes (EF-26), pour éviter
+  // l'emballement malgré le plafond de dépense partagé.
+  RECIPE_SUGGESTION_DAILY_QUOTA: z.coerce.number().int().min(0).default(20),
   OFF_USER_AGENT: z.string().default('KitchenInventory/0.1 (self-hosted; https://github.com/djkix/kitchen-inventory)'),
   OFF_BASE_URL: z.string().url().default('https://world.openfoodfacts.org'),
   EXPIRY_ALERT_DAYS: z.coerce.number().int().min(0).max(365).default(7),
