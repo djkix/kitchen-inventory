@@ -22,6 +22,17 @@ export interface RecipeRewriteOutput {
   costCents: number | null;
 }
 
+/**
+ * Le transport a fonctionné, Gemini a répondu, mais ce qu'il a rendu ne peut
+ * pas être exploité (JSON illisible ou hors schéma) — distinct de
+ * `ProviderError`, qui reste pour tout ce qui empêche d'obtenir une réponse
+ * du tout (réseau, authentification, quota, statut HTTP, réponse bloquée ou
+ * tronquée). L'appelant les distingue pour choisir entre `provider_unavailable`
+ * (fournisseur ou page injoignable) et `provider_invalid_response` (réponse
+ * reçue, inexploitable) — revue de tâche 9, round 2.
+ */
+export class InvalidRewriteError extends Error {}
+
 const REWRITE_SYSTEM_PROMPT = `Tu réécris une recette de cuisine lue sur une page web, dans le format attendu par une application d'inventaire domestique.
 Tu ne fais que restituer la recette telle que trouvée, sans l'inventer ni la modifier.
 Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clôtures de bloc de code (pas de \`\`\`).`;
@@ -114,10 +125,10 @@ export class GeminiRecipeRewriter {
     try {
       parsed = JSON.parse(stripped);
     } catch {
-      throw new ProviderError('JSON de réécriture illisible');
+      throw new InvalidRewriteError('JSON de réécriture illisible');
     }
     const result = recipeRewriteSchema.safeParse(parsed);
-    if (!result.success) throw new ProviderError('Réponse de réécriture non conforme au schéma', result.error.issues);
+    if (!result.success) throw new InvalidRewriteError('Réponse de réécriture non conforme au schéma');
 
     return { recipe: result.data, raw, costCents: estimateCostCents(this.model, raw.usageMetadata) };
   }

@@ -119,6 +119,18 @@ export class RecipesService {
   }
 
   /**
+   * Lecture seule de l'idempotence (tâche 9, round 2) : à appeler par un
+   * appelant qui veut court-circuiter un travail payant (page récupérée,
+   * modèle appelé) avant même de le commencer, plutôt que de ne découvrir le
+   * doublon qu'après l'avoir payé. `createFromSuggestion` garde son propre
+   * contrôle juste avant l'écriture pour la course que celui-ci laisse passer.
+   */
+  async findByClientOpId(clientOpId: string): Promise<RecipeDto | null> {
+    const existing = await this.prisma.recipe.findUnique({ where: { clientOpId }, include: RECIPE_INCLUDE });
+    return existing ? this.toDto(existing) : null;
+  }
+
+  /**
    * Conservation d'une suggestion (EF-25, EF-26, tâche 9) : même création que
    * `create`, source et lien tracés jusqu'à la recette — jamais recopiée, la
    * seule différence est l'origine inscrite sur la ligne. Idempotente par

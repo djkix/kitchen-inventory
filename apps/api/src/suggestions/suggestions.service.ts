@@ -28,7 +28,7 @@ import { RecipesService } from '../recipes/recipes.service.js';
 import { loadCategoryRows, loadSeedCandidates, RecipesCoverageService } from '../recipes/recipes.coverage.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
-import type { GeminiRecipeRewriter, RecipeRewriteInput } from './gemini-recipe-rewriter.js';
+import { InvalidRewriteError, type GeminiRecipeRewriter, type RecipeRewriteInput } from './gemini-recipe-rewriter.js';
 import { RecipePageRefusedError, type PageRecipe, type RecipePageFetcher } from './recipe-page.fetcher.js';
 import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER, SUGGESTION_PROVIDER, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
 
@@ -70,15 +70,8 @@ const MATCH_CANDIDATES_PER_LABEL = 5;
  */
 const ABSENT_MATCH_SENTINEL = '__suggestion_absent_match__';
 
-/**
- * `kept` vit dans le même JSON que les recettes du lot (tâche 9) : conserver
- * une suggestion n'a pas besoin d'une table dédiée tant que la fournée qui la
- * contient existe déjà pour la porter. Clé : `suggestionId` (index dans le
- * lot, tel que rendu par `SuggestionDto.id`).
- */
 interface StoredBatchPayload {
   recipes: ModelRecipe[];
-  kept?: Record<string, { recipeId: string; clientOpId: string | null }>;
 }
 
 /** Fournée validée, prête à être rendue : signature de stockage nettoyée de la ligne Prisma brute. */
@@ -393,20 +386,23 @@ export class SuggestionsService {
    * en sécurité, lue si elle porte `schema.org/Recipe` [B14], sinon soumise en
    * texte nettoyé, puis réécrite par Gemini au format de l'application. Pour
    * `ai`, la composition est déjà au bon format : aucun appel réseau [B6].
-   * Idempotente par `clientOpId` (section 8, migration 0006) : la garantie
-   * vit sur `Recipe.clientOpId` (`RecipesService.createFromSuggestion`), pas
-   * ici — `kept` (ci-dessous) n'est qu'un repère pour l'écran, jamais le
-   * mécanisme d'idempotence (revue de tâche 9 : deux conservations concurrentes
-   * de suggestions différentes du même lot pouvaient s'écraser l'une l'autre
-   * dans ce JSON).
+   * Idempotente par `clientOpId` (section 8, migration 0006) sur
+   * `Recipe.clientOpId` : vérifié ici en tout premier, avant toute dépense
+   * (page récupérée, modèle appelé, quota entamé) — un rejeu ne doit payer
+   * pour rien (revue de tâche 9, round 2). `RecipesService.createFromSuggestion`
+   * garde son propre contrôle juste avant l'écriture, pour la course
+   * concurrente que cette vérification préalable laisse passer ; ce n'est
+   * qu'un filet, pas le chemin normal.
    */
   async keep(input: KeepSuggestionInput, user: RequestUser): Promise<RecipeDto> {
+    if (input.clientOpId) {
+      const existing = await this.recipes.findByClientOpId(input.clientOpId);
+      if (existing) return existing;
+    }
+
     const row = await this.prisma.suggestionBatch.findUnique({ where: { id: input.batchId } });
     if (!row) throw ApiError.notFound('Fournée de suggestions introuvable');
 
-    // Lu une seule fois, sans repasser par `modelBatchSchema.parse` sur tout le
-    // document : `kept` est une extension du payload que ce schéma ignore
-    // (champ inconnu) et qui n'a donc pas à être validée par lui.
     const payload = row.payload as unknown as StoredBatchPayload;
     const validated = modelBatchSchema.safeParse(payload);
     if (!validated.success) throw ApiError.notFound('Fournée de suggestions introuvable');
@@ -419,16 +415,7 @@ export class SuggestionsService {
     const createInput = await this.buildCreateInput(suggestion);
     const source = suggestion.provenance === 'web' ? 'IMPORTED' : 'GENERATED';
     const sourceUrl = suggestion.provenance === 'web' ? suggestion.sourceUrl : null;
-    const recipe = await this.recipes.createFromSuggestion(createInput, source, sourceUrl, input.clientOpId ?? null, user.id);
-
-    const kept = payload.kept ?? {};
-    const nextKept: StoredBatchPayload['kept'] = { ...kept, [input.suggestionId]: { recipeId: recipe.id, clientOpId: input.clientOpId ?? null } };
-    await this.prisma.suggestionBatch.update({
-      where: { id: row.id },
-      data: { payload: toJson({ recipes, kept: nextKept } satisfies StoredBatchPayload) },
-    });
-
-    return recipe;
+    return this.recipes.createFromSuggestion(createInput, source, sourceUrl, input.clientOpId ?? null, user.id);
   }
 
   /**
@@ -472,8 +459,13 @@ export class SuggestionsService {
         rewritten = output.recipe;
       } catch (error) {
         await this.logCall(null, Date.now() - started, error, this.rewriter.name);
+        // Gemini a répondu mais le contenu est inexploitable (JSON illisible,
+        // hors schéma) : distinct d'un fournisseur ou d'un transport en échec
+        // (revue de tâche 9, round 2) — les deux se confondaient derrière le
+        // même code d'erreur.
+        if (error instanceof InvalidRewriteError) throw ApiError.providerInvalidResponse(error.message);
         const message = error instanceof ProviderError ? error.message : 'Fournisseur de suggestions injoignable';
-        throw ApiError.providerInvalidResponse(message);
+        throw ApiError.providerUnavailable(message);
       }
       title = rewritten.title;
       steps = rewritten.steps;
