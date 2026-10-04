@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type {
   AuthStatus,
   CategoryDto,
@@ -201,12 +201,19 @@ export function usePendingRatingQuery() {
  * d'échec, l'appel interroge un fournisseur payant et soumis à quota — une
  * nouvelle tentative est un choix de l'utilisateur (bouton « Réessayer »),
  * jamais un automatisme du client de requêtes.
+ *
+ * `placeholderData: keepPreviousData` (tâche 11) : changer d'orientation change
+ * la clé de requête — région, durée et difficulté en font partie — et relance
+ * un vrai appel ciblé plutôt qu'un filtrage local. Garder les données
+ * précédentes affichées pendant ce temps évite de vider la liste à chaque
+ * geste ; l'écran distingue l'attente via `isFetching`, pas `isPending`.
  */
 export function useSuggestionsQuery(orientation: SuggestionOrientation) {
   return useQuery({
     queryKey: queryKeys.suggestions(orientation),
     queryFn: () => suggestionsApi.list(orientation),
     retry: false,
+    placeholderData: keepPreviousData,
   });
 }
 

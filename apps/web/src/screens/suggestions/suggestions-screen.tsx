@@ -1,34 +1,55 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Spinner } from '../../components/ui/button';
 import { EmptyState, ErrorState } from '../../components/ui/empty-state';
 import { isApiError } from '../../lib/api';
 import { useSuggestionsQuery } from '../../lib/queries';
+import type { SuggestionOrientation } from '../../lib/suggestions-api';
+import { OrientationBar } from './orientation-bar';
 import { SuggestionCard } from './suggestion-card';
 
 /**
  * Écran Suggestions (section 12, EF-25, EF-26) : entrée du module recettes —
- * « que puis-je cuisiner ce soir avec ce que j'ai ? ». Pas d'orientation
- * branchée ici (tâche 11) et aucune conservation (tâche 12) : seulement la
- * liste et ses six états, chacun avec son message français.
+ * « que puis-je cuisiner ce soir avec ce que j'ai ? ». L'orientation par
+ * région, durée et difficulté (tâche 11) relance une vraie recherche à chaque
+ * geste ; aucune conservation ici (tâche 12).
  */
 export function SuggestionsScreen() {
-  // Orientation vide pour l'instant : aucune contrainte, le serveur compose
-  // depuis le stock réel seul. Les filtres de la tâche 11 passeront ici.
-  const suggestions = useSuggestionsQuery({});
+  // Orientation vide au départ : aucune contrainte, le serveur compose depuis
+  // le stock réel seul.
+  const [orientation, setOrientation] = useState<SuggestionOrientation>({});
+  const suggestions = useSuggestionsQuery(orientation);
 
   return (
     <>
       <ScreenHeader title="Suggestions" subtitle="À partir de votre stock" />
+
+      <OrientationBar value={orientation} onChange={setOrientation} />
 
       {suggestions.isPending ? (
         <WaitingState />
       ) : suggestions.isError ? (
         <SuggestionsErrorState error={suggestions.error} onRetry={() => void suggestions.refetch()} />
       ) : (
-        <SuggestionsResult batch={suggestions.data} />
+        <>
+          {/* La fournée précédente reste affichée pendant qu'une orientation différente
+              est recherchée (`placeholderData: keepPreviousData`) : seul ce bandeau dit
+              qu'un nouvel appel est en cours, la liste ne se vide jamais pour autant. */}
+          {suggestions.isFetching && <RefetchingBanner />}
+          <SuggestionsResult batch={suggestions.data} />
+        </>
       )}
     </>
+  );
+}
+
+function RefetchingBanner() {
+  return (
+    <div role="status" aria-live="polite" className="mx-4 mb-3 flex items-center gap-2 text-[13px] text-muted">
+      <Spinner className="size-4 text-accent" />
+      <span>Recherche d’une nouvelle fournée…</span>
+    </div>
   );
 }
 
