@@ -74,6 +74,14 @@ describe('suggestionQuerySchema', () => {
   it('refuse une durée hors des paliers', () => {
     expect(suggestionQuerySchema.safeParse({ maxMinutes: '42' }).success).toBe(false);
   });
+  it('ne prend pas la chaîne « false » pour un vrai (défaut de z.coerce.boolean)', () => {
+    expect(suggestionQuerySchema.parse({ refresh: 'false' }).refresh).toBe(false);
+    expect(suggestionQuerySchema.parse({ refresh: 'true' }).refresh).toBe(true);
+    expect(suggestionQuerySchema.parse({}).refresh).toBe(false);
+  });
+  it('refuse une valeur de refresh qui n’est ni « true » ni « false »', () => {
+    expect(suggestionQuerySchema.safeParse({ refresh: 'oui' }).success).toBe(false);
+  });
   it('refuse une région inconnue', () => {
     expect(suggestionQuerySchema.safeParse({ region: 'martienne' }).success).toBe(false);
   });
