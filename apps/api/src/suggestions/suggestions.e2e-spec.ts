@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { DynamicModule, Global, Module, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import type { ModelRecipe, SuggestionQuery } from '@kitchen/shared';
+import { suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
 import type { Prisma } from '@prisma/client';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -338,6 +338,22 @@ describe('SuggestionsService (EF-26)', () => {
     expect(logs[0]).toMatchObject({ provider: 'gemini', succeeded: true });
   });
 
+  it('rend des identifiants de suggestion stables d’une fournée à l’autre', async () => {
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
+    // Deux orientations : deux fournées distinctes en base, mêmes recettes rendues.
+    const first = await service.list({ refresh: false, maxMinutes: 15 }, USER);
+    const second = await service.list({ refresh: false, maxMinutes: 30 }, USER);
+
+    expect(first.batchId).not.toBe(second.batchId);
+    expect(second.items.map((i) => i.id)).toEqual(first.items.map((i) => i.id));
+    // Un identifiant de contenu, pas un rang.
+    expect(first.items[0]?.id).not.toBe('0');
+  });
+
   it('journalise une ligne par appel quand la fournée n’aboutit qu’à la reprise (Important 2)', async () => {
     const { service, db } = await createService();
     const locationId = await seedLocation(db);
@@ -445,6 +461,10 @@ describe('SuggestionsService (EF-26)', () => {
       ],
     };
 
+    /** Identité de contenu, jamais un rang : la même règle partagée que celle rendue par `list`. */
+    const WEB_ID = suggestionIdentity(WEB_RECIPE);
+    const AI_ID = suggestionIdentity(AI_RECIPE);
+
     it('conserve une recette web : page lue, contenu réécrit par Gemini, source IMPORTED', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
@@ -453,7 +473,7 @@ describe('SuggestionsService (EF-26)', () => {
       http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
       http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
 
-      const recipe = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-web-000001' }, keeper);
+      const recipe = await service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-web-000001' }, keeper);
 
       expect(recipe.source).toBe('IMPORTED');
       expect(recipe.sourceUrl).toBe(WEB_RECIPE.sourceUrl);
@@ -470,7 +490,7 @@ describe('SuggestionsService (EF-26)', () => {
       http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
       http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
 
-      await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-ledger-00001' }, keeper);
+      await service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-ledger-00001' }, keeper);
 
       const logs = await db.recognitionLog.findMany({ where: { purpose: 'RECIPE_SUGGESTION' }, orderBy: { createdAt: 'asc' } });
       const rewriteLog = logs.find((l) => l.succeeded && l.provider === 'gemini');
@@ -487,7 +507,7 @@ describe('SuggestionsService (EF-26)', () => {
       http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
       http.on('generateContent', () => json({ error: 'en panne' }, 500));
 
-      await expect(service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-transport-01' }, keeper)).rejects.toMatchObject({
+      await expect(service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-transport-01' }, keeper)).rejects.toMatchObject({
         status: 502,
         code: 'provider_unavailable',
       });
@@ -501,7 +521,7 @@ describe('SuggestionsService (EF-26)', () => {
       http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
       http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-invalide.json'));
 
-      await expect(service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-invalide-01' }, keeper)).rejects.toMatchObject({
+      await expect(service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-invalide-01' }, keeper)).rejects.toMatchObject({
         status: 502,
         code: 'provider_invalid_response',
       });
@@ -515,10 +535,10 @@ describe('SuggestionsService (EF-26)', () => {
       http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
       http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
 
-      const first = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-rejeu-00001' }, keeper);
+      const first = await service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-rejeu-00001' }, keeper);
       http.reset();
 
-      const second = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-rejeu-00001' }, keeper);
+      const second = await service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-rejeu-00001' }, keeper);
 
       expect(second.id).toBe(first.id);
       expect(http.calls).toHaveLength(0);
@@ -532,7 +552,7 @@ describe('SuggestionsService (EF-26)', () => {
       const keeper = await seedUser(db);
       const batchId = await seedBatch(db, [WEB_RECIPE]);
 
-      await expect(service.keep({ batchId, suggestionId: '0' }, keeper)).rejects.toMatchObject({ status: 429 });
+      await expect(service.keep({ batchId, suggestionId: WEB_ID }, keeper)).rejects.toMatchObject({ status: 429 });
       expect(http.calls).toHaveLength(0);
       expect(await db.recipe.count()).toBe(0);
     });
@@ -542,7 +562,7 @@ describe('SuggestionsService (EF-26)', () => {
       const keeper = await seedUser(db);
       const batchId = await seedBatch(db, [WEB_RECIPE, AI_RECIPE]);
 
-      const recipe = await service.keep({ batchId, suggestionId: '1', clientOpId: 'op-keep-ai-0000001' }, keeper);
+      const recipe = await service.keep({ batchId, suggestionId: AI_ID, clientOpId: 'op-keep-ai-0000001' }, keeper);
 
       expect(recipe.source).toBe('GENERATED');
       expect(recipe.sourceUrl).toBeNull();
@@ -559,7 +579,7 @@ describe('SuggestionsService (EF-26)', () => {
       http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
       http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
 
-      const recipe = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-diff-0000001' }, keeper);
+      const recipe = await service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-diff-0000001' }, keeper);
 
       expect(recipe.difficulty).toBe('INTERMEDIATE');
       expect(recipe.difficultyOverride).toBe(false);
@@ -572,7 +592,7 @@ describe('SuggestionsService (EF-26)', () => {
       await seedProduct(db, locationId, { name: 'Riz', quantity: 500, unit: 'GRAM' });
       const batchId = await seedBatch(db, [WEB_RECIPE, AI_RECIPE]);
 
-      const recipe = await service.keep({ batchId, suggestionId: '1', clientOpId: 'op-keep-match-0000001' }, keeper);
+      const recipe = await service.keep({ batchId, suggestionId: AI_ID, clientOpId: 'op-keep-match-0000001' }, keeper);
 
       const riz = recipe.ingredients.find((i) => i.label === 'Riz');
       const mystere = recipe.ingredients.find((i) => i.label === 'Épice mystère introuvable');
@@ -588,13 +608,27 @@ describe('SuggestionsService (EF-26)', () => {
       const batchId = await seedBatch(db, [unreachable]);
       http.fail(UNREACHABLE_HOST);
 
-      await expect(service.keep({ batchId, suggestionId: '0' }, keeper)).rejects.toMatchObject({ status: 502 });
+      await expect(service.keep({ batchId, suggestionId: suggestionIdentity(unreachable) }, keeper)).rejects.toMatchObject({ status: 502 });
       try {
-        await service.keep({ batchId, suggestionId: '0' }, keeper);
+        await service.keep({ batchId, suggestionId: suggestionIdentity(unreachable) }, keeper);
       } catch (error) {
         expect(String((error as Error).message)).toMatch(/page/i);
       }
       expect(await db.recipe.count()).toBe(0);
+    });
+
+    it('désigne la suggestion par son contenu, jamais par son rang dans la fournée', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const batchId = await seedBatch(db, [AI_RECIPE]);
+
+      // Le rang « 0 » ne désigne plus rien : un tiroir resté ouvert sur une
+      // fournée précédente ne peut plus conserver la recette d'une autre.
+      await expect(service.keep({ batchId, suggestionId: '0' }, keeper)).rejects.toMatchObject({ status: 404 });
+      await expect(service.keep({ batchId, suggestionId: WEB_ID }, keeper)).rejects.toMatchObject({ status: 404 });
+
+      const kept = await service.keep({ batchId, suggestionId: AI_ID, clientOpId: 'op-keep-identite-001' }, keeper);
+      expect(kept.title).toBe('Riz sauté maison');
     });
 
     it('est idempotente : deux conservations du même clientOpId ne créent qu’une recette', async () => {
@@ -602,8 +636,8 @@ describe('SuggestionsService (EF-26)', () => {
       const keeper = await seedUser(db);
       const batchId = await seedBatch(db, [AI_RECIPE]);
 
-      const first = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-idempotent-01' }, keeper);
-      const second = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-idempotent-01' }, keeper);
+      const first = await service.keep({ batchId, suggestionId: AI_ID, clientOpId: 'op-keep-idempotent-01' }, keeper);
+      const second = await service.keep({ batchId, suggestionId: AI_ID, clientOpId: 'op-keep-idempotent-01' }, keeper);
 
       expect(second.id).toBe(first.id);
       expect(await db.recipe.count()).toBe(1);
@@ -701,8 +735,7 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
    * contrôleur entier, pas seulement sur l'erreur levée par le service.
    */
   it('refuse 422 quand le lien de la recette vise une adresse privée', async () => {
-    const batchId = await seedBatchHttp([
-      {
+    const recipe: ModelRecipe = {
         title: 'Recette suspecte',
         origin: 'Cuisine Test',
         region: 'europeenne',
@@ -712,16 +745,15 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
         sourceUrl: 'https://192.168.1.50/recette',
         steps: [],
         ingredients: [{ label: 'Mystère', quantity: null, unit: null }],
-      },
-    ]);
+    };
+    const batchId = await seedBatchHttp([recipe]);
 
-    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: '0' }).expect(422);
+    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: suggestionIdentity(recipe) }).expect(422);
     expect(res.body.error.code).toBe('business_rule');
   });
 
   it('refuse 502 quand la page de la recette ne répond pas', async () => {
-    const batchId = await seedBatchHttp([
-      {
+    const recipe: ModelRecipe = {
         title: 'Recette injoignable',
         origin: 'Cuisine Test',
         region: 'europeenne',
@@ -731,17 +763,16 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
         sourceUrl: `https://${UNREACHABLE_HOST}/injoignable`,
         steps: [],
         ingredients: [{ label: 'Mystère', quantity: null, unit: null }],
-      },
-    ]);
+    };
+    const batchId = await seedBatchHttp([recipe]);
     http.fail(UNREACHABLE_HOST);
 
-    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: '0' }).expect(502);
+    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: suggestionIdentity(recipe) }).expect(502);
     expect(res.body.error.code).toBe('provider_unavailable');
   });
 
   it('conserve une composition sans réseau et rend la recette créée (201)', async () => {
-    const batchId = await seedBatchHttp([
-      {
+    const recipe: ModelRecipe = {
         title: 'Riz sauté express',
         origin: 'Composition',
         region: 'asiatique',
@@ -751,10 +782,10 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
         sourceUrl: null,
         steps: ['Cuire le riz.', 'Mélanger le tout.'],
         ingredients: [{ label: 'Riz', quantity: 200, unit: 'GRAM' }],
-      },
-    ]);
+    };
+    const batchId = await seedBatchHttp([recipe]);
 
-    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: '0' }).expect(201);
+    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: suggestionIdentity(recipe) }).expect(201);
     expect(res.body.source).toBe('GENERATED');
     expect(res.body.title).toBe('Riz sauté express');
   });

@@ -270,10 +270,12 @@ describe('scénario de réussite figé des suggestions', () => {
   it('conserve la première recette en Recipe IMPORTED, difficulté recalculée au barème du foyer', async () => {
     const list = await agent.get('/api/v1/suggestions').expect(200);
     const batchId = list.body.batchId as string;
+    // Identifiant rendu par la fournée, dérivé du contenu de la recette : jamais un rang.
+    const suggestionId = list.body.items[0].id as string;
 
     const res = await agent
       .post('/api/v1/suggestions/keep')
-      .send({ batchId, suggestionId: '0', clientOpId: 'op-scenario-pates-00001' })
+      .send({ batchId, suggestionId, clientOpId: 'op-scenario-pates-00001' })
       .expect(201);
 
     expect(res.body.source).toBe('IMPORTED');
