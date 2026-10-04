@@ -2,7 +2,7 @@ import type { HttpClient } from '../common/http-client.js';
 import { estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { buildSuggestionPrompt, InvalidBatchJsonError, parseModelBatch, SUGGESTION_SYSTEM_PROMPT } from './prompt.js';
-import type { SuggestionOutput, SuggestionProvider, SuggestionRequest } from './suggestion-provider.js';
+import { SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
 
 const DEFAULT_MODEL = 'gemini-3.5-pro';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
@@ -31,21 +31,35 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
   async suggest(req: SuggestionRequest): Promise<SuggestionOutput> {
     if (!this.options.apiKey) throw new ProviderError('Fournisseur de suggestions désactivé');
 
-    const first = await this.call(buildSuggestionPrompt(req));
-    try {
-      return this.toOutput(first, req.count);
-    } catch (error) {
-      if (!(error instanceof InvalidBatchJsonError)) throw error;
-    }
+    // Chaque tentative est conservée, y compris quand la suivante réussit ou
+    // quand tout échoue : elle a été facturée, elle doit être journalisée.
+    const attempts: SuggestionAttempt[] = [];
 
     // Vigilance 1 : une seule reprise, jamais une troisième tentative.
-    const second = await this.call(buildSuggestionPrompt(req, { retry: true }));
-    try {
-      return this.toOutput(second, req.count);
-    } catch (error) {
-      if (error instanceof InvalidBatchJsonError) throw new ProviderError('Le fournisseur de suggestions n’a pas renvoyé de JSON exploitable après reprise', error);
-      throw error;
+    for (const retry of [false, true]) {
+      const started = Date.now();
+      let raw: GeminiResponse;
+      try {
+        raw = await this.call(buildSuggestionPrompt(req, { retry }));
+      } catch (error) {
+        // Appel qui n'aboutit pas : rien à facturer pour celui-ci, mais les
+        // précédents le sont — l'erreur les emporte pour qu'ils soient inscrits.
+        if (attempts.length === 0) throw error;
+        throw new SuggestionProviderError(error instanceof Error ? error.message : String(error), attempts, error);
+      }
+      attempts.push({ raw, costCents: estimateCostCents(this.model, raw.usageMetadata), latencyMs: Date.now() - started });
+
+      try {
+        return this.toOutput(raw, attempts, req.count);
+      } catch (error) {
+        if (!(error instanceof InvalidBatchJsonError)) throw error;
+        if (retry) {
+          throw new SuggestionProviderError('Le fournisseur de suggestions n’a pas renvoyé de JSON exploitable après reprise', attempts, error);
+        }
+      }
     }
+    // Inatteignable : la boucle rend un résultat ou lève à la seconde passe.
+    throw new ProviderError('Fournisseur de suggestions sans réponse exploitable');
   }
 
   /**
@@ -54,10 +68,9 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
    * schéma. Un modèle qui en renvoie davantage est tronqué, jamais rejeté : ce n'est
    * pas une réponse malformée, juste trop généreuse.
    */
-  private toOutput(raw: GeminiResponse, count: number): SuggestionOutput {
-    const text = extractText(raw);
-    const batch = parseModelBatch(text);
-    return { recipes: batch.recipes.slice(0, count), raw, costCents: estimateCostCents(this.model, raw.usageMetadata), model: this.model };
+  private toOutput(raw: GeminiResponse, attempts: SuggestionAttempt[], count: number): SuggestionOutput {
+    const batch = parseModelBatch(extractText(raw));
+    return { recipes: batch.recipes.slice(0, count), attempts, model: this.model };
   }
 
   private async call(prompt: string): Promise<GeminiResponse> {

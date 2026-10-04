@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
-import type { SuggestionRequest } from './suggestion-provider.js';
+import type { SuggestionProviderError, SuggestionRequest } from './suggestion-provider.js';
 
 const BASE_REQUEST: SuggestionRequest = { seeds: ['tomate', 'pâtes', 'basilic'], count: 12 };
 
@@ -91,14 +91,38 @@ describe('GeminiSuggestionProvider (EF-26)', () => {
     const result = await provider.suggest(BASE_REQUEST);
     // gemini-3.5-pro : 2 $/Mtok en entrée, 12 $/Mtok en sortie (table de gemini.provider.ts).
     const expected = Math.round(((900 * 2 + 70 * 12) / 1_000_000) * 100 * 10_000) / 10_000;
-    expect(result.costCents).toBe(expected);
-    expect(result.costCents).toBeGreaterThan(0);
+    expect(result.attempts).toHaveLength(1);
+    expect(result.attempts[0]?.costCents).toBe(expected);
+    expect(result.attempts[0]?.costCents).toBeGreaterThan(0);
   });
 
   it('rend un lot vide proprement quand le fournisseur ne propose rien', async () => {
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-vide.json'));
     const result = await provider.suggest(BASE_REQUEST);
     expect(result.recipes).toEqual([]);
+  });
+
+  it('rend les deux tentatives facturées quand la reprise réussit (Important 2)', async () => {
+    let call = 0;
+    http.on('generateContent', () => {
+      call += 1;
+      return call === 1 ? geminiFixture('suggestions/gemini-batch-invalide.json') : geminiFixture('suggestions/gemini-batch.json');
+    });
+    const result = await provider.suggest(BASE_REQUEST);
+    expect(http.calls).toHaveLength(2);
+    // Les deux appels ont consommé des jetons : les deux doivent remonter.
+    expect(result.attempts).toHaveLength(2);
+    expect(result.attempts.every((a) => (a.costCents ?? 0) > 0)).toBe(true);
+  });
+
+  it('porte les tentatives déjà facturées sur l’erreur quand la reprise échoue aussi', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-invalide.json'));
+    await expect(provider.suggest(BASE_REQUEST)).rejects.toMatchObject({ attempts: expect.any(Array) });
+    try {
+      await provider.suggest(BASE_REQUEST);
+    } catch (error) {
+      expect((error as SuggestionProviderError).attempts).toHaveLength(2);
+    }
   });
 
   it('est désactivé sans clé, et le dit', async () => {

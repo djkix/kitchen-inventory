@@ -30,7 +30,7 @@ import { ProviderError } from '../recognition/providers/recognition-provider.js'
 import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
 import { InvalidRewriteError, type GeminiRecipeRewriter, type RecipeRewriteInput } from './gemini-recipe-rewriter.js';
 import { RecipePageRefusedError, type PageRecipe, type RecipePageFetcher } from './recipe-page.fetcher.js';
-import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER, SUGGESTION_PROVIDER, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
+import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER, SUGGESTION_PROVIDER, SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
 
 /** Taille visée d'une fournée (section 5.1, B8) : douze recettes, huit web pour quatre composées. */
 export const SUGGESTION_BATCH_SIZE = 12;
@@ -118,6 +118,13 @@ function startOfDay(date: Date): Date {
 
 function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+/** Somme des coûts connus des tentatives ; `null` si aucune n'a pu être chiffrée. */
+function totalCostCents(attempts: readonly { costCents: number | null }[]): number | null {
+  const known = attempts.map((a) => a.costCents).filter((c): c is number => c !== null);
+  if (known.length === 0) return null;
+  return known.reduce((sum, c) => sum + c, 0);
 }
 
 function toJson(value: unknown): Prisma.InputJsonValue {
@@ -280,18 +287,28 @@ export class SuggestionsService {
     try {
       output = await this.provider.suggest(request);
     } catch (error) {
-      await this.logCall(null, Date.now() - started, error);
+      // Une reprise déjà facturée doit être inscrite même quand tout échoue
+      // ensuite : le fournisseur porte ses tentatives sur l'erreur.
+      if (error instanceof SuggestionProviderError) {
+        await this.logAttempts(error.attempts, false);
+      } else {
+        await this.logFailure(error, Date.now() - started);
+      }
       const message = error instanceof ProviderError ? error.message : 'Fournisseur de suggestions injoignable';
       throw ApiError.providerUnavailable(message);
     }
-    await this.logCall(output, Date.now() - started, null);
+    // Une ligne de registre par appel réellement passé (une, ou deux en cas de
+    // reprise) : sans cela, les jetons de la première tentative échappaient à la
+    // fois au quota journalier et au plafond mensuel.
+    await this.logAttempts(output.attempts, true);
 
     const recipes = rebalance(output.recipes);
+    const costCents = totalCostCents(output.attempts);
     const payload: StoredBatchPayload = { recipes };
     const row = await this.prisma.suggestionBatch.upsert({
       where: { signature },
-      create: { signature, payload: toJson(payload), model: output.model, costCents: output.costCents },
-      update: { payload: toJson(payload), model: output.model, costCents: output.costCents, createdAt: new Date() },
+      create: { signature, payload: toJson(payload), model: output.model, costCents },
+      update: { payload: toJson(payload), model: output.model, costCents, createdAt: new Date() },
     });
     // Construit directement depuis les recettes qu'on vient d'écrire : pas besoin de
     // relire et revalider ce qu'on a soi-même produit dans le même appel.
@@ -306,21 +323,34 @@ export class SuggestionsService {
    * sous le nom du réécrivain, pas du fournisseur de fournées.
    */
   private async logCall(
-    output: { raw: unknown; costCents: number | null } | null,
+    entry: { raw: unknown; costCents: number | null },
+    succeeded: boolean,
     latencyMs: number,
-    error: unknown,
     providerName: string = this.provider.name,
   ): Promise<void> {
     await this.prisma.recognitionLog.create({
       data: {
         provider: providerName,
         purpose: 'RECIPE_SUGGESTION',
-        succeeded: output !== null,
-        costCents: output?.costCents ?? null,
+        succeeded,
+        costCents: entry.costCents,
         latencyMs,
-        rawResult: toJson(output?.raw ?? (error ? { error: String(error instanceof Error ? error.message : error) } : null)),
+        rawResult: toJson(entry.raw),
       },
     });
+  }
+
+  /** Échec sans aucune réponse du fournisseur : une ligne, sans coût, portant la cause. */
+  private logFailure(error: unknown, latencyMs: number, providerName: string = this.provider.name): Promise<void> {
+    return this.logCall({ raw: { error: String(error instanceof Error ? error.message : error) }, costCents: null }, false, latencyMs, providerName);
+  }
+
+  /** Une ligne de registre par tentative facturée, dans l'ordre où elles ont été faites. */
+  private async logAttempts(attempts: readonly SuggestionAttempt[], succeeded: boolean): Promise<void> {
+    for (const [index, attempt] of attempts.entries()) {
+      // Seule la dernière tentative a pu aboutir ; les précédentes ont été payées pour rien.
+      await this.logCall(attempt, succeeded && index === attempts.length - 1, attempt.latencyMs);
+    }
   }
 
   /**
@@ -472,10 +502,10 @@ export class SuggestionsService {
       let rewritten: RecipeRewrite;
       try {
         const output = await this.rewriter.rewrite(rewriteInput);
-        await this.logCall(output, Date.now() - started, null, this.rewriter.name);
+        await this.logCall(output, true, Date.now() - started, this.rewriter.name);
         rewritten = output.recipe;
       } catch (error) {
-        await this.logCall(null, Date.now() - started, error, this.rewriter.name);
+        await this.logFailure(error, Date.now() - started, this.rewriter.name);
         // Gemini a répondu mais le contenu est inexploitable (JSON illisible,
         // hors schéma) : distinct d'un fournisseur ou d'un transport en échec
         // (revue de tâche 9, round 2) — les deux se confondaient derrière le
