@@ -34,3 +34,13 @@ d'entrée du module recettes (section 12, EF-25, EF-26), et EF-27 (tri par
 défaut sur le stock, retenu puis abandonné au profit de la note dès
 l'amendement du 2026-10-03) est retirée. Voir la spécification pour le détail
 des exigences concernées et des dix-sept arbitrages.
+
+## Durée d'une recette conservée
+
+La fournée n'annonce qu'une durée **totale** (`totalMinutes`), sans séparer
+préparation et cuisson. À la conservation, elle est portée entière en
+`prepMinutes` (`apps/api/src/suggestions/suggestions.service.ts`) : une recette
+surtout faite de temps de four ressort donc plus difficile qu'elle ne l'est au
+barème du foyer (`computeDifficulty`, B15), qui pèse le temps de préparation.
+Choix assumé faute de détail dans la réponse du modèle ; le corriger demanderait
+de lui demander les deux durées séparément, hors périmètre de cet incrément.

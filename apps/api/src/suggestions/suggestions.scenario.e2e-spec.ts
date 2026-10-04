@@ -219,8 +219,8 @@ describe('scénario de réussite figé des suggestions', () => {
    * « parmesan râpé » (ci-dessus) vaut ≈ 0,64 contre « Parmesan » : largement
    * au-dessus du seuil, ce qui prouve qu'un seuil existe mais pas où il est
    * exactement. Les deux libellés ci-dessous encadrent `MATCH_SIMILARITY_FLOOR`
-   * (0,40) lui-même, à dessein : un déplacement du seuil de seulement 0,015
-   * dans un sens ou l'autre changerait le verdict de l'un des deux.
+   * (0,40) lui-même, à dessein : il suffirait de le relever de 0,0074 ou de
+   * l'abaisser de 0,0071 pour inverser le verdict de l'un des deux.
    *
    * pg_trgm découpe une chaîne en mots (séparés par les espaces), complète
    * chaque mot de deux blancs en tête et un en fin, en tire les trigrammes
@@ -247,8 +247,9 @@ describe('scénario de réussite figé des suggestions', () => {
    *     pas 9 + 8 = 17 : union totale = 11 + 10 + 3 + 4 = 28.
    *     score = 11 / 28 ≈ 0,3929 → en dessous du seuil → absent. (Vérifié de
    *     même : 0,39285713.)
-   * Un déplacement du seuil de seulement 0,015 suffirait à inverser le
-   * verdict de l'un des deux — contrairement à « parmesan râpé », loin du
+   * Les deux marges valent donc 0,0074 au-dessus (0,4074 − 0,40) et 0,0071 en
+   * dessous (0,40 − 0,3929) : relever ou abaisser le seuil d'autant inverserait
+   * le verdict de l'un des deux — contrairement à « parmesan râpé », loin du
    * seuil, ce couple épingle la valeur 0,40 elle-même, pas seulement son
    * existence.
    */
