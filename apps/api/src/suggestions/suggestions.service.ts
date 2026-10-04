@@ -46,7 +46,7 @@ const SUGGESTION_WEB_TARGET = SUGGESTION_BATCH_SIZE - SUGGESTION_AI_TARGET;
  * ici, dans `rebalance`), sans pouvoir l'exclure complètement : une vraie garantie
  * demanderait de ne plus tronquer du tout côté fournisseur, hors périmètre ici.
  */
-const SUGGESTION_REQUEST_BUFFER = 4;
+export const SUGGESTION_REQUEST_BUFFER = 4;
 
 /** Signature de cache (B12) : identifiants de départ triés + orientation + version du prompt. */
 const SUGGESTION_SIGNATURE_VERSION = 'v1';
@@ -87,8 +87,12 @@ interface ParsedBatch {
  * jusqu'à `SUGGESTION_WEB_TARGET` recettes web et `SUGGESTION_AI_TARGET`
  * composées, puis complète avec le reste si l'une des deux sources est en
  * déficit, jusqu'à `SUGGESTION_BATCH_SIZE`.
+ *
+ * Exportée pour être couverte au nombre réellement demandé en production
+ * (`SUGGESTION_BATCH_SIZE + SUGGESTION_REQUEST_BUFFER`, soit seize), et pas
+ * seulement à la taille de la fournée rendue.
  */
-function rebalance(recipes: readonly ModelRecipe[]): ModelRecipe[] {
+export function rebalance(recipes: readonly ModelRecipe[]): ModelRecipe[] {
   const web = recipes.filter((r) => r.provenance === 'web');
   const ai = recipes.filter((r) => r.provenance === 'ai');
   const webTaken = web.slice(0, SUGGESTION_WEB_TARGET);
