@@ -338,6 +338,50 @@ describe('SuggestionsService (EF-26)', () => {
     expect(logs[0]).toMatchObject({ provider: 'gemini', succeeded: true });
   });
 
+  it('journalise une ligne par appel quand la fournée n’aboutit qu’à la reprise (Important 2)', async () => {
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+
+    // Premier appel illisible, reprise conforme : deux appels réellement facturés.
+    let call = 0;
+    http.on('generateContent', () => {
+      call += 1;
+      return call === 1
+        ? costlyFixture('suggestions/gemini-batch-invalide.json', 300)
+        : costlyFixture('suggestions/gemini-batch-creme.json', 700);
+    });
+    await service.list(QUERY, USER);
+
+    expect(http.calls).toHaveLength(2);
+    const logs = await db.recognitionLog.findMany({ where: { purpose: 'RECIPE_SUGGESTION' }, orderBy: { createdAt: 'asc' } });
+    expect(logs).toHaveLength(2);
+    expect(logs.map((l) => l.succeeded)).toEqual([false, true]);
+
+    // gemini-3.5-pro : 2 $/Mtok en entrée, 12 $/Mtok en sortie, 500 jetons d'entrée par appel.
+    const cost = (out: number) => Math.round(((500 * 2 + out * 12) / 1_000_000) * 100 * 10_000) / 10_000;
+    const expected = cost(300) + cost(700);
+    const logged = logs.reduce((sum, l) => sum + (l.costCents?.toNumber() ?? 0), 0);
+    expect(logged).toBeCloseTo(expected, 6);
+
+    // Le coût porté par la fournée est celui des deux appels, pas du seul dernier.
+    const batch = await db.suggestionBatch.findFirstOrThrow();
+    expect(batch.costCents?.toNumber()).toBeCloseTo(expected, 6);
+  });
+
+  it('journalise les tentatives déjà facturées même quand la reprise échoue aussi', async () => {
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+
+    http.on('generateContent', () => costlyFixture('suggestions/gemini-batch-invalide.json', 300));
+    await expect(service.list(QUERY, USER)).rejects.toMatchObject({ status: 502 });
+
+    const logs = await db.recognitionLog.findMany({ where: { purpose: 'RECIPE_SUGGESTION' } });
+    expect(logs).toHaveLength(2);
+    expect(logs.every((l) => !l.succeeded && (l.costCents?.toNumber() ?? 0) > 0)).toBe(true);
+  });
+
   it('marque une recette dont aucun ingrédient n’est rapproché comme exclue, jamais prête (revue de tâche 6)', async () => {
     const { service, db } = await createService();
     const locationId = await seedLocation(db);

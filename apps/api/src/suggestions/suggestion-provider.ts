@@ -1,4 +1,5 @@
 import type { Difficulty, ModelRecipe, SuggestionRegion } from '@kitchen/shared';
+import { ProviderError } from '../recognition/providers/recognition-provider.js';
 
 /** Orientation facultative de la recherche (section 12, EF-25, B9) et nombre de recettes voulues. */
 export interface SuggestionRequest {
@@ -9,12 +10,38 @@ export interface SuggestionRequest {
   count: number;
 }
 
-export interface SuggestionOutput {
-  recipes: ModelRecipe[];
+/**
+ * Une tentative facturée auprès du fournisseur. Le fournisseur peut en faire
+ * deux (une reprise après une réponse illisible) : chacune consomme des jetons
+ * et doit apparaître dans le journal d'appels, sans quoi la première échappe au
+ * quota journalier comme au plafond mensuel.
+ */
+export interface SuggestionAttempt {
   /** Réponse brute du fournisseur, conservée dans le journal d'appels pour rejouer les échecs. */
   raw: unknown;
   costCents: number | null;
+  latencyMs: number;
+}
+
+export interface SuggestionOutput {
+  recipes: ModelRecipe[];
+  /** Toutes les tentatives facturées, dans l'ordre : au moins une, deux en cas de reprise. */
+  attempts: SuggestionAttempt[];
   model: string;
+}
+
+/**
+ * Échec du fournisseur alors qu'au moins une tentative a déjà été facturée :
+ * porte ces tentatives pour que l'appelant les journalise malgré l'échec.
+ */
+export class SuggestionProviderError extends ProviderError {
+  constructor(
+    message: string,
+    readonly attempts: SuggestionAttempt[],
+    cause?: unknown,
+  ) {
+    super(message, cause);
+  }
 }
 
 /**
