@@ -6,6 +6,7 @@ import {
   modelBatchSchema,
   pickSeedIngredients,
   recipeCoverage,
+  suggestionIdentity,
   type CoverageIngredient,
   type CreateRecipeInput,
   type KeepSuggestionInput,
@@ -412,7 +413,12 @@ export class SuggestionsService {
       const missingLabels = coverage.missingIds.map((id) => labelById.get(id) ?? id);
 
       const dto: SuggestionDto = {
-        id: String(recipeIndex),
+        // Identité dérivée du contenu, jamais le rang dans le tableau (règle
+        // partagée `suggestionIdentity`) : un rang ne désigne pas la même
+        // recette d'une fournée à l'autre, et le tiroir resté ouvert pendant un
+        // rafraîchissement en arrière-plan pouvait conserver une autre recette
+        // que celle affichée.
+        id: suggestionIdentity(recipe),
         title: recipe.title,
         origin: recipe.origin,
         region: recipe.region,
@@ -457,8 +463,9 @@ export class SuggestionsService {
     if (!validated.success) throw ApiError.notFound('Fournée de suggestions introuvable');
     const recipes = validated.data.recipes;
 
-    const index = Number(input.suggestionId);
-    const suggestion = Number.isInteger(index) ? recipes[index] : undefined;
+    // Recherchée par son identité de contenu, pas par un rang : une fournée dont
+    // une entrée a été écartée à la validation décale tous les rangs suivants.
+    const suggestion = recipes.find((recipe) => suggestionIdentity(recipe) === input.suggestionId);
     if (!suggestion) throw ApiError.notFound('Suggestion introuvable dans cette fournée');
 
     const createInput = await this.buildCreateInput(suggestion);
