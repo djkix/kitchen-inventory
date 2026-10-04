@@ -15,7 +15,8 @@ const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
  * Vigilance 1 : `responseSchema` et l'outil de recherche sont mutuellement exclusifs
  * côté API Gemini. La sortie n'est donc pas contrainte par un schéma — elle est
  * imposée par le prompt (un seul objet JSON, sans texte autour), puis débarrassée
- * d'éventuelles clôtures ``` et validée par `modelBatchSchema` côté client.
+ * d'éventuelles clôtures ``` et du texte superflu qui déborderait autour de l'objet,
+ * et validée par `modelBatchSchema` côté client.
  */
 export class GeminiSuggestionProvider implements SuggestionProvider {
   readonly name = 'gemini';
@@ -32,7 +33,7 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
 
     const first = await this.call(buildSuggestionPrompt(req));
     try {
-      return this.toOutput(first);
+      return this.toOutput(first, req.count);
     } catch (error) {
       if (!(error instanceof InvalidBatchJsonError)) throw error;
     }
@@ -40,17 +41,23 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
     // Vigilance 1 : une seule reprise, jamais une troisième tentative.
     const second = await this.call(buildSuggestionPrompt(req, { retry: true }));
     try {
-      return this.toOutput(second);
+      return this.toOutput(second, req.count);
     } catch (error) {
       if (error instanceof InvalidBatchJsonError) throw new ProviderError('Le fournisseur de suggestions n’a pas renvoyé de JSON exploitable après reprise', error);
       throw error;
     }
   }
 
-  private toOutput(raw: GeminiResponse): SuggestionOutput {
+  /**
+   * Le nombre de recettes demandées est la seule borne qui fasse sens ici : elle
+   * dépend de l'appel (`SuggestionRequest.count`), pas d'une limite structurelle du
+   * schéma. Un modèle qui en renvoie davantage est tronqué, jamais rejeté : ce n'est
+   * pas une réponse malformée, juste trop généreuse.
+   */
+  private toOutput(raw: GeminiResponse, count: number): SuggestionOutput {
     const text = extractText(raw);
     const batch = parseModelBatch(text);
-    return { recipes: batch.recipes, raw, costCents: estimateCostCents(this.model, raw.usageMetadata), model: this.model };
+    return { recipes: batch.recipes.slice(0, count), raw, costCents: estimateCostCents(this.model, raw.usageMetadata), model: this.model };
   }
 
   private async call(prompt: string): Promise<GeminiResponse> {
@@ -80,8 +87,13 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
     const raw = (await response.json()) as GeminiResponse;
     if (raw.promptFeedback?.blockReason) throw new ProviderError('Gemini a refusé la demande de suggestions');
     const candidate = raw.candidates?.[0];
-    if (!candidate || (candidate.finishReason && !['STOP', 'MAX_TOKENS'].includes(candidate.finishReason))) {
-      throw new ProviderError(`Gemini n’a pas produit de réponse (${candidate?.finishReason ?? 'aucun candidat'})`);
+    if (!candidate) throw new ProviderError('Gemini n’a pas produit de réponse (aucun candidat)');
+    // Une réponse coupée par la limite de jetons est tronquée au milieu du JSON : ce n'est pas
+    // du JSON mal formé à reprendre avec un rappel de format (qui redemanderait le même volume
+    // dans le même budget, et tronquerait de nouveau), mais un échec de budget à signaler tel quel.
+    if (candidate.finishReason === 'MAX_TOKENS') throw new ProviderError('Réponse du fournisseur de suggestions tronquée par la limite de jetons');
+    if (candidate.finishReason && candidate.finishReason !== 'STOP') {
+      throw new ProviderError(`Gemini n’a pas produit de réponse (${candidate.finishReason})`);
     }
     return raw;
   }

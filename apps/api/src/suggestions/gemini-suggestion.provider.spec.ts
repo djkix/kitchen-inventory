@@ -91,4 +91,36 @@ describe('GeminiSuggestionProvider (EF-26)', () => {
     await expect(disabled.suggest(BASE_REQUEST)).rejects.toThrow(ProviderError);
     expect(http.calls).toHaveLength(0);
   });
+
+  it('tronque au nombre de recettes demandé quand le fournisseur en rend davantage', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-trop-plein.json'));
+    const result = await provider.suggest(BASE_REQUEST);
+    expect(result.recipes).toHaveLength(12);
+    expect(http.calls).toHaveLength(1);
+  });
+
+  it('extrait le JSON malgré du texte superflu avant et après l’objet', async () => {
+    const batch = await fixtureText('gemini-batch.json');
+    const withProse = `Voici le lot demandé :\n${batch.trim()}\nFin de la réponse.`;
+    http.on('generateContent', () =>
+      json({
+        candidates: [{ content: { role: 'model', parts: [{ text: withProse }] }, finishReason: 'STOP' }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10 },
+      }),
+    );
+    const result = await provider.suggest(BASE_REQUEST);
+    expect(result.recipes).toHaveLength(12);
+  });
+
+  it('échoue distinctement, sans reprise, quand la réponse est tronquée par la limite de jetons', async () => {
+    http.on('generateContent', () =>
+      json({
+        candidates: [{ content: { role: 'model', parts: [{ text: '{ "recipes": [ { "title": "incomplet"' }] }, finishReason: 'MAX_TOKENS' }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 8192 },
+      }),
+    );
+    await expect(provider.suggest(BASE_REQUEST)).rejects.toThrow(/tronqu/);
+    // Pas de reprise : redemander le même volume dans le même budget ne ferait que retronquer.
+    expect(http.calls).toHaveLength(1);
+  });
 });
