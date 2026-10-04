@@ -415,6 +415,54 @@ describe('SuggestionsService (EF-26)', () => {
       expect(rewriteLog?.costCents?.toNumber()).toBeGreaterThan(0);
     });
 
+    it('garde provider_unavailable pour un échec de transport ou de statut du réécriveur (round 2)', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const batchId = await seedBatch(db, [WEB_RECIPE]);
+      const html = await fixtureHtml('page-schema-simple.html');
+      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
+      http.on('generateContent', () => json({ error: 'en panne' }, 500));
+
+      await expect(service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-transport-01' }, keeper)).rejects.toMatchObject({
+        status: 502,
+        code: 'provider_unavailable',
+      });
+    });
+
+    it('donne provider_invalid_response quand Gemini répond mais hors schéma (round 2)', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const batchId = await seedBatch(db, [WEB_RECIPE]);
+      const html = await fixtureHtml('page-schema-simple.html');
+      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-invalide.json'));
+
+      await expect(service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-invalide-01' }, keeper)).rejects.toMatchObject({
+        status: 502,
+        code: 'provider_invalid_response',
+      });
+    });
+
+    it('un rejeu conserve sans aucun appel réseau ni nouvelle ligne de registre (round 2)', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const batchId = await seedBatch(db, [WEB_RECIPE]);
+      const html = await fixtureHtml('page-schema-simple.html');
+      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
+
+      const first = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-rejeu-00001' }, keeper);
+      http.reset();
+
+      const second = await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-rejeu-00001' }, keeper);
+
+      expect(second.id).toBe(first.id);
+      expect(http.calls).toHaveLength(0);
+      const logs = await db.recognitionLog.findMany({ where: { purpose: 'RECIPE_SUGGESTION' } });
+      expect(logs).toHaveLength(1);
+      expect(await db.recipe.count()).toBe(1);
+    });
+
     it('refuse la réécriture au-delà du quota journalier, sans créer de recette', async () => {
       const { service, db } = await createService({ RECIPE_SUGGESTION_DAILY_QUOTA: '0' });
       const keeper = await seedUser(db);
