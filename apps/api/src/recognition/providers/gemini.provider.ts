@@ -23,15 +23,19 @@ const GEMINI_RESPONSE_SCHEMA = {
   },
 } as const;
 
-/** Prix publics indicatifs en dollars par million de jetons, pour le compteur de coût (section 21). */
-const PRICES_USD_PER_MTOK: Record<string, { input: number; output: number }> = {
+/**
+ * Prix publics indicatifs en dollars par million de jetons, pour le compteur de
+ * coût (section 21). Partagée avec le fournisseur de suggestions, qui appelle le
+ * même modèle Gemini : une seule table de prix à tenir à jour.
+ */
+export const PRICES_USD_PER_MTOK: Record<string, { input: number; output: number }> = {
   'gemini-3.5-flash': { input: 0.3, output: 2.5 },
   'gemini-3.5-pro': { input: 2, output: 12 },
   'gemini-2.5-flash': { input: 0.3, output: 2.5 },
   'gemini-2.5-pro': { input: 1.25, output: 10 },
 };
 
-interface GeminiResponse {
+export interface GeminiResponse {
   candidates?: Array<{
     content?: { parts?: Array<{ text?: string }> };
     finishReason?: string;
@@ -93,7 +97,7 @@ export class GeminiProvider implements RecognitionProvider {
   }
 }
 
-function estimateCostCents(model: string, usage: GeminiResponse['usageMetadata']): number | null {
+export function estimateCostCents(model: string, usage: GeminiResponse['usageMetadata']): number | null {
   const price = PRICES_USD_PER_MTOK[model];
   if (!usage || !price) return null;
   const usd = ((usage.promptTokenCount ?? 0) * price.input + (usage.candidatesTokenCount ?? 0) * price.output) / 1_000_000;
