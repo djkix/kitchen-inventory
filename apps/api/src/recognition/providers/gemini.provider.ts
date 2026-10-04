@@ -97,6 +97,19 @@ export class GeminiProvider implements RecognitionProvider {
   }
 }
 
+/**
+ * Avertissement de démarrage : un `VISION_MODEL` absent de `PRICES_USD_PER_MTOK`
+ * fait rendre `null` à `estimateCostCents`, si bien qu'aucun appel n'est chiffré
+ * et que le plafond mensuel ne compte plus rien — silencieusement. Rend le
+ * message à journaliser, ou `null` s'il n'y a rien à signaler.
+ */
+export function unpricedModelWarning(provider: string, model: string | undefined): string | null {
+  // La table ne couvre que Gemini ; les autres fournisseurs ont leur propre
+  // barème, avec repli sur leur modèle par défaut.
+  if (provider !== 'gemini' || !model || PRICES_USD_PER_MTOK[model]) return null;
+  return `Modèle « ${model} » absent de la table de prix : aucun appel ne sera chiffré et le plafond mensuel (VISION_MONTHLY_CAP_CENTS) ne comptera rien. Modèles tarifés : ${Object.keys(PRICES_USD_PER_MTOK).join(', ')}.`;
+}
+
 export function estimateCostCents(model: string, usage: GeminiResponse['usageMetadata']): number | null {
   const price = PRICES_USD_PER_MTOK[model];
   if (!usage || !price) return null;

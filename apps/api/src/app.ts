@@ -8,6 +8,7 @@ import { AppModule } from './app.module.js';
 import type { AppConfig } from './common/config.js';
 import type { HttpClient } from './common/http-client.js';
 import { noindexMiddleware } from './common/noindex.middleware.js';
+import { unpricedModelWarning } from './recognition/providers/gemini.provider.js';
 
 export const API_PREFIX = 'api/v1';
 
@@ -15,7 +16,12 @@ export const API_PREFIX = 'api/v1';
 export async function createApp(config: AppConfig, httpClient?: HttpClient): Promise<INestApplication> {
   await mkdir(config.mediaDir, { recursive: true });
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config, httpClient), { bufferLogs: true });
-  app.useLogger(app.get(Logger));
+  const logger = app.get(Logger);
+  app.useLogger(logger);
+  // Un modèle hors table de prix désactive le plafond mensuel sans rien dire :
+  // il doit au moins se voir au démarrage.
+  const priceWarning = unpricedModelWarning(config.VISION_PROVIDER, config.VISION_MODEL);
+  if (priceWarning) logger.warn(priceWarning);
   // robots.txt doit vivre à la racine du site, hors du préfixe d'API.
   app.setGlobalPrefix(API_PREFIX, { exclude: ['robots.txt'] });
   app.use(noindexMiddleware);
