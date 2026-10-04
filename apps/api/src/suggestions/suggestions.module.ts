@@ -5,6 +5,7 @@ import { RecipesModule } from '../recipes/recipes.module.js';
 import { SettingsModule } from '../settings/settings.module.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
 import { SUGGESTION_PROVIDER, type SuggestionProvider } from './suggestion-provider.js';
+import { SuggestionsController } from './suggestions.controller.js';
 import { SuggestionsService } from './suggestions.service.js';
 
 /**
@@ -28,6 +29,7 @@ function createSuggestionProvider(config: AppConfig, httpClient: HttpClient): Su
 
 @Module({
   imports: [RecipesModule, SettingsModule],
+  controllers: [SuggestionsController],
   providers: [
     SuggestionsService,
     {

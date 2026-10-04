@@ -23,6 +23,7 @@ import { ServiceTokensModule } from './service-tokens/service-tokens.module.js';
 import { SpaModule } from './spa/spa.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { StockModule } from './stock/stock.module.js';
+import { SuggestionsModule } from './suggestions/suggestions.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Global()
@@ -58,6 +59,7 @@ export class AppModule {
         SettingsModule,
         StockModule,
         RecipesModule,
+        SuggestionsModule,
         MediaModule,
         RecognitionModule,
         ExportModule,

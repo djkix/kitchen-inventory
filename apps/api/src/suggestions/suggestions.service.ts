@@ -136,6 +136,13 @@ export class SuggestionsService {
    * tâches suivantes (conservation d'une suggestion, tâche 9).
    */
   async list(query: SuggestionQuery, _user: RequestUser): Promise<SuggestionBatchDto> {
+    // Vérifié avant toute lecture du stock (comme `RecognitionService.recognizeImage`) :
+    // inutile de composer une requête si le fournisseur ne pourra de toute façon pas
+    // répondre. 409 `provider_disabled`, pas 502 `provider_unavailable` : ce n'est pas
+    // un appel qui a échoué, c'est un état de configuration du serveur.
+    if (!this.provider.enabled) {
+      throw ApiError.providerDisabled('Fournisseur de suggestions non configuré : renseignez VISION_PROVIDER et VISION_API_KEY');
+    }
     // Une seule lecture de l'arbre des catégories, partagée par l'instantané de
     // stock et par les candidats de départ (revue de tâche 6 : `snapshot()` et
     // `loadSeedCandidates` interrogeaient chacun la table `Category`).

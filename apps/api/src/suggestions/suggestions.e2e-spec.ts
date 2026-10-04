@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 import { DynamicModule, Global, Module, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { SuggestionQuery } from '@kitchen/shared';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type TestAgent from 'supertest/lib/agent.js';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ConfigModule } from '../common/config.module.js';
 import { loadConfig, type AppConfig } from '../common/config.js';
 import { HTTP_CLIENT, type HttpClient } from '../common/http-client.js';
@@ -12,15 +13,22 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { RecipesModule } from '../recipes/recipes.module.js';
 import { SettingsModule } from '../settings/settings.module.js';
 import type { RequestUser } from '../auth/request-user.js';
+import { createTestApp, type TestApp } from '../../test/app.factory.js';
+import { createProduct, createStock } from '../../test/recipes.test-helpers.js';
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
 import { truncateAll } from '../../test/db.js';
 import { SuggestionsModule } from './suggestions.module.js';
 import { SuggestionsService } from './suggestions.service.js';
 
+const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-de-passe-long' };
+
 const USER: RequestUser = { id: 'u1', email: 'franck@example.org', name: 'Franck', role: 'ADMIN', via: 'session', sessionId: 's1' };
 
-/** Contexte Nest minimal (sans HTTP) pour tester `SuggestionsService` seule : le
- * contrôleur n'existe pas encore (tâche 7), donc pas de `createTestApp`/agent ici. */
+/**
+ * Contexte Nest minimal (sans HTTP) pour tester `SuggestionsService` seule, sans
+ * repasser par tout `AppModule` à chaque cas. Les routes HTTP (`SuggestionsController`,
+ * tâche 7) sont testées plus bas avec `createTestApp`.
+ */
 @Global()
 @Module({})
 class SuggestionsTestModule {
@@ -307,5 +315,64 @@ describe('SuggestionsService (EF-26)', () => {
     expect(item.group).toBe('almost');
     expect(item.coverage).toBeCloseTo(0.8);
     expect(item.missingLabels).toEqual(['Introuvable XYZ']);
+  });
+});
+
+describe('GET /suggestions (EF-26, tâche 7)', () => {
+  let t: TestApp;
+  let agent: TestAgent;
+  let http: FakeHttp;
+
+  beforeAll(async () => {
+    http = new FakeHttp();
+    t = await createTestApp({ VISION_PROVIDER: 'gemini', VISION_API_KEY: 'AIza-test' }, http.client);
+  });
+  beforeEach(async () => {
+    await t.reset();
+    http.reset();
+    agent = t.agent();
+    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+  });
+  afterAll(() => t.close());
+
+  it('exige une session', async () => {
+    const res = await t.api.get('/api/v1/suggestions').expect(401);
+    expect(res.body.error.code).toBe('unauthenticated');
+  });
+
+  it('valide l’orientation par le schéma partagé', async () => {
+    const res = await agent.get('/api/v1/suggestions').query({ region: 'martienne' }).expect(400);
+    expect(res.body.error.code).toBe('validation_failed');
+  });
+
+  it('rend une fournée avec son identifiant et son horodatage', async () => {
+    const productId = await createProduct(agent, { name: 'Tomate' });
+    const placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
+    await createStock(agent, { productId, locationId: placardId, quantity: 5, unit: 'PIECE' });
+
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
+    const res = await agent.get('/api/v1/suggestions').expect(200);
+
+    expect(typeof res.body.batchId).toBe('string');
+    expect(res.body.batchId.length).toBeGreaterThan(0);
+    expect(() => new Date(res.body.generatedAt).toISOString()).not.toThrow();
+    expect(res.body.items.length).toBeGreaterThan(0);
+  });
+});
+
+describe('GET /suggestions, fournisseur désactivé (EF-26, tâche 7)', () => {
+  it('dit en français que le fournisseur n’est pas configuré', async () => {
+    const t = await createTestApp({ VISION_PROVIDER: 'none' });
+    try {
+      await t.reset();
+      const agent = t.agent();
+      await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+
+      const res = await agent.get('/api/v1/suggestions').expect(409);
+      expect(res.body.error.code).toBe('provider_disabled');
+      expect(res.body.error.message).toMatch(/non configuré/);
+    } finally {
+      await t.close();
+    }
   });
 });

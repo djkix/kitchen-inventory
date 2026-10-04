@@ -36,4 +36,8 @@ export class ApiError extends Error {
   static providerUnavailable(message: string, details?: unknown): ApiError {
     return new ApiError(502, 'provider_unavailable', message, details);
   }
+  /** Fournisseur non configuré (clé absente) : un état du serveur, pas un échec d'appel — jamais 502. */
+  static providerDisabled(message: string, details?: unknown): ApiError {
+    return new ApiError(409, 'provider_disabled', message, details);
+  }
 }
