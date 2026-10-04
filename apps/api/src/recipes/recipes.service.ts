@@ -115,19 +115,45 @@ export class RecipesService {
   }
 
   async create(input: CreateRecipeInput, userId: string | null): Promise<RecipeDto> {
-    return this.createRecipe(input, { source: 'HOUSEHOLD', sourceUrl: null }, userId);
+    return this.createRecipe(input, { source: 'HOUSEHOLD', sourceUrl: null, clientOpId: null }, userId);
   }
 
   /**
    * Conservation d'une suggestion (EF-25, EF-26, tâche 9) : même création que
    * `create`, source et lien tracés jusqu'à la recette — jamais recopiée, la
-   * seule différence est l'origine inscrite sur la ligne.
+   * seule différence est l'origine inscrite sur la ligne. Idempotente par
+   * `clientOpId` (section 8, migration 0006), comme le reste des écritures du
+   * projet : vérifié avant, rattrapé après sur une course concurrente (même
+   * schéma que `RecipeLogsService.logCooked`).
    */
-  async createFromSuggestion(input: CreateRecipeInput, source: 'IMPORTED' | 'GENERATED', sourceUrl: string | null, userId: string | null): Promise<RecipeDto> {
-    return this.createRecipe(input, { source, sourceUrl }, userId);
+  async createFromSuggestion(
+    input: CreateRecipeInput,
+    source: 'IMPORTED' | 'GENERATED',
+    sourceUrl: string | null,
+    clientOpId: string | null,
+    userId: string | null,
+  ): Promise<RecipeDto> {
+    if (clientOpId) {
+      const existing = await this.prisma.recipe.findUnique({ where: { clientOpId }, include: RECIPE_INCLUDE });
+      if (existing) return this.toDto(existing);
+    }
+    try {
+      return await this.createRecipe(input, { source, sourceUrl, clientOpId }, userId);
+    } catch (error) {
+      // Rejeu concurrent du même `clientOpId` : la vérification préalable laisse passer une course.
+      if (clientOpId && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await this.prisma.recipe.findUniqueOrThrow({ where: { clientOpId }, include: RECIPE_INCLUDE });
+        return this.toDto(existing);
+      }
+      throw error;
+    }
   }
 
-  private async createRecipe(input: CreateRecipeInput, origin: { source: RecipeSource; sourceUrl: string | null }, userId: string | null): Promise<RecipeDto> {
+  private async createRecipe(
+    input: CreateRecipeInput,
+    origin: { source: RecipeSource; sourceUrl: string | null; clientOpId: string | null },
+    userId: string | null,
+  ): Promise<RecipeDto> {
     if (input.cuisineId) await this.requireCuisine(input.cuisineId);
     await this.requireIngredientRefs(input.ingredients);
 
@@ -152,6 +178,7 @@ export class RecipesService {
         diets: input.diets,
         source: origin.source,
         sourceUrl: origin.sourceUrl,
+        clientOpId: origin.clientOpId,
         createdById: userId,
         ingredients: { create: input.ingredients.map(toIngredientCreateData) },
       },

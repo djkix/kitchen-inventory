@@ -37,6 +37,16 @@ export class ApiError extends Error {
     return new ApiError(502, 'provider_unavailable', message, details);
   }
   /**
+   * Le fournisseur a répondu, mais ce qu'il a rendu ne peut pas être exploité
+   * (JSON illisible, hors schéma, ou validé mais finalement rejeté par la
+   * création) — distinct de `provider_unavailable` (page ou fournisseur
+   * injoignable) : même statut 502, mais pas la même cause à chercher dans
+   * les journaux (revue de tâche 9).
+   */
+  static providerInvalidResponse(message: string, details?: unknown): ApiError {
+    return new ApiError(502, 'provider_invalid_response', message, details);
+  }
+  /**
    * Fournisseur non configuré (clé absente) : un état du serveur qui interdit
    * de poursuivre, pas un échec d'appel (jamais 502) ni un conflit de
    * ressource (jamais 409) — 422, comme le reste des règles métier du projet,
