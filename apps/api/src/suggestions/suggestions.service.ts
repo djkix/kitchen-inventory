@@ -290,10 +290,22 @@ export class SuggestionsService {
     return { id: row.id, generatedAt: row.createdAt.toISOString(), recipes };
   }
 
-  private async logCall(output: SuggestionOutput | null, latencyMs: number, error: unknown): Promise<void> {
+  /**
+   * Journal partagé par toute consommation du fournisseur de suggestions
+   * (recherche d'une fournée, tâche 7 ; réécriture à la conservation, tâche
+   * 9) : même `purpose`, même plafond mensuel (`quotaMessage`). `providerName`
+   * ne vaut `this.provider.name` que par défaut — la réécriture journalise
+   * sous le nom du réécrivain, pas du fournisseur de fournées.
+   */
+  private async logCall(
+    output: { raw: unknown; costCents: number | null } | null,
+    latencyMs: number,
+    error: unknown,
+    providerName: string = this.provider.name,
+  ): Promise<void> {
     await this.prisma.recognitionLog.create({
       data: {
-        provider: this.provider.name,
+        provider: providerName,
         purpose: 'RECIPE_SUGGESTION',
         succeeded: output !== null,
         costCents: output?.costCents ?? null,
@@ -381,8 +393,12 @@ export class SuggestionsService {
    * en sécurité, lue si elle porte `schema.org/Recipe` [B14], sinon soumise en
    * texte nettoyé, puis réécrite par Gemini au format de l'application. Pour
    * `ai`, la composition est déjà au bon format : aucun appel réseau [B6].
-   * Idempotente par `clientOpId` (section 8) : rejouée, elle rend la recette
-   * déjà créée plutôt que d'en créer une seconde.
+   * Idempotente par `clientOpId` (section 8, migration 0006) : la garantie
+   * vit sur `Recipe.clientOpId` (`RecipesService.createFromSuggestion`), pas
+   * ici — `kept` (ci-dessous) n'est qu'un repère pour l'écran, jamais le
+   * mécanisme d'idempotence (revue de tâche 9 : deux conservations concurrentes
+   * de suggestions différentes du même lot pouvaient s'écraser l'une l'autre
+   * dans ce JSON).
    */
   async keep(input: KeepSuggestionInput, user: RequestUser): Promise<RecipeDto> {
     const row = await this.prisma.suggestionBatch.findUnique({ where: { id: input.batchId } });
@@ -400,17 +416,12 @@ export class SuggestionsService {
     const suggestion = Number.isInteger(index) ? recipes[index] : undefined;
     if (!suggestion) throw ApiError.notFound('Suggestion introuvable dans cette fournée');
 
-    const kept = payload.kept ?? {};
-    const existing = kept[input.suggestionId];
-    if (existing && (input.clientOpId === undefined || existing.clientOpId === input.clientOpId)) {
-      return this.recipes.get(existing.recipeId);
-    }
-
     const createInput = await this.buildCreateInput(suggestion);
     const source = suggestion.provenance === 'web' ? 'IMPORTED' : 'GENERATED';
     const sourceUrl = suggestion.provenance === 'web' ? suggestion.sourceUrl : null;
-    const recipe = await this.recipes.createFromSuggestion(createInput, source, sourceUrl, user.id);
+    const recipe = await this.recipes.createFromSuggestion(createInput, source, sourceUrl, input.clientOpId ?? null, user.id);
 
+    const kept = payload.kept ?? {};
     const nextKept: StoredBatchPayload['kept'] = { ...kept, [input.suggestionId]: { recipeId: recipe.id, clientOpId: input.clientOpId ?? null } };
     await this.prisma.suggestionBatch.update({
       where: { id: row.id },
@@ -440,18 +451,29 @@ export class SuggestionsService {
       if (!sourceUrl) throw ApiError.notFound('Suggestion introuvable dans cette fournée');
 
       assertProviderEnabled(this.rewriter, 'suggestions');
+      // La réécriture est un appel au même modèle que la recherche de fournée
+      // (revue de tâche 9) : comptée dans le même quota journalier et le même
+      // plafond mensuel, vérifié avant de dépenser quoi que ce soit — y
+      // compris la récupération de la page, pour ne pas la payer en vain.
+      const quotaMessage = await this.quotaMessage();
+      if (quotaMessage) throw ApiError.rateLimited(quotaMessage);
+
       const material = await this.fetchWebRecipeMaterial(sourceUrl);
       const rewriteInput: RecipeRewriteInput =
-        material.kind === 'structured'
-          ? { title: suggestion.title, origin: suggestion.origin, ingredients: material.recipe.ingredients, steps: material.recipe.steps, pageText: null }
+        material.structured !== null
+          ? { title: suggestion.title, origin: suggestion.origin, ingredients: material.structured.ingredients, steps: material.structured.steps, pageText: null }
           : { title: suggestion.title, origin: suggestion.origin, ingredients: [], steps: [], pageText: material.text };
 
+      const started = Date.now();
       let rewritten: RecipeRewrite;
       try {
-        rewritten = (await this.rewriter.rewrite(rewriteInput)).recipe;
+        const output = await this.rewriter.rewrite(rewriteInput);
+        await this.logCall(output, Date.now() - started, null, this.rewriter.name);
+        rewritten = output.recipe;
       } catch (error) {
+        await this.logCall(null, Date.now() - started, error, this.rewriter.name);
         const message = error instanceof ProviderError ? error.message : 'Fournisseur de suggestions injoignable';
-        throw ApiError.providerUnavailable(message);
+        throw ApiError.providerInvalidResponse(message);
       }
       title = rewritten.title;
       steps = rewritten.steps;
@@ -473,33 +495,33 @@ export class SuggestionsService {
       // `computeDifficulty`, jamais recopiée ici (B15, règle métier partagée).
     };
     const parsed = createRecipeSchema.safeParse(draft);
-    if (!parsed.success) throw ApiError.providerUnavailable('Réponse de réécriture non exploitable pour créer la recette', parsed.error.issues);
+    if (!parsed.success) throw ApiError.providerInvalidResponse('Réponse de réécriture non exploitable pour créer la recette', parsed.error.issues);
     return parsed.data;
   }
 
   /**
    * Récupère la page de la recette en sécurité (vigilance « the application
    * never sends him to the website ») : lue structurée si `schema.org/Recipe`
-   * est présent, sinon son texte nettoyé. Un refus de sécurité (HTTPS,
-   * adresse privée) arrête tout de suite, sans jamais tenter la suite. Une
-   * page qui ne répond pas — même en texte — échoue en français, sans créer
-   * de recette.
+   * est présent, sinon son texte nettoyé — un seul GET pour les deux lectures
+   * (revue de tâche 9). Un refus de sécurité (HTTPS, adresse privée) arrête
+   * tout de suite, sans jamais tenter la suite. Une page qui ne répond pas
+   * échoue en français, sans créer de recette.
    */
-  private async fetchWebRecipeMaterial(url: string): Promise<{ kind: 'structured'; recipe: PageRecipe } | { kind: 'text'; text: string }> {
-    let structured: PageRecipe | null;
+  private async fetchWebRecipeMaterial(url: string): Promise<{ structured: PageRecipe | null; text: string }> {
+    let content: { structured: PageRecipe | null; text: string } | null;
     try {
-      structured = await this.pageFetcher.fetch(url);
+      content = await this.pageFetcher.fetchContent(url);
     } catch (error) {
       if (error instanceof RecipePageRefusedError) {
         throw ApiError.businessRule(`La page de la recette ne peut pas être récupérée : ${error.message}`);
       }
       throw error;
     }
-    if (structured) return { kind: 'structured', recipe: structured };
-
-    const text = await this.pageFetcher.fetchText(url);
-    if (!text) throw ApiError.providerUnavailable('La page de la recette n’a pas répondu ; aucune recette n’a été créée');
-    return { kind: 'text', text };
+    if (!content) throw ApiError.providerUnavailable('La page de la recette n’a pas répondu ; aucune recette n’a été créée');
+    if (!content.structured && content.text.length === 0) {
+      throw ApiError.providerUnavailable('La page de la recette n’a pas répondu ; aucune recette n’a été créée');
+    }
+    return content;
   }
 
   /** Rattache chaque ingrédient à un produit rapproché (sûr ou probable, A11) ; les autres restent en texte libre. */

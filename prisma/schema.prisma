@@ -348,6 +348,9 @@ model Recipe {
   createdBy    User?  @relation(fields: [createdById], references: [id])
   archivedAt   DateTime?
   createdAt    DateTime @default(now())
+  // Idempotence de la conservation d'une suggestion (section 8, tâche 9) : une
+  // recette créée hors de ce parcours n'en porte pas.
+  clientOpId   String?  @unique
 
   ingredients RecipeIngredient[]
   logs        RecipeLog[]

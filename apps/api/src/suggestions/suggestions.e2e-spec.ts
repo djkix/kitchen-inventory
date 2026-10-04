@@ -398,6 +398,33 @@ describe('SuggestionsService (EF-26)', () => {
       expect(http.calls.some((c) => c.url.includes('generateContent'))).toBe(true);
     });
 
+    it('journalise la réécriture dans le même registre que les fournées, avec son coût (Important 2)', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const batchId = await seedBatch(db, [WEB_RECIPE]);
+      const html = await fixtureHtml('page-schema-simple.html');
+      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
+
+      await service.keep({ batchId, suggestionId: '0', clientOpId: 'op-keep-ledger-00001' }, keeper);
+
+      const logs = await db.recognitionLog.findMany({ where: { purpose: 'RECIPE_SUGGESTION' }, orderBy: { createdAt: 'asc' } });
+      const rewriteLog = logs.find((l) => l.succeeded && l.provider === 'gemini');
+      expect(rewriteLog).toBeDefined();
+      expect(rewriteLog?.costCents?.toNumber()).not.toBeNull();
+      expect(rewriteLog?.costCents?.toNumber()).toBeGreaterThan(0);
+    });
+
+    it('refuse la réécriture au-delà du quota journalier, sans créer de recette', async () => {
+      const { service, db } = await createService({ RECIPE_SUGGESTION_DAILY_QUOTA: '0' });
+      const keeper = await seedUser(db);
+      const batchId = await seedBatch(db, [WEB_RECIPE]);
+
+      await expect(service.keep({ batchId, suggestionId: '0' }, keeper)).rejects.toMatchObject({ status: 429 });
+      expect(http.calls).toHaveLength(0);
+      expect(await db.recipe.count()).toBe(0);
+    });
+
     it('conserve une composition sans appeler le réseau, source GENERATED', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
@@ -528,5 +555,95 @@ describe('GET /suggestions, fournisseur désactivé (EF-26, tâche 7)', () => {
     } finally {
       await t.close();
     }
+  });
+});
+
+describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
+  let t: TestApp;
+  let agent: TestAgent;
+  let http: FakeHttp;
+
+  beforeAll(async () => {
+    http = new FakeHttp();
+    t = await createTestApp({ VISION_PROVIDER: 'gemini', VISION_API_KEY: 'AIza-test' }, http.client);
+  });
+  beforeEach(async () => {
+    await t.reset();
+    http.reset();
+    agent = t.agent();
+    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+  });
+  afterAll(() => t.close());
+
+  async function seedBatchHttp(recipes: ModelRecipe[]): Promise<string> {
+    const row = await t.prisma.suggestionBatch.create({
+      data: { signature: `wire-${Math.random().toString(36).slice(2)}`, payload: { recipes } as unknown as Prisma.InputJsonValue, model: 'test-model', costCents: null },
+    });
+    return row.id;
+  }
+
+  /**
+   * Le 422/502 vu depuis le fil (revue de tâche 9) : un refus de sécurité
+   * (lien non-https ou adresse privée) et une page qui ne répond pas ne
+   * doivent pas se confondre dans la même réponse — vérifié ici sur le
+   * contrôleur entier, pas seulement sur l'erreur levée par le service.
+   */
+  it('refuse 422 quand le lien de la recette vise une adresse privée', async () => {
+    const batchId = await seedBatchHttp([
+      {
+        title: 'Recette suspecte',
+        origin: 'Cuisine Test',
+        region: 'europeenne',
+        totalMinutes: 20,
+        difficulty: 'EASY',
+        provenance: 'web',
+        sourceUrl: 'https://192.168.1.50/recette',
+        steps: [],
+        ingredients: [{ label: 'Mystère', quantity: null, unit: null }],
+      },
+    ]);
+
+    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: '0' }).expect(422);
+    expect(res.body.error.code).toBe('business_rule');
+  });
+
+  it('refuse 502 quand la page de la recette ne répond pas', async () => {
+    const batchId = await seedBatchHttp([
+      {
+        title: 'Recette injoignable',
+        origin: 'Cuisine Test',
+        region: 'europeenne',
+        totalMinutes: 20,
+        difficulty: 'EASY',
+        provenance: 'web',
+        sourceUrl: `https://${UNREACHABLE_HOST}/injoignable`,
+        steps: [],
+        ingredients: [{ label: 'Mystère', quantity: null, unit: null }],
+      },
+    ]);
+    http.fail(UNREACHABLE_HOST);
+
+    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: '0' }).expect(502);
+    expect(res.body.error.code).toBe('provider_unavailable');
+  });
+
+  it('conserve une composition sans réseau et rend la recette créée (201)', async () => {
+    const batchId = await seedBatchHttp([
+      {
+        title: 'Riz sauté express',
+        origin: 'Composition',
+        region: 'asiatique',
+        totalMinutes: 15,
+        difficulty: 'EASY',
+        provenance: 'ai',
+        sourceUrl: null,
+        steps: ['Cuire le riz.', 'Mélanger le tout.'],
+        ingredients: [{ label: 'Riz', quantity: 200, unit: 'GRAM' }],
+      },
+    ]);
+
+    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: '0' }).expect(201);
+    expect(res.body.source).toBe('GENERATED');
+    expect(res.body.title).toBe('Riz sauté express');
   });
 });
