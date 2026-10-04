@@ -7,6 +7,7 @@ import {
   pickSeedIngredients,
   recipeCoverage,
   suggestionIdentity,
+  suggestionIdentities,
   type CoverageIngredient,
   type CreateRecipeInput,
   type KeepSuggestionInput,
@@ -365,6 +366,10 @@ export class SuggestionsService {
   private async toSuggestionDtos(recipes: readonly ModelRecipe[], snapshot: StockSnapshot): Promise<SuggestionDto[]> {
     const labels = recipes.flatMap((recipe) => recipe.ingredients.map((ingredient) => ingredient.label));
     const matchesByLabel = await this.matchLabels(labels);
+    // Un seul passage sur la fournée entière (règle partagée `suggestionIdentities`) :
+    // la désambiguïsation d'un titre dupliqué par le modèle dépend des recettes
+    // qui précèdent dans ce même tableau, pas de la recette isolée.
+    const identities = suggestionIdentities(recipes);
 
     return recipes.map((recipe, recipeIndex) => {
       const rows = recipe.ingredients.map((ingredient, ingredientIndex) => {
@@ -412,11 +417,12 @@ export class SuggestionsService {
 
       const dto: SuggestionDto = {
         // Identité dérivée du contenu, jamais le rang dans le tableau (règle
-        // partagée `suggestionIdentity`) : un rang ne désigne pas la même
+        // partagée `suggestionIdentities`) : un rang ne désigne pas la même
         // recette d'une fournée à l'autre, et le tiroir resté ouvert pendant un
         // rafraîchissement en arrière-plan pouvait conserver une autre recette
-        // que celle affichée.
-        id: suggestionIdentity(recipe),
+        // que celle affichée. `suggestionIdentities` désambiguïse en plus deux
+        // recettes composées par le modèle qui partagent le même titre (EF-26).
+        id: identities[recipeIndex] ?? suggestionIdentity(recipe),
         title: recipe.title,
         origin: recipe.origin,
         region: recipe.region,
@@ -463,7 +469,12 @@ export class SuggestionsService {
 
     // Recherchée par son identité de contenu, pas par un rang : une fournée dont
     // une entrée a été écartée à la validation décale tous les rangs suivants.
-    const suggestion = recipes.find((recipe) => suggestionIdentity(recipe) === input.suggestionId);
+    // Mêmes identités qu'à la construction des DTO (`suggestionIdentities` sur
+    // ce même tableau validé) : un titre dupliqué par le modèle y est
+    // désambiguïsé de la même façon, donc la bonne recette est conservée.
+    const identities = suggestionIdentities(recipes);
+    const suggestionIndex = identities.indexOf(input.suggestionId);
+    const suggestion = suggestionIndex === -1 ? undefined : recipes[suggestionIndex];
     if (!suggestion) throw ApiError.notFound('Suggestion introuvable dans cette fournée');
 
     const createInput = await this.buildCreateInput(suggestion);
