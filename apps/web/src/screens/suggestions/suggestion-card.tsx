@@ -27,7 +27,7 @@ function siteName(sourceUrl: string): string {
  * ici, quelle que soit la provenance — les deux doivent se ressembler avant
  * conservation (B7, décision du 2026-10-04).
  */
-function provenanceLabel(suggestion: SuggestionDto): string {
+export function provenanceLabel(suggestion: SuggestionDto): string {
   if (suggestion.provenance === 'web' && suggestion.sourceUrl) return siteName(suggestion.sourceUrl);
   return 'Proposée par l’IA';
 }

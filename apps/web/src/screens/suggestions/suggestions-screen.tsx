@@ -1,3 +1,4 @@
+import type { SuggestionDto } from '@kitchen/shared';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
@@ -8,6 +9,7 @@ import { useSuggestionsQuery } from '../../lib/queries';
 import type { SuggestionOrientation } from '../../lib/suggestions-api';
 import { OrientationBar } from './orientation-bar';
 import { SuggestionCard } from './suggestion-card';
+import { SuggestionSheet } from './suggestion-sheet';
 
 /**
  * Écran Suggestions (section 12, EF-25, EF-26) : entrée du module recettes —
@@ -20,6 +22,8 @@ export function SuggestionsScreen() {
   // le stock réel seul.
   const [orientation, setOrientation] = useState<SuggestionOrientation>({});
   const suggestions = useSuggestionsQuery(orientation);
+  // Suggestion ouverte dans la fiche de conservation (tâche 12) ; `null` quand le tiroir est fermé.
+  const [selected, setSelected] = useState<SuggestionDto | null>(null);
 
   return (
     <>
@@ -37,8 +41,12 @@ export function SuggestionsScreen() {
               est recherchée (`placeholderData: keepPreviousData`) : seul ce bandeau dit
               qu'un nouvel appel est en cours, la liste ne se vide jamais pour autant. */}
           {suggestions.isFetching && <RefetchingBanner />}
-          <SuggestionsResult batch={suggestions.data} />
+          <SuggestionsResult batch={suggestions.data} onSelect={setSelected} />
         </>
+      )}
+
+      {suggestions.data && (
+        <SuggestionSheet suggestion={selected} batchId={suggestions.data.batchId} open={selected !== null} onClose={() => setSelected(null)} />
       )}
     </>
   );
@@ -114,7 +122,13 @@ export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRe
   );
 }
 
-function SuggestionsResult({ batch }: { batch: ReturnType<typeof useSuggestionsQuery>['data'] }) {
+function SuggestionsResult({
+  batch,
+  onSelect,
+}: {
+  batch: ReturnType<typeof useSuggestionsQuery>['data'];
+  onSelect: (suggestion: SuggestionDto) => void;
+}) {
   if (!batch) return null;
 
   return (
@@ -134,7 +148,11 @@ function SuggestionsResult({ batch }: { batch: ReturnType<typeof useSuggestionsQ
         <ul className="flex flex-col gap-2 px-4">
           {batch.items.map((suggestion) => (
             <li key={suggestion.id}>
-              <SuggestionCard suggestion={suggestion} />
+              {/* La carte elle-même reste purement présentative (tâche 10) : le
+                  tiroir de conservation (tâche 12) s'ouvre depuis cet écran. */}
+              <button type="button" className="block w-full text-left" onClick={() => onSelect(suggestion)}>
+                <SuggestionCard suggestion={suggestion} />
+              </button>
             </li>
           ))}
         </ul>
