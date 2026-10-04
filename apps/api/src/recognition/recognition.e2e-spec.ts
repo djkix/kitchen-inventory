@@ -150,6 +150,24 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
     expect(stats.body.visionCallsToday).toBe(1);
   });
 
+  it('les suggestions de recettes ne pèsent pas sur les compteurs du scan, sauf la dépense', async () => {
+    // Une fournée de suggestions ratée, journalisée sous le même fournisseur : sans
+    // filtre sur `purpose`, elle comptait comme une reconnaissance manquée et faisait
+    // chuter le taux d'automatisation affiché dans les réglages.
+    await t.prisma.recognitionLog.create({ data: { provider: 'anthropic', purpose: 'RECIPE_SUGGESTION', succeeded: false, costCents: 3 } });
+
+    http.on('api.anthropic.com', () => anthropicFixture('vision-gochujang.json'));
+    await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
+
+    const stats = await agent.get('/api/v1/recognition/stats').expect(200);
+    expect(stats.body.visionCallsThisMonth).toBe(1);
+    // Une reconnaissance sur une, toutes réussies : la fournée n'entre pas dans le calcul.
+    expect(stats.body.automaticRate30d).toBe(1);
+    expect(stats.body.cacheShare30d).toBe(0);
+    // Le plafond mensuel, lui, reste délibérément partagé : la dépense compte les deux.
+    expect(stats.body.visionCostCentsThisMonth).toBeGreaterThanOrEqual(3);
+  });
+
   it('un fournisseur injoignable donne 502 provider_unavailable et garde la photo « à identifier »', async () => {
     http.fail('api.anthropic.com');
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(502);
