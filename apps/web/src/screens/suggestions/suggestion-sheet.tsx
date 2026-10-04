@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router';
 import { DIFFICULTY_LABELS_FR, INGREDIENT_STATE_LABELS_FR, type KeepSuggestionInput, type RecipeDto, type SuggestionDto } from '@kitchen/shared';
 import { Button } from '../../components/ui/button';
 import { Sheet } from '../../components/ui/sheet';
-import { errorMessage, newClientOpId } from '../../lib/api';
+import { errorMessage } from '../../lib/api';
 import { formatMinutes, formatQuantity } from '../../lib/quantity-ui';
 import { queryKeys } from '../../lib/queries';
 import { suggestionsApi } from '../../lib/suggestions-api';
@@ -30,26 +30,35 @@ interface SuggestionSheetProps {
  * action : conserver, qui déclenche côté serveur la récupération de la page
  * et sa réécriture par Gemini (B6), d'où l'attente explicite pendant l'appel.
  *
- * `clientOpId` est tiré une seule fois par ouverture de la fiche sur une
- * suggestion donnée — pas à chaque rendu, pas à chaque appui — et conservé
- * pour toute nouvelle tentative de la même conservation (double appui, erreur
- * suivie d'un nouvel essai), afin qu'un rejeu ne déclenche jamais un second
- * appel payant au fournisseur : le serveur rend alors la recette déjà créée.
+ * `clientOpId` est **déterministe** (round 1 de revue) — dérivé du lot et de
+ * la suggestion, jamais tiré au hasard : un identifiant aléatoire régénéré à
+ * chaque ouverture du tiroir se faisait oublier dès que Franck fermait la
+ * fiche après un échec et la rouvrait pour réessayer, ce qui rejouait un
+ * second appel payant si le premier avait en fait atteint Gemini (réponse
+ * lente, délai du proxy) avant que le client ne voie l'échec. Une chaîne
+ * dérivée reste stable d'une fermeture à l'autre, d'un remontage à l'autre,
+ * de toute la session — sans état à tenir ni effet à faire tourner : deux
+ * tentatives de conserver la même suggestion portent forcément le même
+ * identifiant, ce qu'attend la colonne unique du serveur.
+ *
+ * Conséquence acceptée : si Franck conserve une suggestion, supprime la
+ * recette de sa bibliothèque, puis conserve de nouveau la même suggestion, le
+ * serveur ne retrouve aucune recette pour cet identifiant et en recrée une —
+ * c'est le comportement voulu, pas un bug de déduplication.
  */
 export function SuggestionSheet({ suggestion, batchId, open, onClose, keep = suggestionsApi.keep }: SuggestionSheetProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [clientOpId, setClientOpId] = useState(() => newClientOpId());
 
   useEffect(() => {
-    if (!open) return;
-    setClientOpId(newClientOpId());
-    setError(null);
+    if (open) setError(null);
   }, [open, suggestion?.id]);
 
   if (!suggestion) return null;
+
+  const clientOpId = `keep:${batchId}:${suggestion.id}`;
 
   const confirm = async () => {
     setBusy(true);
