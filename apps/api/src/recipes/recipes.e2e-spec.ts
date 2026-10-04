@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
-import { cookRecipe, createLoggedInMember, createProduct, createRecipe, createStock, isoIn, logCooked } from './recipes.test-helpers.js';
+import { cookRecipe, createLoggedInMember, createProduct, createRecipe, createStock, isoIn, logCooked } from '../../test/recipes.test-helpers.js';
 
 const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-de-passe-long' };
 
