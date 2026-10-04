@@ -32,14 +32,25 @@ function renderSheet(props: Partial<ComponentProps<typeof SuggestionSheet>> = {}
   const client = new QueryClient();
   const onClose = vi.fn();
   const keep = props.keep ?? vi.fn().mockResolvedValue(recipe);
-  render(
+  const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <SuggestionSheet suggestion={suggestion} batchId="b1" open onClose={onClose} keep={keep} {...props} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  return { onClose, keep };
+  // Permet de rouvrir le même tiroir (`open: false → true`) sans démonter le
+  // composant, exactement comme `suggestions-screen.tsx` le monte une seule
+  // fois et fait varier `open`.
+  const setOpen = (open: boolean) =>
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionSheet suggestion={suggestion} batchId="b1" open={open} onClose={onClose} keep={keep} {...props} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  return { onClose, keep, setOpen };
 }
 
 describe('SuggestionSheet', () => {
@@ -105,6 +116,27 @@ describe('SuggestionSheet', () => {
     // Nouvel essai après l'échec : même identifiant d'opération, pour que le
     // serveur reconnaisse un rejeu plutôt qu'une nouvelle conservation.
     fireEvent.click(button());
+    await waitFor(() => expect(keep).toHaveBeenCalledTimes(2));
+
+    const firstOpId = keep.mock.calls[0]![0].clientOpId;
+    const secondOpId = keep.mock.calls[1]![0].clientOpId;
+    expect(secondOpId).toBe(firstOpId);
+  });
+
+  it('porte le même clientOpId après une fermeture et une réouverture sur la même suggestion (round 1)', async () => {
+    const message = 'La page de la recette n’a pas répondu à temps';
+    const keep = vi.fn().mockRejectedValueOnce(new ApiClientError(502, 'provider_unavailable', message)).mockResolvedValueOnce(recipe);
+    const { setOpen } = renderSheet({ keep });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Conserver' }));
+    await waitFor(() => expect(screen.getByText(message)).toBeTruthy());
+
+    // Parcours de récupération naturel après un échec : fermer, puis rouvrir
+    // la même suggestion pour réessayer.
+    setOpen(false);
+    setOpen(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Conserver' }));
     await waitFor(() => expect(keep).toHaveBeenCalledTimes(2));
 
     const firstOpId = keep.mock.calls[0]![0].clientOpId;
