@@ -12,6 +12,11 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+    # Tag fixe (plutôt que le nom implicite dérivé du répertoire) : la CI
+    # construit l'image une fois avec le cache GitHub Actions puis la charge
+    # sous ce tag, pour que ce `docker compose up` la réutilise sans la
+    # reconstruire. En local, la valeur par défaut est inoffensive.
+    image: ${E2E_APP_IMAGE:-kitchen-e2e-app:local}
     depends_on:
       db:
         condition: service_healthy
