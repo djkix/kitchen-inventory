@@ -379,6 +379,26 @@ Construire l'image localement :
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
+Tests bout en bout (section 19, en construction) : `docker-compose.e2e.yml`
+construit l'image réelle (jamais un serveur de développement) et la fait
+tourner contre une base jetable et une doublure d'Open Food Facts et de
+Gemini (`e2e/fixtures/stub-server.ts`, qui rejoue les fixtures d'
+`apps/api/test/fixtures`). Rien n'est persistant : `down -v` ne laisse rien
+derrière lui.
+
+```bash
+npm run e2e:up      # application sur http://localhost:3100, base sur localhost:55432, doublure sur localhost:3101
+npm run e2e:down
+```
+
+Pour démarrer sans fournisseur de vision configuré (`VISION_PROVIDER=none`),
+ajouter le fichier de surcharge à la commande `docker compose` plutôt que
+d'utiliser le script `npm` :
+
+```bash
+docker compose -f docker-compose.e2e.yml -f docker-compose.e2e.none.yml up -d --wait
+```
+
 Structure du dépôt (imposée, voir `CLAUDE.md`) : `apps/api` (NestJS, un
 dossier par domaine), `apps/web` (React + Vite, un dossier par écran),
 `packages/shared` (types, schémas Zod, unités, règles métier pures),

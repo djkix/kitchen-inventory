@@ -1,0 +1,78 @@
+# Montage des tests bout en bout (section 19) : construit l'image réelle
+# depuis docker/Dockerfile (jamais un serveur de développement, jamais l'image
+# publiée), avec Open Food Facts et Gemini remplacés par la doublure
+# e2e/fixtures/stub-server.ts. Jetable : aucun volume persistant, tout
+# disparaît avec `down -v`.
+#
+# Usage : npm run e2e:up / npm run e2e:down (scripts du package.json racine).
+# Variante EF-… « fournisseur non configuré » : ajouter
+# `-f docker-compose.e2e.none.yml` pour forcer VISION_PROVIDER=none.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      stub:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://kitchen_e2e:kitchen_e2e@db:5432/kitchen_e2e
+      # 32 caractères au moins (apps/api/src/common/config.ts) ; une valeur de
+      # test fixe, jamais utilisée hors de ce montage jetable.
+      SECRET_KEY: e2e-test-secret-key-do-not-use-in-prod
+      PUBLIC_URL: http://localhost:3100
+      VISION_PROVIDER: gemini
+      VISION_API_KEY: cle-de-test
+      VISION_BASE_URL: http://stub:3101
+      OFF_BASE_URL: http://stub:3101
+      LOG_LEVEL: info
+      TZ: Europe/Paris
+    ports:
+      # localhost, jamais une IP : l'accès caméra du navigateur exige un
+      # contexte sûr, et localhost en est un (vigilance 4 de la tâche 1).
+      - "127.0.0.1:3100:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/v1/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kitchen_e2e
+      POSTGRES_PASSWORD: kitchen_e2e
+      POSTGRES_DB: kitchen_e2e
+      TZ: Europe/Paris
+    # Pas de volume : la base est reconstruite à chaque `up`, comme le reste
+    # du montage.
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kitchen_e2e -d kitchen_e2e"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Doublure Open Food Facts + Gemini (e2e/fixtures/stub-server.ts). Node sait
+  # lire du TypeScript « erasable » nativement depuis la 22.6 : aucune
+  # dépendance à installer, aucune étape de build.
+  stub:
+    image: node:22-alpine
+    working_dir: /repo
+    volumes:
+      - .:/repo:ro
+    command: ["node", "--experimental-strip-types", "e2e/fixtures/stub-server.ts"]
+    environment:
+      PORT: "3101"
+    ports:
+      - "127.0.0.1:3101:3101"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3101/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s

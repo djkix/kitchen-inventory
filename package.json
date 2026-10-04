@@ -20,7 +20,9 @@
     "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "build:shared": "npm run build -w @kitchen/shared",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "e2e:up": "docker compose -f docker-compose.e2e.yml up -d --wait",
+    "e2e:down": "docker compose -f docker-compose.e2e.yml down -v"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

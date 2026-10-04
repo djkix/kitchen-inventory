@@ -1,0 +1,8 @@
+# Variante du montage e2e (section 19) sans fournisseur de vision configuré,
+# pour exercer l'écran « fournisseur non configuré ». S'ajoute à
+# docker-compose.e2e.yml, ne le remplace pas :
+#   docker compose -f docker-compose.e2e.yml -f docker-compose.e2e.none.yml up -d --wait
+services:
+  app:
+    environment:
+      VISION_PROVIDER: none
