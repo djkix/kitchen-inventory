@@ -68,6 +68,8 @@ export const ERROR_CODES = [
   'forbidden',
   'not_found',
   'conflict',
+  /** Le stock ne porte pas de quoi composer la demande (suggestions de recettes, EF-26). */
+  'insufficient_stock',
   'business_rule',
   'rate_limited',
   'provider_unavailable',

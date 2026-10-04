@@ -21,6 +21,15 @@ export class ApiError extends Error {
   static conflict(message: string, details?: unknown): ApiError {
     return new ApiError(409, 'conflict', message, details);
   }
+  /**
+   * Le stock ne porte pas de quoi composer la demande : une précondition de
+   * l'état du foyer, sœur de `provider_disabled` (précondition de la
+   * configuration) — code dédié pour que l'écran la distingue d'un `conflict`
+   * quelconque sur la même route, qu'il prenait jusqu'ici pour elle.
+   */
+  static insufficientStock(message: string, details?: unknown): ApiError {
+    return new ApiError(409, 'insufficient_stock', message, details);
+  }
   static businessRule(message: string, details?: unknown): ApiError {
     return new ApiError(422, 'business_rule', message, details);
   }

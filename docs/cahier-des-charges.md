@@ -507,6 +507,7 @@ REST sous `/api/v1`, JSON en entrée et en sortie, schéma OpenAPI généré dep
 | 403 | `forbidden` | Action réservée à un administrateur |
 | 404 | `not_found` | Ressource ou code-barres inconnu |
 | 409 | `conflict` | Doublon détecté, emplacement non vide, version obsolète |
+| 409 | `insufficient_stock` | Le stock ne porte pas de quoi composer une recherche de recettes |
 | 422 | `business_rule` | Règle métier violée (unités incompatibles, quantité négative) |
 | 422 | `provider_disabled` | Fournisseur de vision ou de suggestions non configuré (clé absente) |
 | 429 | `rate_limited` | Quota de reconnaissance ou de connexion dépassé |

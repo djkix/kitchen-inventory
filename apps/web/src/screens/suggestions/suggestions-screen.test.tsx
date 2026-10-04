@@ -10,6 +10,27 @@ vi.mock('../../lib/queries', () => ({
 }));
 
 describe('SuggestionsErrorState', () => {
+  it('annonce le stock insuffisant sur son code, pas sur le statut 409', () => {
+    const error = new ApiClientError(409, 'insufficient_stock', 'Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
+    render(
+      <MemoryRouter>
+        <SuggestionsErrorState error={error} onRetry={vi.fn()} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/Stock insuffisant pour suggérer/i)).toBeTruthy();
+  });
+
+  it('ne prend pas un conflit quelconque pour un stock insuffisant', () => {
+    const error = new ApiClientError(409, 'conflict', 'Version obsolète');
+    render(
+      <MemoryRouter>
+        <SuggestionsErrorState error={error} onRetry={vi.fn()} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText(/Stock insuffisant pour suggérer/i)).toBeNull();
+    expect(screen.getByText(/La recherche de recettes a échoué/i)).toBeTruthy();
+  });
+
   it('relaie le message du serveur quand le fournisseur est désactivé, sans en inventer un autre (round 1)', () => {
     const serverMessage = 'Fournisseur de suggestions désactivé : renseignez VISION_PROVIDER et VISION_API_KEY';
     const error = new ApiClientError(422, 'provider_disabled', serverMessage);

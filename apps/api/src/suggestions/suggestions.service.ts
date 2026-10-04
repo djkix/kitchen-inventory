@@ -172,9 +172,7 @@ export class SuggestionsService {
     const candidates = await loadSeedCandidates(this.prisma, snapshot, categories);
     const seeds = pickSeedIngredients(candidates, new Date());
     if (seeds.length === 0) {
-      throw ApiError.conflict('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes', {
-        reason: 'stock_insuffisant',
-      });
+      throw ApiError.insufficientStock('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
     }
 
     const signature = computeSignature(
