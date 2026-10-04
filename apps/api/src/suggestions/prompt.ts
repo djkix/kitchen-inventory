@@ -35,11 +35,20 @@ export function buildSuggestionPrompt(req: SuggestionRequest, options: { retry?:
   return lines.join('\n');
 }
 
-/** Retire d'éventuelles clôtures ``` (ou ```json) autour de la réponse (vigilance 1). */
+/**
+ * Retire d'éventuelles clôtures ``` (ou ```json) autour de la réponse (vigilance 1),
+ * et à défaut se rabat sur la première accolade ouvrante et la dernière fermante :
+ * le modèle ajoute parfois une phrase avant ou après l'objet JSON malgré la consigne.
+ * Une réponse sans aucune accolade reste telle quelle et échouera au parsing, ce qui
+ * est le comportement voulu — on ne devine pas un objet qui n'est pas là.
+ */
 export function stripJsonFences(text: string): string {
   const trimmed = text.trim();
   const fenced = trimmed.match(/^```[a-zA-Z]*\s*([\s\S]*?)\s*```$/);
-  return fenced?.[1] ? fenced[1].trim() : trimmed;
+  if (fenced?.[1]) return fenced[1].trim();
+  const start = trimmed.indexOf('{');
+  const end = trimmed.lastIndexOf('}');
+  return start !== -1 && end > start ? trimmed.slice(start, end + 1) : trimmed;
 }
 
 /** Échec de lecture du lot : JSON illisible ou non conforme. Distinct de `ProviderError` pour piloter la reprise unique. */
