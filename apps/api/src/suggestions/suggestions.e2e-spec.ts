@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { DynamicModule, Global, Module, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
+import { suggestionIdentities, suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
 import type { Prisma } from '@prisma/client';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -641,6 +641,61 @@ describe('SuggestionsService (EF-26)', () => {
 
       expect(second.id).toBe(first.id);
       expect(await db.recipe.count()).toBe(1);
+    });
+
+    it('conserve la bonne recette quand deux compositions IA partagent le même titre (EF-26)', async () => {
+      // Le modèle compose souvent à partir des mêmes quelques ingrédients du
+      // stock : deux « Riz sauté » distinctes dans la même fournée sont
+      // plausibles. Leurs étapes et ingrédients diffèrent ici pour que la
+      // recette effectivement créée soit identifiable sans ambiguïté.
+      const RIZ_PREMIERE: ModelRecipe = {
+        title: 'Riz sauté',
+        origin: 'Composition',
+        region: 'asiatique',
+        totalMinutes: 15,
+        difficulty: 'EASY',
+        provenance: 'ai',
+        sourceUrl: null,
+        steps: ['Cuire le riz nature.'],
+        ingredients: [{ label: 'Riz', quantity: 200, unit: 'GRAM' }],
+      };
+      const RIZ_SECONDE: ModelRecipe = {
+        title: 'Riz sauté',
+        origin: 'Composition',
+        region: 'asiatique',
+        totalMinutes: 25,
+        difficulty: 'EASY',
+        provenance: 'ai',
+        sourceUrl: null,
+        steps: ["Faire revenir le riz à l'huile d'olive avec les légumes."],
+        ingredients: [
+          { label: 'Riz', quantity: 200, unit: 'GRAM' },
+          { label: "Huile d'olive", quantity: 1, unit: 'MILLILITER' },
+        ],
+      };
+      const batch = [RIZ_PREMIERE, RIZ_SECONDE];
+      const [firstId, secondId] = suggestionIdentities(batch);
+      expect(firstId).not.toBe(secondId);
+
+      // Conserver la seconde occurrence : la recette créée doit être la seconde,
+      // identifiable à ses étapes et à son huile d'olive, jamais la première.
+      const { service: serviceA, db: dbA } = await createService();
+      const keeperA = await seedUser(dbA);
+      const batchIdA = await seedBatch(dbA, batch);
+
+      const keptSecond = await serviceA.keep({ batchId: batchIdA, suggestionId: secondId!, clientOpId: 'op-keep-riz-doublon-second' }, keeperA);
+      expect(keptSecond.steps).toEqual(RIZ_SECONDE.steps);
+      expect(keptSecond.ingredients.some((i) => i.label === "Huile d'olive")).toBe(true);
+
+      // Dans une autre fournée identique, conserver la première occurrence : le
+      // test ne doit pas pouvoir passer en choisissant toujours la même extrémité.
+      const { service: serviceB, db: dbB } = await createService();
+      const keeperB = await seedUser(dbB);
+      const batchIdB = await seedBatch(dbB, batch);
+
+      const keptFirst = await serviceB.keep({ batchId: batchIdB, suggestionId: firstId!, clientOpId: 'op-keep-riz-doublon-first' }, keeperB);
+      expect(keptFirst.steps).toEqual(RIZ_PREMIERE.steps);
+      expect(keptFirst.ingredients.some((i) => i.label === "Huile d'olive")).toBe(false);
     });
   });
 });
