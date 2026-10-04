@@ -122,6 +122,24 @@ export const keepSuggestionSchema = z.object({
 });
 export type KeepSuggestionInput = z.infer<typeof keepSuggestionSchema>;
 
+const recipeRewriteIngredientSchema = z.object({
+  label: z.string().trim().min(1, { message: "Libellé d'ingrédient requis" }).max(160),
+  quantity: positiveQuantitySchema.nullable(),
+  unit: unitSchema.nullable(),
+});
+
+/**
+ * Recette telle que rendue par Gemini lors de la réécriture au format de
+ * l'application (tâche 9, B6) : pas d'origine ni d'URL ici, portées par la
+ * suggestion d'origine, jamais par la réécriture elle-même.
+ */
+export const recipeRewriteSchema = z.object({
+  title: z.string().trim().min(1, { message: 'Titre requis' }).max(160),
+  steps: z.array(z.string().trim().min(1)).min(1, { message: 'Au moins une étape' }).max(60),
+  ingredients: z.array(recipeRewriteIngredientSchema).min(1, { message: 'Au moins un ingrédient requis' }).max(60),
+});
+export type RecipeRewrite = z.infer<typeof recipeRewriteSchema>;
+
 export interface SuggestionIngredientDto {
   label: string;
   quantity: number | null;

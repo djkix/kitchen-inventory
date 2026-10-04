@@ -29,3 +29,7 @@ export interface SuggestionProvider {
 }
 
 export const SUGGESTION_PROVIDER = Symbol('SUGGESTION_PROVIDER');
+
+/** Récupérateur de page (tâche 9) et réécrivain Gemini (tâche 9) : jetons d'injection, construits par `SuggestionsModule`. */
+export const RECIPE_PAGE_FETCHER = Symbol('RECIPE_PAGE_FETCHER');
+export const RECIPE_REWRITER = Symbol('RECIPE_REWRITER');

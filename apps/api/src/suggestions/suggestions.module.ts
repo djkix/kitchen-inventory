@@ -3,8 +3,10 @@ import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { HTTP_CLIENT, type HttpClient } from '../common/http-client.js';
 import { RecipesModule } from '../recipes/recipes.module.js';
 import { SettingsModule } from '../settings/settings.module.js';
+import { GeminiRecipeRewriter } from './gemini-recipe-rewriter.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
-import { SUGGESTION_PROVIDER, type SuggestionProvider } from './suggestion-provider.js';
+import { RecipePageFetcher } from './recipe-page.fetcher.js';
+import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER, SUGGESTION_PROVIDER, type SuggestionProvider } from './suggestion-provider.js';
 import { SuggestionsController } from './suggestions.controller.js';
 import { SuggestionsService } from './suggestions.service.js';
 
@@ -27,6 +29,25 @@ function createSuggestionProvider(config: AppConfig, httpClient: HttpClient): Su
   });
 }
 
+/** Simple passe-plat réseau (tâche 9) : construit une fois, injecté là où une page doit être récupérée en sécurité. */
+function createRecipePageFetcher(httpClient: HttpClient): RecipePageFetcher {
+  return new RecipePageFetcher(httpClient);
+}
+
+/**
+ * Réécrivain Gemini (tâche 9, B6) : même clé et même modèle que le fournisseur
+ * de suggestions — une seule configuration Gemini pour tout le module recettes.
+ */
+function createRecipeRewriter(config: AppConfig, httpClient: HttpClient): GeminiRecipeRewriter {
+  const usesGemini = config.VISION_PROVIDER === 'gemini';
+  return new GeminiRecipeRewriter({
+    apiKey: usesGemini ? config.VISION_API_KEY : undefined,
+    model: usesGemini ? config.VISION_MODEL : undefined,
+    baseURL: usesGemini ? config.VISION_BASE_URL : undefined,
+    httpClient,
+  });
+}
+
 @Module({
   imports: [RecipesModule, SettingsModule],
   controllers: [SuggestionsController],
@@ -36,6 +57,16 @@ function createSuggestionProvider(config: AppConfig, httpClient: HttpClient): Su
       provide: SUGGESTION_PROVIDER,
       inject: [APP_CONFIG, HTTP_CLIENT],
       useFactory: createSuggestionProvider,
+    },
+    {
+      provide: RECIPE_PAGE_FETCHER,
+      inject: [HTTP_CLIENT],
+      useFactory: createRecipePageFetcher,
+    },
+    {
+      provide: RECIPE_REWRITER,
+      inject: [APP_CONFIG, HTTP_CLIENT],
+      useFactory: createRecipeRewriter,
     },
   ],
   exports: [SuggestionsService],
