@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { modelRecipeSchema, suggestionQuerySchema, SUGGESTION_REGIONS } from './suggestions.js';
+import { modelBatchSchema, modelRecipeSchema, suggestionQuerySchema, SUGGESTION_REGIONS } from './suggestions.js';
 
 const recette = {
   title: 'Pâtes à la tomate', origin: 'italienne', region: 'mediterraneenne',
@@ -27,6 +27,39 @@ describe('modelRecipeSchema', () => {
   });
   it('accepte une quantité absente : « une pincée » existe', () => {
     expect(modelRecipeSchema.safeParse({ ...recette, ingredients: [{ label: 'persil', quantity: null, unit: null }] }).success).toBe(true);
+  });
+  it('accepte une URL https écrite en majuscules (test insensible à la casse)', () => {
+    expect(modelRecipeSchema.safeParse({ ...recette, sourceUrl: 'HTTPS://EXEMPLE.TEST/pates' }).success).toBe(true);
+  });
+});
+
+describe('modelBatchSchema : validation recette par recette', () => {
+  it('garde les recettes valides et écarte la seule entrée mal formée', () => {
+    const result = modelBatchSchema.safeParse({
+      recipes: [recette, { ...recette, sourceUrl: 'http://exemple.test/x' }, { ...recette, title: 'Deuxième' }],
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.recipes.map((r) => r.title)).toEqual(['Pâtes à la tomate', 'Deuxième']);
+  });
+  it('accepte une recette web dont l’URL est en HTTPS majuscule', () => {
+    const result = modelBatchSchema.safeParse({ recipes: [{ ...recette, sourceUrl: 'HTTPS://exemple.test/pates' }] });
+    expect(result.success).toBe(true);
+    expect(result.data?.recipes).toHaveLength(1);
+  });
+  it('écarte une recette « ai » qui porte malgré tout une URL, sans perdre les autres', () => {
+    const result = modelBatchSchema.safeParse({
+      recipes: [{ ...recette, provenance: 'ai', steps: ['Cuire'] }, recette],
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.recipes).toHaveLength(1);
+  });
+  it('échoue quand aucune entrée ne tient debout', () => {
+    expect(modelBatchSchema.safeParse({ recipes: [{ title: 'rien' }, { nope: true }] }).success).toBe(false);
+  });
+  it('accepte un lot vide : « je ne propose rien » est une réponse', () => {
+    const result = modelBatchSchema.safeParse({ recipes: [] });
+    expect(result.success).toBe(true);
+    expect(result.data?.recipes).toEqual([]);
   });
 });
 
