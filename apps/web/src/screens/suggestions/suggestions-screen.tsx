@@ -49,15 +49,19 @@ function WaitingState() {
   );
 }
 
-function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+/** Exporté pour être testé isolément, sans dépendre d'un réseau simulé (section « aucun test ne dépend du réseau »). */
+export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   if (isApiError(error, 'provider_disabled')) {
     return (
       <EmptyState
         title="Aucun fournisseur de suggestions configuré"
-        description="Une clé est nécessaire pour composer des suggestions. Renseignez-la depuis « Mes recettes », dans les réglages."
+        // Message du serveur, jamais réécrit : lui seul nomme les deux variables
+        // d'environnement attendues (`VISION_PROVIDER`, `VISION_API_KEY`), une
+        // configuration côté serveur, pas un réglage accessible dans l'application.
+        description={error.message}
         action={
-          <Link to="/recettes" className="inline-flex min-h-touch items-center rounded-xl bg-accent px-4 text-[15px] font-semibold text-ink">
-            Aller à Mes recettes
+          <Link to="/reglages" className="inline-flex min-h-touch items-center rounded-xl bg-accent px-4 text-[15px] font-semibold text-ink">
+            Aller aux réglages
           </Link>
         }
       />

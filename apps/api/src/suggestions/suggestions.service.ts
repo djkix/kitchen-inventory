@@ -175,13 +175,13 @@ export class SuggestionsService {
     let notice: string | null = null;
 
     if (!batch) {
-      const quotaMessage = await this.quotaMessage();
-      if (quotaMessage) {
+      const breach = await this.quotaBreach();
+      if (breach) {
         const stale = await this.readLatestBatch();
-        if (!stale) throw ApiError.rateLimited(quotaMessage);
+        if (!stale) throw ApiError.rateLimited(this.quotaMessage(breach, false));
         batch = stale;
         fromCache = true;
-        notice = quotaMessage;
+        notice = this.quotaMessage(breach, true);
       } else {
         batch = await this.fetchAndStore(signature, seeds, query);
         fromCache = false;
@@ -224,8 +224,8 @@ export class SuggestionsService {
     return row ? this.parseRow(row) : null;
   }
 
-  /** `null` si l'appel est permis ; sinon le message français à afficher avec la dernière fournée connue. */
-  private async quotaMessage(): Promise<string | null> {
+  /** `null` si l'appel est permis ; sinon la nature du dépassement (quota journalier ou plafond mensuel). */
+  private async quotaBreach(): Promise<{ kind: 'daily' | 'monthly' } | null> {
     const dailyQuota = this.config.RECIPE_SUGGESTION_DAILY_QUOTA;
     const cap = this.config.VISION_MONTHLY_CAP_CENTS;
     // Les deux lectures sont indépendantes (revue de tâche 6) : inutile de les enchaîner.
@@ -235,16 +235,31 @@ export class SuggestionsService {
         ? this.prisma.recognitionLog.aggregate({ where: { provider: { in: VISION_PROVIDER_NAMES }, createdAt: { gte: startOfMonth(new Date()) } }, _sum: { costCents: true } })
         : Promise.resolve(null),
     ]);
-    if (callsToday >= dailyQuota) {
-      return `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; la dernière fournée connue est affichée.`;
-    }
+    if (callsToday >= dailyQuota) return { kind: 'daily' };
     if (cap > 0) {
       const spentCents = spent?._sum.costCents?.toNumber() ?? 0;
-      if (spentCents >= cap) {
-        return 'Plafond de dépense mensuel atteint ; la dernière fournée connue est affichée.';
-      }
+      if (spentCents >= cap) return { kind: 'monthly' };
     }
     return null;
+  }
+
+  /**
+   * Un seul dépassement, deux vérités possibles : avec une fournée de repli
+   * (`hasStaleBatch`), le message peut annoncer qu'elle est affichée ; sans
+   * repli, il ne doit jamais le promettre — rien n'est montré (revue, round 1
+   * de la tâche 10 : la phrase « la dernière fournée connue est affichée »
+   * s'affichait aussi dans le cas où aucune fournée n'existait).
+   */
+  private quotaMessage(breach: { kind: 'daily' | 'monthly' }, hasStaleBatch: boolean): string {
+    if (breach.kind === 'daily') {
+      const dailyQuota = this.config.RECIPE_SUGGESTION_DAILY_QUOTA;
+      return hasStaleBatch
+        ? `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; la dernière fournée connue est affichée.`
+        : `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; réessayez demain, ou augmentez-le dans la configuration du serveur.`;
+    }
+    return hasStaleBatch
+      ? 'Plafond de dépense mensuel atteint ; la dernière fournée connue est affichée.'
+      : 'Plafond de dépense mensuel atteint ; réessayez le mois prochain, ou augmentez-le dans la configuration du serveur.';
   }
 
   private async fetchAndStore(
@@ -286,7 +301,7 @@ export class SuggestionsService {
   /**
    * Journal partagé par toute consommation du fournisseur de suggestions
    * (recherche d'une fournée, tâche 7 ; réécriture à la conservation, tâche
-   * 9) : même `purpose`, même plafond mensuel (`quotaMessage`). `providerName`
+   * 9) : même `purpose`, même plafond mensuel (`quotaBreach`). `providerName`
    * ne vaut `this.provider.name` que par défaut — la réécriture journalise
    * sous le nom du réécrivain, pas du fournisseur de fournées.
    */
@@ -442,8 +457,10 @@ export class SuggestionsService {
       // (revue de tâche 9) : comptée dans le même quota journalier et le même
       // plafond mensuel, vérifié avant de dépenser quoi que ce soit — y
       // compris la récupération de la page, pour ne pas la payer en vain.
-      const quotaMessage = await this.quotaMessage();
-      if (quotaMessage) throw ApiError.rateLimited(quotaMessage);
+      // Pas de fournée de repli ici : une réécriture n'en sert jamais une, le
+      // message ne doit donc jamais prétendre en afficher une.
+      const breach = await this.quotaBreach();
+      if (breach) throw ApiError.rateLimited(this.quotaMessage(breach, false));
 
       const material = await this.fetchWebRecipeMaterial(sourceUrl);
       const rewriteInput: RecipeRewriteInput =
