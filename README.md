@@ -50,8 +50,13 @@ navigateur (`BarcodeDetector` natif, repli ZXing en WebAssembly). Retour
 haptique et sonore, emplacement courant collant, annulation cinq secondes.
 Chaque lecture ouvre un tiroir de validation : le produit reconnu est affiché
 avec sa photo et sa marque, la quantité est ajustable au pas de son unité
-(une pièce, 100 g, 0,1 l), et rien n'entre en stock avant confirmation. Un
-article déjà validé n'est relu que lorsqu'il a quitté le champ de la caméra.
+(une pièce, 100 g, 0,1 l), et rien n'entre en stock avant confirmation. La
+date de péremption peut s'y saisir dans le même geste, par un raccourci
+(« +3 j », « +1 sem », « +1 mois ») ou en date libre avec le choix DLC/DDM —
+mais rien n'est obligatoire : valider sans y toucher reste le même bouton,
+au même endroit. Une date oubliée se rattrape ensuite depuis le bandeau
+« Ajouté : … », sans quitter la caméra. Un article déjà validé n'est relu
+que lorsqu'il a quitté le champ de la caméra.
 
 **Reconnaissance photo.** La prise de vue passe par l'appareil photo du
 téléphone, pour profiter de l'autofocus, du flash et de la stabilisation : une
@@ -391,9 +396,9 @@ vide et une doublure locale d'Open Food Facts et de Gemini
 derrière lui.
 
 Couverture actuelle : P1 (inventaire initial, scans enchaînés), P2 (rangement
-des courses, DLC saisie après l'ajout depuis le bandeau comprise ; hors
-saisie de la DLC dans le tiroir de validation lui-même et hors lecture
-automatique de la date, qui n'existent pas encore), P3
+des courses, DLC saisie aussi bien directement dans le tiroir de validation
+par raccourci qu'après l'ajout depuis le bandeau ; hors lecture automatique
+de la date, qui n'existe pas encore), P3
 (consommation, hors bascule en liste de courses — ni seuils ni liste
 n'existent), P4 (consultation, recherche, filtre par emplacement, périme
 bientôt, hors vue « à racheter » qui dépend de cette même liste de courses),
@@ -458,6 +463,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.9.0 | 2026-10-05 | La date de péremption se saisit désormais directement dans le tiroir de validation du scan (EF-02), ce que Franck avait demandé puis fait reporter deux fois : sous la quantité, trois raccourcis (« +3 j », « +1 sem », « +1 mois ») ou un lien « autre date » pour la date libre et le choix DLC/DDM. Rien n'est obligatoire — valider sans y toucher reste le même geste qu'avant, même bouton, même nombre de taps — et le bandeau « + DLC » après l'ajout reste disponible pour rattraper un oubli |
 | 0.8.3 | 2026-10-05 | Tests des parcours de bout en bout : vingt-huit scénarios rejouent désormais l'application entière dans un vrai navigateur — ranger les courses en scannant, saisir une date de péremption, consommer un article, chercher dans le stock, demander des suggestions de recettes — contre l'image Docker réellement livrée, sans aucun appel à internet. Ils tournent automatiquement après chaque fusion et doivent passer avant toute publication : une panne du genre de celles trouvées ici (« Mes recettes » vide, recherche sourde aux accents) se verra désormais avant d'arriver sur le mini-PC |
 | 0.8.2 | 2026-10-05 | Correctif : la recherche du stock ignore désormais les accents (EF-11). « creme » trouvait « Crème fraîche » côté produits mais pas côté stock, car la requête était désaccentuée puis comparée telle quelle au texte brut en base. La comparaison passe désormais par `unaccent_lite()` (déjà utilisée pour la détection de doublons) appliquée au texte stocké, via une résolution d'identifiants en SQL brut réinjectés dans le filtre existant ; au passage, `unaccent_lite()` ne savait pas déplier les ligatures Œ/œ/Æ/æ (deux lettres) avec `translate()`, qui ne sait remplacer qu'un caractère par un seul autre — « oeufs » ne trouvait donc pas « Œufs » ; migration `0007_unaccent_lite_ligatures` |
 | 0.8.1 | 2026-10-05 | Correctif : « Mes recettes » n'affichait jamais une recette conservée. Le filtre `archived=false` envoyé par l'écran était converti en `true` (`Boolean("false")` vaut `true` en JavaScript), si bien que seule la liste des recettes archivées était rendue. Trouvé par les tests bout en bout, qu'aucun test d'API ne pouvait révéler puisqu'ils passent un vrai booléen |

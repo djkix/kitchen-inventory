@@ -12,18 +12,21 @@ import { expectActiveStockOf, getActiveStockExpiryIn } from './support/stock.ts'
  * fournisseur de reconnaissance signalée sans perdre ce qui avait déjà été
  * saisi.
  *
- * La date limite de consommation (DLC) EXISTE bien dans ce parcours, et le
- * dernier test ci-dessous la couvre : elle se saisit après l'ajout, depuis le
- * bouton « + DLC » du bandeau « Ajouté : … », qui ouvre le tiroir « Date de
- * péremption » sans quitter la caméra (`QuickDateSheet`,
- * `apps/web/src/screens/scan/quick-date-sheet.tsx`, montée par
- * `scan-screen.tsx`).
+ * La date limite de consommation (DLC) peut désormais se saisir à DEUX
+ * endroits, et les deux sont couverts ci-dessous :
+ *  - DIRECTEMENT DANS LE TIROIR DE VALIDATION (`ConfirmSheet`,
+ *    `apps/web/src/screens/scan/confirm-sheet.tsx`), avant que l'article
+ *    n'entre en stock, via les raccourcis « +3 j »/« +1 sem »/« +1 mois » ou
+ *    « autre date » (EF-02) — c'est le geste nominal du rangement des
+ *    courses, et il reste optionnel : valider sans toucher à la date est
+ *    inchangé (même bouton, même nombre de gestes qu'avant).
+ *  - APRÈS l'ajout, depuis le bouton « + DLC » du bandeau « Ajouté : … », qui
+ *    ouvre le tiroir « Date de péremption » sans quitter la caméra
+ *    (`QuickDateSheet`, `apps/web/src/screens/scan/quick-date-sheet.tsx`,
+ *    montée par `scan-screen.tsx`) — pour rattraper un article déjà ajouté.
  *
- * Hors périmètre, à dessein [C1], et précisément : la saisie de la DLC
- * DIRECTEMENT DANS LE TIROIR DE VALIDATION (`ConfirmSheet`), avant que
- * l'article n'entre en stock — c'est cela que Franck a demandé puis fait
- * reporter (voir `CLAUDE.md`, « Prochaine étape ») ; et la LECTURE
- * AUTOMATIQUE de la date sur l'emballage (OCR), qui n'existe nulle part.
+ * Hors périmètre, à dessein [C1] : la LECTURE AUTOMATIQUE de la date sur
+ * l'emballage (OCR), qui n'existe nulle part.
  *
  * Comme pour P1, la vidéo de la caméra simulée alterne deux codes-barres par
  * blocs, en boucle : aucun test de ce fichier ne présuppose lequel des deux
@@ -147,6 +150,35 @@ test('enregistre la DLC depuis le bandeau du dernier article ajouté', async ({ 
   // `flow.setDate`), pas seulement affichée : même appel que l'écran de
   // stock, scopé au Congélateur.
   expect(await getActiveStockExpiryIn(page, product.name, 'Congélateur')).toBe(expiry);
+});
+
+test('saisit la DLC directement dans le tiroir de validation via un raccourci (EF-02)', async ({ page }) => {
+  // Emplacement propre à ce test parmi ceux où un scan confirmé pose un lot
+  // d'un des deux produits de fixtures : Congélateur (test « ouvre le tiroir
+  // ») et Réfrigérateur (test « virgule française ») y ont déjà ajouté un
+  // produit scanné, « Étagère du haut » et « Placard » n'ont reçu que des
+  // produits créés à la main (noms différents) — aucun risque qu'un second
+  // lot du même produit, à une date différente, y rende `getActiveStockExpiryIn`
+  // ambigu (voir son commentaire, `e2e/support/stock.ts`).
+  await page.goto('/scan');
+  await page.getByRole('button', { name: 'Étagère du haut', exact: false }).click({ timeout: 20_000 });
+
+  await expect(page.getByRole('heading', { name: 'Ajouter cet article ?', level: 2 })).toBeVisible({ timeout: 20_000 });
+  const product = await identifyScannedProduct(page);
+
+  // Raccourci du tiroir de validation (confirm-sheet.tsx), jamais le bandeau
+  // « + DLC » (couvert par le test précédent) : la date est choisie AVANT
+  // que l'article n'entre en stock.
+  await page.getByRole('button', { name: '+3 j' }).click();
+  await expect(page.getByText('périme le', { exact: false })).toBeVisible();
+
+  await page.getByRole('button', { name: /Ajouter/ }).click();
+  await expect(page.getByText(`Ajouté : ${product.name}`)).toBeVisible({ timeout: 10_000 });
+
+  // Même convention que le test « enregistre la DLC depuis le bandeau » plus
+  // haut : date relative à l'exécution, jamais figée.
+  const expiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  expect(await getActiveStockExpiryIn(page, product.name, 'Étagère du haut')).toBe(expiry);
 });
 
 test('retombe sur la saisie manuelle quand le code-barres est inconnu', async ({ page }) => {
