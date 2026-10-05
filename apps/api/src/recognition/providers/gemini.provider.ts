@@ -30,6 +30,7 @@ const GEMINI_RESPONSE_SCHEMA = {
  */
 export const PRICES_USD_PER_MTOK: Record<string, { input: number; output: number }> = {
   'gemini-3.5-flash': { input: 0.3, output: 2.5 },
+  'gemini-3.5-flash-lite': { input: 0.1, output: 0.4 },
   'gemini-3.5-pro': { input: 2, output: 12 },
   'gemini-2.5-flash': { input: 0.3, output: 2.5 },
   'gemini-2.5-pro': { input: 1.25, output: 10 },
@@ -98,16 +99,16 @@ export class GeminiProvider implements RecognitionProvider {
 }
 
 /**
- * Avertissement de démarrage : un `VISION_MODEL` absent de `PRICES_USD_PER_MTOK`
+ * Avertissement de démarrage : un `VISION_MODEL` ou un `SUGGESTION_MODEL` absent de `PRICES_USD_PER_MTOK`
  * fait rendre `null` à `estimateCostCents`, si bien qu'aucun appel n'est chiffré
  * et que le plafond mensuel ne compte plus rien — silencieusement. Rend le
  * message à journaliser, ou `null` s'il n'y a rien à signaler.
  */
-export function unpricedModelWarning(provider: string, model: string | undefined): string | null {
+export function unpricedModelWarning(provider: string, model: string | undefined, variable = 'VISION_MODEL'): string | null {
   // La table ne couvre que Gemini ; les autres fournisseurs ont leur propre
   // barème, avec repli sur leur modèle par défaut.
   if (provider !== 'gemini' || !model || PRICES_USD_PER_MTOK[model]) return null;
-  return `Modèle « ${model} » absent de la table de prix : aucun appel ne sera chiffré et le plafond mensuel (VISION_MONTHLY_CAP_CENTS) ne comptera rien. Modèles tarifés : ${Object.keys(PRICES_USD_PER_MTOK).join(', ')}.`;
+  return `Modèle « ${model} » (${variable}) absent de la table de prix : aucun appel ne sera chiffré et le plafond mensuel (VISION_MONTHLY_CAP_CENTS) ne comptera rien. Modèles tarifés : ${Object.keys(PRICES_USD_PER_MTOK).join(', ')}.`;
 }
 
 export function estimateCostCents(model: string, usage: GeminiResponse['usageMetadata']): number | null {

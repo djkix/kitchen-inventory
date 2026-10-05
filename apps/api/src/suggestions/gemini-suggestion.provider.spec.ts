@@ -31,7 +31,7 @@ describe('GeminiSuggestionProvider (EF-26)', () => {
     expect(result.recipes).toHaveLength(12);
     expect(result.recipes.filter((r) => r.provenance === 'web')).toHaveLength(8);
     expect(result.recipes.filter((r) => r.provenance === 'ai')).toHaveLength(4);
-    expect(result.model).toBe('gemini-3.5-pro');
+    expect(result.model).toBe('gemini-3.5-flash-lite');
   });
 
   it('extrait le JSON encadré par des clôtures ``` (vigilance 1)', async () => {
@@ -89,8 +89,8 @@ describe('GeminiSuggestionProvider (EF-26)', () => {
   it('calcule un coût à partir de usageMetadata', async () => {
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch.json'));
     const result = await provider.suggest(BASE_REQUEST);
-    // gemini-3.5-pro : 2 $/Mtok en entrée, 12 $/Mtok en sortie (table de gemini.provider.ts).
-    const expected = Math.round(((900 * 2 + 70 * 12) / 1_000_000) * 100 * 10_000) / 10_000;
+    // gemini-3.5-flash-lite : 0,1 $/Mtok en entrée, 0,4 $/Mtok en sortie (table de gemini.provider.ts).
+    const expected = Math.round(((900 * 0.1 + 70 * 0.4) / 1_000_000) * 100 * 10_000) / 10_000;
     expect(result.attempts).toHaveLength(1);
     expect(result.attempts[0]?.costCents).toBe(expected);
     expect(result.attempts[0]?.costCents).toBeGreaterThan(0);

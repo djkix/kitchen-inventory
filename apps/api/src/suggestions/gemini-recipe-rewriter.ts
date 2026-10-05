@@ -4,7 +4,7 @@ import { estimateCostCents, type GeminiResponse } from '../recognition/providers
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { stripJsonFences } from './prompt.js';
 
-const DEFAULT_MODEL = 'gemini-3.5-flash';
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
 
 /** Matière fournie pour la réécriture (tâche 9, B6) : soit le contenu structuré lu sur la page, soit son texte nettoyé. */
