@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/djkix/kitchen-inventory/compare/v0.8.2...v0.9.0) (2026-10-05)
+
+
+### Features
+
+* **scan:** saisir la DLC directement dans le tiroir de validation (EF-02) ([21f3a01](https://github.com/djkix/kitchen-inventory/commit/21f3a012eaf09a485190740572dbca6e7e6129f3))
+
+
+### Bug Fixes
+
+* **scan:** type modifiable après la date, cible tactile et attente locale du test (EF-02) ([b05d02b](https://github.com/djkix/kitchen-inventory/commit/b05d02ba581e006c39fda1daca68f5f28586a1e3))
+
 ## [0.8.2](https://github.com/djkix/kitchen-inventory/compare/v0.8.1...v0.8.2) (2026-10-05)
 
 
