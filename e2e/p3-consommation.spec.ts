@@ -46,10 +46,28 @@ function stockCard(page: Page, productName: string): Locator {
 /**
  * Appui long (500 ms, `apps/web/src/hooks/use-long-press.ts`) : un `.click()`
  * Playwright ne suffit pas, il faut tenir le bouton. `use-long-press.ts`
- * réagit à de vrais évènements pointeur ; un maintien de souris réel en
- * déclenche (pointerdown/pointerup synthétisés par Chromium pour la souris).
+ * réagit à de vrais évènements pointeur (`onPointerDown` arme un minuteur de
+ * `delayMs` qui appelle `onLongPress` directement, sans attendre le relâché ;
+ * `onPointerUp` ne déclenche `onClick` que si ce minuteur n'a pas encore
+ * sonné) : un maintien de souris réel (pointerdown puis pointerup synthétisés
+ * par Chromium pour la souris, bouton 0) suffit à le déclencher, sans qu'il
+ * soit nécessaire d'émuler le tactile.
+ *
+ * Corrigé après un premier échec en CI (voir commit suivant) :
+ * `target.boundingBox()` ne scrolle PAS l'élément dans la zone visible — à la
+ * différence de `.click()`, qui le fait avant d'agir. Sur l'écran de
+ * recherche, la carte peut se trouver bien après le pli (la liste n'est pas
+ * filtrée qu'au produit visé : la recherche tolère les synonymes, EF-11,
+ * `expandSearchTerms`, `packages/shared/src/search/synonyms.ts` — chercher
+ * « Saumon fumé » retrouve aussi « Thon au naturel », le groupe « poisson »
+ * les confond). Sans `scrollIntoViewIfNeeded()`, les coordonnées lues
+ * peuvent tomber hors du viewport (constaté en CI : y ≈ 3714 pour un viewport
+ * de 720 px de haut) : la pression tombe dans le vide, ni le clic court ni
+ * l'appui long ne partent (confirmé par la trace réseau de l'échec : aucun
+ * appel à `/consume`).
  */
 async function longPress(page: Page, target: Locator): Promise<void> {
+  await target.scrollIntoViewIfNeeded();
   const box = await target.boundingBox();
   if (!box) throw new Error('Bouton de consommation introuvable pour l’appui long.');
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
