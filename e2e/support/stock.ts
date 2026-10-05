@@ -76,6 +76,29 @@ export async function expectNoActiveStockOf(page: Page, productName: string, loc
   }).toPass({ timeout: 10_000 });
 }
 
+/**
+ * Affirme qu'un lot actif de `productName` existe bien dans `locationName`
+ * EXACTEMENT (même portée que `expectNoActiveStockOf`, jamais un
+ * sous-emplacement). Pour un parcours où la caméra est refusée
+ * (`e2e/support/camera.ts`) : `LastAddedBanner` (« Ajouté : … ») n'est rendu
+ * que dans la branche caméra active de `scan-screen.tsx`
+ * (`apps/web/src/screens/scan/scan-screen.tsx` : le bandeau bas, avec
+ * `LastAddedBanner` et le compteur, est à l'intérieur de `<BarcodeScanner>`,
+ * jamais affiché quand `cameraBlocked` est vrai) — y asserter ce bandeau
+ * attendrait indéfiniment un élément qui ne peut structurellement pas
+ * apparaître, quel que soit le succès réel de l'ajout. Cette vérification
+ * passe par l'API (même requête que l'écran stock), pas par un élément
+ * d'écran absent par construction dans ce parcours.
+ */
+export async function expectActiveStockOf(page: Page, productName: string, locationName: string): Promise<void> {
+  const locationId = await resolveLocationId(page, locationName);
+  await expect(async () => {
+    const response = await page.request.get('/api/v1/stock', { params: { q: productName, status: 'active' } });
+    const body = (await response.json()) as StockListResponse;
+    expect(body.items.some((item) => item.locationId === locationId)).toBe(true);
+  }).toPass({ timeout: 10_000 });
+}
+
 interface StockItemRef {
   readonly id: string;
   readonly quantity: number;

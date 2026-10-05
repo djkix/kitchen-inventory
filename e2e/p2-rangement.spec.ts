@@ -3,6 +3,7 @@ import { useSharedAdminSession } from './support/auth.ts';
 import { denyCameraForTest } from './support/camera.ts';
 import { restoreDatabase } from './support/database.ts';
 import { identifyScannedProduct } from './support/scan.ts';
+import { expectActiveStockOf } from './support/stock.ts';
 
 /**
  * Parcours P2 — rangement des courses (section 3, tâche 4) : validation d'un
@@ -30,10 +31,12 @@ import { identifyScannedProduct } from './support/scan.ts';
  * de présence ou d'absence doit rester scopée à un emplacement ou à un état
  * propre au test, jamais à une recherche globale par nom de produit (déjà vu
  * en défaut sur P1 : une recherche `q=<nom>` est globale à tous les
- * emplacements et peut être polluée par un autre test du même fichier).
- * Les assertions ci-dessous portent donc sur le bandeau « Ajouté : … » ou le
- * tiroir de validation eux-mêmes (état éphémère de CE test, jamais partagé),
- * jamais sur une recherche dans /stock.
+ * emplacements et peut être polluée par un autre test du même fichier). La
+ * plupart des assertions portent sur le bandeau « Ajouté : … » ou le tiroir
+ * de validation eux-mêmes (état éphémère de CE test, jamais partagé) ; le
+ * seul test qui interroge `/stock` (la saisie manuelle, caméra refusée) le
+ * fait via `expectActiveStockOf` (`e2e/support/stock.ts`), toujours scopé à
+ * l'emplacement du test, jamais une recherche nue par nom de produit.
  *
  * Connexion : une seule vraie connexion par fichier (`useSharedAdminSession`,
  * `e2e/support/auth.ts`), jamais une par test — voir la documentation de
@@ -136,7 +139,16 @@ test('retombe sur la saisie manuelle quand le code-barres est inconnu', async ({
 
   await page.getByLabel('Nom', { exact: true }).fill('Pâtes semi-complètes inconnues');
   await page.getByRole('button', { name: 'Ajouter au stock' }).click();
-  await expect(page.getByText('Ajouté : Pâtes semi-complètes inconnues')).toBeVisible({ timeout: 10_000 });
+
+  // Pas de bandeau « Ajouté : … » à attendre ici : `LastAddedBanner` n'est
+  // rendu que dans la branche caméra active de `scan-screen.tsx`, jamais
+  // quand la caméra est refusée comme dans ce test (voir
+  // `expectActiveStockOf`, `e2e/support/stock.ts`, pour le détail). Le
+  // tiroir qui se referme (sans message d'erreur) est le seul signal
+  // d'écran disponible ; la création elle-même se vérifie par l'API, scopée
+  // à l'emplacement choisi.
+  await expect(page.getByRole('heading', { name: 'Nouveau produit', level: 2 })).toBeHidden({ timeout: 10_000 });
+  await expectActiveStockOf(page, 'Pâtes semi-complètes inconnues', 'Étagère du haut');
 });
 
 test('signale la panne du service de reconnaissance sans perdre la saisie', async ({ page }) => {
