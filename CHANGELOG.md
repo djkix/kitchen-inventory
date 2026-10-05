@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/djkix/kitchen-inventory/compare/v0.9.1...v0.9.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* **suggestions:** modèle gemini-3.5-flash-lite par défaut, réglable à part (EF-25) ([1a64380](https://github.com/djkix/kitchen-inventory/commit/1a643801e8e2d0d22002f31732fd7a5f1716652f))
+
 ## [0.9.1](https://github.com/djkix/kitchen-inventory/compare/v0.9.0...v0.9.1) (2026-10-05)
 
 
