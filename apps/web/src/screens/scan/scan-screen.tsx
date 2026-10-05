@@ -167,8 +167,8 @@ export function ScanScreen() {
         target={flow.phase.kind === 'confirm' ? flow.phase.target : null}
         locationName={location?.name ?? ''}
         busy={flow.phase.kind === 'confirm' && flow.phase.saving}
-        onConfirm={(quantity) => {
-          if (flow.phase.kind === 'confirm') void flow.confirmAdd(flow.phase.target, quantity);
+        onConfirm={(quantity, date) => {
+          if (flow.phase.kind === 'confirm') void flow.confirmAdd(flow.phase.target, quantity, date);
         }}
         onCancel={flow.backToScanning}
       />

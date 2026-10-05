@@ -5,7 +5,7 @@ import { useToast } from '../../components/ui/toast';
 import { api, errorMessage, isApiError } from '../../lib/api';
 import { isAcceptedPhoto, photoFileToJpeg } from '../../lib/image';
 import { stockApi } from '../../lib/stock-api';
-import type { ConfirmTarget } from './confirm-sheet';
+import type { ConfirmDate, ConfirmTarget } from './confirm-sheet';
 import type { LastAdded } from './last-added-banner';
 import type { ProductFormDefaults, ProductFormResult } from './product-form';
 
@@ -76,13 +76,23 @@ export function useScanFlow({ locationId }: Options) {
     [locationId, recordAdded, toast],
   );
 
-  /** Ajout effectif, après validation du produit et de la quantité proposés. */
+  /**
+   * Ajout effectif, après validation du produit et de la quantité proposés.
+   * La date (EF-02) est optionnelle : absente, rien n'est envoyé et le geste
+   * reste celui d'aujourd'hui — aim, valider.
+   */
   const confirmAdd = useCallback(
-    async (target: ConfirmTarget, quantity: number) => {
+    async (target: ConfirmTarget, quantity: number, date: ConfirmDate | null) => {
       if (!locationId) return;
       setPhase({ kind: 'confirm', target, saving: true });
       try {
-        const result = await stockApi.create({ productId: target.product.id, locationId, quantity, estimateExpiry: false });
+        const result = await stockApi.create({
+          productId: target.product.id,
+          locationId,
+          quantity,
+          estimateExpiry: false,
+          ...(date ? { expiryDate: date.expiryDate, dateType: date.dateType } : {}),
+        });
         recordAdded(result, target.product.name);
         setPhase({ kind: 'scanning' });
       } catch (error) {

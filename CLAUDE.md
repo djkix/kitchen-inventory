@@ -125,6 +125,14 @@ tools/             utilitaires hors application
   décisions et les deux limites assumées dans
   `docs/specs/2026-10-04-tests-bout-en-bout.md` et
   `docs/decisions/2026-10-04-tests-bout-en-bout.md`.
+- Saisie de la DLC directement dans le tiroir de validation du scan livrée
+  (EF-02, section 3, P2) : sous la quantité, trois raccourcis (« +3 j »,
+  « +1 sem », « +1 mois », calculés par `expiryShortcutDate` dans
+  `packages/shared`, en jour civil local) et un lien « autre date » pour la
+  date libre avec le choix DLC/DDM. Rien n'est obligatoire : valider sans
+  toucher à la date reste le même geste qu'avant. Le bouton « + DLC » du
+  bandeau du dernier article reste disponible pour rattraper un oubli après
+  coup — les deux chemins sont couverts par des parcours bout en bout.
 
 ## Développement local
 
@@ -133,12 +141,6 @@ base PostgreSQL 16 embarquée. `npm run build -w @kitchen/shared` d'abord si le
 paquet partagé n'a jamais été compilé. Voir le README, section Développement.
 
 ## Prochaine étape
-
-En attente, demandé puis reporté : saisie de la DLC directement dans le
-tiroir de validation du scan, pour le parcours « rangement des courses »
-(section 3, P2). Elle reste accessible après l'ajout, depuis le bouton
-« + DLC » du bandeau du dernier article — ce chemin-là existe et est couvert
-par un parcours bout en bout.
 
 Lot 2 (décision 8) après quelques semaines d'usage réel : seuils et liste de
 courses, alertes de péremption, mode hors ligne (`POST /sync`, file IndexedDB,
