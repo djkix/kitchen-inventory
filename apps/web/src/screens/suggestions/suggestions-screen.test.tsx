@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -77,5 +78,56 @@ describe('SuggestionsScreen', () => {
     );
 
     expect(screen.getByRole('link', { name: /Mes recettes/i }).getAttribute('href')).toBe('/recettes/bibliotheque');
+  });
+
+  /**
+   * EF-23 : même défaut que `RecipeCard` — le bouton qui ouvre le tiroir de
+   * conservation enveloppe une `SuggestionCard` (un `<article>`), dont le
+   * contenu ne remonte pas dans le nom calculé d'un bouton ancêtre
+   * (Chromium). `getByRole('button', { name })` reproduit la requête d'un
+   * lecteur d'écran ou d'un test de bout en bout ; un test qui vérifierait
+   * seulement la présence du bouton n'aurait pas détecté un nom vide.
+   */
+  it('nomme chaque suggestion pour une requête par rôle et nom (EF-23)', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      data: {
+        batchId: 'batch-1',
+        notice: null,
+        items: [
+          {
+            id: 's1',
+            title: 'Pâtes à la tomate',
+            origin: 'italienne',
+            region: 'mediterraneenne',
+            totalMinutes: 25,
+            difficulty: 'EASY',
+            provenance: 'web',
+            sourceUrl: 'https://exemple.test/pates',
+            coverage: 1,
+            group: 'ready',
+            missingLabels: [],
+            ingredients: [],
+          },
+        ],
+      },
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    // Utile, pas seulement présent : le titre identifie la suggestion, l'état
+    // de couverture dit si elle est cuisinable maintenant avec le stock réel.
+    expect(screen.getByRole('button', { name: 'Pâtes à la tomate, Prête à 100 %' })).toBeTruthy();
   });
 });

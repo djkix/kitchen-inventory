@@ -33,6 +33,18 @@ export function provenanceLabel(suggestion: SuggestionDto): string {
 }
 
 /** Carte d'une suggestion (section 12, EF-25, EF-26) : même facture que `RecipeCard`, sans péremption ni étapes. */
+/**
+ * Nom accessible du bouton qui enveloppe la carte (même défaut que
+ * `RecipeCard`, EF-23) : le rôle `article` ne contribue pas au nom calculé
+ * d'un ancêtre interactif (Chromium), qu'il s'agisse d'un lien ou, ici, d'un
+ * bouton. Le titre seul identifierait la suggestion, mais pas si elle est
+ * cuisinable maintenant : on y ajoute l'état de couverture, même information
+ * que le badge coloré, en mots.
+ */
+export function suggestionAccessibleName(suggestion: SuggestionDto): string {
+  return `${suggestion.title}, ${COVERAGE_GROUP_LABELS_FR[suggestion.group]} à ${Math.round(suggestion.coverage * 100)} %`;
+}
+
 export function SuggestionCard({ suggestion }: SuggestionCardProps) {
   const time = formatMinutes(suggestion.totalMinutes);
   return (
