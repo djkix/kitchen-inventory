@@ -8,7 +8,7 @@ import { isApiError } from '../../lib/api';
 import { useSuggestionsQuery } from '../../lib/queries';
 import type { SuggestionOrientation } from '../../lib/suggestions-api';
 import { OrientationBar } from './orientation-bar';
-import { SuggestionCard } from './suggestion-card';
+import { SuggestionCard, suggestionAccessibleName } from './suggestion-card';
 import { SuggestionSheet } from './suggestion-sheet';
 
 /**
@@ -160,7 +160,12 @@ function SuggestionsResult({
             <li key={suggestion.id}>
               {/* La carte elle-même reste purement présentative (tâche 10) : le
                   tiroir de conservation (tâche 12) s'ouvre depuis cet écran. */}
-              <button type="button" className="block w-full text-left" onClick={() => onSelect(suggestion)}>
+              <button
+                type="button"
+                aria-label={suggestionAccessibleName(suggestion)}
+                className="block w-full text-left"
+                onClick={() => onSelect(suggestion)}
+              >
                 <SuggestionCard suggestion={suggestion} />
               </button>
             </li>

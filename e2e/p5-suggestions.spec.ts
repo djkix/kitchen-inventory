@@ -213,14 +213,13 @@ test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où
   // … et la recette est désormais dans Mes recettes, pas seulement sur sa propre fiche.
   await page.goto('/recettes/bibliotheque');
   await page.getByPlaceholder('Rechercher une recette').fill('Recette composée 1');
-  // `page.locator('article')`, pas `getByRole('link', { name: … })` : vérifié
-  // (artefacts CI + reproduction isolée hors Docker) que Chromium calcule un
-  // nom accessible VIDE pour le `<Link>` qui enveloppe une `RecipeCard`
-  // (`apps/web/src/screens/recipes/recipes-screen.tsx`) — le contenu d'un rôle
-  // `article` n'est pas remonté dans le nom d'un lien ancêtre (règle de calcul
-  // du nom accessible, pas un défaut de l'application ni du texte conservé :
-  // la fiche de la recette, elle, affiche bien « Recette composée 1 » en
-  // `<h1>`, vérifié juste au-dessus). Même structure et même sélecteur que
-  // P3/P4 pour les cartes de stock (`<article>`, jamais une classe CSS).
-  await expect(page.locator('article').filter({ hasText: 'Recette composée 1' })).toBeVisible();
+  // `getByRole('link', { name: … })`, pas `page.locator('article')` (EF-23) :
+  // le `<Link>` qui enveloppe une `RecipeCard`
+  // (`apps/web/src/screens/recipes/recipes-screen.tsx`) porte désormais un
+  // `aria-label` explicite (`recipeAccessibleName`, `recipe-card.tsx`) —
+  // Chromium ne remonte pas le contenu d'un rôle `article` dans le nom d'un
+  // lien ancêtre, le nom ne peut donc pas venir du contenu de la carte. Le nom
+  // commence par le titre ; la suite (état de couverture) varie avec le stock
+  // réel, d'où la correspondance partielle plutôt qu'un nom exact.
+  await expect(page.getByRole('link', { name: /^Recette composée 1,/ })).toBeVisible();
 });

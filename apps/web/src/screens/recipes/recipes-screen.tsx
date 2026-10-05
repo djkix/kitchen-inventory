@@ -10,7 +10,7 @@ import { useDebouncedValue } from '../../hooks/use-debounced-value';
 import { errorMessage } from '../../lib/api';
 import { useCuisinesQuery, useRecipeFiltersQuery, useRecipesInfiniteQuery } from '../../lib/queries';
 import { recipesApi } from '../../lib/recipes-api';
-import { RecipeCard } from './recipe-card';
+import { RecipeCard, recipeAccessibleName } from './recipe-card';
 import { countActiveRecipeFilters, EMPTY_RECIPE_FILTERS, RecipeFiltersBar } from './recipe-filters';
 import { RatingReminderBanner } from './rating-reminder';
 
@@ -86,7 +86,11 @@ export function RecipesScreen() {
           <ul className="flex flex-col gap-2 px-4">
             {items.map((recipe) => (
               <li key={recipe.id}>
-                <Link to={`/recettes/${recipe.id}`} className="block rounded-card focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                <Link
+                  to={`/recettes/${recipe.id}`}
+                  aria-label={recipeAccessibleName(recipe)}
+                  className="block rounded-card focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
                   <RecipeCard recipe={recipe} />
                 </Link>
               </li>

@@ -23,6 +23,19 @@ function formatHistory(stats: RecipeSummaryDto['stats']): string {
   return parts.join(' · ');
 }
 
+/**
+ * Nom accessible du lien qui enveloppe la carte (EF-23) : l'intitulé du rôle
+ * `article` ne remonte pas dans le nom calculé d'un lien ancêtre (Chromium),
+ * le lien resterait donc sans nom pour un lecteur d'écran — et introuvable
+ * par une requête rôle + nom, qu'elle vienne d'un test de bout en bout ou
+ * d'une technologie d'assistance. Le titre seul identifierait la recette,
+ * mais pas si elle est cuisinable maintenant : on y ajoute l'état de
+ * couverture (même information que le badge coloré, en mots).
+ */
+export function recipeAccessibleName(recipe: RecipeSummaryDto): string {
+  return `${recipe.title}, ${COVERAGE_GROUP_LABELS_FR[recipe.group]} à ${Math.round(recipe.coverage * 100)} %`;
+}
+
 export function RecipeCard({ recipe }: RecipeCardProps) {
   const time = formatMinutes(recipe.totalMinutes);
   return (
