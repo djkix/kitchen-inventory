@@ -1,17 +1,15 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
-
-const execFileAsync = promisify(execFile);
 
 /**
  * Caméra simulée (section 19, tâche 2) : fabrique une vidéo `.y4m` figée sur
  * un code-barres EAN-13 rendu en pixels purs, que Chromium rejoue en boucle
- * via `--use-file-for-fake-video-capture`. Aucune dépendance de rendu
- * d'image : seul `ffmpeg` (présent sur le runner et sur cette machine) encode
- * les pixels générés ici en vidéo.
+ * via `--use-file-for-fake-video-capture`. Le fichier Y4M est écrit
+ * directement en TypeScript (aucun binaire externe) : le plan de luminance
+ * porte le bitmap du code-barres, les deux plans de chrominance sont
+ * constants. Déterministe et portable, y compris sur un runner CI dépourvu
+ * de `ffmpeg`.
  */
 
 // Tables de codage EAN-13 (GS1 General Specifications) : 7 modules par
@@ -63,39 +61,64 @@ const MODULE_WIDTH = 6;
 const QUIET_ZONE_MODULES = 11; // marge minimale GS1 de chaque côté
 const BAR_HEIGHT = 480;
 
-/** Image PPM (P6, brute) blanche avec les barres noires du code centrées. */
-function renderPpm(bits: string): Buffer {
+// Durée et cadence conservées à l'identique de l'ancienne commande ffmpeg
+// (`-t 5 -r 15`) : la vidéo boucle côté Chromium, mais le décodeur lit un
+// flux, pas une image isolée — il lui faut plusieurs images identiques.
+const DURATION_SECONDS = 5;
+const FRAME_RATE = 15;
+const FRAME_COUNT = DURATION_SECONDS * FRAME_RATE;
+
+// Plage « studio » (ITU-R BT.601/BT.709) attendue par un flux yuv420p
+// conforme : 16 = noir, 235 = blanc. Un décodeur strict qui applique la
+// désaturation limited-range restitue bien 0/255 en RVB ; des valeurs
+// pleine échelle (0/255) risqueraient l'écrêtage inverse chez un décodeur
+// qui, lui, suppose cette même plage studio en entrée.
+const LUMA_BLACK = 16;
+const LUMA_WHITE = 235;
+// Chrominance neutre (ni rouge/vert, ni bleu/jaune) sur les deux plans U et
+// V, à la résolution quart (4:2:0) : une image en niveaux de gris n'a pas de
+// couleur à porter.
+const CHROMA_NEUTRAL = 128;
+
+/** Plan de luminance (un octet par pixel) : blanc avec les barres noires du code centrées. */
+function renderLumaPlane(bits: string): Buffer {
   const quietWidth = QUIET_ZONE_MODULES * MODULE_WIDTH;
   const barsWidth = bits.length * MODULE_WIDTH;
   const contentWidth = barsWidth + quietWidth * 2;
   const offsetX = Math.round((CANVAS_WIDTH - contentWidth) / 2) + quietWidth;
   const offsetY = Math.round((CANVAS_HEIGHT - BAR_HEIGHT) / 2);
 
-  const header = `P6\n${CANVAS_WIDTH} ${CANVAS_HEIGHT}\n255\n`;
-  const pixels = Buffer.alloc(CANVAS_WIDTH * CANVAS_HEIGHT * 3, 255);
+  const plane = Buffer.alloc(CANVAS_WIDTH * CANVAS_HEIGHT, LUMA_WHITE);
 
   for (let column = 0; column < bits.length; column += 1) {
     if (bits[column] !== '1') continue;
     const xStart = offsetX + column * MODULE_WIDTH;
     for (let x = xStart; x < xStart + MODULE_WIDTH; x += 1) {
       for (let y = offsetY; y < offsetY + BAR_HEIGHT; y += 1) {
-        const index = (y * CANVAS_WIDTH + x) * 3;
-        pixels[index] = 0;
-        pixels[index + 1] = 0;
-        pixels[index + 2] = 0;
+        plane[y * CANVAS_WIDTH + x] = LUMA_BLACK;
       }
     }
   }
-  return Buffer.concat([Buffer.from(header, 'ascii'), pixels]);
+  return plane;
 }
 
-function runFfmpeg(args: readonly string[]): Promise<void> {
-  return execFileAsync('ffmpeg', [...args]).then(
-    () => undefined,
-    (error: unknown) => {
-      throw new Error(`ffmpeg a échoué (${args.join(' ')}) : ${error instanceof Error ? error.message : String(error)}`);
-    },
-  );
+/**
+ * Assemble un fichier Y4M (YUV4MPEG2) complet : un en-tête ASCII puis, pour
+ * chaque image, un marqueur `FRAME` suivi des plans Y (pleine résolution)
+ * puis U et V (résolution quart, 4:2:0). Toutes les images sont identiques
+ * (vidéo figée) : le plan de luminance n'est calculé qu'une fois.
+ */
+function buildY4m(lumaPlane: Buffer): Buffer {
+  const chromaWidth = CANVAS_WIDTH / 2;
+  const chromaHeight = CANVAS_HEIGHT / 2;
+  const chromaPlane = Buffer.alloc(chromaWidth * chromaHeight, CHROMA_NEUTRAL);
+
+  const header = Buffer.from(`YUV4MPEG2 W${CANVAS_WIDTH} H${CANVAS_HEIGHT} F${FRAME_RATE}:1 Ip A1:1 C420jpeg\n`, 'ascii');
+  const frameMarker = Buffer.from('FRAME\n', 'ascii');
+  const frame = Buffer.concat([frameMarker, lumaPlane, chromaPlane, chromaPlane]);
+
+  const frames = new Array<Buffer>(FRAME_COUNT).fill(frame);
+  return Buffer.concat([header, ...frames]);
 }
 
 /**
@@ -108,9 +131,7 @@ function runFfmpeg(args: readonly string[]): Promise<void> {
 export async function generateBarcodeVideo(barcode: string): Promise<string> {
   const bits = encodeEan13(barcode);
   const dir = await mkdtemp(join(tmpdir(), 'kitchen-e2e-barcode-'));
-  const ppmPath = join(dir, 'barcode.ppm');
   const videoPath = join(dir, 'barcode.y4m');
-  await writeFile(ppmPath, renderPpm(bits));
-  await runFfmpeg(['-y', '-loop', '1', '-i', ppmPath, '-t', '5', '-r', '15', '-pix_fmt', 'yuv420p', videoPath]);
+  await writeFile(videoPath, buildY4m(renderLumaPlane(bits)));
   return videoPath;
 }
