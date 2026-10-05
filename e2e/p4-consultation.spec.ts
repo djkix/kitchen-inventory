@@ -142,33 +142,21 @@ test('liste ce qui périme bientôt, du plus urgent au moins urgent', async ({ p
 
 test('affiche la version de l’application', async ({ page }) => {
   // Demandé explicitement par Franck en 0.5 (`CLAUDE.md`, « En service chez
-  // Franck ») : présente au bas de CHAQUE écran (`VersionBadge`,
-  // apps/web/src/components/shell/app-shell.tsx, montée dans `AppShell` hors
-  // de l'`Outlet`). La valeur vient de `GET /health` (`health.service.ts`,
-  // `APP_VERSION`), jamais de la version figée côté interface au moment du
-  // build, tant que l'API répond (`versionState`, apps/web/src/lib/version.ts :
-  // `label` vaut `apiVersion` dès qu'il est défini, peu importe son format).
+  // Franck ») : la version est présente au bas de CHAQUE écran
+  // (`VersionBadge`, apps/web/src/components/shell/app-shell.tsx, montée dans
+  // `AppShell` hors de l'`Outlet`). C'est ce que ce test prouve.
   //
-  // Corrigé après un premier échec en CI : je m'étais arrêté à
-  // `docker-compose.e2e.yml`, qui ne fixe en effet aucun `build.args` — mais
-  // le job `e2e` (.github/workflows/ci.yml) construit l'image AVANT `compose
-  // up`, via `docker/build-push-action`, avec `build-args: APP_VERSION=ci`
-  // explicite (le même littéral que le job `build-image`, qui valide aussi la
-  // construction sans publier). `docker-compose.e2e.yml` ne fait que
-  // réutiliser cette image déjà construite (`E2E_APP_IMAGE`), jamais la
-  // reconstruire : l'`ARG APP_VERSION=0.0.0-dev` du Dockerfile n'est donc son
-  // défaut que hors de CI (build local sans argument). La valeur affichée
-  // ici est donc le littéral fixe « ci » — jamais un numéro de version — et
-  // identique côté web (même `ARG`) et API, donc toujours sans bandeau de
-  // version périmée.
+  // Ce qu'il ne prouve PAS (précision après revue) : que la valeur affichée
+  // vienne de `GET /health` plutôt que de la constante figée au moment du
+  // build. Le job `e2e` (.github/workflows/ci.yml) construit l'image avec
+  // `build-args: APP_VERSION=ci`, le même littéral côté web et côté API : les
+  // deux sources donnent « ci », aucune assertion ne peut les distinguer. Le
+  // choix de la valeur affichée reste couvert par `versionState`
+  // (apps/web/src/lib/version.test.ts).
   //
-  // Cette valeur ne mérite pas un signalement à part : « ci » est une
-  // étiquette de validation délibérée (job `build-image`, « Build de l'image
-  // (sans publication) », et job `e2e` lui-même), distincte du vrai numéro
-  // de version que seul un déclenchement de release-please fixe sur l'image
-  // publiée — aucun des deux jobs qui utilisent ce littéral ne publie quoi
-  // que ce soit. Ce que ce test protège reste intact : la version EST
-  // affichée, et c'est bien celle que l'image en cours fait tourner.
+  // « ci » est une étiquette de validation délibérée, distincte du numéro de
+  // version que seule une publication fixe sur l'image publiée : ni le job
+  // `build-image` ni le job `e2e` ne publient quoi que ce soit.
   await page.goto('/');
   await expect(page.getByText('Inventaire ci', { exact: true })).toBeVisible();
 });

@@ -34,9 +34,23 @@ const PRISMA_MIGRATIONS_TABLE = '_prisma_migrations';
  * pourquoi jamais `--clean`/schéma). Les appels suivants réutilisent la même
  * promesse et ne reposent pas une deuxième fois le seed. Retourne le chemin
  * de l'instantané.
+ *
+ * Vide les tables AVANT de semer (correctif de revue). La mémoïsation vaut
+ * pour un processus Node, jamais pour la base : la CI lance Playwright deux
+ * fois de suite sur le même conteneur `db` (`npm run e2e`, puis
+ * `npm run e2e:sans-fournisseur` — voir `.github/workflows/ci.yml`), et le
+ * second processus repart donc d'une base qui porte encore tout ce que les
+ * fichiers du premier y ont écrit. Le seed est idempotent pour SES propres
+ * lignes (`upsert` sur des identifiants `seed-…`, `prisma/seed/dev.ts`) mais
+ * ne supprime jamais celles d'un autre : sans ce vidage, l'instantané pris
+ * juste après serait celui d'une base polluée — et c'est cet instantané que
+ * `restoreDatabase()` reposerait à chaque fichier du second processus, en
+ * croyant restaurer la semence. Sans conséquence pour l'unique test que ce
+ * second processus joue aujourd'hui, mais un piège pour le suivant.
  */
 export async function seedDatabase(): Promise<string> {
   seeded ??= (async () => {
+    await truncateAllTables();
     await execFileAsync('npm', ['run', 'seed:dev', '-w', '@kitchen/api'], {
       cwd: REPO_ROOT,
       env: { ...process.env, DATABASE_URL },

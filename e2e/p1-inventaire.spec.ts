@@ -135,7 +135,15 @@ test('ajoute en quantité 1 par défaut', async ({ page }) => {
   await expect(page.getByText('1 pièce')).toBeVisible();
 });
 
-test('annule l’ajout depuis le bandeau dans les cinq secondes', async ({ page }) => {
+// Titre volontairement muet sur les cinq secondes (correctif de revue) : ce
+// test clique « Annuler » immédiatement et n'éprouve donc jamais la fenêtre
+// elle-même. Elle n'est pas éprouvée ailleurs non plus — l'éprouver
+// demanderait d'attendre son expiration dans un test, et seul le bouton
+// « Annuler » disparaît alors, pas le bandeau (`LastAddedBanner`,
+// `apps/web/src/screens/scan/last-added-banner.tsx` : `undoable` ne
+// conditionne que ce bouton). À signaler franchement : l'expiration de la
+// fenêtre n'est couverte par aucun test aujourd'hui, ici ou ailleurs.
+test('annule l’ajout depuis le bandeau', async ({ page }) => {
   await page.goto('/scan');
   // Le « Placard » n'a reçu aucun lot dans le test de régression plus haut
   // (la validation y a été annulée) : le lot créé ici y est donc le seul,
