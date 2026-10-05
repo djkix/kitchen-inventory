@@ -165,6 +165,48 @@ describe('stock (EF-07, EF-08, EF-09, EF-10)', () => {
     expect(search.body.items.map((i: { product: { name: string } }) => i.product.name)).toEqual(['Ramen Shin']);
   });
 
+  it('ignore les accents dans les deux sens de la recherche (EF-11)', async () => {
+    const creme = await createProduct({ name: 'Crème fraîche' });
+    const oeufs = await createProduct({ name: 'Œufs' });
+    const pates = await createProduct({ name: 'Pâtes', brand: 'Panzani', originalName: 'Pâtes de Panzani' });
+    await agent.post('/api/v1/stock').send({ productId: creme, locationId: frigoId }).expect(201);
+    await agent.post('/api/v1/stock').send({ productId: oeufs, locationId: frigoId }).expect(201);
+    await agent.post('/api/v1/stock').send({ productId: pates, locationId: placardId }).expect(201);
+
+    // Saisie sans accent : trouve l'article accentué en base.
+    const sansAccent = await agent.get('/api/v1/stock?q=creme').expect(200);
+    expect(sansAccent.body.items.map((i: { product: { name: string } }) => i.product.name)).toEqual(['Crème fraîche']);
+
+    const sansAccentOeufs = await agent.get('/api/v1/stock?q=oeufs').expect(200);
+    expect(sansAccentOeufs.body.items.map((i: { product: { name: string } }) => i.product.name)).toEqual(['Œufs']);
+
+    const sansAccentPates = await agent.get('/api/v1/stock?q=pates').expect(200);
+    expect(sansAccentPates.body.items.map((i: { product: { name: string } }) => i.product.name)).toEqual(['Pâtes']);
+
+    // Saisie accentuée : trouve toujours l'article (comportement déjà en place).
+    const avecAccent = await agent.get(`/api/v1/stock?q=${encodeURIComponent('Crème')}`).expect(200);
+    expect(avecAccent.body.items.map((i: { product: { name: string } }) => i.product.name)).toEqual(['Crème fraîche']);
+  });
+
+  it('la recherche couvre la marque et le nom d’origine en plus du nom', async () => {
+    const jambon = await createProduct({ name: 'Jambon blanc', brand: 'Herta', originalName: 'Jambon supérieur' });
+    const autre = await createProduct({ name: 'Riz basmati' });
+    await agent.post('/api/v1/stock').send({ productId: jambon, locationId: frigoId }).expect(201);
+    await agent.post('/api/v1/stock').send({ productId: autre, locationId: placardId }).expect(201);
+
+    // Synonyme EF-11 : « pork » trouve « Jambon blanc ».
+    const parSynonyme = await agent.get('/api/v1/stock?q=pork').expect(200);
+    expect(parSynonyme.body.items.map((i: { product: { name: string } }) => i.product.name)).toEqual(['Jambon blanc']);
+
+    // Par marque.
+    const parMarque = await agent.get('/api/v1/stock?q=herta').expect(200);
+    expect(parMarque.body.items.map((i: { product: { name: string } }) => i.product.name)).toEqual(['Jambon blanc']);
+
+    // Par nom d'origine.
+    const parNomOrigine = await agent.get('/api/v1/stock?q=superieur').expect(200);
+    expect(parNomOrigine.body.items.map((i: { product: { name: string } }) => i.product.name)).toEqual(['Jambon blanc']);
+  });
+
   it('déplace, modifie la date, jette et rend l’historique des mouvements', async () => {
     const productId = await createProduct({ name: 'Riz' });
     const created = await agent.post('/api/v1/stock').send({ productId, locationId: placardId, quantity: 2 }).expect(201);

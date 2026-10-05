@@ -82,9 +82,10 @@ message explicite.
 autant de niveaux que voulu. La suppression est refusée tant qu'il reste du
 stock, avec la proposition de le déplacer vers le parent.
 
-**Recherche tolérante** aux fautes et aux synonymes : « nouilles » trouve
-« ramen », « tomat » trouve « Tomates pelées », la recherche porte aussi sur le
-nom d'origine et la marque.
+**Recherche tolérante** aux fautes, aux synonymes et aux accents : « nouilles »
+trouve « ramen », « tomat » trouve « Tomates pelées », « creme » trouve
+« Crème fraîche » même saisi sans accent depuis un téléphone, la recherche
+porte aussi sur le nom d'origine et la marque.
 
 **Multi-utilisateur** sur un inventaire partagé, comptes locaux, sessions
 révocables, verrouillage après échecs répétés, jeton de service en lecture
@@ -403,6 +404,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.8.2 | 2026-10-05 | Correctif : la recherche du stock ignore désormais les accents (EF-11). « creme » trouvait « Crème fraîche » côté produits mais pas côté stock, car la requête était désaccentuée puis comparée telle quelle au texte brut en base. La comparaison passe désormais par `unaccent_lite()` (déjà utilisée pour la détection de doublons) appliquée au texte stocké, via une résolution d'identifiants en SQL brut réinjectés dans le filtre existant ; au passage, `unaccent_lite()` ne savait pas déplier les ligatures Œ/œ/Æ/æ (deux lettres) avec `translate()`, qui ne sait remplacer qu'un caractère par un seul autre — « oeufs » ne trouvait donc pas « Œufs » ; migration `0007_unaccent_lite_ligatures` |
 | 0.8.1 | 2026-10-05 | Correctif : « Mes recettes » n'affichait jamais une recette conservée. Le filtre `archived=false` envoyé par l'écran était converti en `true` (`Boolean("false")` vaut `true` en JavaScript), si bien que seule la liste des recettes archivées était rendue. Trouvé par les tests bout en bout, qu'aucun test d'API ne pouvait révéler puisqu'ils passent un vrai booléen |
 | 0.8.0 | 2026-10-04 | Recettes suggérées à partir du stock (EF-26) : écran Suggestions en entrée du module, point de départ composé depuis le stock réel, recherche web et composition par Gemini, orientation par région/durée/facilité relançant une recherche ciblée, conservation d'une suggestion réécrite au format de l'application dans Mes recettes (EF-25) ; création manuelle retirée, le formulaire ne sert plus qu'à modifier ; `VISION_MONTHLY_CAP_CENTS` plafonne désormais scan et suggestions ensemble, porté à 5 € ; `RECIPE_SUGGESTION_DAILY_QUOTA` ; migrations `0005_recipe_suggestions` et `0006_recipe_client_op_id` ; une recette mal formée n'emporte plus la fournée entière, chaque appel au fournisseur est journalisé pour que quota et plafond soient justes, l'identité d'une suggestion vient de son contenu et non de son rang, code d'erreur `insufficient_stock` dédié ; le scan retrouve son écran dédié quand aucun fournisseur n'est configuré, et les fournées ne faussent plus ses statistiques |
 | 0.7.0 | 2026-10-04 | Module recettes (socle) : écran Recettes trié par note avec filtres et tris mémorisés (EF-21, EF-22, EF-23) ; fiche recette avec état de chaque ingrédient et historique noté par membre (EF-23, EF-28) ; cuisson avec décrément plafonné au stock, lots périmés écartés, fusion de produit suivie et choix du produit substitué, ou réalisation sans décrément (EF-18, EF-28) ; archivage d'une recette déjà cuisinée, cuisson d'une recette archivée refusée ; formulaire de saisie et de modification (EF-17) ; recherche de titre insensible aux accents (A22) ; ajout aux courses (EF-24), import par URL (EF-25) et génération par IA (EF-26) laissés au lot 2 |
