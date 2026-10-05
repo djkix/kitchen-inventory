@@ -12,7 +12,8 @@
     "apps/*"
   ],
   "scripts": {
-    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present && npm run typecheck:e2e",
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json",
     "lint": "eslint .",
     "test": "npm run build:shared && npm test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",

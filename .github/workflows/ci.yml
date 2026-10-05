@@ -61,6 +61,12 @@ jobs:
       - run: npm run build -w @kitchen/shared
       - name: Vérification des types
         run: npm run typecheck --workspaces --if-present
+      # `e2e/` n'est pas un espace de travail npm : le step ci-dessus ne le
+      # voit pas, et Playwright efface les types sans les vérifier. Sans ce
+      # step, une erreur de type dans un parcours ne se verrait qu'à
+      # l'exécution du job `e2e`, sur `main` uniquement.
+      - name: Vérification des types des parcours bout en bout
+        run: npm run typecheck:e2e
       - name: Lint
         run: npm run lint
       - name: Tests

@@ -1,0 +1,28 @@
+{
+  // Les sources de `e2e/` n'appartiennent à aucun espace de travail npm
+  // (`workspaces` ne liste que `packages/*` et `apps/*`) : sans ce fichier,
+  // `npm run typecheck --workspaces` ne les voyait pas, et Playwright se
+  // contente d'effacer les types à l'exécution sans jamais les vérifier. Une
+  // erreur de type passait donc la CI au vert et ne se manifestait qu'en
+  // échec d'exécution sur `main`, le seul endroit où le job e2e tourne et le
+  // seul que Franck ne peut pas rejouer. Vérifié par `npm run typecheck:e2e`,
+  // appelé par le job `check` (donc sur chaque pull request).
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // Les specs importent leurs voisins avec l'extension `.ts`
+    // (`./support/auth.ts`) : c'est ce que Playwright attend de ses modules
+    // ESM, et ce que `bundler` + cette option autorisent sans émettre.
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+    // Pas de bibliothèque DOM, volontairement : rien ici ne s'exécute dans le
+    // navigateur. Les scripts injectés dans la page le sont en chaîne de
+    // caractères (voir `e2e/support/camera.ts`), jamais en fonction typée.
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["playwright-report", "artefacts", "test-results"]
+}
