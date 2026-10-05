@@ -1,0 +1,176 @@
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { loginAsAdmin } from './support/auth.ts';
+import { restoreDatabase } from './support/database.ts';
+import { getSingleActiveStockItemId, getStockItemById } from './support/stock.ts';
+
+/**
+ * Parcours P3 — consommation (section 3, tâche 5) : le geste de sortir un
+ * article du placard et de le dire à l'application, depuis la liste de
+ * stock (recherche + pas rapide, appui long pour « tout consommer ») et
+ * depuis la fiche article (saisie libre dans le tiroir « Consommer »).
+ *
+ * Hors périmètre, à dessein [C1] : le basculement d'un article en liste de
+ * courses quand il atteint zéro et qu'un seuil est configuré. Ni les seuils
+ * ni la liste de courses n'existent dans l'application (EF-24, lot 2,
+ * `CLAUDE.md` section « Prochaine étape ») — aucun test ci-dessous ne le
+ * suppose.
+ *
+ * Contrairement à P1/P2, ce parcours ne scanne rien : le seed (`prisma/seed/
+ * dev.ts`, boucle des 60 lots) fournit déjà le stock de départ. Chaque test
+ * choisit un produit qui n'a qu'un SEUL lot dans tout le jeu de données
+ * (vérifié en lisant le seed : les produits d'indice 20 à 39 dans l'ordre
+ * d'insertion — de « Lait demi-écrémé » à « Reste de ratatouille » — n'y
+ * reçoivent jamais de second lot, la boucle des 60 itérations ne les
+ * reparcourant qu'une fois). Une recherche par nom de produit est donc sans
+ * ambiguïté pour eux (contrairement à l'avertissement de `e2e/support/
+ * stock.ts` sur les deux produits de la vidéo truquée, qui eux se répètent) :
+ * pas besoin de scoper par emplacement, voir `getSingleActiveStockItemId`.
+ * Quatre produits distincts sont utilisés, un par test, pour que les tests
+ * restent indépendants les uns des autres au sein de ce même fichier (la
+ * base n'est restaurée qu'une fois par fichier, jamais par test) :
+ *   - Bananes (Placard, 3 pièces)
+ *   - Saumon fumé (Réfrigérateur, 3 pièces)
+ *   - Jambon blanc (Réfrigérateur, 2 pièces)
+ *   - Reste de ratatouille (Réfrigérateur, 3 pièces)
+ */
+
+test.beforeAll(async () => {
+  await restoreDatabase();
+});
+
+/** Carte d'article dans la liste de stock (`apps/web/src/screens/stock/stock-item-card.tsx`) : un `<article>` dont le texte contient le nom du produit. */
+function stockCard(page: Page, productName: string): Locator {
+  return page.locator('article').filter({ hasText: productName });
+}
+
+/**
+ * Appui long (500 ms, `apps/web/src/hooks/use-long-press.ts`) : un `.click()`
+ * Playwright ne suffit pas, il faut tenir le bouton. `use-long-press.ts`
+ * réagit à de vrais évènements pointeur ; un maintien de souris réel en
+ * déclenche (pointerdown/pointerup synthétisés par Chromium pour la souris).
+ */
+async function longPress(page: Page, target: Locator): Promise<void> {
+  const box = await target.boundingBox();
+  if (!box) throw new Error('Bouton de consommation introuvable pour l’appui long.');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(650);
+  await page.mouse.up();
+}
+
+test('décrémente un article depuis la recherche', async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill('Bananes');
+
+  const card = stockCard(page, 'Bananes');
+  await expect(card).toBeVisible();
+  // Quantité de départ du seed (prisma/seed/dev.ts) : 3 pièces, un seul lot.
+  await expect(card.getByText('3 pièces', { exact: true })).toBeVisible();
+
+  // Bouton « Consommer {pas} ; appui long pour tout consommer »
+  // (stock-item-card.tsx) : un clic bref ne déclenche que le pas, jamais
+  // l'appui long (use-long-press.ts, onClick tant que le minuteur n'a pas
+  // eu le temps de se déclencher).
+  await card.getByRole('button', { name: /^Consommer/ }).click();
+
+  // Le pas d'une pièce (quantity-ui.ts, consumeStep('PIECE', 3) === 1) :
+  // la quantité affichée passe de 3 à 2 pièces.
+  await expect(card.getByText('2 pièces', { exact: true })).toBeVisible();
+});
+
+test('consomme tout par un appui long', async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill('Saumon fumé');
+
+  const card = stockCard(page, 'Saumon fumé');
+  await expect(card).toBeVisible();
+  await expect(card.getByText('3 pièces', { exact: true })).toBeVisible();
+
+  await longPress(page, card.getByRole('button', { name: /^Consommer/ }));
+
+  // Message du toast d'annulation (stock-screen.tsx, `consume` : quantité
+  // demandée === quantité du lot ⇒ « tout consommé », jamais « consommé »
+  // seul, qui désigne une consommation partielle).
+  await expect(page.getByText('Saumon fumé : tout consommé')).toBeVisible({ timeout: 5_000 });
+
+  // Le lot à zéro est archivé (stock.quantity.ts, `recomputeQuantity`) et
+  // quitte la liste active (stock.service.ts, `list`, `status: 'active'`
+  // par défaut) : la recherche ne trouve donc plus rien, même filtre « Tout »
+  // que la liste active par défaut (stock-screen.tsx, `StockEmpty`).
+  await expect(page.getByText('Rien ne correspond à « Saumon fumé »')).toBeVisible({ timeout: 10_000 });
+});
+
+test('refuse de descendre sous zéro', async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill('Jambon blanc');
+
+  const card = stockCard(page, 'Jambon blanc');
+  await expect(card).toBeVisible();
+  await expect(card.getByText('2 pièces', { exact: true })).toBeVisible();
+
+  const id = await getSingleActiveStockItemId(page, 'Jambon blanc');
+
+  // Épuise le lot par l'écran (comme le test précédent), pour obtenir un lot
+  // réellement à zéro — pas une quantité négative fabriquée par le test.
+  await longPress(page, card.getByRole('button', { name: /^Consommer/ }));
+  await expect(page.getByText('Jambon blanc : tout consommé')).toBeVisible({ timeout: 5_000 });
+
+  // Le bouton « Consommer » de la carte comme celui de la fiche article
+  // disparaissent pour un lot archivé (stock-item-card.tsx et item-screen.tsx,
+  // `{!archived && (...)}`) : l'écran n'offre donc plus aucun geste pour
+  // tenter de consommer davantage. La règle qui refuse de descendre sous
+  // zéro (`StockService.requireActive`, apps/api/src/stock/stock.service.ts :
+  // « Ce lot est déjà épuisé », 422 `business_rule`) se vérifie ici en
+  // rejouant directement l'appel que l'écran aurait fait s'il l'avait permis
+  // — même route, mêmes identifiants de session que `expectNoActiveStockOf`
+  // (e2e/support/stock.ts), jamais un accès direct à la base.
+  const refused = await page.request.post(`/api/v1/stock/${id}/consume`, { data: { quantity: 1 } });
+  expect(refused.status()).toBe(422);
+  const refusedBody = (await refused.json()) as { error: { code: string; message: string } };
+  expect(refusedBody.error.code).toBe('business_rule');
+  expect(refusedBody.error.message).toBe('Ce lot est déjà épuisé');
+
+  // Quantité inchangée : toujours zéro, toujours archivé — le refus n'a rien
+  // écrit (pas de mouvement inséré avant la levée de l'erreur, stock.service.ts).
+  const after = await getStockItemById(page, id);
+  expect(after.quantity).toBe(0);
+  expect(after.archivedAt).not.toBeNull();
+});
+
+test('la quantité affichée suit la somme des mouvements', async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill('Reste de ratatouille');
+
+  const card = stockCard(page, 'Reste de ratatouille');
+  await expect(card).toBeVisible();
+  // Nom accessible de la carte (stock-item-card.tsx) : « {nom}, {quantité}, {phrase de péremption} ».
+  await card.getByRole('button', { name: /^Reste de ratatouille,/ }).click();
+
+  await expect(page.getByRole('heading', { name: 'Reste de ratatouille', level: 1 })).toBeVisible();
+  // Quantité matérialisée affichée en tête de fiche (item-screen.tsx) : point
+  // de départ du seed, un seul lot de 3 pièces.
+  await expect(page.getByText('3 pièces', { exact: true })).toBeVisible();
+
+  // Première consommation, saisie libre dans le tiroir (consume-sheet.tsx) :
+  // 3 − 1 = 2. Ce n'est encore qu'une seule écriture, pas la preuve visée.
+  await page.getByRole('button', { name: 'Consommer', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Consommer', level: 2 })).toBeVisible();
+  await page.getByLabel('Quantité (pièce)').fill('1');
+  await page.getByRole('button', { name: 'Consommer 1 pièce' }).click();
+  await expect(page.getByText('2 pièces', { exact: true })).toBeVisible();
+
+  // Deuxième consommation, enchaînée sans restaurer la base ni recharger la
+  // page : c'est ici le point qui compte (CLAUDE.md, « StockItem.quantity
+  // est une valeur matérialisée. La vérité est la somme des StockMovement »,
+  // et `stock.quantity.ts`, `recomputeQuantity`, qui relit TOUS les mouvements
+  // à chaque écriture plutôt que de soustraire du dernier affichage). Si la
+  // quantité affichée ne reflétait que la dernière écriture (un bug qui
+  // écrirait `quantity = 3 - 1` une seconde fois, ou qui ignorerait le
+  // premier mouvement), cette assertion verrait encore « 2 pièces » au lieu
+  // de la somme réelle (3 − 1 − 1 = 1).
+  await page.getByRole('button', { name: 'Consommer', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Consommer', level: 2 })).toBeVisible();
+  await page.getByLabel('Quantité (pièce)').fill('1');
+  await page.getByRole('button', { name: 'Consommer 1 pièce' }).click();
+  await expect(page.getByText('1 pièce', { exact: true })).toBeVisible();
+});

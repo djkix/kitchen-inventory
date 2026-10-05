@@ -75,3 +75,40 @@ export async function expectNoActiveStockOf(page: Page, productName: string, loc
     expect(body.items.some((item) => item.locationId === locationId)).toBe(false);
   }).toPass({ timeout: 10_000 });
 }
+
+interface StockItemRef {
+  readonly id: string;
+  readonly quantity: number;
+  readonly archivedAt: string | null;
+}
+
+interface StockListResponseWithRef {
+  readonly items: readonly StockItemRef[];
+}
+
+/**
+ * Résout l'identifiant du lot ACTIF unique de `productName` (section 3,
+ * tâche 5) : contrairement au cas documenté plus haut, les produits choisis
+ * par `p3-consommation.spec.ts` (`prisma/seed/dev.ts`, boucle des 60 lots —
+ * les produits d'indice 20 à 39 dans l'ordre d'insertion n'y reçoivent
+ * qu'un seul lot chacun) n'ont qu'un seul lot dans tout le jeu de données.
+ * Une recherche par nom non scopée par emplacement est donc sans ambiguïté
+ * pour eux. Échoue explicitement si ce n'est pas le cas (plutôt que de
+ * prendre silencieusement le premier résultat), pour qu'un futur changement
+ * du seed qui romprait cette hypothèse fasse échouer le test au lieu de le
+ * rendre silencieusement faux.
+ */
+export async function getSingleActiveStockItemId(page: Page, productName: string): Promise<string> {
+  const response = await page.request.get('/api/v1/stock', { params: { q: productName, status: 'active' } });
+  const body = (await response.json()) as StockListResponseWithRef;
+  if (body.items.length !== 1) {
+    throw new Error(`Attendu un seul lot actif de « ${productName} », trouvé ${body.items.length}.`);
+  }
+  return body.items[0]!.id;
+}
+
+/** Lecture directe d'un lot par identifiant (`GET /stock/:id`), pour vérifier un état que l'écran ne montre plus (lot archivé). */
+export async function getStockItemById(page: Page, id: string): Promise<StockItemRef> {
+  const response = await page.request.get(`/api/v1/stock/${id}`);
+  return (await response.json()) as StockItemRef;
+}
