@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginAsAdmin } from './support/auth.ts';
 import { restoreDatabase } from './support/database.ts';
-import { getSingleActiveStockItemId, getStockItemById } from './support/stock.ts';
+import { expectNoActiveStockOf, getSingleActiveStockItemId, getStockItemById } from './support/stock.ts';
 
 /**
  * Parcours P3 — consommation (section 3, tâche 5) : le geste de sortir un
@@ -21,10 +21,27 @@ import { getSingleActiveStockItemId, getStockItemById } from './support/stock.ts
  * (vérifié en lisant le seed : les produits d'indice 20 à 39 dans l'ordre
  * d'insertion — de « Lait demi-écrémé » à « Reste de ratatouille » — n'y
  * reçoivent jamais de second lot, la boucle des 60 itérations ne les
- * reparcourant qu'une fois). Une recherche par nom de produit est donc sans
- * ambiguïté pour eux (contrairement à l'avertissement de `e2e/support/
- * stock.ts` sur les deux produits de la vidéo truquée, qui eux se répètent) :
- * pas besoin de scoper par emplacement, voir `getSingleActiveStockItemId`.
+ * reparcourant qu'une fois). Cela ne rend PAS la recherche par nom sans
+ * ambiguïté pour autant (correctif après un premier échec en CI) : EF-11 la
+ * rend volontairement tolérante aux synonymes, aux accents et à l'ordre des
+ * mots (`expandSearchTerms`, `packages/shared/src/search/synonyms.ts`) —
+ * chercher « Saumon fumé » retrouve aussi les deux lots de « Thon au
+ * naturel » du seed par le groupe « poisson ». Une recherche texte ne prouve
+ * donc jamais une ABSENCE (une carte qu'on cherche à ne plus trouver peut
+ * très bien être remplacée par un autre produit du même groupe de synonymes,
+ * qui ne part jamais) ; elle ne prouve qu'une PRÉSENCE (la carte qu'on
+ * trouve est bien la bonne, vérifié par son propre texte). Les assertions
+ * d'absence de ce fichier passent donc par `expectNoActiveStockOf`
+ * (e2e/support/stock.ts, comparaison de `locationId`, jamais de texte) ;
+ * seul le compte exact retourné par `getSingleActiveStockItemId` reste fiable
+ * tel quel, parce qu'aucun des quatre produits choisis ci-dessous ne partage
+ * de groupe de synonymes avec un autre produit du seed (vérifié dans
+ * `packages/shared/src/search/synonyms.ts` : aucun groupe ne contient
+ * « bananes », « jambon blanc » n'y est associé qu'à « porc »/« pork »/
+ * « lardons », absents du seed, et « reste de ratatouille » n'y figure pas
+ * du tout) — son propre commentaire le redit, pour ne pas avoir à revenir
+ * ici à chaque lecture.
+ *
  * Quatre produits distincts sont utilisés, un par test, pour que les tests
  * restent indépendants les uns des autres au sein de ce même fichier (la
  * base n'est restaurée qu'une fois par fichier, jamais par test) :
@@ -113,9 +130,16 @@ test('consomme tout par un appui long', async ({ page }) => {
 
   // Le lot à zéro est archivé (stock.quantity.ts, `recomputeQuantity`) et
   // quitte la liste active (stock.service.ts, `list`, `status: 'active'`
-  // par défaut) : la recherche ne trouve donc plus rien, même filtre « Tout »
-  // que la liste active par défaut (stock-screen.tsx, `StockEmpty`).
-  await expect(page.getByText('Rien ne correspond à « Saumon fumé »')).toBeVisible({ timeout: 10_000 });
+  // par défaut). Prouvé par absence de stock actif, jamais par une recherche
+  // qui ne renverrait rien : la recherche tolère les synonymes (EF-11,
+  // `expandSearchTerms`, `packages/shared/src/search/synonyms.ts`), et le
+  // groupe « poisson » confond « saumon » et « thon » — chercher « Saumon
+  // fumé » retrouve aussi les deux lots de « Thon au naturel » du seed, qui
+  // ne disparaissent jamais. Une assertion sur « Rien ne correspond à … »
+  // serait donc irréalisable par construction (déjà vu en échec CI). Portée
+  // au Réfrigérateur, comme P1 : `expectNoActiveStockOf` compare les
+  // `locationId`, pas le texte.
+  await expectNoActiveStockOf(page, 'Saumon fumé', 'Réfrigérateur');
 });
 
 test('refuse de descendre sous zéro', async ({ page }) => {

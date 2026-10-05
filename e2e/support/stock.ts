@@ -111,15 +111,19 @@ interface StockListResponseWithRef {
 
 /**
  * Résout l'identifiant du lot ACTIF unique de `productName` (section 3,
- * tâche 5) : contrairement au cas documenté plus haut, les produits choisis
- * par `p3-consommation.spec.ts` (`prisma/seed/dev.ts`, boucle des 60 lots —
- * les produits d'indice 20 à 39 dans l'ordre d'insertion n'y reçoivent
- * qu'un seul lot chacun) n'ont qu'un seul lot dans tout le jeu de données.
- * Une recherche par nom non scopée par emplacement est donc sans ambiguïté
- * pour eux. Échoue explicitement si ce n'est pas le cas (plutôt que de
- * prendre silencieusement le premier résultat), pour qu'un futur changement
- * du seed qui romprait cette hypothèse fasse échouer le test au lieu de le
- * rendre silencieusement faux.
+ * tâche 5), SANS le scoper par emplacement — contrairement à
+ * `expectNoActiveStockOf`/`expectActiveStockOf` ci-dessus, volontairement :
+ * utilisable seulement quand on a déjà établi que `productName` ne peut pas
+ * avoir plus d'un lot actif dans tout le jeu de données ET qu'aucun autre
+ * produit du seed ne partage un groupe de synonymes avec lui (EF-11,
+ * `expandSearchTerms`, `packages/shared/src/search/synonyms.ts` — la
+ * recherche y est volontairement tolérante aux synonymes, donc jamais fiable
+ * pour un compte exact en général, voir l'en-tête de
+ * `e2e/p3-consommation.spec.ts`). Les deux conditions sont à revérifier par
+ * l'appelant à chaque nouveau produit, pas supposées ici. Échoue
+ * explicitement si le compte n'est pas exactement un (plutôt que de prendre
+ * silencieusement le premier résultat), pour qu'une hypothèse rompue fasse
+ * échouer le test au lieu de le rendre silencieusement faux.
  */
 export async function getSingleActiveStockItemId(page: Page, productName: string): Promise<string> {
   const response = await page.request.get('/api/v1/stock', { params: { q: productName, status: 'active' } });
