@@ -95,7 +95,23 @@ export const recipeListQuerySchema = paginationQuerySchema.extend({
   maxTime: z.coerce.number().int().min(1).max(1440).optional(),
   minRating: z.coerce.number().min(1).max(5).optional(),
   coverageMin: z.coerce.number().min(0).max(1).optional(),
-  archived: z.coerce.boolean().default(false),
+  /**
+   * Jamais `z.coerce.boolean()` : il rend `true` pour la chaîne `"false"`
+   * (`Boolean("false") === true`), si bien que le filtre `archived: false`
+   * envoyé par défaut par l'écran Mes recettes (`EMPTY_RECIPE_FILTERS`,
+   * `apps/web/src/screens/recipes/recipe-filters.tsx`) en `?archived=false`
+   * inversait le sens du filtre — `RecipesService.list` exigeait alors
+   * `archivedAt: { not: null }` au lieu de `null`, et la bibliothèque
+   * affichait zéro recette active quel que soit le stock réel. Même piège déjà
+   * documenté et évité pour `refresh` dans `suggestionQuerySchema`
+   * (`./suggestions.ts`) ; manqué ici jusqu'à ce que le parcours bout en bout
+   * P5 l'exerce pour de vrai (une recette tout juste conservée, introuvable
+   * dans sa propre bibliothèque).
+   */
+  archived: z
+    .union([z.literal('true'), z.literal('false'), z.boolean()])
+    .optional()
+    .transform((value) => value === 'true' || value === true),
   sort: recipeSortSchema.default('rating'),
 });
 export type RecipeListQuery = z.infer<typeof recipeListQuerySchema>;
