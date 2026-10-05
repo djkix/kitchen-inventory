@@ -25,13 +25,26 @@ const SCANNABLE_PRODUCTS: readonly ScannedProduct[] = [
   { barcode: FAKE_VIDEO_BARCODE_SECONDARY, name: FAKE_VIDEO_PRODUCT_NAME_SECONDARY },
 ];
 
-/** Le tiroir de validation d'un scan doit déjà être visible avant cet appel. */
+/**
+ * Le tiroir de validation d'un scan doit déjà être visible avant cet appel.
+ * Attend (avec réessais, comme partout ailleurs dans cette suite — jamais un
+ * simple `isVisible()` à un instant donné) que l'un des deux codes connus se
+ * peigne, puis relit lequel : le tiroir et son texte « code {barcode} » font
+ * partie du même rendu React, mais rien ne garantit qu'ils se peignent dans
+ * le même instant exact sous CI chargée.
+ */
 export async function identifyScannedProduct(page: Page): Promise<ScannedProduct> {
   // Seul texte sans ambiguïté sur cet écran pour cela : « · code {barcode} »
   // (confirm-sheet.tsx, apps/web/src/screens/scan) — jamais le nom du produit
   // seul, qui réapparaît dans une ligne marque · catégorie.
-  for (const product of SCANNABLE_PRODUCTS) {
-    if (await page.getByText(`code ${product.barcode}`).isVisible()) return product;
+  const locators = SCANNABLE_PRODUCTS.map((product) => page.getByText(`code ${product.barcode}`));
+  const eitherCode = locators.reduce((combined, locator) => combined.or(locator));
+  await expect(eitherCode).toBeVisible();
+
+  // Le tiroir est déjà peint (attente ci-dessus) : ces lectures ne sont plus
+  // une course, juste la relecture d'un état stable.
+  for (const [index, product] of SCANNABLE_PRODUCTS.entries()) {
+    if (await locators[index]?.isVisible()) return product;
   }
   throw new Error('Aucun des deux codes-barres connus de la vidéo de test n’est visible sur le tiroir de validation.');
 }

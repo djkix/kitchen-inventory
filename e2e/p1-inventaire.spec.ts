@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginAsAdmin } from './support/auth.ts';
 import { restoreDatabase } from './support/database.ts';
 import { identifyScannedProduct, scanAndConfirm } from './support/scan.ts';
+import { expectNoActiveStockOf } from './support/stock.ts';
 
 /**
  * Parcours P1 — inventaire initial (section 3, tâche 3) : quelqu'un se place
@@ -45,9 +46,11 @@ test('ne crée rien tant que la validation n’a pas été faite', async ({ page
   const product = await identifyScannedProduct(page);
   await page.getByRole('button', { name: 'Ignorer' }).click();
 
-  await page.goto('/stock');
-  await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill(product.name);
-  await expect(page.getByText(`Rien ne correspond à « ${product.name} »`)).toBeVisible({ timeout: 10_000 });
+  // Portée à « Placard » (jamais une recherche globale) : ce même fichier
+  // scanne les deux produits de la vidéo dans d'autres emplacements, sans
+  // restaurer la base entre les tests — voir `expectNoActiveStockOf`
+  // (e2e/support/stock.ts) pour la raison exacte.
+  await expectNoActiveStockOf(page, product.name, 'Placard');
 });
 
 test('enchaîne deux scans sans refermer la caméra', async ({ page }) => {
@@ -142,7 +145,7 @@ test('annule l’ajout depuis le bandeau dans les cinq secondes', async ({ page 
   await page.getByRole('button', { name: 'Annuler' }).click();
   await expect(page.getByText(`${product.name} retiré`)).toBeVisible({ timeout: 5_000 });
 
-  await page.goto('/stock');
-  await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill(product.name);
-  await expect(page.getByText(`Rien ne correspond à « ${product.name} »`)).toBeVisible({ timeout: 10_000 });
+  // Portée à « Placard », pour la même raison que le test de régression
+  // plus haut.
+  await expectNoActiveStockOf(page, product.name, 'Placard');
 });
