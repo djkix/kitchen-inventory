@@ -52,7 +52,15 @@ function findLocationId(nodes: readonly LocationNode[], name: string): string | 
   return null;
 }
 
-async function resolveLocationId(page: Page, locationName: string): Promise<string> {
+/**
+ * Exportée pour la tâche 6 (P4, consultation) : l'écran de stock n'offre
+ * aucun filtre par emplacement (`stock-filters.tsx` ne propose qu'un
+ * regroupement d'affichage et des pastilles de statut, jamais un choix
+ * d'emplacement) — un test qui vérifie le filtrage `location` de
+ * `StockService.list` doit donc résoudre lui-même l'identifiant, comme les
+ * fonctions ci-dessous le font déjà en interne.
+ */
+export async function resolveLocationId(page: Page, locationName: string): Promise<string> {
   const response = await page.request.get('/api/v1/locations');
   const tree = (await response.json()) as LocationNode[];
   const id = findLocationId(tree, locationName);
