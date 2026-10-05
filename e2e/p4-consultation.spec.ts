@@ -16,38 +16,18 @@ import { resolveLocationId } from './support/stock.ts';
  * (EF-24, lot 2, `CLAUDE.md` section « Prochaine étape »). Aucun test
  * ci-dessous ne la suppose.
  *
- * NOTE IMPORTANTE sur le premier test. Le brief de cette tâche reprend
- * l'exemple canonique d'EF-11 (« crepes » doit trouver « Crêpes »), mais
- * vérifié par lecture de code, cet exemple ne tient PAS contre l'écran de
- * stock réel :
- *   - `StockFilters`/`StockScreen` (apps/web/src/screens/stock/stock-filters.tsx,
- *     stock-screen.tsx) envoient la recherche brute à `GET /stock?q=…`.
- *   - `StockService.list` (apps/api/src/stock/stock.service.ts) construit ses
- *     termes avec `expandSearchTerms` (packages/shared/src/search/synonyms.ts),
- *     qui ne renvoie QUE la forme normalisée de la requête — accents retirés
- *     par `normalizeProductName` (packages/shared/src/rules/duplicates.ts) —
- *     puis compare ces termes au nom du produit avec un simple
- *     `contains`/`insensitive` Prisma (ILIKE Postgres). Cet opérateur ne replie
- *     QUE la casse, jamais les accents : `'crêpes'.toLowerCase().includes('crepes')`
- *     vaut `false` (vérifié en Node), et aucun produit du seed ne s'appelle
- *     « Crêpes » de toute façon.
- *   - Le repli des accents existe bel et bien dans le code (`unaccent_lite`,
- *     `prisma/migrations/0002_unaccent_lite/migration.sql`), mais seulement
- *     côté `GET /products` (apps/api/src/products/products.search.ts, utilisé
- *     pour la détection de doublons à la création d'un produit) — un
- *     endpoint sans aucun écran de navigation/recherche dans cette PWA
- *     (seul `/produits/nouveau`, un formulaire de création, existe).
- * Écrire le test tel que décrit l'aurait donc fait échouer à coup sûr, pour
- * une raison qui n'est pas un défaut du test. Remplacé par une démonstration
- * tout aussi fidèle à EF-11 (« tolérant… aux synonymes ») et réellement vraie
- * contre le code lu : un mot sans rapport apparent (« pork », anglais, sans
- * accent) retrouve « Jambon blanc » via le groupe de synonymes
- * `['porc', 'pork', 'lardons', 'jambon']` — le terme « jambon » de ce groupe
- * est un sous-mot littéral du nom, sans aucun repli d'accent nécessaire.
- * Signalé pour que le coordinateur juge s'il faut plutôt corriger
- * `StockService.list` pour qu'il utilise `unaccent_lite` comme
- * `products.search.ts` le fait déjà — hors mandat de cette tâche d'écriture
- * de tests.
+ * NOTE sur le premier test (historique, pour mémoire). Au moment où ce
+ * fichier a été écrit, l'exemple canonique d'EF-11 (« crepes » doit trouver
+ * « Crêpes ») ne tenait PAS contre l'écran de stock réel : `StockService.list`
+ * comparait ses termes au nom du produit avec un simple `contains` Prisma
+ * (ILIKE), qui replie la casse mais jamais les accents — seul `GET /products`
+ * passait par `unaccent_lite`. Le test avait donc été remplacé par une
+ * démonstration de synonymes (« pork » → « Jambon blanc »). Depuis la 0.8.2
+ * (migration `0007_unaccent_lite_ligatures`, voir le README), `StockService.list`
+ * résout aussi ses identifiants via `unaccent_lite` (apps/api/src/stock/stock.service.ts) :
+ * l'exemple canonique est redevenu vrai, le second test ci-dessous le couvre
+ * directement sur un produit du seed. Le test par synonyme reste, pour ce
+ * qu'il couvre en propre (EF-11 ne se limite pas aux accents).
  */
 
 test.beforeAll(async () => {
@@ -73,6 +53,14 @@ test('trouve un produit par un synonyme, sans rapport apparent avec son nom (EF-
 
   // Carte d'article (apps/web/src/screens/stock/stock-item-card.tsx, `<article>`).
   const card = page.locator('article').filter({ hasText: 'Jambon blanc' });
+  await expect(card).toBeVisible();
+});
+
+test('trouve un produit par un nom accentué saisi sans accent (EF-11)', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill('cafe');
+
+  const card = page.locator('article').filter({ hasText: 'Café moulu' });
   await expect(card).toBeVisible();
 });
 

@@ -135,20 +135,12 @@ jobs:
   # Parcours bout en bout (section 19), sur le montage jetable de la tâche 1
   # (docker-compose.e2e.yml) : jamais l'image publiée, jamais un réseau réel
   # (Open Food Facts et Gemini sont remplacés par la doublure du service
-  # `stub`). Tourne aussi depuis `tests-bout-en-bout` : clause temporaire, le
-  # temps de construire ce chantier, que la dernière tâche du plan retirera
-  # pour ne garder que `main`. Volontairement écrite contre `github.head_ref`
-  # et non `github.ref` : sur l'évènement `pull_request`, `github.ref` vaut
-  # `refs/pull/<n>/merge` (jamais `refs/heads/...`), donc une condition sur
-  # `github.ref == 'refs/heads/tests-bout-en-bout'` ne se déclenche jamais
-  # depuis une pull request — seul un push direct sur cette branche (sans PR)
-  # l'aurait fait passer. `github.head_ref` n'existe que sur `pull_request` et
-  # porte le nom de la branche source ; ne pas « simplifier » ceci en
-  # `github.ref` au prétexte que ça se ressemble.
+  # `stub`). Sur `main` seulement, après fusion [C4] : pas sur les pull
+  # requests.
   e2e:
     runs-on: ubuntu-latest
     needs: check
-    if: github.ref == 'refs/heads/main' || github.head_ref == 'tests-bout-en-bout'
+    if: github.ref == 'refs/heads/main'
     timeout-minutes: 30
     env:
       # Tag fixe sous lequel l'image ci-dessous est chargée : docker-compose.e2e.yml
@@ -190,10 +182,8 @@ jobs:
           echo "$reponse"
           echo "$reponse" | jq -e '.checks.migrations == "ok"'
       - name: Installation de Playwright
-        if: hashFiles('e2e/playwright.config.ts') != ''
         run: npx playwright install --with-deps chromium
       - name: Parcours bout en bout
-        if: hashFiles('e2e/playwright.config.ts') != ''
         run: npm run e2e
       # Dernier cas de P5 (suggestions de recettes, tâche 7) : fournisseur de
       # vision non configuré. Exige VISION_PROVIDER=none, qui ne se change
@@ -202,16 +192,14 @@ jobs:
       # et `stub` ne sont pas touchés : `restoreDatabase()` fonctionne sans
       # traitement particulier dans ce fichier dédié.
       - name: Bascule du montage sans fournisseur de vision configuré
-        if: hashFiles('e2e/p5-suggestions-sans-fournisseur.spec.ts') != ''
         run: docker compose -f docker-compose.e2e.yml -f docker-compose.e2e.none.yml up -d --wait app
       - name: Parcours bout en bout — fournisseur non configuré
-        if: hashFiles('e2e/p5-suggestions-sans-fournisseur.spec.ts') != ''
         run: npm run e2e:sans-fournisseur
       - name: Journaux du conteneur applicatif
         if: always()
         run: docker compose -f docker-compose.e2e.yml logs app > app-e2e.log || true
       - name: Publication du rapport Playwright
-        if: always() && hashFiles('e2e/playwright.config.ts') != ''
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: rapport-e2e
@@ -220,7 +208,7 @@ jobs:
           path: e2e/playwright-report/
           retention-days: 14
       - name: Publication des artefacts Playwright (traces, captures, vidéos)
-        if: always() && hashFiles('e2e/playwright.config.ts') != ''
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: artefacts-e2e

@@ -111,6 +111,20 @@ tools/             utilitaires hors application
   courses qui n'existe pas encore) en reste hors, remonté au lot 2.
 - Les choix laissés au jugement par le cahier des charges sont consignés dans
   `docs/decisions/`. Le plan d'exécution du lot 1 est dans `docs/plans/`.
+- Tests bout en bout Playwright livrés (section 19) : les parcours P1 à P4 du
+  cahier (section 3, chacun limité à ce que l'application sait faire
+  aujourd'hui) et un parcours P5 Suggestions ajouté hors cahier parce que
+  c'est la fonctionnalité la plus récente et la plus fragile. Joués au
+  navigateur (Chromium, caméra simulée) contre l'image Docker construite dans
+  le job lui-même et une base PostgreSQL jetable, avec une doublure locale
+  d'Open Food Facts et de Gemini — jamais de réseau réel. **CI uniquement**,
+  sur `main` après fusion : Franck n'a pas de moteur de conteneurs sur son
+  Mac. La conservation d'une recette trouvée sur le web n'est pas jouée bout
+  en bout : le récupérateur de pages refuse HTTP et les adresses privées, et
+  une doublure locale tombe dans les deux cas. Spécification, quinze
+  décisions et les deux limites assumées dans
+  `docs/specs/2026-10-04-tests-bout-en-bout.md` et
+  `docs/decisions/2026-10-04-tests-bout-en-bout.md`.
 
 ## Développement local
 
@@ -129,6 +143,5 @@ Lot 2 (décision 8) après quelques semaines d'usage réel : seuils et liste de
 courses, alertes de péremption, mode hors ligne (`POST /sync`, file IndexedDB,
 les écritures portent déjà `clientOpId`), export enrichi, et pour le module
 recettes : ajout des ingrédients manquants aux courses (EF-24, qui suppose
-cette liste). Restent aussi à écrire les tests bout en bout Playwright des
-parcours P1 à P4 et le jeu de non-régression de reconnaissance sur photos
-réelles (section 19).
+cette liste). Reste aussi à écrire le jeu de non-régression de reconnaissance
+sur photos réelles (section 19).

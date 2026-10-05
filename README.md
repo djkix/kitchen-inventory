@@ -379,12 +379,44 @@ Construire l'image localement :
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
-Tests bout en bout (section 19, en construction) : `docker-compose.e2e.yml`
-construit l'image réelle (jamais un serveur de développement) et la fait
-tourner contre une base jetable et une doublure d'Open Food Facts et de
-Gemini (`e2e/fixtures/stub-server.ts`, qui rejoue les fixtures d'
+### Tests bout en bout
+
+Une suite Playwright (section 19) joue les parcours P1 à P5 dans un vrai
+Chromium (caméra simulée depuis une vidéo fabriquée) contre **l'image Docker
+réellement construite** — jamais un serveur de développement — démarrée par
+un montage jetable dédié (`docker-compose.e2e.yml`) : une base PostgreSQL 16
+vide et une doublure locale d'Open Food Facts et de Gemini
+(`e2e/fixtures/stub-server.ts`, qui rejoue les fixtures d'
 `apps/api/test/fixtures`). Rien n'est persistant : `down -v` ne laisse rien
 derrière lui.
+
+Couverture actuelle : P1 (inventaire initial, scans enchaînés), P2 (rangement
+des courses, hors saisie de la DLC — elle n'existe pas encore), P3
+(consommation, hors bascule en liste de courses — ni seuils ni liste
+n'existent), P4 (consultation, recherche, filtre par emplacement, périme
+bientôt, hors vue « à racheter » qui dépend de cette même liste de courses),
+et P5 (suggestions de recettes, hors cahier des charges, ajouté parce que
+c'est la fonctionnalité la plus récente et la plus fragile). Le mode hors
+ligne n'est pas couvert non plus, pour la même raison : il n'existe pas
+encore (lot 2). La conservation d'une recette trouvée sur le **web** n'est
+pas jouée bout en bout : le récupérateur de pages refuse délibérément le HTTP
+et les adresses privées ou de bouclage, et une doublure locale tombe dans les
+deux cas à la fois — l'assouplir pour le test reviendrait à tester
+l'application avec ce garde-fou désarmé. Le parcours conserve donc une
+recette composée par l'IA ; l'extraction d'une page reste couverte par les
+tests d'intégration, sur cinq formes de pages réelles. Détail et quinze
+décisions dans `docs/specs/2026-10-04-tests-bout-en-bout.md`, jugement rendu
+dans `docs/decisions/2026-10-04-tests-bout-en-bout.md`.
+
+**Cette suite ne tourne qu'en CI**, sur `main` après chaque fusion — jamais en
+local, faute de moteur de conteneurs sur le Mac de Franck. C'est le
+compromis : en échange, le job `e2e` de `.github/workflows/ci.yml` publie
+toujours en artefact le rapport Playwright et, à chaque échec, les captures,
+vidéos et traces (dossier `e2e/artefacts/`) ainsi que les journaux du
+conteneur applicatif — c'est là qu'il faut regarder quand ce job est rouge.
+
+Pour la faire tourner quand même (pousser une branche, ou localement avec
+Docker) :
 
 ```bash
 npm run e2e:up      # application sur http://localhost:3100, base sur localhost:55432, doublure sur localhost:3101
