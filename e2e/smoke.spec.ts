@@ -30,8 +30,12 @@ test('la caméra simulée permet de lire un code-barres', async ({ page }) => {
   await page.goto('/scan');
 
   // Premier passage sur l'écran scan pour cette session de navigateur :
-  // aucun emplacement n'est mémorisé, le tiroir de choix s'ouvre seul.
-  await page.getByRole('button', { name: 'Placard', exact: true }).click({ timeout: 20_000 });
+  // aucun emplacement n'est mémorisé, le tiroir de choix s'ouvre seul. La
+  // liste est l'arbre des emplacements aplati (`LocationList`) : le nom
+  // accessible de chaque bouton concatène le nom et, s'il est non nul, le
+  // nombre d'articles qu'il contient (ex. « Placard 29 ») — jamais le nom
+  // seul ni le chemin complet. D'où un nom partiel, non exact.
+  await page.getByRole('button', { name: 'Placard', exact: false }).click({ timeout: 20_000 });
 
   // La vidéo de la caméra simulée boucle sur le code-barres du Nutella des
   // fixtures Open Food Facts (absent du seed : la doublure est bien sollicitée).
