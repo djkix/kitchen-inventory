@@ -125,7 +125,13 @@ test('Suggestions ouvre en entrée du module Recettes', async ({ page }) => {
   await page.getByRole('link', { name: 'Recettes' }).click();
 
   await expect(page.getByRole('heading', { name: 'Suggestions', level: 1 })).toBeVisible();
-  await expect(page.getByText('À partir de votre stock')).toBeVisible();
+  // Le sous-titre du `ScreenHeader` (« À partir de votre stock ») porte cette
+  // même phrase qu'une autre phrase de l'écran, le temps du chargement (
+  // `WaitingState`, « … à partir de votre stock. ») : scopé au `<header>`
+  // (apps/web/src/components/shell/app-shell.tsx, `ScreenHeader`) pour ne
+  // prouver que CELUI-là, jamais le texte d'attente, qui décrit autre chose
+  // (comment la fournée est composée, pas que cet écran est l'entrée du module).
+  await expect(page.locator('header').getByText('À partir de votre stock', { exact: true })).toBeVisible();
   // Preuve que c'est bien l'ENTRÉE du module, pas la bibliothèque elle-même :
   // le lien vers « Mes recettes » est une action de CET écran, pas l'écran courant.
   await expect(page.getByRole('link', { name: 'Mes recettes' })).toBeVisible();

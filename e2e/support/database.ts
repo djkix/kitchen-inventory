@@ -59,6 +59,19 @@ export async function seedDatabase(): Promise<string> {
 }
 
 /**
+ * Exécute une instruction SQL arbitraire sur la base e2e (`psql`), pour un
+ * besoin ponctuel qui ne justifie pas sa propre fonction dédiée ici — par
+ * exemple réinsérer une ligne après une restauration (`e2e/support/auth.ts`,
+ * `useSharedAdminSession`, qui a besoin de reposer sa session partagée après
+ * chaque `TRUNCATE`). Mêmes paramètres de connexion que le reste de ce
+ * fichier ; appelant responsable de l'échapper correctement si une valeur
+ * n'est pas déjà connue sûre (identifiants internes, jamais une saisie).
+ */
+export async function runSql(sql: string): Promise<void> {
+  await execFileAsync('psql', ['-h', DB_HOST, '-p', DB_PORT, '-U', DB_USER, '-d', DB_NAME, '-v', 'ON_ERROR_STOP=1', '-c', sql], { env: PG_ENV });
+}
+
+/**
  * Vide toutes les tables de données (jamais le schéma), dans un seul
  * `TRUNCATE … CASCADE` : la liste des tables est lue dans `pg_tables` plutôt
  * que recopiée à la main, pour rester vraie si le schéma gagne des tables
