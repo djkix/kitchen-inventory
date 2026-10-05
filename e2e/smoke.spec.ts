@@ -41,6 +41,13 @@ test('la caméra simulée permet de lire un code-barres', async ({ page }) => {
   // fixtures Open Food Facts (absent du seed : la doublure est bien sollicitée).
   const confirmTitle = page.getByRole('heading', { name: 'Ajouter cet article ?', level: 2 });
   await expect(confirmTitle).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText('Nutella', { exact: false })).toBeVisible();
+  // « Nutella » seul est ambigu : il apparaît à la fois dans le nom du
+  // produit et dans la ligne marque · catégorie (confirm-sheet.tsx). Le nom
+  // retenu par la cascade de reconnaissance est product_name_fr s'il existe
+  // (open-food-facts.client.ts), qui est bien ce que rend la fixture.
+  await expect(page.getByText('Nutella pâte à tartiner aux noisettes et au cacao', { exact: true })).toBeVisible();
+  // Unique sur cet écran : seul confirm-sheet.tsx rend « code <code-barres> »,
+  // uniquement une fois le produit reconnu (jamais recognition-sheet.tsx, qui
+  // ne s'affiche que pour un code-barres inconnu).
   await expect(page.getByText(`code ${FAKE_VIDEO_BARCODE}`)).toBeVisible();
 });
