@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { loginAsAdmin } from './support/auth.ts';
+import { useSharedAdminSession } from './support/auth.ts';
 import { restoreDatabase } from './support/database.ts';
 import { identifyScannedProduct, scanAndConfirm } from './support/scan.ts';
 import { expectNoActiveStockOf } from './support/stock.ts';
@@ -15,6 +15,11 @@ import { expectNoActiveStockOf } from './support/stock.ts';
  * des deux produits des fixtures Open Food Facts apparaît en premier — voir
  * `scanAndConfirm` / `identifyScannedProduct` (`e2e/support/scan.ts`), qui
  * l'identifient depuis ce que le tiroir de validation affiche.
+ *
+ * Connexion : une seule vraie connexion par fichier (`useSharedAdminSession`,
+ * `e2e/support/auth.ts`), jamais une par test — ce fichier à cinq tests en
+ * était le plus gros contributeur avant ce correctif (tâche 4, budget de
+ * tentatives de connexion partagé par toute l'exécution).
  */
 
 /**
@@ -35,10 +40,11 @@ test.beforeAll(async () => {
   await restoreDatabase();
 });
 
+useSharedAdminSession();
+
 test('ne crée rien tant que la validation n’a pas été faite', async ({ page }) => {
   // Régression du défaut corrigé en 0.6 : le scan seul (sans validation du
   // tiroir) ne doit jamais ajouter de lot.
-  await loginAsAdmin(page);
   await page.goto('/scan');
   await page.getByRole('button', { name: 'Placard', exact: false }).click({ timeout: 20_000 });
 
@@ -54,7 +60,6 @@ test('ne crée rien tant que la validation n’a pas été faite', async ({ page
 });
 
 test('enchaîne deux scans sans refermer la caméra', async ({ page }) => {
-  await loginAsAdmin(page);
   await page.goto('/scan');
   await page.getByRole('button', { name: 'Congélateur', exact: false }).click({ timeout: 20_000 });
 
@@ -90,7 +95,6 @@ test('enchaîne deux scans sans refermer la caméra', async ({ page }) => {
 });
 
 test('garde l’emplacement choisi d’un article à l’autre', async ({ page }) => {
-  await loginAsAdmin(page);
   await page.goto('/scan');
   await page.getByRole('button', { name: 'Réfrigérateur', exact: false }).click({ timeout: 20_000 });
 
@@ -115,7 +119,6 @@ test('garde l’emplacement choisi d’un article à l’autre', async ({ page }
 });
 
 test('ajoute en quantité 1 par défaut', async ({ page }) => {
-  await loginAsAdmin(page);
   await page.goto('/scan');
   await page.getByRole('button', { name: 'Étagère du haut', exact: false }).click({ timeout: 20_000 });
 
@@ -133,7 +136,6 @@ test('ajoute en quantité 1 par défaut', async ({ page }) => {
 });
 
 test('annule l’ajout depuis le bandeau dans les cinq secondes', async ({ page }) => {
-  await loginAsAdmin(page);
   await page.goto('/scan');
   // Le « Placard » n'a reçu aucun lot dans le test de régression plus haut
   // (la validation y a été annulée) : le lot créé ici y est donc le seul,

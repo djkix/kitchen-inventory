@@ -1,5 +1,5 @@
-import { expect, test, type BrowserContext } from '@playwright/test';
-import { loginAsAdmin } from './support/auth.ts';
+import { expect, test } from '@playwright/test';
+import { useSharedAdminSession } from './support/auth.ts';
 import { denyCameraForTest } from './support/camera.ts';
 import { restoreDatabase } from './support/database.ts';
 import { identifyScannedProduct } from './support/scan.ts';
@@ -35,20 +35,10 @@ import { identifyScannedProduct } from './support/scan.ts';
  * tiroir de validation eux-mêmes (état éphémère de CE test, jamais partagé),
  * jamais sur une recherche dans /stock.
  *
- * Connexion : une seule vraie connexion par le formulaire (`loginAsAdmin`),
- * dans `beforeAll`, dont le cookie de session est ensuite réappliqué à
- * chaque test (`beforeEach`) plutôt que de répéter la connexion complète
- * quatre fois. Pas seulement une économie : `POST /auth/login` est limité à
- * 10 tentatives par minute et par IP (`@Throttle`,
- * `apps/api/src/auth/auth.controller.ts`) — un seuil partagé par tout le
- * conteneur `app` de l'exécution, donc par tous les fichiers de test, qui
- * passent tous par la même IP du navigateur. Quatre connexions par test
- * (comme P1) ajoutées à celles des fichiers voisins avaient fait dépasser ce
- * seuil pendant l'exécution, pour un échec visible seulement là où le
- * compteur débordait (`smoke.spec.ts`, dernier fichier par ordre
- * alphabétique) — jamais un effet de ce fichier sur la caméra ou les
- * permissions du navigateur, qui restent proprement isolées par page
- * (`e2e/support/camera.ts`).
+ * Connexion : une seule vraie connexion par fichier (`useSharedAdminSession`,
+ * `e2e/support/auth.ts`), jamais une par test — voir la documentation de
+ * cette fonction pour le budget de tentatives par minute que ce fichier a
+ * fait dépasser en CI (tâche 4) avant ce correctif.
  *
  * Panne du fournisseur de reconnaissance (test 4, plus bas) : faute d'un
  * chemin réel pour la provoquer dans la doublure elle-même (voir le
@@ -57,23 +47,11 @@ import { identifyScannedProduct } from './support/scan.ts';
  * fait lui-même à l'API, jamais la doublure ou le fournisseur Gemini réel.
  */
 
-let sessionCookies: Awaited<ReturnType<BrowserContext['cookies']>> = [];
-
-test.beforeAll(async ({ browser }) => {
+test.beforeAll(async () => {
   await restoreDatabase();
-  // Connexion unique pour tout le fichier (voir le commentaire d'en-tête) :
-  // un contexte jetable, le temps du vrai parcours de connexion, dont on ne
-  // garde que le cookie de session.
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  await loginAsAdmin(page);
-  sessionCookies = await context.cookies();
-  await context.close();
 });
 
-test.beforeEach(async ({ page }) => {
-  await page.context().addCookies(sessionCookies);
-});
+useSharedAdminSession();
 
 test('ouvre le tiroir de validation sur un produit reconnu', async ({ page }) => {
   await page.goto('/scan');
