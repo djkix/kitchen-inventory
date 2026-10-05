@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
-import { FAKE_VIDEO_BARCODE } from './playwright.config.ts';
 import { loginAsAdmin } from './support/auth.ts';
 import { restoreDatabase } from './support/database.ts';
+import { identifyScannedProduct } from './support/scan.ts';
 
 /**
  * Première session bout en bout (section 19, tâche 2) : le montage répond,
@@ -37,18 +37,24 @@ test('la caméra simulée permet de lire un code-barres', async ({ page }) => {
   // seul ni le chemin complet. D'où un nom partiel, non exact.
   await page.getByRole('button', { name: 'Placard', exact: false }).click({ timeout: 20_000 });
 
-  // La vidéo de la caméra simulée alterne deux codes-barres par blocs
-  // (section 19, tâche 9) ; son premier bloc porte celui du Nutella des
-  // fixtures Open Food Facts (absent du seed : la doublure est bien sollicitée).
+  // La vidéo de la caméra simulée alterne deux codes-barres par blocs, en
+  // boucle, indépendamment du moment où ce test démarre (section 19, tâche
+  // 9) : le code lu ici n'est donc jamais présupposé être l'un plutôt que
+  // l'autre des deux produits des fixtures Open Food Facts (toutes deux
+  // absentes du seed : la doublure est bien sollicitée) — il est identifié
+  // depuis ce que le tiroir affiche.
   const confirmTitle = page.getByRole('heading', { name: 'Ajouter cet article ?', level: 2 });
   await expect(confirmTitle).toBeVisible({ timeout: 20_000 });
-  // « Nutella » seul est ambigu : il apparaît à la fois dans le nom du
-  // produit et dans la ligne marque · catégorie (confirm-sheet.tsx). Le nom
-  // retenu par la cascade de reconnaissance est product_name_fr s'il existe
-  // (open-food-facts.client.ts), qui est bien ce que rend la fixture.
-  await expect(page.getByText('Nutella pâte à tartiner aux noisettes et au cacao', { exact: true })).toBeVisible();
+  const product = await identifyScannedProduct(page);
+  // « Nutella » ou « Shin Ramyun » seul serait ambigu pour le premier : il
+  // apparaît à la fois dans le nom du produit et dans la ligne marque ·
+  // catégorie (confirm-sheet.tsx). Le nom retenu par la cascade de
+  // reconnaissance (product_name_fr s'il existe, sinon product_name —
+  // open-food-facts.client.ts) est bien celui que `identifyScannedProduct`
+  // lit dans les fixtures, exact et complet.
+  await expect(page.getByText(product.name, { exact: true })).toBeVisible();
   // Unique sur cet écran : seul confirm-sheet.tsx rend « code <code-barres> »,
   // uniquement une fois le produit reconnu (jamais recognition-sheet.tsx, qui
   // ne s'affiche que pour un code-barres inconnu).
-  await expect(page.getByText(`code ${FAKE_VIDEO_BARCODE}`)).toBeVisible();
+  await expect(page.getByText(`code ${product.barcode}`)).toBeVisible();
 });
