@@ -5,9 +5,9 @@ import { Button, IconButton } from '../../components/ui/button';
 import { Sheet } from '../../components/ui/sheet';
 import { Input, Select } from '../../components/ui/input';
 import { CheckIcon, CloseIcon, MinusIcon, PlusIcon } from '../../components/ui/icons';
+import { cn } from '../../lib/cn';
 import { mediaUrl } from '../../lib/api';
 import { formatQuantity, unitStep } from '../../lib/quantity-ui';
-import { DATE_TYPE_OPTIONS } from '../item/date-sheet';
 
 export interface ConfirmTarget {
   product: ProductDto;
@@ -36,11 +36,38 @@ const SHORTCUTS: Array<{ kind: Parameters<typeof expiryShortcutDate>[0]; label: 
   { kind: 'oneMonth', label: '+1 mois' },
 ];
 
-const DATE_SENTENCE_FORMAT = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' });
+/**
+ * Libellés courts, propres au tiroir de validation : le contrôle y est trop
+ * étroit (environ 160 px sur un téléphone) pour la formulation complète de
+ * `DATE_TYPE_OPTIONS` (`date-sheet.tsx`), qui a sa place là où l'espace ne
+ * manque pas.
+ */
+const SHORT_DATE_TYPE_OPTIONS: Array<{ value: DateType; label: string }> = [
+  { value: 'USE_BY', label: 'DLC' },
+  { value: 'BEST_BEFORE', label: 'DDM' },
+];
 
-/** « périme le 12 octobre » : date civile « AAAA-MM-JJ » en toutes lettres, sans décalage de fuseau. */
-function dateSentence(expiryDate: string): string {
-  return `périme le ${DATE_SENTENCE_FORMAT.format(new Date(`${expiryDate}T00:00:00`))}`;
+function shortDateTypeLabel(type: DateType): string {
+  return SHORT_DATE_TYPE_OPTIONS.find((option) => option.value === type)!.label;
+}
+
+const DATE_SENTENCE_FORMAT = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' });
+const DATE_SENTENCE_FORMAT_WITH_YEAR = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+/**
+ * « DLC — périme le 12 octobre » / « DDM — à consommer de préférence avant
+ * le 12 octobre 2027 » : type explicite (jamais sous-entendu par la seule
+ * couleur ou position d'un bouton), année ajoutée seulement quand la date
+ * sort de l'année en cours — un « +1 mois » tapé fin décembre glisse sur
+ * janvier sans le dire autrement. Date civile « AAAA-MM-JJ », sans décalage
+ * de fuseau.
+ */
+function dateSentence(date: ConfirmDate): string {
+  const parsed = new Date(`${date.expiryDate}T00:00:00`);
+  const format = parsed.getFullYear() === new Date().getFullYear() ? DATE_SENTENCE_FORMAT : DATE_SENTENCE_FORMAT_WITH_YEAR;
+  const formatted = format.format(parsed);
+  const action = date.dateType === 'USE_BY' ? `périme le ${formatted}` : `à consommer de préférence avant le ${formatted}`;
+  return `${shortDateTypeLabel(date.dateType)} — ${action}`;
 }
 
 /**
@@ -167,7 +194,28 @@ export function ConfirmSheet({ target, locationName, busy, onConfirm, onCancel }
           <p className="mb-2 text-[14px] font-medium">Date de péremption</p>
           {date ? (
             <div className="flex items-center justify-between gap-2 rounded-xl bg-raised px-3.5 py-2">
-              <p className="text-[14px] text-fg">{dateSentence(date.expiryDate)}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                {/* Le type reste modifiable après le choix de la date : jamais
+                    besoin de la retirer pour passer de DLC à DDM. */}
+                <div role="group" aria-label="Type de date" className="flex shrink-0 overflow-hidden rounded-lg border border-line">
+                  {SHORT_DATE_TYPE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      disabled={busy}
+                      aria-pressed={date.dateType === option.value}
+                      onClick={() => onDraftTypeChanged(option.value)}
+                      className={cn(
+                        'min-h-touch min-w-touch px-2.5 text-[13px] font-semibold',
+                        date.dateType === option.value ? 'bg-accent text-ink' : 'bg-transparent text-muted active:bg-line disabled:text-faint',
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="truncate text-[14px] text-fg">{dateSentence(date)}</p>
+              </div>
               <IconButton label="Retirer la date" onClick={clearDate} disabled={busy}>
                 <CloseIcon size={16} />
               </IconButton>
@@ -199,7 +247,7 @@ export function ConfirmSheet({ target, locationName, busy, onConfirm, onCancel }
                   />
                   <Select
                     label="Type"
-                    options={DATE_TYPE_OPTIONS}
+                    options={SHORT_DATE_TYPE_OPTIONS}
                     value={draftType}
                     disabled={busy}
                     className="flex-1"
@@ -211,7 +259,10 @@ export function ConfirmSheet({ target, locationName, busy, onConfirm, onCancel }
                   type="button"
                   disabled={busy}
                   onClick={() => setCustomDateOpen(true)}
-                  className="self-start text-[13px] text-accent underline disabled:text-faint"
+                  // Même cible tactile que le reste du tiroir (`min-h-touch`,
+                  // 44 px) : un lien bas de 18 px se raterait d'une main,
+                  // devant un placard.
+                  className="inline-flex min-h-touch items-center self-start text-[13px] text-accent underline disabled:text-faint"
                 >
                   autre date
                 </button>

@@ -10,7 +10,8 @@ export type ExpiryStatus = 'none' | 'ok' | 'soon' | 'expired_use_by' | 'expired_
 
 const DAY_MS = 86_400_000;
 
-function startOfDay(date: Date): Date {
+/** Minuit civil local du jour de `date` — point de départ de tout calcul en jour civil du paquet. */
+export function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 

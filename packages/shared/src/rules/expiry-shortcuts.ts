@@ -9,6 +9,8 @@
  * toute fin de soirée à Paris, quand il est encore 23 h en UTC mais déjà le
  * lendemain heure locale.
  */
+import { startOfDay } from './expiry.js';
+
 export type ExpiryShortcutKind = 'threeDays' | 'oneWeek' | 'oneMonth';
 
 function pad2(value: number): string {
@@ -20,12 +22,8 @@ export function toCivilIsoDate(date: Date): string {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
-function startOfLocalDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
 function addCivilDays(date: Date, days: number): Date {
-  const result = startOfLocalDay(date);
+  const result = startOfDay(date);
   result.setDate(result.getDate() + days);
   return result;
 }
@@ -35,7 +33,7 @@ function addCivilDays(date: Date, days: number): Date {
  * plus un mois tombe le 28 (ou 29) février, jamais le 2 ou 3 mars.
  */
 function addCivilMonths(date: Date, months: number): Date {
-  const start = startOfLocalDay(date);
+  const start = startOfDay(date);
   const day = start.getDate();
   const firstOfTarget = new Date(start.getFullYear(), start.getMonth() + months, 1);
   const lastDayOfTarget = new Date(firstOfTarget.getFullYear(), firstOfTarget.getMonth() + 1, 0).getDate();

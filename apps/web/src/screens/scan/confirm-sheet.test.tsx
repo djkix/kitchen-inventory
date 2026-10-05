@@ -142,18 +142,36 @@ describe('ConfirmSheet', () => {
       expect(onConfirm).toHaveBeenLastCalledWith(1, { expiryDate: '2026-11-05', dateType: 'USE_BY' });
     });
 
-    it('affiche la date choisie en toutes lettres et permet de la retirer', () => {
+    it('affiche la date choisie, le type et permet de la retirer', () => {
       const onConfirm = vi.fn();
       render(<ConfirmSheet target={target()} locationName="Placard" busy={false} onConfirm={onConfirm} onCancel={vi.fn()} />);
       fireEvent.click(screen.getByRole('button', { name: '+3 j' }));
-      expect(screen.getByText('périme le 8 octobre')).toBeTruthy();
+      expect(screen.getByText('DLC — périme le 8 octobre')).toBeTruthy();
 
       fireEvent.click(screen.getByRole('button', { name: 'Retirer la date' }));
-      expect(screen.queryByText('périme le 8 octobre')).toBeNull();
+      expect(screen.queryByText('DLC — périme le 8 octobre')).toBeNull();
       expect(screen.getByRole('button', { name: '+3 j' })).toBeTruthy();
 
       fireEvent.click(screen.getByRole('button', { name: /Ajouter/ }));
       expect(onConfirm).toHaveBeenCalledWith(1, null);
+    });
+
+    it('le type reste modifiable une fois la date choisie, sans repasser par « autre date »', () => {
+      // Ordre naturel : la date d'abord (ici par raccourci, DLC par défaut),
+      // le type ensuite — c'est l'ordre que le tiroir doit continuer à
+      // permettre une fois la date déjà posée.
+      const onConfirm = vi.fn();
+      render(<ConfirmSheet target={target()} locationName="Placard" busy={false} onConfirm={onConfirm} onCancel={vi.fn()} />);
+
+      fireEvent.click(screen.getByRole('button', { name: '+1 sem' }));
+      expect(screen.getByText('DLC — périme le 12 octobre')).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: 'DDM' }));
+      expect(screen.getByText('DDM — à consommer de préférence avant le 12 octobre')).toBeTruthy();
+      expect(screen.queryByText('DLC — périme le 12 octobre')).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: /Ajouter/ }));
+      expect(onConfirm).toHaveBeenCalledWith(1, { expiryDate: '2026-10-12', dateType: 'BEST_BEFORE' });
     });
 
     it('« autre date » révèle le champ complet et le choix DLC / DDM', () => {
@@ -167,10 +185,22 @@ describe('ConfirmSheet', () => {
 
       fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'BEST_BEFORE' } });
       fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-12-24' } });
-      expect(screen.getByText('périme le 24 décembre')).toBeTruthy();
+      expect(screen.getByText('DDM — à consommer de préférence avant le 24 décembre')).toBeTruthy();
 
       fireEvent.click(screen.getByRole('button', { name: /Ajouter/ }));
       expect(onConfirm).toHaveBeenCalledWith(1, { expiryDate: '2026-12-24', dateType: 'BEST_BEFORE' });
+    });
+
+    it('ajoute l’année quand la date choisie tombe hors de l’année en cours', () => {
+      vi.setSystemTime(new Date(2026, 11, 20, 10, 0));
+      const onConfirm = vi.fn();
+      render(<ConfirmSheet target={target()} locationName="Placard" busy={false} onConfirm={onConfirm} onCancel={vi.fn()} />);
+
+      fireEvent.click(screen.getByRole('button', { name: '+1 mois' }));
+      expect(screen.getByText('DLC — périme le 20 janvier 2027')).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: /Ajouter/ }));
+      expect(onConfirm).toHaveBeenCalledWith(1, { expiryDate: '2027-01-20', dateType: 'USE_BY' });
     });
   });
 });
