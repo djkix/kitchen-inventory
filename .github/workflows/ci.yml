@@ -210,7 +210,11 @@ jobs:
         with:
           name: rapport-e2e
           # Résolu par Playwright relativement à e2e/ (dossier du fichier de
-          # configuration), jamais à la racine du dépôt.
+          # configuration), jamais à la racine du dépôt. Dossier PARENT : les
+          # deux exécutions ci-dessus écrivent chacune dans son sous-dossier
+          # (`principal`, `sans-fournisseur` — voir `RUN_NAME`,
+          # e2e/playwright.config.ts), la seconde n'effaçant plus le rapport
+          # de la première.
           path: e2e/playwright-report/
           retention-days: 14
       - name: Publication des artefacts Playwright (traces, captures, vidéos)
@@ -218,6 +222,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: artefacts-e2e
+          # Même découpage que le rapport : un sous-dossier par exécution.
           path: e2e/artefacts/
           retention-days: 14
       - name: Publication des journaux applicatifs (en cas d'échec)

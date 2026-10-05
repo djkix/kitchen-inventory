@@ -53,6 +53,14 @@ export const FAKE_VIDEO_PRODUCT_NAME_SECONDARY = productName(SECONDARY_FIXTURE);
 // attendre `FAKE_VIDEO_BARCODE_SECONDARY` pour le second.
 const fakeVideoPath = await generateBarcodeVideo([FAKE_VIDEO_BARCODE, FAKE_VIDEO_BARCODE_SECONDARY]);
 
+/**
+ * Nom de l'exécution en cours, qui isole le rapport HTML et les artefacts de
+ * chaque passage de Playwright dans leur propre sous-dossier. Posé par les
+ * scripts npm (`e2e`, `e2e:sans-fournisseur`, `package.json` à la racine) ;
+ * repli explicite pour un `npx playwright test` lancé à la main.
+ */
+const RUN_NAME = process.env.E2E_RUN_NAME ?? 'manuel';
+
 export default defineConfig({
   testDir: '.',
   fullyParallel: false,
@@ -65,8 +73,17 @@ export default defineConfig({
   // avant de le régénérer, ce qui effacerait les artefacts s'ils étaient à
   // l'intérieur (Franck ne peut rien rejouer localement, ils sont la seule
   // preuve d'un échec).
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
-  outputDir: 'artefacts',
+  //
+  // Et un sous-dossier PAR EXÉCUTION (`RUN_NAME`) : la CI lance deux fois
+  // Playwright à la suite avec cette même configuration (`npm run e2e`, puis
+  // `npm run e2e:sans-fournisseur` sur un montage reconfiguré), et les deux
+  // dossiers sont vidés au démarrage de chaque exécution — le rapport
+  // publié n'aurait décrit que le dernier test joué, celui des vingt-cinq
+  // autres ayant déjà disparu, y compris en cas d'échec. Les deux
+  // exécutions écrivent donc côte à côte, et la publication prend les
+  // dossiers parents, qui les contiennent tous les deux.
+  reporter: [['list'], ['html', { open: 'never', outputFolder: `playwright-report/${RUN_NAME}` }]],
+  outputDir: `artefacts/${RUN_NAME}`,
   // Le montage est démarré et arrêté par la CI (`docker compose`), jamais par
   // Playwright : pas de `webServer` ici.
   use: {
