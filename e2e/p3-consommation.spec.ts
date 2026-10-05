@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { loginAsAdmin } from './support/auth.ts';
+import { useSharedAdminSession } from './support/auth.ts';
 import { restoreDatabase } from './support/database.ts';
 import { expectNoActiveStockOf, getSingleActiveStockItemId, getStockItemById } from './support/stock.ts';
 
@@ -49,11 +49,24 @@ import { expectNoActiveStockOf, getSingleActiveStockItemId, getStockItemById } f
  *   - Saumon fumé (Réfrigérateur, 3 pièces)
  *   - Jambon blanc (Réfrigérateur, 2 pièces)
  *   - Reste de ratatouille (Réfrigérateur, 3 pièces)
+ *
+ * Connexion : la session partagée de toute l'exécution
+ * (`useSharedAdminSession`, `e2e/support/auth.ts`), jamais une connexion
+ * réelle par test. Les quatre tests de ce fichier appelaient `loginAsAdmin`
+ * chacun pour leur compte, soit quatre des dix tentatives par minute et par
+ * IP qu'autorise `POST /auth/login` (`@Throttle`,
+ * `apps/api/src/auth/auth.controller.ts`, quota partagé par tout le
+ * conteneur `app`) : avec la connexion réelle de `smoke.spec.ts` et celle
+ * qui établit la session partagée, l'exécution en consommait six pour aucun
+ * gain — rien ici ne teste le formulaire de connexion, c'en est seulement le
+ * préalable.
  */
 
 test.beforeAll(async () => {
   await restoreDatabase();
 });
+
+useSharedAdminSession();
 
 /** Carte d'article dans la liste de stock (`apps/web/src/screens/stock/stock-item-card.tsx`) : un `<article>` dont le texte contient le nom du produit. */
 function stockCard(page: Page, productName: string): Locator {
@@ -94,7 +107,7 @@ async function longPress(page: Page, target: Locator): Promise<void> {
 }
 
 test('décrémente un article depuis la recherche', async ({ page }) => {
-  await loginAsAdmin(page);
+  await page.goto('/');
   await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill('Bananes');
 
   const card = stockCard(page, 'Bananes');
@@ -114,7 +127,7 @@ test('décrémente un article depuis la recherche', async ({ page }) => {
 });
 
 test('consomme tout par un appui long', async ({ page }) => {
-  await loginAsAdmin(page);
+  await page.goto('/');
   await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill('Saumon fumé');
 
   const card = stockCard(page, 'Saumon fumé');
@@ -143,7 +156,7 @@ test('consomme tout par un appui long', async ({ page }) => {
 });
 
 test('refuse de descendre sous zéro', async ({ page }) => {
-  await loginAsAdmin(page);
+  await page.goto('/');
   await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill('Jambon blanc');
 
   const card = stockCard(page, 'Jambon blanc');
@@ -180,7 +193,7 @@ test('refuse de descendre sous zéro', async ({ page }) => {
 });
 
 test('la quantité affichée suit la somme des mouvements', async ({ page }) => {
-  await loginAsAdmin(page);
+  await page.goto('/');
   await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill('Reste de ratatouille');
 
   const card = stockCard(page, 'Reste de ratatouille');
