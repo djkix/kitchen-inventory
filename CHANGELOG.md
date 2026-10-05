@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/djkix/kitchen-inventory/compare/v0.8.1...v0.8.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* **stock:** rechercher sans tenir compte des accents (EF-11) ([ea1445d](https://github.com/djkix/kitchen-inventory/commit/ea1445db81957dc458808b2384db22c5d9708c65))
+
 ## [0.8.1](https://github.com/djkix/kitchen-inventory/compare/v0.8.0...v0.8.1) (2026-10-05)
 
 
