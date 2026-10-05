@@ -61,6 +61,12 @@ jobs:
       - run: npm run build -w @kitchen/shared
       - name: Vérification des types
         run: npm run typecheck --workspaces --if-present
+      # `e2e/` n'est pas un espace de travail npm : le step ci-dessus ne le
+      # voit pas, et Playwright efface les types sans les vérifier. Sans ce
+      # step, une erreur de type dans un parcours ne se verrait qu'à
+      # l'exécution du job `e2e`, sur `main` uniquement.
+      - name: Vérification des types des parcours bout en bout
+        run: npm run typecheck:e2e
       - name: Lint
         run: npm run lint
       - name: Tests
@@ -131,3 +137,101 @@ jobs:
             type=gha,scope=ci
             type=gha,scope=main
           cache-to: type=gha,mode=max,scope=ci
+
+  # Parcours bout en bout (section 19), sur le montage jetable de la tâche 1
+  # (docker-compose.e2e.yml) : jamais l'image publiée, jamais un réseau réel
+  # (Open Food Facts et Gemini sont remplacés par la doublure du service
+  # `stub`). Sur `main` seulement, après fusion [C4] : pas sur les pull
+  # requests.
+  e2e:
+    runs-on: ubuntu-latest
+    needs: check
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 30
+    env:
+      # Tag fixe sous lequel l'image ci-dessous est chargée : docker-compose.e2e.yml
+      # réutilise ce même nom (variable E2E_APP_IMAGE) pour que `docker compose up`
+      # ne reconstruise pas ce que le step précédent vient de construire avec cache.
+      E2E_APP_IMAGE: kitchen-e2e-app:ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: docker/setup-buildx-action@v3
+      - run: npm ci
+      # `prisma/seed/dev.ts` importe @kitchen/shared : un paquet du monorepo,
+      # qui doit être compilé avant d'être importable. `npm ci` ne fait
+      # qu'installer ; sans cette étape, le seed échoue avec « Cannot find
+      # module '.../dist/index.js' » avant même de toucher le navigateur.
+      - run: npm run build -w @kitchen/shared
+      - name: Construction de l'image du montage (cache GitHub Actions)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          load: true
+          tags: ${{ env.E2E_APP_IMAGE }}
+          build-args: |
+            APP_VERSION=ci
+          cache-from: |
+            type=gha,scope=ci
+            type=gha,scope=e2e
+          cache-to: type=gha,mode=max,scope=e2e
+      - name: Démarrage du montage jetable
+        run: docker compose -f docker-compose.e2e.yml up -d --wait
+      - name: Endpoint de santé et migrations appliquées
+        run: |
+          reponse="$(curl -fsS http://localhost:3100/api/v1/health)"
+          echo "$reponse"
+          echo "$reponse" | jq -e '.checks.migrations == "ok"'
+      - name: Installation de Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Parcours bout en bout
+        run: npm run e2e
+      # Dernier cas de P5 (suggestions de recettes, tâche 7) : fournisseur de
+      # vision non configuré. Exige VISION_PROVIDER=none, qui ne se change
+      # qu'en recréant le service `app` — jamais en parallèle du reste de la
+      # suite, qui dépend de VISION_PROVIDER=gemini (scan, suggestions). `db`
+      # et `stub` ne sont pas touchés : `restoreDatabase()` fonctionne sans
+      # traitement particulier dans ce fichier dédié.
+      - name: Bascule du montage sans fournisseur de vision configuré
+        run: docker compose -f docker-compose.e2e.yml -f docker-compose.e2e.none.yml up -d --wait app
+      - name: Parcours bout en bout — fournisseur non configuré
+        run: npm run e2e:sans-fournisseur
+      - name: Journaux du conteneur applicatif
+        if: always()
+        run: docker compose -f docker-compose.e2e.yml logs app > app-e2e.log || true
+      - name: Publication du rapport Playwright
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-e2e
+          # Résolu par Playwright relativement à e2e/ (dossier du fichier de
+          # configuration), jamais à la racine du dépôt. Dossier PARENT : les
+          # deux exécutions ci-dessus écrivent chacune dans son sous-dossier
+          # (`principal`, `sans-fournisseur` — voir `RUN_NAME`,
+          # e2e/playwright.config.ts), la seconde n'effaçant plus le rapport
+          # de la première.
+          path: e2e/playwright-report/
+          retention-days: 14
+      - name: Publication des artefacts Playwright (traces, captures, vidéos)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artefacts-e2e
+          # Même découpage que le rapport : un sous-dossier par exécution.
+          path: e2e/artefacts/
+          retention-days: 14
+      - name: Publication des journaux applicatifs (en cas d'échec)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journaux-app-e2e
+          path: app-e2e.log
+          retention-days: 14
+      - name: Arrêt du montage
+        if: always()
+        run: docker compose -f docker-compose.e2e.yml down -v

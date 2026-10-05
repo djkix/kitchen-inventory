@@ -379,6 +379,60 @@ Construire l'image localement :
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
+### Tests bout en bout
+
+Une suite Playwright (section 19) joue les parcours P1 à P5 dans un vrai
+Chromium (caméra simulée depuis une vidéo fabriquée) contre **l'image Docker
+réellement construite** — jamais un serveur de développement — démarrée par
+un montage jetable dédié (`docker-compose.e2e.yml`) : une base PostgreSQL 16
+vide et une doublure locale d'Open Food Facts et de Gemini
+(`e2e/fixtures/stub-server.ts`, qui rejoue les fixtures d'
+`apps/api/test/fixtures`). Rien n'est persistant : `down -v` ne laisse rien
+derrière lui.
+
+Couverture actuelle : P1 (inventaire initial, scans enchaînés), P2 (rangement
+des courses, DLC saisie après l'ajout depuis le bandeau comprise ; hors
+saisie de la DLC dans le tiroir de validation lui-même et hors lecture
+automatique de la date, qui n'existent pas encore), P3
+(consommation, hors bascule en liste de courses — ni seuils ni liste
+n'existent), P4 (consultation, recherche, filtre par emplacement, périme
+bientôt, hors vue « à racheter » qui dépend de cette même liste de courses),
+et P5 (suggestions de recettes, hors cahier des charges, ajouté parce que
+c'est la fonctionnalité la plus récente et la plus fragile). Le mode hors
+ligne n'est pas couvert non plus, pour la même raison : il n'existe pas
+encore (lot 2). La conservation d'une recette trouvée sur le **web** n'est
+pas jouée bout en bout : le récupérateur de pages refuse délibérément le HTTP
+et les adresses privées ou de bouclage, et une doublure locale tombe dans les
+deux cas à la fois — l'assouplir pour le test reviendrait à tester
+l'application avec ce garde-fou désarmé. Le parcours conserve donc une
+recette composée par l'IA ; l'extraction d'une page reste couverte par les
+tests d'intégration, sur cinq formes de pages réelles. Détail et quinze
+décisions dans `docs/specs/2026-10-04-tests-bout-en-bout.md`, jugement rendu
+dans `docs/decisions/2026-10-04-tests-bout-en-bout.md`.
+
+**Cette suite ne tourne qu'en CI**, sur `main` après chaque fusion — jamais en
+local, faute de moteur de conteneurs sur le Mac de Franck. C'est le
+compromis : en échange, le job `e2e` de `.github/workflows/ci.yml` publie
+toujours en artefact le rapport Playwright et, à chaque échec, les captures,
+vidéos et traces (dossier `e2e/artefacts/`) ainsi que les journaux du
+conteneur applicatif — c'est là qu'il faut regarder quand ce job est rouge.
+
+Pour la faire tourner quand même (pousser une branche, ou localement avec
+Docker) :
+
+```bash
+npm run e2e:up      # application sur http://localhost:3100, base sur localhost:55432, doublure sur localhost:3101
+npm run e2e:down
+```
+
+Pour démarrer sans fournisseur de vision configuré (`VISION_PROVIDER=none`),
+ajouter le fichier de surcharge à la commande `docker compose` plutôt que
+d'utiliser le script `npm` :
+
+```bash
+docker compose -f docker-compose.e2e.yml -f docker-compose.e2e.none.yml up -d --wait
+```
+
 Structure du dépôt (imposée, voir `CLAUDE.md`) : `apps/api` (NestJS, un
 dossier par domaine), `apps/web` (React + Vite, un dossier par écran),
 `packages/shared` (types, schémas Zod, unités, règles métier pures),
@@ -404,6 +458,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.8.3 | 2026-10-05 | Tests des parcours de bout en bout : vingt-huit scénarios rejouent désormais l'application entière dans un vrai navigateur — ranger les courses en scannant, saisir une date de péremption, consommer un article, chercher dans le stock, demander des suggestions de recettes — contre l'image Docker réellement livrée, sans aucun appel à internet. Ils tournent automatiquement après chaque fusion et doivent passer avant toute publication : une panne du genre de celles trouvées ici (« Mes recettes » vide, recherche sourde aux accents) se verra désormais avant d'arriver sur le mini-PC |
 | 0.8.2 | 2026-10-05 | Correctif : la recherche du stock ignore désormais les accents (EF-11). « creme » trouvait « Crème fraîche » côté produits mais pas côté stock, car la requête était désaccentuée puis comparée telle quelle au texte brut en base. La comparaison passe désormais par `unaccent_lite()` (déjà utilisée pour la détection de doublons) appliquée au texte stocké, via une résolution d'identifiants en SQL brut réinjectés dans le filtre existant ; au passage, `unaccent_lite()` ne savait pas déplier les ligatures Œ/œ/Æ/æ (deux lettres) avec `translate()`, qui ne sait remplacer qu'un caractère par un seul autre — « oeufs » ne trouvait donc pas « Œufs » ; migration `0007_unaccent_lite_ligatures` |
 | 0.8.1 | 2026-10-05 | Correctif : « Mes recettes » n'affichait jamais une recette conservée. Le filtre `archived=false` envoyé par l'écran était converti en `true` (`Boolean("false")` vaut `true` en JavaScript), si bien que seule la liste des recettes archivées était rendue. Trouvé par les tests bout en bout, qu'aucun test d'API ne pouvait révéler puisqu'ils passent un vrai booléen |
 | 0.8.0 | 2026-10-04 | Recettes suggérées à partir du stock (EF-26) : écran Suggestions en entrée du module, point de départ composé depuis le stock réel, recherche web et composition par Gemini, orientation par région/durée/facilité relançant une recherche ciblée, conservation d'une suggestion réécrite au format de l'application dans Mes recettes (EF-25) ; création manuelle retirée, le formulaire ne sert plus qu'à modifier ; `VISION_MONTHLY_CAP_CENTS` plafonne désormais scan et suggestions ensemble, porté à 5 € ; `RECIPE_SUGGESTION_DAILY_QUOTA` ; migrations `0005_recipe_suggestions` et `0006_recipe_client_op_id` ; une recette mal formée n'emporte plus la fournée entière, chaque appel au fournisseur est journalisé pour que quota et plafond soient justes, l'identité d'une suggestion vient de son contenu et non de son rang, code d'erreur `insufficient_stock` dédié ; le scan retrouve son écran dédié quand aucun fournisseur n'est configuré, et les fournées ne faussent plus ses statistiques |
