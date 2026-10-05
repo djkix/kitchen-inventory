@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/djkix/kitchen-inventory/compare/v0.8.0...v0.8.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **recipes:** « Mes recettes » n'affichait jamais une recette conservée (EF-17) ([ebce7e0](https://github.com/djkix/kitchen-inventory/commit/ebce7e02a8a55b2c66ad8495e41caf0d95d37b75))
+
 ## [0.8.0](https://github.com/djkix/kitchen-inventory/compare/v0.7.0...v0.8.0) (2026-10-04)
 
 
