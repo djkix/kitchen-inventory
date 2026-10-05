@@ -23,6 +23,7 @@ import { ApiError } from '../common/api-error.js';
 import { parseCivilDate } from '../common/decimal.js';
 import { paginate, skipTake } from '../common/pagination.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { findProductIdsByTerms } from '../products/products.search.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { toMovementDto, toStockItemDto, type StockItemRow } from './stock.mapper.js';
 import { applyMovement, type MovementResult } from './stock.quantity.js';
@@ -41,7 +42,8 @@ export class StockService {
     const where: Prisma.StockItemWhereInput = {};
     if (query.status === 'active') where.archivedAt = null;
     if (query.status === 'archived') where.archivedAt = { not: null };
-    if (query.product) where.productId = query.product;
+    const productIdConditions: Prisma.StockItemWhereInput[] = [];
+    if (query.product) productIdConditions.push({ productId: query.product });
     if (query.expiringBefore) where.effectiveExpiry = { lte: parseCivilDate(query.expiringBefore) ?? undefined };
     if (query.location) {
       const location = await this.prisma.location.findUnique({ where: { id: query.location } });
@@ -49,15 +51,15 @@ export class StockService {
       where.location = { OR: [{ id: location.id }, { path: { startsWith: `${location.path}/` } }] };
     }
     if (query.q) {
+      // Accents ignorés des deux côtés via `unaccent_lite` (EF-11) : Prisma ne
+      // sait pas appeler une fonction SQL sur une colonne, on résout donc les
+      // identifiants à part et on les reporte dans le `where` existant, qui
+      // garde intacts le filtre d'emplacement, le statut et la pagination.
       const terms = expandSearchTerms(query.q);
-      where.product = {
-        OR: terms.flatMap((t) => [
-          { name: { contains: t, mode: 'insensitive' } },
-          { originalName: { contains: t, mode: 'insensitive' } },
-          { brand: { contains: t, mode: 'insensitive' } },
-        ]),
-      };
+      const ids = await findProductIdsByTerms(this.prisma, terms);
+      productIdConditions.push({ productId: { in: ids } });
     }
+    if (productIdConditions.length > 0) where.AND = productIdConditions;
     const { skip, take } = skipTake(query.page, query.limit);
     const [rows, total] = await Promise.all([
       this.prisma.stockItem.findMany({
