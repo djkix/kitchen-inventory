@@ -17,6 +17,10 @@ const configSchema = z.object({
   VISION_PROVIDER: z.enum(VISION_PROVIDERS).default('none'),
   VISION_API_KEY: z.string().optional(),
   VISION_MODEL: z.string().optional(),
+  // Modèle des appels recettes (suggestions et réécriture), séparé de la reconnaissance
+  // photo : celle-ci lit des étiquettes, celles-là cherchent sur le web. Défaut
+  // `gemini-3.5-flash-lite`, le moins cher des modèles utilisables ici.
+  SUGGESTION_MODEL: z.string().optional(),
   VISION_BASE_URL: z.string().url().optional(),
   VISION_DAILY_QUOTA: z.coerce.number().int().min(0).default(50),
   // Plafond de dépense mensuel, en centimes, partagé par la reconnaissance photo et

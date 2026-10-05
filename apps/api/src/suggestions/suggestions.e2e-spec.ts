@@ -79,7 +79,7 @@ async function costlyFixture(file: string, candidatesTokenCount: number): Promis
   return json({
     candidates: [{ content: { role: 'model', parts: [{ text: content }] }, finishReason: 'STOP' }],
     usageMetadata: { promptTokenCount: 500, candidatesTokenCount },
-    modelVersion: 'gemini-3.5-pro',
+    modelVersion: 'gemini-3.5-flash-lite',
   });
 }
 
@@ -295,7 +295,9 @@ describe('SuggestionsService (EF-26)', () => {
     const locationId = await seedLocation(db);
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
 
-    http.on('generateContent', () => costlyFixture('suggestions/gemini-batch-creme.json', 5000));
+    // 30 000 jetons de sortie en gemini-3.5-flash-lite (0,4 $/Mtok) dépassent le
+    // centime du plafond ; 5 000 suffisaient avec l'ancien modèle, vingt fois plus cher.
+    http.on('generateContent', () => costlyFixture('suggestions/gemini-batch-creme.json', 30_000));
     const first = await service.list({ refresh: false, maxMinutes: 15 }, USER);
     const second = await service.list({ refresh: false, maxMinutes: 30 }, USER);
 
@@ -374,8 +376,8 @@ describe('SuggestionsService (EF-26)', () => {
     expect(logs).toHaveLength(2);
     expect(logs.map((l) => l.succeeded)).toEqual([false, true]);
 
-    // gemini-3.5-pro : 2 $/Mtok en entrée, 12 $/Mtok en sortie, 500 jetons d'entrée par appel.
-    const cost = (out: number) => Math.round(((500 * 2 + out * 12) / 1_000_000) * 100 * 10_000) / 10_000;
+    // gemini-3.5-flash-lite : 0,1 $/Mtok en entrée, 0,4 $/Mtok en sortie, 500 jetons d'entrée par appel.
+    const cost = (out: number) => Math.round(((500 * 0.1 + out * 0.4) / 1_000_000) * 100 * 10_000) / 10_000;
     const expected = cost(300) + cost(700);
     const logged = logs.reduce((sum, l) => sum + (l.costCents?.toNumber() ?? 0), 0);
     expect(logged).toBeCloseTo(expected, 6);

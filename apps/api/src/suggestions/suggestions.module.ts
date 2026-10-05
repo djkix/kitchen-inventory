@@ -13,9 +13,12 @@ import { SuggestionsService } from './suggestions.service.js';
 /**
  * Gemini est le seul fournisseur de suggestions retenu (section 12, comme pour
  * la reconnaissance). Il réutilise la clé et le modèle de la reconnaissance
- * photo (`VISION_API_KEY`, `VISION_MODEL`) quand celle-ci est elle-même
- * configurée sur Gemini : aucune variable d'environnement séparée n'est
- * introduite pour une seconde clé que le cahier des charges ne prévoit pas.
+ * photo (`VISION_API_KEY`) quand celle-ci est elle-même configurée sur Gemini :
+ * aucune variable d'environnement séparée n'est introduite pour une seconde clé
+ * que le cahier des charges ne prévoit pas. Le modèle, lui, est distinct
+ * (`SUGGESTION_MODEL`) : lire une étiquette et chercher une recette sur le web
+ * n'appellent pas le même modèle, et un `VISION_MODEL` réglé pour la photo ne
+ * doit pas s'imposer aux recettes.
  * `enabled` reste `false` sans clé, et `suggest()` le signale alors clairement
  * (repris par le contrôleur, tâche 7).
  */
@@ -23,7 +26,7 @@ function createSuggestionProvider(config: AppConfig, httpClient: HttpClient): Su
   const usesGemini = config.VISION_PROVIDER === 'gemini';
   return new GeminiSuggestionProvider({
     apiKey: usesGemini ? config.VISION_API_KEY : undefined,
-    model: usesGemini ? config.VISION_MODEL : undefined,
+    model: config.SUGGESTION_MODEL,
     baseURL: usesGemini ? config.VISION_BASE_URL : undefined,
     httpClient,
   });
@@ -35,14 +38,14 @@ function createRecipePageFetcher(httpClient: HttpClient): RecipePageFetcher {
 }
 
 /**
- * Réécrivain Gemini (tâche 9, B6) : même clé et même modèle que le fournisseur
- * de suggestions — une seule configuration Gemini pour tout le module recettes.
+ * Réécrivain Gemini (tâche 9, B6) : même clé et même modèle (`SUGGESTION_MODEL`)
+ * que le fournisseur de suggestions — une seule configuration pour tout le module recettes.
  */
 function createRecipeRewriter(config: AppConfig, httpClient: HttpClient): GeminiRecipeRewriter {
   const usesGemini = config.VISION_PROVIDER === 'gemini';
   return new GeminiRecipeRewriter({
     apiKey: usesGemini ? config.VISION_API_KEY : undefined,
-    model: usesGemini ? config.VISION_MODEL : undefined,
+    model: config.SUGGESTION_MODEL,
     baseURL: usesGemini ? config.VISION_BASE_URL : undefined,
     httpClient,
   });

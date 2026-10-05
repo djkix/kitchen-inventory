@@ -4,7 +4,7 @@ import { ProviderError } from '../recognition/providers/recognition-provider.js'
 import { buildSuggestionPrompt, InvalidBatchJsonError, parseModelBatch, SUGGESTION_SYSTEM_PROMPT } from './prompt.js';
 import { SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
 
-const DEFAULT_MODEL = 'gemini-3.5-pro';
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
 
 /**

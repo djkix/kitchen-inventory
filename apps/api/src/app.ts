@@ -20,8 +20,12 @@ export async function createApp(config: AppConfig, httpClient?: HttpClient): Pro
   app.useLogger(logger);
   // Un modèle hors table de prix désactive le plafond mensuel sans rien dire :
   // il doit au moins se voir au démarrage.
-  const priceWarning = unpricedModelWarning(config.VISION_PROVIDER, config.VISION_MODEL);
-  if (priceWarning) logger.warn(priceWarning);
+  for (const warning of [
+    unpricedModelWarning(config.VISION_PROVIDER, config.VISION_MODEL),
+    unpricedModelWarning(config.VISION_PROVIDER, config.SUGGESTION_MODEL, 'SUGGESTION_MODEL'),
+  ]) {
+    if (warning) logger.warn(warning);
+  }
   // robots.txt doit vivre à la racine du site, hors du préfixe d'API.
   app.setGlobalPrefix(API_PREFIX, { exclude: ['robots.txt'] });
   app.use(noindexMiddleware);
