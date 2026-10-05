@@ -90,6 +90,15 @@ Un petit serveur HTTP lancé dans le montage, qui rejoue des fixtures **[C8]** :
 Les fixtures sont **celles qui existent déjà** dans `apps/api/test/fixtures/` **[C11]** : une réponse
 du modèle qui diverge entre les tests d'intégration et les tests bout en bout ne prouverait plus rien.
 
+**Une condition à connaître pour [C8].** Le récupérateur de pages de recette (`RecipePageFetcher`,
+`apps/api/src/suggestions/recipe-page.fetcher.ts`) suit une URL choisie par le modèle : il n'a aucune
+URL de base à faire pointer vers la doublure, donc rien ne l'empêcherait structurellement de sortir.
+Si aucun appel ne quitte le montage, c'est parce que les fixtures de suggestions n'emploient que des
+adresses du domaine réservé `.test` (`https://exemple-cuisine-N.test/…`), qui ne résout nulle part —
+et parce qu'aucun parcours ne conserve une recette venant du web **[C15]**. Une fixture qui
+introduirait une adresse réelle ouvrirait un appel sortant sans qu'aucun garde-fou ne s'y oppose :
+c'est la seule chose à vérifier en ajoutant une fixture de suggestion.
+
 **La conservation d'une recette venant du web n'est pas jouée ici [C15].** Le récupérateur de pages
 refuse délibérément le HTTP et toute adresse privée ou de bouclage — c'est un garde-fou, puisqu'il
 suit une URL choisie par un modèle sur une machine du réseau domestique. Une doublure locale tombe
