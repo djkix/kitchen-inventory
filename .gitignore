@@ -26,6 +26,7 @@ apps/api/generated/
 coverage/
 playwright-report/
 test-results/
+artefacts/
 
 # OS / éditeur
 .DS_Store

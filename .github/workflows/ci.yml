@@ -163,6 +163,11 @@ jobs:
           cache: npm
       - uses: docker/setup-buildx-action@v3
       - run: npm ci
+      # `prisma/seed/dev.ts` importe @kitchen/shared : un paquet du monorepo,
+      # qui doit être compilé avant d'être importable. `npm ci` ne fait
+      # qu'installer ; sans cette étape, le seed échoue avec « Cannot find
+      # module '.../dist/index.js' » avant même de toucher le navigateur.
+      - run: npm run build -w @kitchen/shared
       - name: Construction de l'image du montage (cache GitHub Actions)
         uses: docker/build-push-action@v6
         with:
@@ -198,7 +203,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rapport-e2e
-          path: playwright-report/
+          # Résolu par Playwright relativement à e2e/ (dossier du fichier de
+          # configuration), jamais à la racine du dépôt.
+          path: e2e/playwright-report/
+          retention-days: 14
+      - name: Publication des artefacts Playwright (traces, captures, vidéos)
+        if: always() && hashFiles('e2e/playwright.config.ts') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: artefacts-e2e
+          path: e2e/artefacts/
           retention-days: 14
       - name: Publication des journaux applicatifs (en cas d'échec)
         if: failure()

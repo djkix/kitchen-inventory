@@ -22,8 +22,13 @@ export default defineConfig({
   // données restaurée entre fichiers, jamais entre tests isolés en parallèle.
   workers: 1,
   retries: 0,
+  // Rapport HTML et artefacts (traces, captures, vidéos) dans des dossiers
+  // frères, jamais l'un dans l'autre : le reporter HTML vide son dossier
+  // avant de le régénérer, ce qui effacerait les artefacts s'ils étaient à
+  // l'intérieur (Franck ne peut rien rejouer localement, ils sont la seule
+  // preuve d'un échec).
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
-  outputDir: 'playwright-report/artefacts',
+  outputDir: 'artefacts',
   // Le montage est démarré et arrêté par la CI (`docker compose`), jamais par
   // Playwright : pas de `webServer` ici.
   use: {
