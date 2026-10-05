@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test';
 import { useSharedAdminSession } from './support/auth.ts';
 import { denyCameraForTest } from './support/camera.ts';
 import { restoreDatabase } from './support/database.ts';
-import { identifyScannedProduct } from './support/scan.ts';
-import { expectActiveStockOf } from './support/stock.ts';
+import { identifyScannedProduct, scanAndConfirm } from './support/scan.ts';
+import { expectActiveStockOf, getActiveStockExpiryIn } from './support/stock.ts';
 
 /**
  * Parcours P2 — rangement des courses (section 3, tâche 4) : validation d'un
@@ -12,12 +12,18 @@ import { expectActiveStockOf } from './support/stock.ts';
  * fournisseur de reconnaissance signalée sans perdre ce qui avait déjà été
  * saisi.
  *
- * Hors périmètre, à dessein [C1] : la saisie ou la capture de la date limite
- * de consommation (DLC) directement depuis le tiroir de validation du scan.
- * Cette fonctionnalité n'existe pas dans l'application — demandée deux fois
- * par Franck, reportée deux fois (voir `CLAUDE.md`, « Prochaine étape ») —
- * aucun test ci-dessous ne la couvre donc, pour ne pas donner l'illusion
- * qu'elle est déjà prise en charge.
+ * La date limite de consommation (DLC) EXISTE bien dans ce parcours, et le
+ * dernier test ci-dessous la couvre : elle se saisit après l'ajout, depuis le
+ * bouton « + DLC » du bandeau « Ajouté : … », qui ouvre le tiroir « Date de
+ * péremption » sans quitter la caméra (`QuickDateSheet`,
+ * `apps/web/src/screens/scan/quick-date-sheet.tsx`, montée par
+ * `scan-screen.tsx`).
+ *
+ * Hors périmètre, à dessein [C1], et précisément : la saisie de la DLC
+ * DIRECTEMENT DANS LE TIROIR DE VALIDATION (`ConfirmSheet`), avant que
+ * l'article n'entre en stock — c'est cela que Franck a demandé puis fait
+ * reporter (voir `CLAUDE.md`, « Prochaine étape ») ; et la LECTURE
+ * AUTOMATIQUE de la date sur l'emballage (OCR), qui n'existe nulle part.
  *
  * Comme pour P1, la vidéo de la caméra simulée alterne deux codes-barres par
  * blocs, en boucle : aucun test de ce fichier ne présuppose lequel des deux
@@ -95,6 +101,52 @@ test('accepte une quantité saisie à la virgule française', async ({ page }) =
   // Bandeau « Ajouté : … » (last-added-banner.tsx), état propre à cette
   // session de scan : aucune recherche globale nécessaire.
   await expect(page.getByText('1,5 pièce')).toBeVisible({ timeout: 10_000 });
+});
+
+test('enregistre la DLC depuis le bandeau du dernier article ajouté', async ({ page }) => {
+  // Emplacement propre à ce test : le premier test du fichier ouvre bien le
+  // tiroir sur « Congélateur » mais l'y ignore, sans rien ajouter — le lot
+  // créé ici y est donc le seul des deux produits de fixtures, et la
+  // vérification par l'API reste scopée à cet emplacement exact.
+  await page.goto('/scan');
+  await page.getByRole('button', { name: 'Congélateur', exact: false }).click({ timeout: 20_000 });
+
+  const product = await scanAndConfirm(page);
+
+  // Entre la confirmation et l'ouverture du tiroir de date, la caméra
+  // continue de lire : le SECOND code-barres de la vidéo peut apparaître au
+  // bloc suivant (3 s, `fixtures/barcode-video.ts`) et rouvrir le tiroir de
+  // validation par-dessus le bandeau. On l'ignore alors et on recommence —
+  // jamais une attente fixe. Une fois « Date de péremption » ouvert, la
+  // détection est coupée (`detectionEnabled`, `scan-screen.tsx` :
+  // `dateEntry === null`), plus rien ne peut s'interposer.
+  const confirmHeading = page.getByRole('heading', { name: 'Ajouter cet article ?', level: 2 });
+  await expect(async () => {
+    if (await confirmHeading.isVisible()) await page.getByRole('button', { name: 'Ignorer' }).click();
+    await page.getByRole('button', { name: '+ DLC' }).click({ timeout: 2_000 });
+    await expect(page.getByRole('heading', { name: 'Date de péremption', level: 2 })).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+
+  // Date relative à l'exécution, jamais figée : un jeu de dates en dur
+  // finirait par passer dans le passé (même raison que la semence, [C9]).
+  const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await page.getByLabel('Date', { exact: true }).fill(expiry);
+  // Type laissé à sa valeur par défaut, « DLC — à consommer jusqu'au »
+  // (`DATE_TYPE_OPTIONS`, `apps/web/src/screens/item/date-sheet.tsx`) : c'est
+  // la date limite de consommation que ce parcours vise.
+  await page.getByRole('button', { name: 'Enregistrer la date' }).click();
+
+  // Le tiroir se referme et le bandeau porte la mention « date enregistrée »
+  // (`LastAddedBanner`, `dated`), le bouton « + DLC » disparaissant une fois
+  // la date posée.
+  await expect(page.getByRole('heading', { name: 'Date de péremption', level: 2 })).toBeHidden({ timeout: 10_000 });
+  await expect(page.getByText('date enregistrée', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: '+ DLC' })).toBeHidden();
+
+  // Et la date a bien été écrite côté serveur (`PATCH /stock/:id`,
+  // `flow.setDate`), pas seulement affichée : même appel que l'écran de
+  // stock, scopé au Congélateur.
+  expect(await getActiveStockExpiryIn(page, product.name, 'Congélateur')).toBe(expiry);
 });
 
 test('retombe sur la saisie manuelle quand le code-barres est inconnu', async ({ page }) => {

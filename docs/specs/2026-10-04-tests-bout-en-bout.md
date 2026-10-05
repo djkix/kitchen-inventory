@@ -38,7 +38,7 @@ les migrations de base, que Prisma n'applique que vers l'avant.
 | Parcours | Couvert | Laissé de côté, et pourquoi |
 | --- | --- | --- |
 | **P1 — Inventaire initial** | emplacement choisi une fois, scans enchaînés caméra ouverte, ajout en quantité 1, bandeau d'annulation de cinq secondes | — |
-| **P2 — Rangement des courses** | le tiroir de validation, la quantité saisie article par article | la saisie et l'OCR de la DLC n'existent pas (demandés, reportés deux fois) |
+| **P2 — Rangement des courses** | le tiroir de validation, la quantité saisie article par article, la DLC saisie après l'ajout depuis le bandeau « Ajouté : … » | la saisie de la DLC **dans le tiroir de validation lui-même** (demandée, reportée) et sa lecture automatique par OCR (inexistante) |
 | **P3 — Consommation** | décrément depuis la recherche, appui long et « tout consommer » | le basculement en liste de courses au seuil : ni seuils ni liste n'existent (EF-24) |
 | **P4 — Consultation** | recherche par nom, filtre par emplacement, « périme bientôt » | la vue « à racheter », qui dépend de la liste de courses |
 | **P5 — Suggestions** | fournée affichée, orientation par région, conservation d'une recette, qui apparaît dans Mes recettes | hors section 3 du cahier : ajouté ici **[C5]** parce que c'est la fonctionnalité la plus récente et la plus fragile |

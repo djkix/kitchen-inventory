@@ -107,6 +107,37 @@ export async function expectActiveStockOf(page: Page, productName: string, locat
   }).toPass({ timeout: 10_000 });
 }
 
+interface StockItemWithExpiry {
+  readonly locationId: string;
+  readonly expiryDate: string | null;
+  readonly product: { readonly name: string };
+}
+
+interface StockListResponseWithExpiry {
+  readonly items: readonly StockItemWithExpiry[];
+}
+
+/**
+ * Date de péremption du lot actif unique de `productName` dans `locationName`
+ * EXACTEMENT (même portée que `expectActiveStockOf` ci-dessus : comparaison
+ * de `locationId`, jamais un sous-emplacement). Le nom du produit est
+ * recomparé à l'identique sur la réponse, parce que `q` est volontairement
+ * tolérante aux synonymes (EF-11, `expandSearchTerms`,
+ * `packages/shared/src/search/synonyms.ts`) et peut rapporter un autre
+ * produit du même groupe. Échoue si le compte n'est pas exactement un, pour
+ * qu'une hypothèse rompue fasse échouer le test au lieu de le rendre faux.
+ */
+export async function getActiveStockExpiryIn(page: Page, productName: string, locationName: string): Promise<string | null> {
+  const locationId = await resolveLocationId(page, locationName);
+  const response = await page.request.get('/api/v1/stock', { params: { q: productName, status: 'active' } });
+  const body = (await response.json()) as StockListResponseWithExpiry;
+  const matches = body.items.filter((item) => item.locationId === locationId && item.product.name === productName);
+  if (matches.length !== 1) {
+    throw new Error(`Attendu un seul lot actif de « ${productName} » dans « ${locationName} », trouvé ${matches.length}.`);
+  }
+  return matches[0]!.expiryDate;
+}
+
 interface StockItemRef {
   readonly id: string;
   readonly quantity: number;

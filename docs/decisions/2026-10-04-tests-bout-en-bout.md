@@ -34,9 +34,12 @@ tests d'intégration, sur cinq formes de pages réelles depuis des fixtures.
 **Des parts de P2, P3 et P4 ne sont pas couvertes parce que les
 fonctionnalités correspondantes n'existent pas encore [C1] :**
 
-- P2 (rangement des courses) : la saisie et la lecture de la DLC au tiroir de
-  scan n'existent pas (demandées, reportées deux fois — voir `CLAUDE.md`,
-  section « Prochaine étape »).
+- P2 (rangement des courses) : la saisie de la DLC **dans le tiroir de
+  validation lui-même**, avant l'entrée en stock, n'existe pas (demandée,
+  reportée — voir `CLAUDE.md`, section « Prochaine étape »), pas plus que sa
+  lecture automatique par OCR. La DLC saisie APRÈS l'ajout, depuis le bouton
+  « + DLC » du bandeau « Ajouté : … », existe elle depuis la 0.6 et est
+  couverte par un parcours.
 - P3 (consommation) : le basculement en liste de courses au seuil ne peut pas
   être joué, ni seuils ni liste n'existant (EF-24, lot 2).
 - P4 (consultation) : la vue « à racheter » dépend de cette même liste de

@@ -391,7 +391,9 @@ vide et une doublure locale d'Open Food Facts et de Gemini
 derrière lui.
 
 Couverture actuelle : P1 (inventaire initial, scans enchaînés), P2 (rangement
-des courses, hors saisie de la DLC — elle n'existe pas encore), P3
+des courses, DLC saisie après l'ajout depuis le bandeau comprise ; hors
+saisie de la DLC dans le tiroir de validation lui-même et hors lecture
+automatique de la date, qui n'existent pas encore), P3
 (consommation, hors bascule en liste de courses — ni seuils ni liste
 n'existent), P4 (consultation, recherche, filtre par emplacement, périme
 bientôt, hors vue « à racheter » qui dépend de cette même liste de courses),
