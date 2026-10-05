@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/djkix/kitchen-inventory/compare/v0.9.0...v0.9.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **web:** nommer les cartes de recette pour les lecteurs d'écran (EF-23) ([6d064eb](https://github.com/djkix/kitchen-inventory/commit/6d064ebed0a13cf2f391eb0fc65ed3295e4d1d78))
+
 ## [0.9.0](https://github.com/djkix/kitchen-inventory/compare/v0.8.2...v0.9.0) (2026-10-05)
 
 
