@@ -37,6 +37,15 @@ describe('recipeListQuerySchema', () => {
   it('refuse un tri inconnu', () => {
     expect(recipeListQuerySchema.safeParse({ sort: 'aleatoire' }).success).toBe(false);
   });
+  it('ne prend pas la chaîne « false » pour un vrai (même défaut de z.coerce.boolean que suggestionQuerySchema)', () => {
+    // Régression : l'écran Mes recettes envoie toujours `archived=false`
+    // explicitement (`EMPTY_RECIPE_FILTERS`), jamais une absence du paramètre —
+    // `z.coerce.boolean()` rendait `true` pour cette chaîne et la bibliothèque
+    // n'affichait plus aucune recette active (section 19, parcours P5).
+    expect(recipeListQuerySchema.parse({ archived: 'false' }).archived).toBe(false);
+    expect(recipeListQuerySchema.parse({ archived: 'true' }).archived).toBe(true);
+    expect(recipeListQuerySchema.parse({}).archived).toBe(false);
+  });
 });
 
 describe('cookRecipeSchema et rateLogSchema', () => {
