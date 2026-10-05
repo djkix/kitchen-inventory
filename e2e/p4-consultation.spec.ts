@@ -160,10 +160,27 @@ test('affiche la version de l’application', async ({ page }) => {
   // `APP_VERSION`), jamais de la version figée côté interface au moment du
   // build, tant que l'API répond (`versionState`, apps/web/src/lib/version.ts :
   // `label` vaut `apiVersion` dès qu'il est défini, peu importe son format).
-  // Ni `docker-compose.e2e.yml` ni `docker/Dockerfile` (ARG `APP_VERSION`) ne
-  // fixent cette valeur pour le montage de test : elle reste au défaut
-  // `0.0.0-dev` (`apps/api/src/common/config.ts`), identique pour les deux
-  // sources ⇒ pas de bandeau de version périmée à prévoir ici.
+  //
+  // Corrigé après un premier échec en CI : je m'étais arrêté à
+  // `docker-compose.e2e.yml`, qui ne fixe en effet aucun `build.args` — mais
+  // le job `e2e` (.github/workflows/ci.yml) construit l'image AVANT `compose
+  // up`, via `docker/build-push-action`, avec `build-args: APP_VERSION=ci`
+  // explicite (le même littéral que le job `build-image`, qui valide aussi la
+  // construction sans publier). `docker-compose.e2e.yml` ne fait que
+  // réutiliser cette image déjà construite (`E2E_APP_IMAGE`), jamais la
+  // reconstruire : l'`ARG APP_VERSION=0.0.0-dev` du Dockerfile n'est donc son
+  // défaut que hors de CI (build local sans argument). La valeur affichée
+  // ici est donc le littéral fixe « ci » — jamais un numéro de version — et
+  // identique côté web (même `ARG`) et API, donc toujours sans bandeau de
+  // version périmée.
+  //
+  // Cette valeur ne mérite pas un signalement à part : « ci » est une
+  // étiquette de validation délibérée (job `build-image`, « Build de l'image
+  // (sans publication) », et job `e2e` lui-même), distincte du vrai numéro
+  // de version que seul un déclenchement de release-please fixe sur l'image
+  // publiée — aucun des deux jobs qui utilisent ce littéral ne publie quoi
+  // que ce soit. Ce que ce test protège reste intact : la version EST
+  // affichée, et c'est bien celle que l'image en cours fait tourner.
   await page.goto('/');
-  await expect(page.getByText('Inventaire 0.0.0-dev', { exact: true })).toBeVisible();
+  await expect(page.getByText('Inventaire ci', { exact: true })).toBeVisible();
 });
