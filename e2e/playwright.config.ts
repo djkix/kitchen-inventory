@@ -78,6 +78,31 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      // Exclu : ce fichier exige un conteneur `app` démarré avec
+      // `VISION_PROVIDER=none` (docker-compose.e2e.none.yml), jamais celui
+      // (VISION_PROVIDER=gemini) que ce projet attend — voir l'en-tête de
+      // `p5-suggestions-sans-fournisseur.spec.ts`. Joué par le projet dédié
+      // ci-dessous, dans un step CI séparé.
+      testIgnore: /p5-suggestions-sans-fournisseur\.spec\.ts$/,
+      use: {
+        ...devices['Desktop Chrome'],
+        permissions: ['camera'],
+        launchOptions: {
+          args: [
+            '--use-fake-device-for-media-stream',
+            `--use-file-for-fake-video-capture=${fakeVideoPath}`,
+            '--use-fake-ui-for-media-stream',
+          ],
+        },
+      },
+    },
+    {
+      name: 'chromium-sans-fournisseur',
+      // Seul fichier de ce projet : aucun besoin de caméra simulée ici (ce
+      // parcours n'ouvre jamais le scan), mais les mêmes `launchOptions` sont
+      // gardées par cohérence avec le reste de la session, au cas où un futur
+      // test de ce projet en aurait besoin.
+      testMatch: /p5-suggestions-sans-fournisseur\.spec\.ts$/,
       use: {
         ...devices['Desktop Chrome'],
         permissions: ['camera'],

@@ -195,6 +195,18 @@ jobs:
       - name: Parcours bout en bout
         if: hashFiles('e2e/playwright.config.ts') != ''
         run: npm run e2e
+      # Dernier cas de P5 (suggestions de recettes, tâche 7) : fournisseur de
+      # vision non configuré. Exige VISION_PROVIDER=none, qui ne se change
+      # qu'en recréant le service `app` — jamais en parallèle du reste de la
+      # suite, qui dépend de VISION_PROVIDER=gemini (scan, suggestions). `db`
+      # et `stub` ne sont pas touchés : `restoreDatabase()` fonctionne sans
+      # traitement particulier dans ce fichier dédié.
+      - name: Bascule du montage sans fournisseur de vision configuré
+        if: hashFiles('e2e/p5-suggestions-sans-fournisseur.spec.ts') != ''
+        run: docker compose -f docker-compose.e2e.yml -f docker-compose.e2e.none.yml up -d --wait app
+      - name: Parcours bout en bout — fournisseur non configuré
+        if: hashFiles('e2e/p5-suggestions-sans-fournisseur.spec.ts') != ''
+        run: npm run e2e:sans-fournisseur
       - name: Journaux du conteneur applicatif
         if: always()
         run: docker compose -f docker-compose.e2e.yml logs app > app-e2e.log || true
