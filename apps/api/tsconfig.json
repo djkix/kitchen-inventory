@@ -2,7 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": ".",
+    // "../.." (racine du dépôt), pas "." : test/stub-server.test.ts importe la
+    // doublure e2e/fixtures/stub-server.ts, hors de apps/api. Sans effet sur le
+    // build réel (noEmit ci-dessous ; tsconfig.build.json a son propre rootDir).
+    "rootDir": "../..",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "types": ["node", "multer"],

@@ -12,7 +12,8 @@
     "apps/*"
   ],
   "scripts": {
-    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present && npm run typecheck:e2e",
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json",
     "lint": "eslint .",
     "test": "npm run build:shared && npm test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
@@ -20,10 +21,15 @@
     "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "build:shared": "npm run build -w @kitchen/shared",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "e2e:up": "docker compose -f docker-compose.e2e.yml up -d --wait",
+    "e2e:down": "docker compose -f docker-compose.e2e.yml down -v",
+    "e2e": "E2E_RUN_NAME=principal playwright test --config e2e/playwright.config.ts --project=chromium",
+    "e2e:sans-fournisseur": "E2E_RUN_NAME=sans-fournisseur playwright test --config e2e/playwright.config.ts --project=chromium-sans-fournisseur"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@vitest/coverage-v8": "^4.1.11",
     "embedded-postgres": "^16.14.0-beta.17",
     "eslint": "^10.11.0",

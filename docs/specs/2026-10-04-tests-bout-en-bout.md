@@ -38,7 +38,7 @@ les migrations de base, que Prisma n'applique que vers l'avant.
 | Parcours | Couvert | Laissé de côté, et pourquoi |
 | --- | --- | --- |
 | **P1 — Inventaire initial** | emplacement choisi une fois, scans enchaînés caméra ouverte, ajout en quantité 1, bandeau d'annulation de cinq secondes | — |
-| **P2 — Rangement des courses** | le tiroir de validation, la quantité saisie article par article | la saisie et l'OCR de la DLC n'existent pas (demandés, reportés deux fois) |
+| **P2 — Rangement des courses** | le tiroir de validation, la quantité saisie article par article, la DLC saisie après l'ajout depuis le bandeau « Ajouté : … » | la saisie de la DLC **dans le tiroir de validation lui-même** (demandée, reportée) et sa lecture automatique par OCR (inexistante) |
 | **P3 — Consommation** | décrément depuis la recherche, appui long et « tout consommer » | le basculement en liste de courses au seuil : ni seuils ni liste n'existent (EF-24) |
 | **P4 — Consultation** | recherche par nom, filtre par emplacement, « périme bientôt » | la vue « à racheter », qui dépend de la liste de courses |
 | **P5 — Suggestions** | fournée affichée, orientation par région, conservation d'une recette, qui apparaît dans Mes recettes | hors section 3 du cahier : ajouté ici **[C5]** parce que c'est la fonctionnalité la plus récente et la plus fragile |
@@ -89,6 +89,15 @@ Un petit serveur HTTP lancé dans le montage, qui rejoue des fixtures **[C8]** :
 
 Les fixtures sont **celles qui existent déjà** dans `apps/api/test/fixtures/` **[C11]** : une réponse
 du modèle qui diverge entre les tests d'intégration et les tests bout en bout ne prouverait plus rien.
+
+**Une condition à connaître pour [C8].** Le récupérateur de pages de recette (`RecipePageFetcher`,
+`apps/api/src/suggestions/recipe-page.fetcher.ts`) suit une URL choisie par le modèle : il n'a aucune
+URL de base à faire pointer vers la doublure, donc rien ne l'empêcherait structurellement de sortir.
+Si aucun appel ne quitte le montage, c'est parce que les fixtures de suggestions n'emploient que des
+adresses du domaine réservé `.test` (`https://exemple-cuisine-N.test/…`), qui ne résout nulle part —
+et parce qu'aucun parcours ne conserve une recette venant du web **[C15]**. Une fixture qui
+introduirait une adresse réelle ouvrirait un appel sortant sans qu'aucun garde-fou ne s'y oppose :
+c'est la seule chose à vérifier en ajoutant une fixture de suggestion.
 
 **La conservation d'une recette venant du web n'est pas jouée ici [C15].** Le récupérateur de pages
 refuse délibérément le HTTP et toute adresse privée ou de bouclage — c'est un garde-fou, puisqu'il
