@@ -3,13 +3,22 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 /**
- * Caméra simulée (section 19, tâche 2) : fabrique une vidéo `.y4m` figée sur
- * un code-barres EAN-13 rendu en pixels purs, que Chromium rejoue en boucle
- * via `--use-file-for-fake-video-capture`. Le fichier Y4M est écrit
- * directement en TypeScript (aucun binaire externe) : le plan de luminance
- * porte le bitmap du code-barres, les deux plans de chrominance sont
- * constants. Déterministe et portable, y compris sur un runner CI dépourvu
- * de `ffmpeg`.
+ * Caméra simulée (section 19, tâche 2 puis 9) : fabrique une vidéo `.y4m` qui
+ * alterne deux codes-barres EAN-13 rendus en pixels purs, par blocs d'images
+ * successifs, que Chromium rejoue en boucle via
+ * `--use-file-for-fake-video-capture`. Le fichier Y4M est écrit directement
+ * en TypeScript (aucun binaire externe) : chaque image porte son plan de
+ * luminance (le bitmap du code-barres de son bloc), les deux plans de
+ * chrominance restent constants. Déterministe et portable, y compris sur un
+ * runner CI dépourvu de `ffmpeg`.
+ *
+ * L'alternance par blocs (plutôt qu'un seul code figé) est ce qui rend
+ * testable la rafale — le geste central de l'application : le filtre
+ * anti-répétition (`createScanGate`, apps/web/src/lib/scan-debounce.ts) ne
+ * réaccepte un code déjà traité qu'une fois qu'il a quitté le champ de la
+ * caméra ET qu'un délai de garde de deux secondes s'est écoulé. Avec un seul
+ * code répété sur chaque image, aucune de ces deux conditions ne pouvait
+ * jamais se produire.
  */
 
 // Tables de codage EAN-13 (GS1 General Specifications) : 7 modules par
@@ -39,6 +48,9 @@ function encodeEan13(barcode: string): string {
   }
   const digits = `${twelve}${checkDigit(twelve)}`;
   const parity = FIRST_DIGIT_PARITY[Number(digits[0])];
+  // digits[0] est un chiffre 0-9 garanti par le test de forme ci-dessus : cette
+  // garde ne sert qu'à satisfaire `noUncheckedIndexedAccess`, jamais levée en pratique.
+  if (parity === undefined) throw new Error(`Parité introuvable pour le premier chiffre « ${digits[0]} »`);
   const left = digits.slice(1, 7);
   const right = digits.slice(7, 13);
 
@@ -61,12 +73,34 @@ const MODULE_WIDTH = 6;
 const QUIET_ZONE_MODULES = 11; // marge minimale GS1 de chaque côté
 const BAR_HEIGHT = 480;
 
-// Durée et cadence conservées à l'identique de l'ancienne commande ffmpeg
-// (`-t 5 -r 15`) : la vidéo boucle côté Chromium, mais le décodeur lit un
-// flux, pas une image isolée — il lui faut plusieurs images identiques.
-const DURATION_SECONDS = 5;
+// Cadence conservée à l'identique de l'ancienne commande ffmpeg (`-r 15`) :
+// le décodeur lit un flux, pas une image isolée — il lui faut plusieurs
+// images identiques pour accrocher une lecture.
 const FRAME_RATE = 15;
-const FRAME_COUNT = DURATION_SECONDS * FRAME_RATE;
+
+/**
+ * Durée d'un bloc (un seul des deux codes affiché sans interruption) : 3 s,
+ * soit 45 images à 15 im/s. Choisie contre la règle réelle du filtre
+ * anti-répétition (`createScanGate`, cooldownMs = 2000) : dans une vidéo qui
+ * alterne deux blocs en boucle (A, B, A, B, …), le délai entre deux
+ * apparitions du MÊME code est la durée du bloc de L'AUTRE code — celui qui
+ * s'intercale, pendant lequel le premier a quitté le champ (il n'apparaît
+ * plus dans les codes détectés sur l'image). 3 s au-dessus d'un délai de
+ * garde de 2 s laisse une marge de 1 s (50 %) : confortable face à la
+ * latence du pipeline caméra → décodeur → tiroir de validation, sans
+ * allonger inutilement les parcours Playwright qui attendent chaque scan.
+ */
+const BLOCK_SECONDS = 3;
+const BLOCK_FRAME_COUNT = BLOCK_SECONDS * FRAME_RATE;
+
+/**
+ * Nombre de cycles (bloc A puis bloc B) écrits dans le fichier. La vidéo
+ * boucle déjà côté Chromium une fois sa fin atteinte, mais écrire plusieurs
+ * cycles à l'intérieur évite de dépendre de ce bouclage pour qu'un second
+ * scan ait lieu pendant la fenêtre d'un test : le second code est déjà
+ * disponible bien avant la fin du fichier.
+ */
+const CYCLE_COUNT = 3;
 
 // Plage « studio » (ITU-R BT.601/BT.709) attendue par un flux yuv420p
 // conforme : 16 = noir, 235 = blanc. Un décodeur strict qui applique la
@@ -105,33 +139,50 @@ function renderLumaPlane(bits: string): Buffer {
 /**
  * Assemble un fichier Y4M (YUV4MPEG2) complet : un en-tête ASCII puis, pour
  * chaque image, un marqueur `FRAME` suivi des plans Y (pleine résolution)
- * puis U et V (résolution quart, 4:2:0). Toutes les images sont identiques
- * (vidéo figée) : le plan de luminance n'est calculé qu'une fois.
+ * puis U et V (résolution quart, 4:2:0). La séquence d'images alterne les
+ * deux plans de luminance par blocs de `BLOCK_FRAME_COUNT`, répétés
+ * `CYCLE_COUNT` fois (A, B, A, B, …) : chaque bloc n'a qu'une seule image
+ * calculée, dupliquée en mémoire pour sa durée.
+ *
+ * Coupure franche entre deux blocs, sans images vierges intercalaires : ces
+ * images sont composées pixel par pixel (pas une capture d'une caméra
+ * physique), donc le passage d'un bloc à l'autre est instantané et sans flou
+ * de mouvement — à l'image qui suit le changement de bloc, l'ancien code
+ * n'est déjà plus présent du tout. Une poignée d'images vierges entre les
+ * blocs n'apporterait donc rien de plus pour la condition « a quitté le
+ * champ » du filtre anti-répétition, seulement de la durée en plus.
  */
-function buildY4m(lumaPlane: Buffer): Buffer {
+function buildY4m(lumaPlanes: readonly Buffer[]): Buffer {
   const chromaWidth = CANVAS_WIDTH / 2;
   const chromaHeight = CANVAS_HEIGHT / 2;
   const chromaPlane = Buffer.alloc(chromaWidth * chromaHeight, CHROMA_NEUTRAL);
 
   const header = Buffer.from(`YUV4MPEG2 W${CANVAS_WIDTH} H${CANVAS_HEIGHT} F${FRAME_RATE}:1 Ip A1:1 C420jpeg\n`, 'ascii');
   const frameMarker = Buffer.from('FRAME\n', 'ascii');
-  const frame = Buffer.concat([frameMarker, lumaPlane, chromaPlane, chromaPlane]);
+  const blockFrames = lumaPlanes.map((lumaPlane) => {
+    const frame = Buffer.concat([frameMarker, lumaPlane, chromaPlane, chromaPlane]);
+    return new Array<Buffer>(BLOCK_FRAME_COUNT).fill(frame);
+  });
 
-  const frames = new Array<Buffer>(FRAME_COUNT).fill(frame);
+  const cycle = blockFrames.flat();
+  const frames = new Array<Buffer[]>(CYCLE_COUNT).fill(cycle).flat();
   return Buffer.concat([header, ...frames]);
 }
 
 /**
- * Génère la vidéo figée du code-barres `barcode` et retourne son chemin
- * (fichier temporaire, jamais nettoyé explicitement : le runner CI comme
- * cette machine recyclent leur répertoire temporaire entre exécutions).
- * La vidéo boucle automatiquement côté Chromium une fois sa fin atteinte :
- * quelques secondes à image fixe suffisent.
+ * Génère la vidéo de la caméra simulée qui alterne les deux codes-barres
+ * `barcodes` (dans cet ordre, en blocs successifs répétés) et retourne son
+ * chemin (fichier temporaire, jamais nettoyé explicitement : le runner CI
+ * comme cette machine recyclent leur répertoire temporaire entre
+ * exécutions). La vidéo boucle automatiquement côté Chromium une fois sa fin
+ * atteinte, mais contient déjà plusieurs cycles complets (voir
+ * `CYCLE_COUNT`) : un test n'a pas à attendre ce bouclage pour voir le
+ * second code.
  */
-export async function generateBarcodeVideo(barcode: string): Promise<string> {
-  const bits = encodeEan13(barcode);
+export async function generateBarcodeVideo(barcodes: readonly [string, string]): Promise<string> {
+  const lumaPlanes = barcodes.map((barcode) => renderLumaPlane(encodeEan13(barcode)));
   const dir = await mkdtemp(join(tmpdir(), 'kitchen-e2e-barcode-'));
   const videoPath = join(dir, 'barcode.y4m');
-  await writeFile(videoPath, buildY4m(renderLumaPlane(bits)));
+  await writeFile(videoPath, buildY4m(lumaPlanes));
   return videoPath;
 }

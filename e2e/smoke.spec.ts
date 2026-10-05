@@ -37,7 +37,8 @@ test('la caméra simulée permet de lire un code-barres', async ({ page }) => {
   // seul ni le chemin complet. D'où un nom partiel, non exact.
   await page.getByRole('button', { name: 'Placard', exact: false }).click({ timeout: 20_000 });
 
-  // La vidéo de la caméra simulée boucle sur le code-barres du Nutella des
+  // La vidéo de la caméra simulée alterne deux codes-barres par blocs
+  // (section 19, tâche 9) ; son premier bloc porte celui du Nutella des
   // fixtures Open Food Facts (absent du seed : la doublure est bien sollicitée).
   const confirmTitle = page.getByRole('heading', { name: 'Ajouter cet article ?', level: 2 });
   await expect(confirmTitle).toBeVisible({ timeout: 20_000 });

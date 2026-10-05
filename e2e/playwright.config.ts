@@ -1,19 +1,57 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
 import { generateBarcodeVideo } from './fixtures/barcode-video.ts';
 
+/** Forme minimale lue dans une fixture Open Food Facts rejouée par la doublure. */
+interface OffFixture {
+  readonly code: string;
+  readonly product: {
+    readonly product_name?: string;
+    readonly product_name_fr?: string;
+  };
+}
+
+function readOffFixture(file: string): OffFixture {
+  const path = fileURLToPath(new URL(`../apps/api/test/fixtures/${file}`, import.meta.url));
+  return JSON.parse(readFileSync(path, 'utf8')) as OffFixture;
+}
+
 /**
- * Code-barres de la vidéo de caméra simulée, lu par tous les parcours qui
- * scannent (section 19). Choisi dans les fixtures Open Food Facts rejouées
- * par la doublure (`apps/api/test/fixtures/off-3017620422003.json`), absent
- * du jeu de données de seed : chaque scan de ce code déclenche un vrai appel
- * à la doublure, jamais une réponse déjà en cache.
+ * Même règle de nommage que la cascade de reconnaissance
+ * (`apps/api/src/recognition/open-food-facts.client.ts` : `product_name_fr
+ * || product_name`) — lue ici sur la fixture plutôt que recopiée, pour que
+ * les parcours affirment exactement ce que l'application affiche.
  */
-export const FAKE_VIDEO_BARCODE = '3017620422003';
+function productName(fixture: OffFixture): string {
+  return fixture.product.product_name_fr || fixture.product.product_name || '';
+}
+
+// Les deux fixtures Open Food Facts que sert la doublure pour la vidéo de
+// caméra simulée (section 19, tâches 2 et 9). Toutes deux absentes du jeu de
+// données de seed : chaque scan déclenche un vrai appel à la doublure,
+// jamais une réponse déjà en cache.
+const PRIMARY_FIXTURE = readOffFixture('off-3017620422003.json');
+const SECONDARY_FIXTURE = readOffFixture('off-8801043015608.json');
+
+/** Code-barres du premier bloc de la vidéo (Nutella). */
+export const FAKE_VIDEO_BARCODE = PRIMARY_FIXTURE.code;
+/** Nom de produit que la cascade de reconnaissance rend pour ce code. */
+export const FAKE_VIDEO_PRODUCT_NAME = productName(PRIMARY_FIXTURE);
+
+/** Code-barres du second bloc de la vidéo (Shin Ramyun), pour tester la rafale. */
+export const FAKE_VIDEO_BARCODE_SECONDARY = SECONDARY_FIXTURE.code;
+/** Nom de produit que la cascade de reconnaissance rend pour ce second code. */
+export const FAKE_VIDEO_PRODUCT_NAME_SECONDARY = productName(SECONDARY_FIXTURE);
 
 // Générée une fois, au chargement de la configuration (un seul worker, une
 // seule exécution) : Chromium rejoue ce fichier en boucle pour tout flux
-// vidéo demandé par `getUserMedia`, quel que soit le test.
-const fakeVideoPath = await generateBarcodeVideo(FAKE_VIDEO_BARCODE);
+// vidéo demandé par `getUserMedia`, quel que soit le test. La vidéo alterne
+// les deux codes par blocs (voir `generateBarcodeVideo`) : un parcours qui ne
+// lit que le premier scan voit toujours `FAKE_VIDEO_BARCODE` en premier, un
+// parcours qui enchaîne deux scans sans fermer la caméra peut désormais
+// attendre `FAKE_VIDEO_BARCODE_SECONDARY` pour le second.
+const fakeVideoPath = await generateBarcodeVideo([FAKE_VIDEO_BARCODE, FAKE_VIDEO_BARCODE_SECONDARY]);
 
 export default defineConfig({
   testDir: '.',

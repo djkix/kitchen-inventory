@@ -17,17 +17,20 @@ import { restoreDatabase } from './support/database.ts';
 const PRODUIT_SCANNE = 'Nutella pâte à tartiner aux noisettes et au cacao';
 
 /**
- * La vidéo de la caméra simulée (section 19, tâche 2) fige un seul
- * code-barres sur chaque image, et le filtre anti-répétition de l'application
+ * La vidéo de la caméra simulée (section 19, tâche 2) figeait un seul
+ * code-barres sur chaque image, ce qui rendait un second scan automatique
+ * irréalisable : le filtre anti-répétition de l'application
  * (`apps/web/src/lib/scan-debounce.ts`, `createScanGate`) ne réaccepte un code
- * qu'une fois qu'il a « quitté le champ » — ce qui n'arrive jamais ici
- * puisque la vidéo ne contient qu'une image figée rejouée en boucle. Un
- * second scan automatique du même code est donc irréalisable sans fabriquer
- * une seconde vidéo (hors mandat de cette tâche, et risqué à faire sans banc
- * d'essai local). Le second article d'une rafale est donc ajouté par un
- * geste différent déjà prévu par l'écran — la saisie manuelle (« À la main »,
- * `apps/web/src/screens/scan/scan-screen.tsx`) — qui emprunte le même tiroir
- * sans quitter ni refermer la caméra. Signalé au coordinateur dans le rapport.
+ * qu'une fois qu'il a « quitté le champ », ce qui n'arrivait jamais avec une
+ * seule image rejouée en boucle. Depuis la tâche 9, la vidéo alterne deux
+ * codes-barres par blocs (`FAKE_VIDEO_BARCODE` puis `FAKE_VIDEO_BARCODE_SECONDARY`,
+ * exportés par `playwright.config.ts`) : un vrai second scan est désormais
+ * possible dans ce fichier. Ce test continue cependant d'ajouter le second
+ * article par la saisie manuelle (« À la main »,
+ * `apps/web/src/screens/scan/scan-screen.tsx`), qui emprunte le même tiroir
+ * sans quitter ni refermer la caméra : remplacer ce geste par un second scan
+ * réel reste à faire dans une tâche dédiée, pas dans celle qui construit la
+ * vidéo. Signalé au coordinateur dans le rapport.
  */
 async function ajouterArticleManuellement(page: Page, nom: string) {
   await page.getByRole('button', { name: 'À la main' }).click();
