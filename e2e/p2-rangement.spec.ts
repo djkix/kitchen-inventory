@@ -1,3 +1,4 @@
+import { expiryShortcutDate } from '@kitchen/shared';
 import { expect, test } from '@playwright/test';
 import { useSharedAdminSession } from './support/auth.ts';
 import { denyCameraForTest } from './support/camera.ts';
@@ -175,9 +176,14 @@ test('saisit la DLC directement dans le tiroir de validation via un raccourci (E
   await page.getByRole('button', { name: /Ajouter/ }).click();
   await expect(page.getByText(`Ajouté : ${product.name}`)).toBeVisible({ timeout: 10_000 });
 
-  // Même convention que le test « enregistre la DLC depuis le bandeau » plus
-  // haut : date relative à l'exécution, jamais figée.
-  const expiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // Même règle que celle utilisée par le composant (`expiryShortcutDate`,
+  // `packages/shared`), jamais `toISOString()` : un calcul recalculé côté
+  // test en UTC redonnerait un jour différent de l'application entre minuit
+  // et l'heure du décalage, dans un fuseau en avance sur UTC (Paris) — et ne
+  // le révélerait jamais en CI, dont le fuseau hôte est déjà UTC. Avec la
+  // même fonction des deux côtés, test et application ne peuvent pas se
+  // tromper de jour l'un sans l'autre.
+  const expiry = expiryShortcutDate('threeDays', new Date());
   expect(await getActiveStockExpiryIn(page, product.name, 'Étagère du haut')).toBe(expiry);
 });
 
