@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/djkix/kitchen-inventory/compare/v0.10.0...v0.11.0) (2026-10-06)
+
+
+### Features
+
+* **settings:** choix des modèles depuis les réglages (EF-03, EF-25) ([557941d](https://github.com/djkix/kitchen-inventory/commit/557941d051565b850a109075ad95fe007b362b52))
+
 ## [0.10.0](https://github.com/djkix/kitchen-inventory/compare/v0.9.2...v0.10.0) (2026-10-06)
 
 
