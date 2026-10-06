@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { ScanIcon } from '../../components/ui/icons';
-import { VersionBadge } from '../../components/shell/version-badge';
 
 /** Écrans sans session : formulaire poussé vers le bas, à portée du pouce. */
 export function AuthLayout({ title, lead, children }: { title: string; lead: string; children: ReactNode }) {
@@ -14,7 +13,6 @@ export function AuthLayout({ title, lead, children }: { title: string; lead: str
         <p className="max-w-[36ch] text-[15px] text-muted">{lead}</p>
       </div>
       <div className="pb-10">{children}</div>
-      <VersionBadge className="pt-0" />
     </div>
   );
 }

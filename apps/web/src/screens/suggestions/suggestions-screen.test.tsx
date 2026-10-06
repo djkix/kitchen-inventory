@@ -32,6 +32,20 @@ describe('SuggestionsErrorState', () => {
     expect(screen.getByText(/La recherche de recettes a échoué/i)).toBeTruthy();
   });
 
+  it('nomme la panne du fournisseur plutôt qu’un message générique', () => {
+    // Un modèle inexistant (404) et un quota épuisé (429) produisent tous deux
+    // `provider_unavailable` : sans le message du serveur, l'écran ne permet
+    // pas de les distinguer, et la panne reste invisible depuis le téléphone.
+    const error = new ApiClientError(502, 'provider_unavailable', 'Fournisseur de suggestions Gemini en erreur (404)');
+    render(
+      <MemoryRouter>
+        <SuggestionsErrorState error={error} onRetry={vi.fn()} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/La recherche de recettes a échoué/i)).toBeTruthy();
+    expect(screen.getByText(/en erreur \(404\)/i)).toBeTruthy();
+  });
+
   it('relaie le message du serveur quand le fournisseur est désactivé, sans en inventer un autre (round 1)', () => {
     const serverMessage = 'Fournisseur de suggestions désactivé : renseignez VISION_PROVIDER et VISION_API_KEY';
     const error = new ApiClientError(422, 'provider_disabled', serverMessage);
