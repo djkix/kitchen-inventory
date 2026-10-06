@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/djkix/kitchen-inventory/compare/v0.9.2...v0.10.0) (2026-10-06)
+
+
+### Features
+
+* **web:** version réservée aux réglages, panne du fournisseur nommée à l'écran ([d70c9a2](https://github.com/djkix/kitchen-inventory/commit/d70c9a2e842a5d3514cbef2096a18efeb57de92c))
+
 ## [0.9.2](https://github.com/djkix/kitchen-inventory/compare/v0.9.1...v0.9.2) (2026-10-05)
 
 
