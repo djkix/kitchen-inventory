@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type {
   AuthStatus,
+  AvailableModels,
   CategoryDto,
   CurrentUser,
   LocationNode,
@@ -38,6 +39,7 @@ export const queryKeys = {
   locations: ['locations'] as const,
   categories: ['categories'] as const,
   settings: ['settings'] as const,
+  availableModels: ['settings', 'models'] as const,
   users: ['users'] as const,
   serviceTokens: ['service-tokens'] as const,
   recognitionStats: ['recognition', 'stats'] as const,
@@ -123,6 +125,22 @@ export function useCategoriesQuery() {
 
 export function useSettingsQuery() {
   return useQuery({ queryKey: queryKeys.settings, queryFn: () => api.get<Settings>('/settings'), staleTime: 60_000 });
+}
+
+/**
+ * Modèles servis par la clé du fournisseur. Réservé aux admins (403 sinon),
+ * d'où `enabled` : un membre n'a pas à déclencher un appel qui lui sera refusé.
+ * Sans reprise automatique : un échec est une information à afficher, pas une
+ * panne à masquer par des tentatives répétées.
+ */
+export function useAvailableModelsQuery(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.availableModels,
+    queryFn: () => api.get<AvailableModels>('/settings/models'),
+    staleTime: 10 * 60_000,
+    retry: false,
+    enabled,
+  });
 }
 
 export function useUsersQuery() {

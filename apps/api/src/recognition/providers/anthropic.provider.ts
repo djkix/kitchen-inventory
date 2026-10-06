@@ -33,10 +33,11 @@ export class AnthropicProvider implements RecognitionProvider {
   }
 
   async recognize(input: RecognitionInput): Promise<RecognitionOutput> {
+    const model = input.model ?? this.model;
     let response: Anthropic.Message;
     try {
       response = await this.client.messages.create({
-        model: this.model,
+        model,
         max_tokens: 1024,
         system: VISION_SYSTEM_PROMPT,
         // Lecture d'étiquette : tâche courte, on limite la réflexion pour tenir la cible de 4 s (section 13).
@@ -62,7 +63,7 @@ export class AnthropicProvider implements RecognitionProvider {
       .filter((block): block is Anthropic.TextBlock => block.type === 'text')
       .map((block) => block.text)
       .join('');
-    return { suggestion: parseSuggestion(text), raw: response, costCents: estimateCostCents(this.model, response.usage) };
+    return { suggestion: parseSuggestion(text), raw: response, costCents: estimateCostCents(model, response.usage) };
   }
 }
 

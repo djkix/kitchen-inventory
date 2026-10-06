@@ -198,6 +198,29 @@ describe('SuggestionsService (EF-26)', () => {
     expect(ingredient?.productName).toBe('Crème fraîche épaisse 30%');
   });
 
+  it('appelle le modèle choisi dans les réglages, sans redémarrage (2026-10-06)', async () => {
+    // Le modèle était figé à la construction du fournisseur, un singleton Nest :
+    // un réglage changé à l'écran n'aurait valu qu'au redémarrage du conteneur.
+    // Il est désormais relu à chaque fournée. Ce test le prouve en regardant
+    // l'URL appelée, seul endroit où le nom du modèle apparaisse réellement.
+    const { service, db } = await createService({ SUGGESTION_MODEL: 'modele-de-l-environnement' });
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
+
+    await service.list(QUERY, USER);
+    expect(http.calls[0]?.url).toContain('modele-de-l-environnement');
+
+    await db.setting.upsert({
+      where: { key: 'suggestionModel' },
+      create: { key: 'suggestionModel', value: 'modele-choisi-a-l-ecran' },
+      update: { value: 'modele-choisi-a-l-ecran' },
+    });
+    // `refresh` force une nouvelle fournée : sans lui le cache servirait la précédente.
+    await service.list({ ...QUERY, refresh: true }, USER);
+    expect(http.calls[1]?.url).toContain('modele-choisi-a-l-ecran');
+  });
+
   it('compte un rapprochement probable comme disponible dans la couverture', async () => {
     const { service, db } = await createService();
     const locationId = await seedLocation(db);

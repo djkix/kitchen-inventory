@@ -13,9 +13,32 @@ export class SettingsService {
 
   async get(): Promise<Settings> {
     const rows = await this.prisma.setting.findMany();
-    const stored = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-    const parsed = settingsSchema.safeParse({ expiryAlertDays: this.config.EXPIRY_ALERT_DAYS, ...stored });
-    return parsed.success ? parsed.data : { expiryAlertDays: this.config.EXPIRY_ALERT_DAYS };
+    // Une valeur stockée vide vaut « pas de choix » : elle rend la main à
+    // l'environnement, sinon un réglage effacé à l'écran masquerait le `.env`
+    // par une chaîne vide, et le fournisseur appellerait un modèle sans nom.
+    const stored = Object.fromEntries(rows.filter((r) => r.value !== '').map((r) => [r.key, r.value]));
+    const fromEnv = {
+      expiryAlertDays: this.config.EXPIRY_ALERT_DAYS,
+      ...(this.config.VISION_MODEL ? { visionModel: this.config.VISION_MODEL } : {}),
+      ...(this.config.SUGGESTION_MODEL ? { suggestionModel: this.config.SUGGESTION_MODEL } : {}),
+    };
+    const parsed = settingsSchema.safeParse({ ...fromEnv, ...stored });
+    return parsed.success ? parsed.data : fromEnv;
+  }
+
+  /**
+   * Modèle de la reconnaissance photo, résolu à chaque appel et non au
+   * démarrage : un réglage changé depuis l'écran doit valoir immédiatement,
+   * sans redémarrage du conteneur. `undefined` laisse le fournisseur appliquer
+   * son propre défaut.
+   */
+  async visionModel(): Promise<string | undefined> {
+    return (await this.get()).visionModel;
+  }
+
+  /** Modèle des appels recettes (suggestions et réécriture), même résolution par appel. */
+  async suggestionModel(): Promise<string | undefined> {
+    return (await this.get()).suggestionModel;
   }
 
   async update(input: UpdateSettingsInput): Promise<Settings> {

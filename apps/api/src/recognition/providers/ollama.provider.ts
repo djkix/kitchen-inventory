@@ -18,7 +18,7 @@ export class OllamaProvider implements RecognitionProvider {
         headers: { 'content-type': 'application/json' },
         signal: AbortSignal.timeout(120_000),
         body: JSON.stringify({
-          model: this.options.model ?? 'llama3.2-vision',
+          model: input.model ?? this.options.model ?? 'llama3.2-vision',
           stream: false,
           format: VISION_JSON_SCHEMA,
           messages: [

@@ -34,23 +34,24 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
     // Chaque tentative est conservée, y compris quand la suivante réussit ou
     // quand tout échoue : elle a été facturée, elle doit être journalisée.
     const attempts: SuggestionAttempt[] = [];
+    const model = req.model ?? this.model;
 
     // Vigilance 1 : une seule reprise, jamais une troisième tentative.
     for (const retry of [false, true]) {
       const started = Date.now();
       let raw: GeminiResponse;
       try {
-        raw = await this.call(buildSuggestionPrompt(req, { retry }));
+        raw = await this.call(buildSuggestionPrompt(req, { retry }), model);
       } catch (error) {
         // Appel qui n'aboutit pas : rien à facturer pour celui-ci, mais les
         // précédents le sont — l'erreur les emporte pour qu'ils soient inscrits.
         if (attempts.length === 0) throw error;
         throw new SuggestionProviderError(error instanceof Error ? error.message : String(error), attempts, error);
       }
-      attempts.push({ raw, costCents: estimateCostCents(this.model, raw.usageMetadata), latencyMs: Date.now() - started });
+      attempts.push({ raw, costCents: estimateCostCents(model, raw.usageMetadata), latencyMs: Date.now() - started });
 
       try {
-        return this.toOutput(raw, attempts, req.count);
+        return this.toOutput(raw, attempts, req.count, model);
       } catch (error) {
         if (!(error instanceof InvalidBatchJsonError)) throw error;
         if (retry) {
@@ -68,16 +69,16 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
    * schéma. Un modèle qui en renvoie davantage est tronqué, jamais rejeté : ce n'est
    * pas une réponse malformée, juste trop généreuse.
    */
-  private toOutput(raw: GeminiResponse, attempts: SuggestionAttempt[], count: number): SuggestionOutput {
+  private toOutput(raw: GeminiResponse, attempts: SuggestionAttempt[], count: number, model: string): SuggestionOutput {
     const batch = parseModelBatch(extractText(raw));
-    return { recipes: batch.recipes.slice(0, count), attempts, model: this.model };
+    return { recipes: batch.recipes.slice(0, count), attempts, model };
   }
 
-  private async call(prompt: string): Promise<GeminiResponse> {
+  private async call(prompt: string, model: string): Promise<GeminiResponse> {
     const base = (this.options.baseURL ?? DEFAULT_BASE_URL).replace(/\/$/, '');
     let response: Response;
     try {
-      response = await this.options.httpClient(`${base}/v1beta/models/${encodeURIComponent(this.model)}:generateContent`, {
+      response = await this.options.httpClient(`${base}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
         method: 'POST',
         // La clé passe en en-tête, jamais dans l'URL : elle n'apparaît ainsi dans aucun journal.
         headers: { 'content-type': 'application/json', 'x-goog-api-key': this.options.apiKey ?? '' },

@@ -20,7 +20,7 @@ export class OpenAiProvider implements RecognitionProvider {
         headers: { 'content-type': 'application/json', authorization: `Bearer ${this.options.apiKey}` },
         signal: AbortSignal.timeout(25_000),
         body: JSON.stringify({
-          model: this.options.model ?? 'gpt-4.1-mini',
+          model: input.model ?? this.options.model ?? 'gpt-4.1-mini',
           max_tokens: 1024,
           response_format: { type: 'json_schema', json_schema: { name: 'product', strict: true, schema: VISION_JSON_SCHEMA } },
           messages: [

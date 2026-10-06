@@ -6,6 +6,7 @@ import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { MediaService } from '../media/media.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProductsService } from '../products/products.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 import { OpenFoodFactsClient } from './open-food-facts.client.js';
 import { ProviderError, RECOGNITION_PROVIDER, type RecognitionProvider } from './providers/recognition-provider.js';
 
@@ -28,6 +29,7 @@ export class RecognitionService {
     private readonly logger: Logger,
     @Inject(RECOGNITION_PROVIDER) private readonly provider: RecognitionProvider,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly settings: SettingsService,
   ) {}
 
   /** Niveaux 1 à 3. `null` si le code est inconnu partout : le client bascule sur la photo. */
@@ -90,7 +92,10 @@ export class RecognitionService {
     const imagePath = await this.media.save(image, mimeType, 'scans');
     const started = Date.now();
     try {
-      const output = await this.provider.recognize({ image, mimeType, hint });
+      // Le modèle est relu à chaque appel : un changement dans les réglages
+      // vaut immédiatement, sans redémarrage du conteneur.
+      const model = await this.settings.visionModel();
+      const output = await this.provider.recognize({ image, mimeType, hint, model });
       const latencyMs = Date.now() - started;
       const log = await this.prisma.recognitionLog.create({
         data: {
