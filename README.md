@@ -194,6 +194,19 @@ composée par l'IA peut inventer une proportion, annoncé par sa mention
 et renvoie vers les **Réglages** ; le scan photo affiche de même son écran
 dédié plutôt qu'un message passager. Voir `docs/decisions/`.
 
+**Choix des modèles.** Réglages › Reconnaissance propose aux administrateurs
+deux lignes de choix : le modèle de la photo et celui des recettes. La liste
+n'est pas écrite dans le code — elle est demandée au fournisseur, et ne montre
+que les modèles que la clé configurée sert réellement. Un nom de modèle
+inexistant ne peut donc plus être retenu : c'était la cause de l'écran de
+recettes resté vide du 2026-10-04 au 2026-10-06, invisible pour les tests
+puisque tous répondent à une doublure locale. « Défaut du serveur » efface le
+choix et rend la main à `VISION_MODEL` et `SUGGESTION_MODEL`. Le modèle est
+relu à chaque appel : un changement vaut sans redémarrer le conteneur. La
+liste dit quels modèles la clé sert, pas lesquels savent chercher sur le web —
+un modèle inadapté reste proposé, et l'écran Suggestions affiche alors le
+message du fournisseur.
+
 ## Installation
 
 ### Prérequis
@@ -315,7 +328,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `PUBLIC_URL` | URL publique HTTPS |
 | `VISION_PROVIDER` | `none`, `gemini` (retenu), `anthropic`, `openai` ou `ollama` |
 | `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.5-flash`) ; `VISION_BASE_URL` sert pour Ollama ou un proxy |
-| `SUGGESTION_MODEL` | Modèle des appels recettes — suggestions et réécriture (défaut `gemini-3.5-flash-lite`). Distinct de `VISION_MODEL` : lire une étiquette et chercher une recette sur le web n'appellent pas le même modèle |
+| `SUGGESTION_MODEL` | Modèle des appels recettes — suggestions et réécriture (défaut `gemini-3.5-flash-lite`). Distinct de `VISION_MODEL` : lire une étiquette et chercher une recette sur le web n'appellent pas le même modèle. Comme `VISION_MODEL`, c'est une **valeur de départ** : un administrateur peut la remplacer depuis Réglages, et le choix enregistré prime |
 | `VISION_DAILY_QUOTA` | Appels photo autorisés par jour (50) |
 | `VISION_MONTHLY_CAP_CENTS` | Plafond de dépense mensuel en centimes, partagé avec les suggestions de recettes (500, soit 5 €) ; 0 le désactive |
 | `RECIPE_SUGGESTION_DAILY_QUOTA` | Fournées de suggestions de recettes autorisées par jour (20) |
@@ -464,7 +477,8 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.9.3 | 2026-10-06 | Le numéro de version ne s'affiche plus qu'au bas de l'écran Réglages, au lieu de chaque écran et de la page de connexion : c'est une information d'administration, et le bandeau « Nouvelle version disponible » continue de signaler partout qu'une mise à jour attend. L'écran Suggestions reprend désormais le message du serveur quand la recherche échoue — « en erreur (404) », « en erreur (429) » — au lieu d'un « le modèle n'a pas pu répondre » qui ne distinguait pas un modèle mal configuré d'un quota épuisé ou d'une coupure réseau, et obligeait à aller lire les journaux du serveur |
+| 0.11.0 | 2026-10-06 | Les administrateurs choisissent les modèles depuis Réglages, section Reconnaissance : une ligne pour la photo, une pour les recettes. La liste proposée est celle que la clé sert réellement, interrogée auprès du fournisseur — un nom de modèle inexistant ne peut donc plus être saisi, ce qui était la cause de l'écran de recettes vide. Le choix prime sur `VISION_MODEL` et `SUGGESTION_MODEL`, et « Défaut du serveur » rend la main à ces variables. Le modèle est relu à chaque appel : un changement vaut immédiatement, sans redémarrage du conteneur |
+| 0.10.0 | 2026-10-06 | Le numéro de version ne s'affiche plus qu'au bas de l'écran Réglages, au lieu de chaque écran et de la page de connexion : c'est une information d'administration, et le bandeau « Nouvelle version disponible » continue de signaler partout qu'une mise à jour attend. L'écran Suggestions reprend désormais le message du serveur quand la recherche échoue — « en erreur (404) », « en erreur (429) » — au lieu d'un « le modèle n'a pas pu répondre » qui ne distinguait pas un modèle mal configuré d'un quota épuisé ou d'une coupure réseau, et obligeait à aller lire les journaux du serveur |
 | 0.9.2 | 2026-10-05 | Correctif : aucune suggestion de recette n'avait jamais abouti depuis la 0.8.0. Les appels partaient vers `gemini-3.5-pro`, un modèle que l'API Gemini ne sert pas — six tentatives, six 404, et un écran « Mes recettes » vide sans que rien ne l'explique. Le modèle des recettes devient `gemini-3.5-flash-lite` par défaut et se règle à part de la reconnaissance photo, par `SUGGESTION_MODEL` : les deux usages n'ont ni le même besoin ni le même prix. Vingt fois moins cher que le modèle visé, il laisse beaucoup plus de marge sous le plafond mensuel. Aucun test ne pouvait voir cette panne : tous parlent à une doublure locale qui répond quel que soit le nom du modèle |
 | 0.9.1 | 2026-10-05 | Correctif d'accessibilité : les cartes de recette et de suggestion n'avaient aucun nom annoncé par les lecteurs d'écran, et étaient introuvables par une requête rôle + nom — Chromium ne remonte pas le contenu d'un rôle `article` dans le nom calculé d'un lien ou d'un bouton ancêtre (EF-23). C'est ainsi qu'un test de bout en bout avait perdu une recette qu'il venait de conserver, contournement visible dans `e2e/p5-suggestions.spec.ts` jusqu'ici. Les deux cartes restent entièrement tactiles (usage à une main en cuisine) et portent désormais un nom explicite — titre et état de couverture (« Prête à 100 % »), la même information que le badge coloré, en mots |
 | 0.9.0 | 2026-10-05 | La date de péremption se saisit désormais directement dans le tiroir de validation du scan (EF-02), ce que Franck avait demandé puis fait reporter deux fois : sous la quantité, trois raccourcis (« +3 j », « +1 sem », « +1 mois ») ou un lien « autre date » pour la date libre et le choix DLC/DDM. Rien n'est obligatoire — valider sans y toucher reste le même geste qu'avant, même bouton, même nombre de taps — et le bandeau « + DLC » après l'ajout reste disponible pour rattraper un oubli |

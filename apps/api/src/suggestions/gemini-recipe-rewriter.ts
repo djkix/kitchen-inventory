@@ -86,13 +86,14 @@ export class GeminiRecipeRewriter {
     this.enabled = Boolean(options.apiKey);
   }
 
-  async rewrite(input: RecipeRewriteInput): Promise<RecipeRewriteOutput> {
+  async rewrite(input: RecipeRewriteInput, chosenModel?: string): Promise<RecipeRewriteOutput> {
+    const model = chosenModel ?? this.model;
     if (!this.options.apiKey) throw new ProviderError('Fournisseur de suggestions désactivé');
 
     const base = (this.options.baseURL ?? DEFAULT_BASE_URL).replace(/\/$/, '');
     let response: Response;
     try {
-      response = await this.options.httpClient(`${base}/v1beta/models/${encodeURIComponent(this.model)}:generateContent`, {
+      response = await this.options.httpClient(`${base}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
         method: 'POST',
         // La clé passe en en-tête, jamais dans l'URL : elle n'apparaît ainsi dans aucun journal.
         headers: { 'content-type': 'application/json', 'x-goog-api-key': this.options.apiKey },
@@ -130,6 +131,6 @@ export class GeminiRecipeRewriter {
     const result = recipeRewriteSchema.safeParse(parsed);
     if (!result.success) throw new InvalidRewriteError('Réponse de réécriture non conforme au schéma');
 
-    return { recipe: result.data, raw, costCents: estimateCostCents(this.model, raw.usageMetadata) };
+    return { recipe: result.data, raw, costCents: estimateCostCents(model, raw.usageMetadata) };
   }
 }

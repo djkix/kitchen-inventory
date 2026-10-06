@@ -4,6 +4,14 @@ export interface RecognitionInput {
   image: Buffer;
   mimeType: string;
   hint?: string;
+  /**
+   * Modèle choisi pour CET appel, résolu par l'appelant depuis les réglages
+   * (base, sinon environnement). Absent, le fournisseur applique le modèle
+   * reçu à sa construction puis son propre défaut. Le modèle ne peut pas être
+   * figé à la construction : les fournisseurs sont des singletons Nest, et un
+   * réglage changé à l'écran n'aurait alors d'effet qu'au redémarrage.
+   */
+  model?: string;
 }
 
 export interface RecognitionOutput {

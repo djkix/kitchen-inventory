@@ -8,6 +8,7 @@ import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../hooks/use-auth';
 import { API_BASE, api, errorMessage } from '../../lib/api';
 import { queryKeys, useSettingsQuery } from '../../lib/queries';
+import { ModelRow } from './model-row';
 import { PasswordSheet } from './password-sheet';
 import { VersionBadge } from '../../components/shell/version-badge';
 import { StatsPanel } from './stats-panel';
@@ -41,6 +42,18 @@ export function SettingsScreen() {
 
         <Section title="Reconnaissance">
           <StatsPanel />
+          <ModelRow
+            label="Modèle de la photo"
+            hint="Lecture des étiquettes lors du scan"
+            settingKey="visionModel"
+            isAdmin={auth.isAdmin}
+          />
+          <ModelRow
+            label="Modèle des recettes"
+            hint="Recherche et réécriture des suggestions"
+            settingKey="suggestionModel"
+            isAdmin={auth.isAdmin}
+          />
         </Section>
 
         <Section title="Foyer">

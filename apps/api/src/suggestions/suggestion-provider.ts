@@ -8,6 +8,14 @@ export interface SuggestionRequest {
   maxMinutes?: number;
   difficulty?: Difficulty;
   count: number;
+  /**
+   * Modèle choisi pour CET appel, résolu par le service depuis les réglages
+   * (base, sinon environnement). Absent, le fournisseur applique son défaut.
+   * Il ne peut pas être figé à la construction : le fournisseur est un
+   * singleton Nest, et un réglage changé à l'écran n'aurait alors d'effet
+   * qu'au redémarrage du conteneur.
+   */
+  model?: string;
 }
 
 /**

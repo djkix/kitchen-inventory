@@ -30,6 +30,7 @@ import { RecipesService } from '../recipes/recipes.service.js';
 import { loadCategoryRows, loadSeedCandidates, RecipesCoverageService } from '../recipes/recipes.coverage.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 import { InvalidRewriteError, type GeminiRecipeRewriter, type RecipeRewriteInput } from './gemini-recipe-rewriter.js';
 import { RecipePageRefusedError, type PageRecipe, type RecipePageFetcher } from './recipe-page.fetcher.js';
 import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER, SUGGESTION_PROVIDER, SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
@@ -153,6 +154,7 @@ export class SuggestionsService {
     @Inject(RECIPE_PAGE_FETCHER) private readonly pageFetcher: RecipePageFetcher,
     @Inject(RECIPE_REWRITER) private readonly rewriter: GeminiRecipeRewriter,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly settings: SettingsService,
   ) {}
 
   /**
@@ -289,7 +291,9 @@ export class SuggestionsService {
     const started = Date.now();
     let output: SuggestionOutput;
     try {
-      output = await this.provider.suggest(request);
+      // Modèle relu à chaque fournée : un changement dans les réglages vaut
+      // immédiatement, sans redémarrage du conteneur.
+      output = await this.provider.suggest({ ...request, model: await this.settings.suggestionModel() });
     } catch (error) {
       // Une reprise déjà facturée doit être inscrite même quand tout échoue
       // ensuite : le fournisseur porte ses tentatives sur l'erreur.
@@ -521,7 +525,7 @@ export class SuggestionsService {
       const started = Date.now();
       let rewritten: RecipeRewrite;
       try {
-        const output = await this.rewriter.rewrite(rewriteInput);
+        const output = await this.rewriter.rewrite(rewriteInput, await this.settings.suggestionModel());
         await this.logCall(output, true, Date.now() - started, this.rewriter.name);
         rewritten = output.recipe;
       } catch (error) {

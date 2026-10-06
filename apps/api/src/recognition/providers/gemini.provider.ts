@@ -56,10 +56,11 @@ export class GeminiProvider implements RecognitionProvider {
   }
 
   async recognize(input: RecognitionInput): Promise<RecognitionOutput> {
+    const model = input.model ?? this.model;
     const base = (this.options.baseURL ?? DEFAULT_BASE_URL).replace(/\/$/, '');
     let response: Response;
     try {
-      response = await this.options.httpClient(`${base}/v1beta/models/${encodeURIComponent(this.model)}:generateContent`, {
+      response = await this.options.httpClient(`${base}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
         method: 'POST',
         // La clé passe en en-tête, jamais dans l'URL : elle n'apparaît ainsi dans aucun journal.
         headers: { 'content-type': 'application/json', 'x-goog-api-key': this.options.apiKey },
@@ -94,7 +95,7 @@ export class GeminiProvider implements RecognitionProvider {
       throw new ProviderError(`Gemini n’a pas produit de réponse (${candidate?.finishReason ?? 'aucun candidat'})`);
     }
     const text = (candidate.content?.parts ?? []).map((p) => p.text ?? '').join('');
-    return { suggestion: parseSuggestion(text), raw, costCents: estimateCostCents(this.model, raw.usageMetadata) };
+    return { suggestion: parseSuggestion(text), raw, costCents: estimateCostCents(model, raw.usageMetadata) };
   }
 }
 
