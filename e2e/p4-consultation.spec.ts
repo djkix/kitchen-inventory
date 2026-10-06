@@ -140,23 +140,26 @@ test('liste ce qui périme bientôt, du plus urgent au moins urgent', async ({ p
   expect(renderedNames).toEqual(body.items.map((item) => item.product.name));
 });
 
-test('affiche la version de l’application', async ({ page }) => {
-  // Demandé explicitement par Franck en 0.5 (`CLAUDE.md`, « En service chez
-  // Franck ») : la version est présente au bas de CHAQUE écran
-  // (`VersionBadge`, apps/web/src/components/shell/app-shell.tsx, montée dans
-  // `AppShell` hors de l'`Outlet`). C'est ce que ce test prouve.
+test('affiche la version de l’application dans les réglages', async ({ page }) => {
+  // Demandé par Franck en 0.5, puis restreint par lui le 2026-10-06 : la
+  // version est une information d'administration, elle ne doit plus apparaître
+  // au bas de chaque écran mais seulement dans Réglages (`VersionBadge`,
+  // monté dans apps/web/src/screens/settings/settings-screen.tsx).
   //
-  // Ce qu'il ne prouve PAS (précision après revue) : que la valeur affichée
-  // vienne de `GET /health` plutôt que de la constante figée au moment du
-  // build. Le job `e2e` (.github/workflows/ci.yml) construit l'image avec
-  // `build-args: APP_VERSION=ci`, le même littéral côté web et côté API : les
-  // deux sources donnent « ci », aucune assertion ne peut les distinguer. Le
-  // choix de la valeur affichée reste couvert par `versionState`
-  // (apps/web/src/lib/version.test.ts).
+  // Ce que ce test ne prouve PAS (précision après revue) : que la valeur
+  // affichée vienne de `GET /health` plutôt que de la constante figée au
+  // moment du build. Le job `e2e` (.github/workflows/ci.yml) construit
+  // l'image avec `build-args: APP_VERSION=ci`, le même littéral côté web et
+  // côté API : les deux sources donnent « ci », aucune assertion ne peut les
+  // distinguer. Le choix de la valeur affichée reste couvert par
+  // `versionState` (apps/web/src/lib/version.test.ts).
   //
   // « ci » est une étiquette de validation délibérée, distincte du numéro de
   // version que seule une publication fixe sur l'image publiée : ni le job
   // `build-image` ni le job `e2e` ne publient quoi que ce soit.
   await page.goto('/');
+  await expect(page.getByText('Inventaire ci', { exact: true })).toHaveCount(0);
+
+  await page.goto('/reglages');
   await expect(page.getByText('Inventaire ci', { exact: true })).toBeVisible();
 });

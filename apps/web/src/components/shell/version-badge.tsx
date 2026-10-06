@@ -3,10 +3,11 @@ import { useHealthQuery } from '../../lib/queries';
 import { versionState } from '../../lib/version';
 
 /**
- * Version déployée, présente au bas de chaque écran : sans elle, impossible de
- * savoir depuis le téléphone si la mise à jour du serveur est bien en service.
- * Un écart avec la version de l'interface signale une coque servie depuis un
- * cache périmé, que la réouverture de l'application corrige.
+ * Version déployée, au bas des réglages seulement : c'est une information
+ * d'administration, pas un élément des écrans du quotidien. Un écart avec la
+ * version de l'interface signale une coque servie depuis un cache périmé, que
+ * la réouverture de l'application corrige — mais le bandeau de mise à jour
+ * (`UpdateBanner`), lui, reste visible partout et signale déjà cet écart.
  */
 export function VersionBadge({ className }: { className?: string }) {
   const health = useHealthQuery();

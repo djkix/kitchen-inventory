@@ -9,6 +9,7 @@ import { useAuth } from '../../hooks/use-auth';
 import { API_BASE, api, errorMessage } from '../../lib/api';
 import { queryKeys, useSettingsQuery } from '../../lib/queries';
 import { PasswordSheet } from './password-sheet';
+import { VersionBadge } from '../../components/shell/version-badge';
 import { StatsPanel } from './stats-panel';
 
 /** Écran Réglages (section 14) : emplacements, utilisateurs, seuil d'alerte, reconnaissance, export, compte. */
@@ -67,6 +68,8 @@ export function SettingsScreen() {
           </Button>
           <p className="pt-1 text-center text-[13px] text-faint">Connecté en tant que {auth.user?.email}</p>
         </Section>
+
+        <VersionBadge className="pt-0" />
       </div>
       <PasswordSheet open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </>

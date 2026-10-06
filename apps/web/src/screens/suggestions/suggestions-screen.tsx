@@ -121,12 +121,15 @@ export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRe
   }
 
   // `provider_unavailable`, `provider_invalid_response`, panne réseau ou erreur
-  // inattendue : le modèle n'a pas pu répondre, pas de distinction plus fine à
-  // montrer à l'écran (section 12).
+  // inattendue. Le message du serveur est repris tel quel quand il existe : il
+  // nomme la panne (« en erreur (404) », « en erreur (429) »), et sans lui un
+  // modèle mal configuré est indiscernable d'un quota épuisé ou d'une coupure
+  // réseau. C'est ce qui a laissé l'écran vide sans explication de la 0.8.0 à
+  // la 0.9.2, le temps d'aller lire les journaux du serveur.
   return (
     <ErrorState
       title="La recherche de recettes a échoué"
-      message="Le modèle n’a pas pu répondre. Réessayez dans un instant."
+      message={isApiError(error) && error.message ? error.message : 'Le modèle n’a pas pu répondre. Réessayez dans un instant.'}
       onRetry={onRetry}
     />
   );

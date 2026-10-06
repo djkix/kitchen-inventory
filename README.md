@@ -464,6 +464,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.9.3 | 2026-10-06 | Le numéro de version ne s'affiche plus qu'au bas de l'écran Réglages, au lieu de chaque écran et de la page de connexion : c'est une information d'administration, et le bandeau « Nouvelle version disponible » continue de signaler partout qu'une mise à jour attend. L'écran Suggestions reprend désormais le message du serveur quand la recherche échoue — « en erreur (404) », « en erreur (429) » — au lieu d'un « le modèle n'a pas pu répondre » qui ne distinguait pas un modèle mal configuré d'un quota épuisé ou d'une coupure réseau, et obligeait à aller lire les journaux du serveur |
 | 0.9.2 | 2026-10-05 | Correctif : aucune suggestion de recette n'avait jamais abouti depuis la 0.8.0. Les appels partaient vers `gemini-3.5-pro`, un modèle que l'API Gemini ne sert pas — six tentatives, six 404, et un écran « Mes recettes » vide sans que rien ne l'explique. Le modèle des recettes devient `gemini-3.5-flash-lite` par défaut et se règle à part de la reconnaissance photo, par `SUGGESTION_MODEL` : les deux usages n'ont ni le même besoin ni le même prix. Vingt fois moins cher que le modèle visé, il laisse beaucoup plus de marge sous le plafond mensuel. Aucun test ne pouvait voir cette panne : tous parlent à une doublure locale qui répond quel que soit le nom du modèle |
 | 0.9.1 | 2026-10-05 | Correctif d'accessibilité : les cartes de recette et de suggestion n'avaient aucun nom annoncé par les lecteurs d'écran, et étaient introuvables par une requête rôle + nom — Chromium ne remonte pas le contenu d'un rôle `article` dans le nom calculé d'un lien ou d'un bouton ancêtre (EF-23). C'est ainsi qu'un test de bout en bout avait perdu une recette qu'il venait de conserver, contournement visible dans `e2e/p5-suggestions.spec.ts` jusqu'ici. Les deux cartes restent entièrement tactiles (usage à une main en cuisine) et portent désormais un nom explicite — titre et état de couverture (« Prête à 100 % »), la même information que le badge coloré, en mots |
 | 0.9.0 | 2026-10-05 | La date de péremption se saisit désormais directement dans le tiroir de validation du scan (EF-02), ce que Franck avait demandé puis fait reporter deux fois : sous la quantité, trois raccourcis (« +3 j », « +1 sem », « +1 mois ») ou un lien « autre date » pour la date libre et le choix DLC/DDM. Rien n'est obligatoire — valider sans y toucher reste le même geste qu'avant, même bouton, même nombre de taps — et le bandeau « + DLC » après l'ajout reste disponible pour rattraper un oubli |
@@ -484,8 +485,10 @@ release-please.
 
 **L'historique complet est dans [`CHANGELOG.md`](./CHANGELOG.md)**, généré
 automatiquement par release-please à chaque version publiée. La version en
-service est affichée au bas de chaque écran de l'application, et renvoyée par
-`GET /api/v1/health` (champ `version`).
+service est affichée au bas de l'écran **Réglages**, et renvoyée par
+`GET /api/v1/health` (champ `version`). Elle n'apparaît plus sur les autres
+écrans : c'est une information d'administration, et le bandeau de mise à jour
+ci-dessous suffit à signaler qu'une version plus récente attend.
 
 Quand une nouvelle version est déployée, l'application la détecte et propose un
 bandeau « Nouvelle version disponible · Recharger » au-dessus de la barre de
