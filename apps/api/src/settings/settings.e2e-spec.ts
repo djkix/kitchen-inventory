@@ -59,6 +59,17 @@ describe('réglages : choix du modèle', () => {
     expect(res.body.suggestionModel).toBe('depuis-env');
   });
 
+  it('active la recherche web par défaut et la laisse basculer', async () => {
+    const avant = await agent.get('/api/v1/settings').expect(200);
+    // Par défaut activée : c'est la fonctionnalité demandée (« des recettes
+    // trouvées sur internet »), pas une option à activer soi-même.
+    expect(avant.body.suggestionWebSearch).toBe(true);
+
+    await agent.patch('/api/v1/settings').send({ suggestionWebSearch: false }).expect(200);
+    const apres = await agent.get('/api/v1/settings').expect(200);
+    expect(apres.body.suggestionWebSearch).toBe(false);
+  });
+
   it('liste les modèles servis par la clé, aux admins seulement', async () => {
     const res = await agent.get('/api/v1/settings/models').expect(200);
     expect(res.body.models.map((m: { id: string }) => m.id)).toEqual(['gemini-3.5-flash', 'gemini-3.5-flash-lite']);

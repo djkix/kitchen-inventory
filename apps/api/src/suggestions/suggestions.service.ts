@@ -293,7 +293,8 @@ export class SuggestionsService {
     try {
       // Modèle relu à chaque fournée : un changement dans les réglages vaut
       // immédiatement, sans redémarrage du conteneur.
-      output = await this.provider.suggest({ ...request, model: await this.settings.suggestionModel() });
+      const settings = await this.settings.get();
+      output = await this.provider.suggest({ ...request, model: settings.suggestionModel, webSearch: settings.suggestionWebSearch });
     } catch (error) {
       // Une reprise déjà facturée doit être inscrite même quand tout échoue
       // ensuite : le fournisseur porte ses tentatives sur l'erreur.
