@@ -1,5 +1,5 @@
 import type { HttpClient } from '../common/http-client.js';
-import { estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
+import { countSearchQueries, estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { buildSuggestionPrompt, InvalidBatchJsonError, parseModelBatch, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
 import { SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
@@ -49,7 +49,7 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
         if (attempts.length === 0) throw error;
         throw new SuggestionProviderError(error instanceof Error ? error.message : String(error), attempts, error);
       }
-      attempts.push({ raw, costCents: estimateCostCents(model, raw.usageMetadata), latencyMs: Date.now() - started });
+      attempts.push({ raw, costCents: estimateCostCents(model, raw.usageMetadata, countSearchQueries(raw)), latencyMs: Date.now() - started });
 
       try {
         return this.toOutput(raw, attempts, req.count, model);

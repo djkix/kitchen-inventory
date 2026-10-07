@@ -221,6 +221,42 @@ describe('SuggestionsService (EF-26)', () => {
     expect(http.calls[1]?.url).toContain('modele-choisi-a-l-ecran');
   });
 
+  it('fait entrer les recherches web dans le plafond mensuel (2026-10-07)', async () => {
+    // Le plafond ne comptait que les jetons. Les recherches, facturées par
+    // requête et bien plus cher, en sortaient entièrement : il annonçait une
+    // protection qu'il n'assurait pas dès que la recherche était active.
+    const { service, db } = await createService({ VISION_MONTHLY_CAP_CENTS: '10' });
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+
+    // Quelques jetons seulement, mais cinq recherches : 5 × 35 $/1000 = 17,5
+    // centimes, au-delà du plafond de 10 centimes à elles seules.
+    http.on('generateContent', async () =>
+      json({
+        candidates: [
+          {
+            content: { role: 'model', parts: [{ text: await fixtureText('suggestions/gemini-batch-creme.json') }] },
+            finishReason: 'STOP',
+            groundingMetadata: { webSearchQueries: ['a', 'b', 'c', 'd', 'e'] },
+          },
+        ],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10 },
+      }),
+    );
+
+    const first = await service.list({ refresh: false, maxMinutes: 15 }, USER);
+    expect(first.fromCache).toBe(false);
+    const log = await db.recognitionLog.findFirstOrThrow({ where: { purpose: 'RECIPE_SUGGESTION' } });
+    // 17,5 centimes de recherche, plus un demi-millième de centime de jetons :
+    // les recherches dominent largement le coût d'une fournée.
+    expect(log.costCents?.toNumber()).toBeCloseTo(17.5, 2);
+
+    const second = await service.list({ refresh: false, maxMinutes: 30 }, USER);
+    expect(second.fromCache).toBe(true);
+    expect(second.notice).toMatch(/plafond/i);
+    expect(http.calls).toHaveLength(1);
+  });
+
   it('retire l’outil de recherche web quand l’administrateur le désactive', async () => {
     // La recherche est facturée par requête, hors du plafond mensuel de
     // l'application, et certaines clés la refusent : ce réglage est le seul
