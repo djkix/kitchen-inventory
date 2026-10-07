@@ -72,7 +72,7 @@ describe('AvailableModelsService', () => {
   });
 
   it('ne tente rien quand le fournisseur configuré n’est pas Gemini', async () => {
-    const ollama = new AvailableModelsService({ ...BASE_CONFIG, VISION_PROVIDER: 'ollama' } as AppConfig, http.client);
+    const ollama = new AvailableModelsService({ ...BASE_CONFIG, VISION_PROVIDER: 'none' } as AppConfig, http.client);
     const result = await ollama.list();
     expect(result.unavailable).toMatch(/Gemini/);
     expect(http.calls).toHaveLength(0);

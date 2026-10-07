@@ -21,9 +21,9 @@ La reconnaissance suit une cascade, du moins cher au plus coûteux :
 1. décodage du code-barres dans le navigateur, sans réseau ;
 2. cache local des produits déjà rencontrés ;
 3. [Open Food Facts](https://world.openfoodfacts.org), base publique sans clé ;
-4. modèle de vision (Google Gemini par défaut ; Anthropic, OpenAI ou Ollama
-   en local au choix), derrière une interface qui permet d'en changer sans
-   toucher au reste.
+4. modèle de vision (Google Gemini ; le modèle se choisit dans Réglages),
+   derrière une interface qui permet de changer de fournisseur sans toucher
+   au reste.
 
 Le tout tourne à la maison : trois conteneurs, PostgreSQL, un dossier de
 photos. Seules les photos d'articles envoyées au fournisseur de vision quittent
@@ -218,7 +218,7 @@ réservé aux administrateurs. Désactivé, le modèle compose toutes les recett
 lui-même, sans lien vers un site : moins fidèle à l'esprit de la
 fonctionnalité, mais gratuit et toujours utile. Quand la recherche est active,
 chaque requête réellement exécutée par le modèle est comptée dans le plafond
-mensuel, au tarif de `SEARCH_COST_USD_PER_1K` : à 35 $ pour mille, elles
+mensuel, au tarif public de 35 $ pour mille : elles
 pèsent bien plus que les jetons, et le plafond les ignorait jusqu'à la 0.12.0.
 
 ## Installation
@@ -340,13 +340,12 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | --- | --- |
 | `SECRET_KEY` | Secret de signature des cookies, 32 caractères minimum, obligatoire |
 | `PUBLIC_URL` | URL publique HTTPS |
-| `VISION_PROVIDER` | `none`, `gemini` (retenu), `anthropic`, `openai` ou `ollama` |
-| `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.5-flash`) ; `VISION_BASE_URL` sert pour Ollama ou un proxy |
+| `VISION_PROVIDER` | `none` ou `gemini` |
+| `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.5-flash`) ; `VISION_BASE_URL` sert pour un proxy. Comme `SUGGESTION_MODEL`, `VISION_MODEL` n'est qu'une valeur de départ : le choix fait dans Réglages prime |
 | `SUGGESTION_MODEL` | Modèle des appels recettes — suggestions et réécriture (défaut `gemini-3.5-flash-lite`). Distinct de `VISION_MODEL` : lire une étiquette et chercher une recette sur le web n'appellent pas le même modèle. Comme `VISION_MODEL`, c'est une **valeur de départ** : un administrateur peut la remplacer depuis Réglages, et le choix enregistré prime |
 | `SUGGESTION_WEB_SEARCH` | `true` (défaut) ou `false` : recherche web réelle pour les suggestions. Valeur de départ seulement — un administrateur bascule l'option depuis Réglages, et son choix prime |
 | `VISION_DAILY_QUOTA` | Appels photo autorisés par jour (50) |
 | `VISION_MONTHLY_CAP_CENTS` | Plafond de dépense mensuel en centimes, partagé par le scan photo et les suggestions (500, soit 5 €) ; 0 le désactive. Couvre les jetons **et** les requêtes de recherche web |
-| `SEARCH_COST_USD_PER_1K` | Tarif des requêtes de recherche web, en dollars pour mille (35). Facturées par requête et non par jeton, elles entrent dans le plafond ci-dessus ; ce tarif change plus souvent que le code, d'où la variable |
 | `RECIPE_SUGGESTION_DAILY_QUOTA` | Fournées de suggestions de recettes autorisées par jour (20) |
 | `OFF_USER_AGENT` | En-tête demandé par Open Food Facts |
 | `EXPIRY_ALERT_DAYS` | Seuil d'alerte par défaut (7), modifiable dans les réglages |
@@ -493,6 +492,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.13.0 | 2026-10-07 | Nettoyage après audit d'over-engineering : suppression des adaptateurs Anthropic, OpenAI et Ollama, jamais configurés ni exercés hors de leurs propres tests, et de la dépendance `@anthropic-ai/sdk` qui ne servait qu'au premier. `VISION_PROVIDER` n'accepte plus que `none` et `gemini` ; l'interface de fournisseur est conservée, c'est elle qui rend un autre fournisseur ajoutable le jour venu. Disparaissent aussi l'interface de fournisseur de suggestions (une seule implémentation), trois fabriques qui ne faisaient que déléguer, la variable `SEARCH_COST_USD_PER_1K` (devenue une constante au même titre que la table de prix), `TZ` dans le schéma de configuration (Node la lit seul) et un libellé de modèle transporté jusqu'au navigateur sans jamais être affiché. Environ 250 lignes et une dépendance en moins, à comportement identique |
 | 0.12.1 | 2026-10-07 | Retrait de `temperature` des trois appels Gemini (reconnaissance photo, suggestions, réécriture). Google l'a déprécié avec `top_p` et `top_k` : sans effet depuis Gemini 3.6 Flash, ces paramètres renverront une erreur sur les modèles à venir. Le modèle applique désormais ses propres valeurs. Aucun `thinking_budget` n'était utilisé, rien d'autre à migrer |
 | 0.12.0 | 2026-10-07 | Interrupteur « Recherche web des recettes » dans Réglages › Reconnaissance, pour les administrateurs. La recherche web est facturée par requête, hors du plafond mensuel de l'application, et certaines clés la refusent — c'est ce refus qui faisait échouer toutes les suggestions chez Franck. Désactivée, le modèle compose les recettes lui-même, avec une consigne explicite de ne pas inventer de lien vers un site. Activée par défaut : c'est la fonctionnalité demandée, pas une option. Les requêtes de recherche entrent désormais dans le plafond mensuel : facturées par requête et non par jeton, elles lui échappaient entièrement, si bien qu'il annonçait une protection qu'il n'assurait pas dès que la recherche était active. Une fournée de douze recettes coûte plus cher en recherches qu'en jetons |
 | 0.11.0 | 2026-10-06 | Les administrateurs choisissent les modèles depuis Réglages, section Reconnaissance : une ligne pour la photo, une pour les recettes. La liste proposée est celle que la clé sert réellement, interrogée auprès du fournisseur — un nom de modèle inexistant ne peut donc plus être saisi, ce qui était la cause de l'écran de recettes vide. Le choix prime sur `VISION_MODEL` et `SUGGESTION_MODEL`, et « Défaut du serveur » rend la main à ces variables. Le modèle est relu à chaque appel : un changement vaut immédiatement, sans redémarrage du conteneur |

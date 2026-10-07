@@ -31,7 +31,6 @@ export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 /** Un modèle proposé au choix, tel que le fournisseur le déclare (`GET /settings/models`). */
 export const availableModelSchema = z.object({
   id: z.string(),
-  label: z.string(),
 });
 export type AvailableModel = z.infer<typeof availableModelSchema>;
 

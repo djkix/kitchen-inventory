@@ -6,70 +6,51 @@ import { SettingsModule } from '../settings/settings.module.js';
 import { GeminiRecipeRewriter } from './gemini-recipe-rewriter.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
 import { RecipePageFetcher } from './recipe-page.fetcher.js';
-import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER, SUGGESTION_PROVIDER, type SuggestionProvider } from './suggestion-provider.js';
+import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER } from './suggestion-provider.js';
 import { SuggestionsController } from './suggestions.controller.js';
 import { SuggestionsService } from './suggestions.service.js';
 
 /**
  * Gemini est le seul fournisseur de suggestions retenu (section 12, comme pour
- * la reconnaissance). Il réutilise la clé et le modèle de la reconnaissance
- * photo (`VISION_API_KEY`) quand celle-ci est elle-même configurée sur Gemini :
- * aucune variable d'environnement séparée n'est introduite pour une seconde clé
- * que le cahier des charges ne prévoit pas. Le modèle, lui, est distinct
- * (`SUGGESTION_MODEL`) : lire une étiquette et chercher une recette sur le web
- * n'appellent pas le même modèle, et un `VISION_MODEL` réglé pour la photo ne
- * doit pas s'imposer aux recettes.
- * `enabled` reste `false` sans clé, et `suggest()` le signale alors clairement
- * (repris par le contrôleur, tâche 7).
+ * la reconnaissance). Il réutilise la clé de la reconnaissance photo
+ * (`VISION_API_KEY`) quand celle-ci est elle-même configurée sur Gemini :
+ * aucune variable d'environnement séparée n'est introduite pour une seconde
+ * clé que le cahier des charges ne prévoit pas. Le modèle, lui, est distinct
+ * (`SUGGESTION_MODEL`, remplaçable depuis les réglages) : lire une étiquette et
+ * chercher une recette sur le web n'appellent pas le même modèle.
+ *
+ * Les trois fournisseurs sont construits par fabrique parce qu'ils prennent le
+ * client HTTP injectable, rejoué par fixtures dans les tests (section 19).
  */
-function createSuggestionProvider(config: AppConfig, httpClient: HttpClient): SuggestionProvider {
-  const usesGemini = config.VISION_PROVIDER === 'gemini';
-  return new GeminiSuggestionProvider({
-    apiKey: usesGemini ? config.VISION_API_KEY : undefined,
-    model: config.SUGGESTION_MODEL,
-    baseURL: usesGemini ? config.VISION_BASE_URL : undefined,
-    httpClient,
-  });
-}
-
-/** Simple passe-plat réseau (tâche 9) : construit une fois, injecté là où une page doit être récupérée en sécurité. */
-function createRecipePageFetcher(httpClient: HttpClient): RecipePageFetcher {
-  return new RecipePageFetcher(httpClient);
-}
-
-/**
- * Réécrivain Gemini (tâche 9, B6) : même clé et même modèle (`SUGGESTION_MODEL`)
- * que le fournisseur de suggestions — une seule configuration pour tout le module recettes.
- */
-function createRecipeRewriter(config: AppConfig, httpClient: HttpClient): GeminiRecipeRewriter {
-  const usesGemini = config.VISION_PROVIDER === 'gemini';
-  return new GeminiRecipeRewriter({
-    apiKey: usesGemini ? config.VISION_API_KEY : undefined,
-    model: config.SUGGESTION_MODEL,
-    baseURL: usesGemini ? config.VISION_BASE_URL : undefined,
-    httpClient,
-  });
-}
-
 @Module({
   imports: [RecipesModule, SettingsModule],
   controllers: [SuggestionsController],
   providers: [
     SuggestionsService,
     {
-      provide: SUGGESTION_PROVIDER,
+      provide: GeminiSuggestionProvider,
       inject: [APP_CONFIG, HTTP_CLIENT],
-      useFactory: createSuggestionProvider,
+      useFactory: (config: AppConfig, httpClient: HttpClient) =>
+        new GeminiSuggestionProvider({
+          apiKey: config.VISION_PROVIDER === 'gemini' ? config.VISION_API_KEY : undefined,
+          baseURL: config.VISION_PROVIDER === 'gemini' ? config.VISION_BASE_URL : undefined,
+          httpClient,
+        }),
     },
     {
       provide: RECIPE_PAGE_FETCHER,
       inject: [HTTP_CLIENT],
-      useFactory: createRecipePageFetcher,
+      useFactory: (httpClient: HttpClient) => new RecipePageFetcher(httpClient),
     },
     {
       provide: RECIPE_REWRITER,
       inject: [APP_CONFIG, HTTP_CLIENT],
-      useFactory: createRecipeRewriter,
+      useFactory: (config: AppConfig, httpClient: HttpClient) =>
+        new GeminiRecipeRewriter({
+          apiKey: config.VISION_PROVIDER === 'gemini' ? config.VISION_API_KEY : undefined,
+          baseURL: config.VISION_PROVIDER === 'gemini' ? config.VISION_BASE_URL : undefined,
+          httpClient,
+        }),
     },
   ],
   exports: [SuggestionsService],

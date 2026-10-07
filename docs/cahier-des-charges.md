@@ -269,7 +269,7 @@ Livraison sous forme d'une stack `docker compose` de trois services, déployable
 **Variables d'environnement attendues**
 
 - `DATABASE_URL`, `SECRET_KEY`, `PUBLIC_URL`
-- `VISION_PROVIDER` (`none` | `anthropic` | `openai` | `ollama`), `VISION_API_KEY`, `VISION_MODEL`
+- `VISION_PROVIDER` (`none` | `gemini`), `VISION_API_KEY`, `VISION_MODEL`, `SUGGESTION_MODEL`
 - `OFF_USER_AGENT` — Open Food Facts demande un en-tête identifiant l'application appelante
 - `EXPIRY_ALERT_DAYS`, `TZ`
 
@@ -763,5 +763,6 @@ ici, daté et motivé, plutôt que laissé à l'appréciation du code.
 
 | Date | Section | Amendement | Motif |
 | --- | --- | --- | --- |
+| 2026-10-07 | 22 | `VISION_PROVIDER` n'accepte plus que `none` et `gemini`. Les adaptateurs Anthropic, OpenAI et Ollama sont supprimés, ainsi que la dépendance `@anthropic-ai/sdk`. L'interface `RecognitionProvider` est conservée : c'est elle, et non ces adaptateurs, qui rend un autre fournisseur ajoutable le jour où il en faudra un. | Gemini est le fournisseur retenu depuis le 2026-09-21. Les trois autres n'ont jamais été configurés ni exercés hors de leurs propres tests : ils portaient une flexibilité que personne n'a utilisée, au prix d'une dépendance et de deux cents lignes à maintenir. Audit d'over-engineering du 2026-10-07. |
 | 2026-10-04 | 12, EF-25, EF-26, EF-27 | La suggestion assistée par IA devient la porte d'entrée du module : le stock est le point de départ de la recherche. La saisie manuelle est supprimée comme source, l'extraction d'une page web devient un mécanisme interne, EF-26 passe en `Must`, et EF-27 est retirée — les dates de péremption n'interviennent plus dans le module. | À la livraison du socle le 2026-10-04, Franck a constaté que l'approche ne répondait pas à son intention : il voulait que l'application propose des recettes trouvées sur internet à partir de son stock, pas qu'il remplisse lui-même un carnet. Cette intention avait déjà été exprimée par sa réponse « tout, génération IA comprise » lors du cadrage du module. Arbitrages de `docs/specs/2026-10-04-recettes-suggerees.md`. |
 | 2026-10-03 | 12, 14, EF-27 | Le classement par défaut des suggestions passe du taux de couverture à la note moyenne du foyer. Le groupe reste affiché sur chaque carte, et le stock comme l'anti-gaspillage restent accessibles par des tris dédiés et une pastille de filtre. | Classer par couverture met en tête des recettes réalisables mais peu appréciées, et relègue des valeurs sûres auxquelles il manque un ingrédient. La question quotidienne est « on mange quoi ce soir », pas « que puis-je faire sans courses ». Arbitrage A27 de la révision 2 de `docs/specs/2026-10-03-module-recettes-socle.md`. |

@@ -37,10 +37,6 @@ const configSchema = z.object({
   // Quota journalier propre aux suggestions de recettes (EF-26), pour éviter
   // l'emballement malgré le plafond de dépense partagé.
   RECIPE_SUGGESTION_DAILY_QUOTA: z.coerce.number().int().min(0).default(20),
-  // Tarif des requêtes de recherche web, en dollars pour mille. Facturées à
-  // part des jetons par le fournisseur, elles entrent dans le plafond mensuel :
-  // sans ce poste, le plafond annoncerait une protection qu'il n'assure pas.
-  SEARCH_COST_USD_PER_1K: z.coerce.number().min(0).default(35),
   OFF_USER_AGENT: z.string().default('KitchenInventory/0.1 (self-hosted; https://github.com/djkix/kitchen-inventory)'),
   OFF_BASE_URL: z.string().url().default('https://world.openfoodfacts.org'),
   EXPIRY_ALERT_DAYS: z.coerce.number().int().min(0).max(365).default(7),
@@ -50,7 +46,6 @@ const configSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
   APP_VERSION: z.string().default('0.0.0-dev'),
-  TZ: z.string().optional(),
 });
 
 export type AppConfig = z.infer<typeof configSchema> & {

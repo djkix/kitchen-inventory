@@ -2,7 +2,7 @@ import type { HttpClient } from '../common/http-client.js';
 import { countSearchQueries, estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { buildSuggestionPrompt, InvalidBatchJsonError, parseModelBatch, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
-import { SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
+import { SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionRequest } from './suggestion-provider.js';
 
 const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
@@ -18,7 +18,7 @@ const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
  * d'éventuelles clôtures ``` et du texte superflu qui déborderait autour de l'objet,
  * et validée par `modelBatchSchema` côté client.
  */
-export class GeminiSuggestionProvider implements SuggestionProvider {
+export class GeminiSuggestionProvider {
   readonly name = 'gemini';
   readonly enabled: boolean;
   private readonly model: string;

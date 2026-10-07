@@ -33,7 +33,8 @@ import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { InvalidRewriteError, type GeminiRecipeRewriter, type RecipeRewriteInput } from './gemini-recipe-rewriter.js';
 import { RecipePageRefusedError, type PageRecipe, type RecipePageFetcher } from './recipe-page.fetcher.js';
-import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER, SUGGESTION_PROVIDER, SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
+import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
+import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER, SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionRequest } from './suggestion-provider.js';
 
 /** Taille visée d'une fournée (section 5.1, B8) : douze recettes, huit web pour quatre composées. */
 export const SUGGESTION_BATCH_SIZE = 12;
@@ -150,7 +151,7 @@ export class SuggestionsService {
     private readonly prisma: PrismaService,
     private readonly coverage: RecipesCoverageService,
     private readonly recipes: RecipesService,
-    @Inject(SUGGESTION_PROVIDER) private readonly provider: SuggestionProvider,
+    private readonly provider: GeminiSuggestionProvider,
     @Inject(RECIPE_PAGE_FETCHER) private readonly pageFetcher: RecipePageFetcher,
     @Inject(RECIPE_REWRITER) private readonly rewriter: GeminiRecipeRewriter,
     @Inject(APP_CONFIG) private readonly config: AppConfig,

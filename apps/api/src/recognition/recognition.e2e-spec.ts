@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
-import { anthropicFixture, FakeHttp, geminiFixture, TINY_PNG } from '../../test/fake-http.js';
+import { FakeHttp, geminiFixture, TINY_PNG } from '../../test/fake-http.js';
 
 const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-de-passe-long' };
 
@@ -86,7 +86,7 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
   let http: FakeHttp;
   beforeAll(async () => {
     http = new FakeHttp();
-    t = await createTestApp({ VISION_PROVIDER: 'anthropic', VISION_API_KEY: 'sk-ant-test', VISION_DAILY_QUOTA: '2' }, http.client);
+    t = await createTestApp({ VISION_PROVIDER: 'gemini', VISION_API_KEY: 'test-key', VISION_DAILY_QUOTA: '2' }, http.client);
   });
   beforeEach(async () => {
     await t.reset();
@@ -97,19 +97,21 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
   afterAll(() => t.close());
 
   it('propose une fiche avec date de péremption, nom d’origine et catégorie rapprochée', async () => {
-    http.on('api.anthropic.com', () => anthropicFixture('vision-gochujang.json'));
+    http.on('generateContent', () => geminiFixture('vision-gochujang.json'));
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').field('hint', 'pot rouge').expect(200);
     expect(res.body.suggestion).toMatchObject({ name: 'Pâte de piment coréenne (gochujang)', originalName: '고추장 (gochujang)', expiryDate: '2027-03-15' });
     expect(res.body).toMatchObject({ confidence: 0.92, needsReview: false, rejected: false });
     expect(res.body.categoryId).toBeTruthy();
     expect(res.body.imagePath).toMatch(/^scans\//);
-    const call = http.calls.find((c) => c.url.includes('api.anthropic.com'));
+    const call = http.calls.find((c) => c.url.includes('generateContent'));
     const body = JSON.parse(String(call?.init?.body));
-    expect(body.model).toBe('claude-opus-5');
-    expect(new Headers(call?.init?.headers).get('x-api-key')).toBe('sk-ant-test');
+    // Le modèle voyage dans l'URL côté Gemini, la clé en en-tête : elle n'apparaît ainsi dans aucun journal.
+    expect(call?.url).toContain('gemini-3.5-flash');
+    expect(call?.url).not.toContain('test-key');
+    expect(new Headers(call?.init?.headers).get('x-goog-api-key')).toBe('test-key');
     expect(JSON.stringify(body)).toContain('pot rouge');
     const log = await t.prisma.recognitionLog.findFirstOrThrow();
-    expect(log).toMatchObject({ provider: 'anthropic', succeeded: true, confidence: 0.92 });
+    expect(log).toMatchObject({ provider: 'gemini', succeeded: true, confidence: 0.92 });
     expect(log.costCents?.toNumber()).toBeGreaterThan(0);
     // La photo est servie derrière la session.
     await agent.get(`/api/v1/media/${res.body.imagePath}`).expect(200);
@@ -117,33 +119,33 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
   });
 
   it('signale les champs à vérifier entre 50 et 80 % et refuse la fiche sous 50 %', async () => {
-    http.on('api.anthropic.com', () => anthropicFixture('vision-uncertain.json'));
+    http.on('generateContent', () => geminiFixture('vision-uncertain.json'));
     const uncertain = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
     expect(uncertain.body).toMatchObject({ needsReview: true, rejected: false });
     http.reset();
-    http.on('api.anthropic.com', () => anthropicFixture('vision-low-confidence.json'));
+    http.on('generateContent', () => geminiFixture('vision-low-confidence.json'));
     const low = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
     expect(low.body.rejected).toBe(true);
   });
 
   it('applique le quota journalier avec le compteur du jour', async () => {
-    http.on('api.anthropic.com', () => anthropicFixture('vision-gochujang.json'));
+    http.on('generateContent', () => geminiFixture('vision-gochujang.json'));
     await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
     await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(429);
     expect(res.body.error).toMatchObject({ code: 'rate_limited', details: { callsToday: 2, dailyQuota: 2 } });
     const stats = await agent.get('/api/v1/recognition/stats').expect(200);
-    expect(stats.body).toMatchObject({ visionCallsToday: 2, dailyQuota: 2, provider: 'anthropic' });
+    expect(stats.body).toMatchObject({ visionCallsToday: 2, dailyQuota: 2, provider: 'gemini' });
   });
 
   it('un appel de suggestion de recettes n’entame pas le quota journalier du scan (revue de tâche 6)', async () => {
     // Deux lignes `RECIPE_SUGGESTION`, même fournisseur et même jour : si le
     // compteur du scan ne filtrait pas par `purpose`, elles suffiraient déjà à
     // épuiser le quota de 2 avant le moindre scan photo.
-    await t.prisma.recognitionLog.create({ data: { provider: 'anthropic', purpose: 'RECIPE_SUGGESTION', succeeded: true } });
-    await t.prisma.recognitionLog.create({ data: { provider: 'anthropic', purpose: 'RECIPE_SUGGESTION', succeeded: true } });
+    await t.prisma.recognitionLog.create({ data: { provider: 'gemini', purpose: 'RECIPE_SUGGESTION', succeeded: true } });
+    await t.prisma.recognitionLog.create({ data: { provider: 'gemini', purpose: 'RECIPE_SUGGESTION', succeeded: true } });
 
-    http.on('api.anthropic.com', () => anthropicFixture('vision-gochujang.json'));
+    http.on('generateContent', () => geminiFixture('vision-gochujang.json'));
     await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
 
     const stats = await agent.get('/api/v1/recognition/stats').expect(200);
@@ -154,9 +156,9 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
     // Une fournée de suggestions ratée, journalisée sous le même fournisseur : sans
     // filtre sur `purpose`, elle comptait comme une reconnaissance manquée et faisait
     // chuter le taux d'automatisation affiché dans les réglages.
-    await t.prisma.recognitionLog.create({ data: { provider: 'anthropic', purpose: 'RECIPE_SUGGESTION', succeeded: false, costCents: 3 } });
+    await t.prisma.recognitionLog.create({ data: { provider: 'gemini', purpose: 'RECIPE_SUGGESTION', succeeded: false, costCents: 3 } });
 
-    http.on('api.anthropic.com', () => anthropicFixture('vision-gochujang.json'));
+    http.on('generateContent', () => geminiFixture('vision-gochujang.json'));
     await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
 
     const stats = await agent.get('/api/v1/recognition/stats').expect(200);
@@ -169,7 +171,7 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
   });
 
   it('un fournisseur injoignable donne 502 provider_unavailable et garde la photo « à identifier »', async () => {
-    http.fail('api.anthropic.com');
+    http.fail('generateContent');
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(502);
     expect(res.body.error.code).toBe('provider_unavailable');
     expect(res.body.error.details.imagePath).toMatch(/^scans\//);
@@ -180,13 +182,21 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
   });
 
   it('une réponse non conforme au JSON strict est un échec, jamais une fiche inventée', async () => {
-    http.on('api.anthropic.com', () => new Response(JSON.stringify({ content: [{ type: 'text', text: 'Je pense que c’est du riz.' }], usage: { input_tokens: 10, output_tokens: 5 } }), { status: 200 }));
+    http.on('generateContent', () =>
+      new Response(
+        JSON.stringify({
+          candidates: [{ content: { role: 'model', parts: [{ text: 'Je pense que c’est du riz.' }] }, finishReason: 'STOP' }],
+          usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 },
+        }),
+        { status: 200 },
+      ),
+    );
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(502);
     expect(res.body.error.code).toBe('provider_unavailable');
   });
 
   it('enregistre la correction d’une reconnaissance (EF-14)', async () => {
-    http.on('api.anthropic.com', () => anthropicFixture('vision-gochujang.json'));
+    http.on('generateContent', () => geminiFixture('vision-gochujang.json'));
     const scan = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
     const product = await agent.post('/api/v1/products').send({ name: 'Gochujang', recognitionLogId: scan.body.rawId, imagePath: scan.body.imagePath }).expect(201);
     const log = await t.prisma.recognitionLog.findUniqueOrThrow({ where: { id: scan.body.rawId } });

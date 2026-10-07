@@ -1,11 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import {
-  countSearchQueries,
-  DEFAULT_SEARCH_COST_USD_PER_1K,
-  estimateCostCents,
-  setSearchCostUsdPer1k,
-  unpricedModelWarning,
-} from './gemini.provider.js';
+import { describe, expect, it } from 'vitest';
+import { countSearchQueries, estimateCostCents, unpricedModelWarning } from './gemini.provider.js';
 
 describe('unpricedModelWarning', () => {
   it('ne dit rien pour un modèle tarifé', () => {
@@ -26,7 +20,7 @@ describe('unpricedModelWarning', () => {
   });
 
   it('se tait pour un autre fournisseur, qui a son propre barème', () => {
-    expect(unpricedModelWarning('anthropic', 'claude-inconnu')).toBeNull();
+    expect(unpricedModelWarning('none', 'un-modele-quelconque')).toBeNull();
     expect(unpricedModelWarning('none', undefined)).toBeNull();
   });
 });
@@ -35,8 +29,6 @@ describe('coût des recherches web', () => {
   // Google facture la recherche par requête exécutée, à part des jetons : la
   // compter est ce qui rend le plafond mensuel (VISION_MONTHLY_CAP_CENTS)
   // honnête dès que la recherche est active.
-  afterEach(() => setSearchCostUsdPer1k(DEFAULT_SEARCH_COST_USD_PER_1K));
-
   it('compte les requêtes exécutées, tous candidats confondus', () => {
     expect(
       countSearchQueries({
@@ -66,8 +58,8 @@ describe('coût des recherches web', () => {
     expect(estimateCostCents('gemini-inconnu', { promptTokenCount: 1000 }, 2)).toBeCloseTo(7, 6);
   });
 
-  it('suit le tarif configuré plutôt qu’un prix figé dans le code', () => {
-    setSearchCostUsdPer1k(10);
-    expect(estimateCostCents('gemini-3.5-flash-lite', undefined, 1000)).toBeCloseTo(1000, 6);
+  it('chiffre les recherches même sans aucun jeton consommé', () => {
+    // 1000 requêtes à 35 $/1000 = 35 $ = 3500 centimes.
+    expect(estimateCostCents('gemini-3.5-flash-lite', undefined, 1000)).toBeCloseTo(3500, 6);
   });
 });

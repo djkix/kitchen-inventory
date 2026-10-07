@@ -44,20 +44,6 @@ export function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
-/** Réponse d'un fournisseur de vision au format « Anthropic Messages » qui encapsule le JSON strict. */
-export async function anthropicFixture(file: string): Promise<Response> {
-  const content = await readFile(resolve(import.meta.dirname, 'fixtures', file), 'utf8');
-  return json({
-    id: 'msg_test',
-    type: 'message',
-    role: 'assistant',
-    model: 'claude-sonnet-5',
-    content: [{ type: 'text', text: content }],
-    stop_reason: 'end_turn',
-    usage: { input_tokens: 1200, output_tokens: 80 },
-  });
-}
-
 /** Réponse au format `generateContent` de Gemini qui encapsule le JSON strict. */
 export async function geminiFixture(file: string): Promise<Response> {
   const content = await readFile(resolve(import.meta.dirname, 'fixtures', file), 'utf8');
