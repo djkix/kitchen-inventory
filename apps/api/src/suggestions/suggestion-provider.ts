@@ -60,18 +60,14 @@ export class SuggestionProviderError extends ProviderError {
 }
 
 /**
- * Section 5, niveau 4 (même principe que `RecognitionProvider`) : le fournisseur
- * de suggestions est derrière une interface pour pouvoir changer de modèle sans
- * toucher au reste du module recettes.
+ * Récupérateur de page et réécrivain Gemini : jetons d'injection, construits
+ * par `SuggestionsModule` parce qu'ils ont besoin du client HTTP injectable
+ * (rejoué par fixtures dans les tests, section 19).
+ *
+ * Le fournisseur de suggestions n'a pas d'interface : Gemini en est la seule
+ * implémentation, et la section 12 l'a retenu comme seul fournisseur possible —
+ * la recherche web est le service rendu, pas un détail d'implémentation.
+ * `GeminiSuggestionProvider` est donc injecté par sa classe.
  */
-export interface SuggestionProvider {
-  readonly name: string;
-  readonly enabled: boolean;
-  suggest(req: SuggestionRequest): Promise<SuggestionOutput>;
-}
-
-export const SUGGESTION_PROVIDER = Symbol('SUGGESTION_PROVIDER');
-
-/** Récupérateur de page (tâche 9) et réécrivain Gemini (tâche 9) : jetons d'injection, construits par `SuggestionsModule`. */
 export const RECIPE_PAGE_FETCHER = Symbol('RECIPE_PAGE_FETCHER');
 export const RECIPE_REWRITER = Symbol('RECIPE_REWRITER');

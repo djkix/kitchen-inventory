@@ -80,7 +80,7 @@ export const ERROR_CODES = [
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
-export const VISION_PROVIDERS = ['none', 'gemini', 'anthropic', 'openai', 'ollama'] as const;
+export const VISION_PROVIDERS = ['none', 'gemini'] as const;
 export type VisionProviderName = (typeof VISION_PROVIDERS)[number];
 
 /** Sous ce seuil, la fiche est proposée mais les champs sont marqués « à vérifier » (section 17). */

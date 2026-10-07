@@ -8,7 +8,7 @@ import { AppModule } from './app.module.js';
 import type { AppConfig } from './common/config.js';
 import type { HttpClient } from './common/http-client.js';
 import { noindexMiddleware } from './common/noindex.middleware.js';
-import { setSearchCostUsdPer1k, unpricedModelWarning } from './recognition/providers/gemini.provider.js';
+import { unpricedModelWarning } from './recognition/providers/gemini.provider.js';
 
 export const API_PREFIX = 'api/v1';
 
@@ -18,8 +18,6 @@ export async function createApp(config: AppConfig, httpClient?: HttpClient): Pro
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config, httpClient), { bufferLogs: true });
   const logger = app.get(Logger);
   app.useLogger(logger);
-  // Tarif des recherches web appliqué au compteur de coût (plafond mensuel).
-  setSearchCostUsdPer1k(config.SEARCH_COST_USD_PER_1K);
   // Un modèle hors table de prix désactive le plafond mensuel sans rien dire :
   // il doit au moins se voir au démarrage.
   for (const warning of [

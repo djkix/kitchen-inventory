@@ -73,8 +73,7 @@ tools/             utilitaires hors application
   comprises, migration initiale commitée.
 - Lot 1 livré : `packages/shared` (unités, règles métier, schémas Zod),
   `apps/api` (auth par sessions, emplacements, produits, stock et mouvements,
-  cascade de reconnaissance avec fournisseurs `gemini` (retenu), `anthropic`,
-  `openai` et `ollama`,
+  cascade de reconnaissance (fournisseur `gemini`, seul implémenté),
   export, healthcheck), `apps/web` (PWA : installation, connexion, stock,
   fiche article, périme bientôt, scan en rafale, réglages).
 - Livraison : image Docker unique `linux/amd64` sur GHCR (l'hôte est un

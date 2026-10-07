@@ -52,20 +52,14 @@ export interface GeminiResponse {
 }
 
 /**
- * Prix public indicatif d'une requête de recherche web, en dollars. Google
- * facture la recherche **par requête exécutée**, indépendamment des jetons :
- * sans ce poste, le plafond mensuel laisserait filer toute la dépense de
- * recherche en annonçant protéger le budget. Réglable par
- * `SEARCH_COST_USD_PER_1K` : ce tarif change plus souvent que le code.
+ * Prix public indicatif d'une requête de recherche web, en dollars pour mille.
+ * Google facture la recherche **par requête exécutée**, indépendamment des
+ * jetons : sans ce poste, le plafond mensuel laisserait filer toute la dépense
+ * de recherche en annonçant protéger le budget. Au même titre que
+ * `PRICES_USD_PER_MTOK`, ce tarif se met à jour dans le code quand Google le
+ * change — personne n'a besoin de le régler par instance.
  */
-export const DEFAULT_SEARCH_COST_USD_PER_1K = 35;
-
-let searchCostUsdPer1k = DEFAULT_SEARCH_COST_USD_PER_1K;
-
-/** Fixe le tarif de recherche appliqué au compteur de coût (appelé au démarrage depuis la configuration). */
-export function setSearchCostUsdPer1k(value: number): void {
-  searchCostUsdPer1k = value;
-}
+export const SEARCH_COST_USD_PER_1K = 35;
 
 /** Nombre de requêtes de recherche réellement exécutées par le modèle dans cette réponse. */
 export function countSearchQueries(raw: GeminiResponse): number {
@@ -155,6 +149,6 @@ export function estimateCostCents(model: string, usage: GeminiResponse['usageMet
   if (!usage && searchQueries === 0) return null;
   if (!price && searchQueries === 0) return null;
   const tokensUsd = usage && price ? ((usage.promptTokenCount ?? 0) * price.input + (usage.candidatesTokenCount ?? 0) * price.output) / 1_000_000 : 0;
-  const searchUsd = (searchQueries * searchCostUsdPer1k) / 1000;
+  const searchUsd = (searchQueries * SEARCH_COST_USD_PER_1K) / 1000;
   return Math.round((tokensUsd + searchUsd) * 100 * 10_000) / 10_000;
 }

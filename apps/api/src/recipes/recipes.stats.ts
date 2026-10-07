@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { computeRecipeStats, type CookedLog, type RecipeStatsDto } from '@kitchen/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { SettingsService } from '../settings/settings.service.js';
 
-/** Clé de réglage lue par `SettingsService.rawNumber`, section 22. */
+/**
+ * Seuil « pas faite depuis longtemps », section 22. Réglage ponctuel que
+ * `settingsSchema` ne couvre pas : lu directement dans la table `Setting`, ici
+ * et nulle part ailleurs. `undefined` laisse `computeRecipeStats` appliquer son
+ * propre défaut.
+ */
 const FORGOTTEN_AFTER_DAYS_KEY = 'recipeForgottenAfterDays';
 
 /**
@@ -13,17 +17,15 @@ const FORGOTTEN_AFTER_DAYS_KEY = 'recipeForgottenAfterDays';
  */
 @Injectable()
 export class RecipesStatsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly settings: SettingsService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /** Charge les réalisations de plusieurs recettes en une seule requête. */
   async statsFor(recipeIds: readonly string[], today = new Date()): Promise<Map<string, RecipeStatsDto>> {
     const result = new Map<string, RecipeStatsDto>();
     if (recipeIds.length === 0) return result;
 
-    const forgottenAfterDays = await this.settings.rawNumber(FORGOTTEN_AFTER_DAYS_KEY);
+    const row = await this.prisma.setting.findUnique({ where: { key: FORGOTTEN_AFTER_DAYS_KEY } });
+    const forgottenAfterDays = typeof row?.value === 'number' ? row.value : undefined;
     const logs = await this.prisma.recipeLog.findMany({
       where: { recipeId: { in: [...recipeIds] } },
       include: { ratings: { select: { userId: true, stars: true } } },

@@ -16,7 +16,7 @@ const OFF_PROVIDER = 'open_food_facts';
  * Fournisseurs facturables, pour les compteurs et le plafond de dépense — partagée
  * avec `SuggestionsService` (même plafond mensuel, EF-26) plutôt que dupliquée.
  */
-export const VISION_PROVIDER_NAMES = ['gemini', 'anthropic', 'openai', 'ollama'];
+export const VISION_PROVIDER_NAMES = ['gemini'];
 
 /** Cascade de reconnaissance de la section 5 : cache local → Open Food Facts → vision. */
 @Injectable()

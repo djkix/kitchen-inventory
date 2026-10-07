@@ -15,7 +15,6 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 
 interface GeminiModelRow {
   name?: string;
-  displayName?: string;
   supportedGenerationMethods?: string[];
 }
 
@@ -77,10 +76,7 @@ export class AvailableModelsService {
       // sert aussi des modèles d'embedding ou de transcription, qui n'ont rien à
       // faire dans un choix de reconnaissance ou de recettes.
       .filter((row) => row.supportedGenerationMethods?.includes('generateContent'))
-      .map((row) => {
-        const id = (row.name ?? '').replace(/^models\//, '');
-        return { id, label: row.displayName?.trim() || id };
-      })
+      .map((row) => ({ id: (row.name ?? '').replace(/^models\//, '') }))
       .filter((row) => row.id !== '')
       .sort((a, b) => a.id.localeCompare(b.id));
 
