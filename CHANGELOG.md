@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0](https://github.com/djkix/kitchen-inventory/compare/v0.11.0...v0.12.0) (2026-10-07)
+
+
+### Features
+
+* **settings:** interrupteur de recherche web pour les suggestions (EF-25, EF-26) ([f491abf](https://github.com/djkix/kitchen-inventory/commit/f491abf6e6c54e56793f10fdaf55322086a10753))
+* **suggestions:** compter les recherches web dans le plafond mensuel (EF-26) ([1eda8dd](https://github.com/djkix/kitchen-inventory/commit/1eda8ddc7f2790f4f79847ba68443e19940f6929))
+
 ## [0.11.0](https://github.com/djkix/kitchen-inventory/compare/v0.10.0...v0.11.0) (2026-10-06)
 
 
