@@ -6,20 +6,38 @@ export const SUGGESTION_SYSTEM_PROMPT = `Tu proposes des recettes de cuisine à 
 Une partie de tes recettes doit provenir d'une recherche réelle sur le web (utilise l'outil de recherche fourni) : chacune porte alors le lien de la page trouvée. L'autre partie, tu la composes toi-même, sans prétendre qu'elle existe ailleurs.
 Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clôtures de bloc de code (pas de \`\`\`).`;
 
+/**
+ * Variante sans recherche web (réglage `suggestionWebSearch` à faux). Le
+ * mensonge à écarter ici est l'inverse du précédent : sans outil de recherche,
+ * un modèle invente volontiers une URL plausible pour « faire vrai ». Toutes
+ * les recettes doivent donc s'annoncer comme des compositions.
+ */
+export const SUGGESTION_SYSTEM_PROMPT_NO_SEARCH = `Tu proposes des recettes de cuisine à partir d'ingrédients disponibles dans un foyer.
+Tu n'as aucun outil de recherche : tu composes toutes les recettes toi-même, sans prétendre qu'elles existent ailleurs et sans inventer de lien vers un site.
+Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clôtures de bloc de code (pas de \`\`\`).`;
+
 /** Rappel ajouté à la reprise après une réponse illisible ou non conforme : même demande, format répété. */
 export const SUGGESTION_FORMAT_REMINDER =
   "Ta réponse précédente n'était pas exploitable : ce n'était pas un objet JSON unique et conforme. Réponds cette fois uniquement par l'objet JSON demandé ci-dessus, rien d'autre autour, sans clôtures de bloc de code.";
 
 /** Construit la demande utilisateur ; `retry` ajoute le rappel de format sans changer la commande. */
 export function buildSuggestionPrompt(req: SuggestionRequest, options: { retry?: boolean } = {}): string {
+  const webSearch = req.webSearch !== false;
   const webCount = Math.max(0, req.count - Math.round(req.count / 3));
   const aiCount = req.count - webCount;
-  const lines: string[] = [
-    `Ingrédients disponibles dans le foyer : ${req.seeds.join(', ') || 'aucun en particulier'}.`,
-    `Propose au total ${req.count} recettes utilisant si possible ces ingrédients : environ ${webCount} trouvées par recherche web réelle (avec leur URL source en https), et environ ${aiCount} composées par toi (sans URL).`,
-    "Ajuste ce dosage si la recherche web ne renvoie pas assez de résultats pertinents : complète alors par des compositions. Aucune variété de régions ou de styles n'est exigée.",
-  ];
-  if (req.region) lines.push(`Oriente la recherche vers la cuisine ${SUGGESTION_REGION_LABELS_FR[req.region]}.`);
+  const lines: string[] = [`Ingrédients disponibles dans le foyer : ${req.seeds.join(', ') || 'aucun en particulier'}.`];
+  if (webSearch) {
+    lines.push(
+      `Propose au total ${req.count} recettes utilisant si possible ces ingrédients : environ ${webCount} trouvées par recherche web réelle (avec leur URL source en https), et environ ${aiCount} composées par toi (sans URL).`,
+      "Ajuste ce dosage si la recherche web ne renvoie pas assez de résultats pertinents : complète alors par des compositions. Aucune variété de régions ou de styles n'est exigée.",
+    );
+  } else {
+    lines.push(
+      `Propose au total ${req.count} recettes utilisant si possible ces ingrédients, toutes composées par toi : provenance "ai" et sourceUrl null pour chacune.`,
+      "Aucune variété de régions ou de styles n'est exigée.",
+    );
+  }
+  if (req.region) lines.push(`Oriente ${webSearch ? 'la recherche' : 'tes propositions'} vers la cuisine ${SUGGESTION_REGION_LABELS_FR[req.region]}.`);
   if (req.maxMinutes) lines.push(`Chaque recette doit se faire en ${req.maxMinutes} minutes maximum au total.`);
   if (req.difficulty) lines.push(`Niveau de difficulté visé : ${DIFFICULTY_LABELS_FR[req.difficulty]}.`);
   lines.push(

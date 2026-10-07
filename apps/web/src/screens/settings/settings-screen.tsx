@@ -10,6 +10,7 @@ import { API_BASE, api, errorMessage } from '../../lib/api';
 import { queryKeys, useSettingsQuery } from '../../lib/queries';
 import { ModelRow } from './model-row';
 import { PasswordSheet } from './password-sheet';
+import { WebSearchRow } from './web-search-row';
 import { VersionBadge } from '../../components/shell/version-badge';
 import { StatsPanel } from './stats-panel';
 
@@ -54,6 +55,7 @@ export function SettingsScreen() {
             settingKey="suggestionModel"
             isAdmin={auth.isAdmin}
           />
+          <WebSearchRow isAdmin={auth.isAdmin} />
         </Section>
 
         <Section title="Foyer">

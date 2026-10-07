@@ -16,6 +16,13 @@ export interface SuggestionRequest {
    * qu'au redémarrage du conteneur.
    */
   model?: string;
+  /**
+   * Recherche web réelle (outil `google_search`). Absente, le fournisseur
+   * cherche : c'est la fonctionnalité demandée. À `false`, il compose toutes
+   * les recettes lui-même — repli utile quand le fournisseur refuse la
+   * recherche, qu'il facture séparément des jetons.
+   */
+  webSearch?: boolean;
 }
 
 /**

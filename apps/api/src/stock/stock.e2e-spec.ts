@@ -143,7 +143,9 @@ describe('stock (EF-07, EF-08, EF-09, EF-10)', () => {
   });
 
   it('respecte le seuil d’alerte des réglages', async () => {
-    expect((await agent.get('/api/v1/settings').expect(200)).body).toEqual({ expiryAlertDays: 7 });
+    // Ce test porte sur le seuil d'alerte seul : les autres réglages (modèles,
+    // recherche web) n'ont pas à le faire échouer en apparaissant.
+    expect((await agent.get('/api/v1/settings').expect(200)).body).toMatchObject({ expiryAlertDays: 7 });
     await agent.patch('/api/v1/settings').send({ expiryAlertDays: 2 }).expect(200);
     const productId = await createProduct({ name: 'Jambon' });
     await agent.post('/api/v1/stock').send({ productId, locationId: frigoId, expiryDate: isoIn(3), dateType: 'USE_BY' }).expect(201);

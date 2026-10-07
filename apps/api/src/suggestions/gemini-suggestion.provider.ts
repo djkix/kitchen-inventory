@@ -1,7 +1,7 @@
 import type { HttpClient } from '../common/http-client.js';
 import { estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
-import { buildSuggestionPrompt, InvalidBatchJsonError, parseModelBatch, SUGGESTION_SYSTEM_PROMPT } from './prompt.js';
+import { buildSuggestionPrompt, InvalidBatchJsonError, parseModelBatch, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
 import { SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionProvider, type SuggestionRequest } from './suggestion-provider.js';
 
 const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
@@ -35,13 +35,14 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
     // quand tout échoue : elle a été facturée, elle doit être journalisée.
     const attempts: SuggestionAttempt[] = [];
     const model = req.model ?? this.model;
+    const webSearch = req.webSearch !== false;
 
     // Vigilance 1 : une seule reprise, jamais une troisième tentative.
     for (const retry of [false, true]) {
       const started = Date.now();
       let raw: GeminiResponse;
       try {
-        raw = await this.call(buildSuggestionPrompt(req, { retry }), model);
+        raw = await this.call(buildSuggestionPrompt(req, { retry }), model, webSearch);
       } catch (error) {
         // Appel qui n'aboutit pas : rien à facturer pour celui-ci, mais les
         // précédents le sont — l'erreur les emporte pour qu'ils soient inscrits.
@@ -74,7 +75,7 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
     return { recipes: batch.recipes.slice(0, count), attempts, model };
   }
 
-  private async call(prompt: string, model: string): Promise<GeminiResponse> {
+  private async call(prompt: string, model: string, webSearch: boolean): Promise<GeminiResponse> {
     const base = (this.options.baseURL ?? DEFAULT_BASE_URL).replace(/\/$/, '');
     let response: Response;
     try {
@@ -84,10 +85,13 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
         headers: { 'content-type': 'application/json', 'x-goog-api-key': this.options.apiKey ?? '' },
         signal: AbortSignal.timeout(45_000),
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SUGGESTION_SYSTEM_PROMPT }] },
+          systemInstruction: { parts: [{ text: webSearch ? SUGGESTION_SYSTEM_PROMPT : SUGGESTION_SYSTEM_PROMPT_NO_SEARCH }] },
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          // La recherche web est l'intérêt même de ce fournisseur : elle interdit `responseSchema` (vigilance 1).
-          tools: [{ google_search: {} }],
+          // La recherche web est l'intérêt même de ce fournisseur : elle interdit
+          // `responseSchema` (vigilance 1). Elle est aussi facturée par requête,
+          // à part des jetons, et certaines clés la refusent — d'où le réglage
+          // qui permet de s'en passer sans perdre les suggestions.
+          ...(webSearch ? { tools: [{ google_search: {} }] } : {}),
           generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
         }),
       });

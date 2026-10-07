@@ -207,6 +207,17 @@ liste dit quels modèles la clé sert, pas lesquels savent chercher sur le web �
 un modèle inadapté reste proposé, et l'écran Suggestions affiche alors le
 message du fournisseur.
 
+**Recherche web, et son interrupteur.** Les suggestions s'appuient sur l'outil
+de recherche de Gemini : une partie des recettes vient de pages réelles, le
+reste est composé par le modèle. Cette recherche est facturée **par requête**,
+séparément des jetons, et n'entre donc pas dans `VISION_MONTHLY_CAP_CENTS` :
+le plafond mensuel de l'application ne la couvre pas. Certaines clés la
+refusent aussi, ce qui fait échouer toutes les suggestions. Réglages ›
+Reconnaissance porte donc un interrupteur « Recherche web des recettes »,
+réservé aux administrateurs. Désactivé, le modèle compose toutes les recettes
+lui-même, sans lien vers un site : moins fidèle à l'esprit de la
+fonctionnalité, mais gratuit et toujours utile.
+
 ## Installation
 
 ### Prérequis
@@ -329,6 +340,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `VISION_PROVIDER` | `none`, `gemini` (retenu), `anthropic`, `openai` ou `ollama` |
 | `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.5-flash`) ; `VISION_BASE_URL` sert pour Ollama ou un proxy |
 | `SUGGESTION_MODEL` | Modèle des appels recettes — suggestions et réécriture (défaut `gemini-3.5-flash-lite`). Distinct de `VISION_MODEL` : lire une étiquette et chercher une recette sur le web n'appellent pas le même modèle. Comme `VISION_MODEL`, c'est une **valeur de départ** : un administrateur peut la remplacer depuis Réglages, et le choix enregistré prime |
+| `SUGGESTION_WEB_SEARCH` | `true` (défaut) ou `false` : recherche web réelle pour les suggestions. Valeur de départ seulement — un administrateur bascule l'option depuis Réglages, et son choix prime |
 | `VISION_DAILY_QUOTA` | Appels photo autorisés par jour (50) |
 | `VISION_MONTHLY_CAP_CENTS` | Plafond de dépense mensuel en centimes, partagé avec les suggestions de recettes (500, soit 5 €) ; 0 le désactive |
 | `RECIPE_SUGGESTION_DAILY_QUOTA` | Fournées de suggestions de recettes autorisées par jour (20) |
@@ -477,6 +489,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.12.0 | 2026-10-07 | Interrupteur « Recherche web des recettes » dans Réglages › Reconnaissance, pour les administrateurs. La recherche web est facturée par requête, hors du plafond mensuel de l'application, et certaines clés la refusent — c'est ce refus qui faisait échouer toutes les suggestions chez Franck. Désactivée, le modèle compose les recettes lui-même, avec une consigne explicite de ne pas inventer de lien vers un site. Activée par défaut : c'est la fonctionnalité demandée, pas une option |
 | 0.11.0 | 2026-10-06 | Les administrateurs choisissent les modèles depuis Réglages, section Reconnaissance : une ligne pour la photo, une pour les recettes. La liste proposée est celle que la clé sert réellement, interrogée auprès du fournisseur — un nom de modèle inexistant ne peut donc plus être saisi, ce qui était la cause de l'écran de recettes vide. Le choix prime sur `VISION_MODEL` et `SUGGESTION_MODEL`, et « Défaut du serveur » rend la main à ces variables. Le modèle est relu à chaque appel : un changement vaut immédiatement, sans redémarrage du conteneur |
 | 0.10.0 | 2026-10-06 | Le numéro de version ne s'affiche plus qu'au bas de l'écran Réglages, au lieu de chaque écran et de la page de connexion : c'est une information d'administration, et le bandeau « Nouvelle version disponible » continue de signaler partout qu'une mise à jour attend. L'écran Suggestions reprend désormais le message du serveur quand la recherche échoue — « en erreur (404) », « en erreur (429) » — au lieu d'un « le modèle n'a pas pu répondre » qui ne distinguait pas un modèle mal configuré d'un quota épuisé ou d'une coupure réseau, et obligeait à aller lire les journaux du serveur |
 | 0.9.2 | 2026-10-05 | Correctif : aucune suggestion de recette n'avait jamais abouti depuis la 0.8.0. Les appels partaient vers `gemini-3.5-pro`, un modèle que l'API Gemini ne sert pas — six tentatives, six 404, et un écran « Mes recettes » vide sans que rien ne l'explique. Le modèle des recettes devient `gemini-3.5-flash-lite` par défaut et se règle à part de la reconnaissance photo, par `SUGGESTION_MODEL` : les deux usages n'ont ni le même besoin ni le même prix. Vingt fois moins cher que le modèle visé, il laisse beaucoup plus de marge sous le plafond mensuel. Aucun test ne pouvait voir cette panne : tous parlent à une doublure locale qui répond quel que soit le nom du modèle |

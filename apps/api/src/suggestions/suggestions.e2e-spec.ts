@@ -221,6 +221,31 @@ describe('SuggestionsService (EF-26)', () => {
     expect(http.calls[1]?.url).toContain('modele-choisi-a-l-ecran');
   });
 
+  it('retire l’outil de recherche web quand l’administrateur le désactive', async () => {
+    // La recherche est facturée par requête, hors du plafond mensuel de
+    // l'application, et certaines clés la refusent : ce réglage est le seul
+    // moyen d'obtenir des suggestions malgré ce refus.
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
+
+    await service.list(QUERY, USER);
+    expect(String(http.calls[0]?.init?.body)).toContain('google_search');
+
+    await db.setting.upsert({
+      where: { key: 'suggestionWebSearch' },
+      create: { key: 'suggestionWebSearch', value: false },
+      update: { value: false },
+    });
+    await service.list({ ...QUERY, refresh: true }, USER);
+    const body = String(http.calls[1]?.init?.body);
+    expect(body).not.toContain('google_search');
+    // Le prompt doit changer avec l'outil : sans recherche, un modèle invente
+    // volontiers une URL plausible pour « faire vrai ».
+    expect(body).toContain('aucun outil de recherche');
+  });
+
   it('compte un rapprochement probable comme disponible dans la couverture', async () => {
     const { service, db } = await createService();
     const locationId = await seedLocation(db);

@@ -14,6 +14,14 @@ export const settingsSchema = z.object({
   visionModel: modelName.optional(),
   /** Modèle des appels recettes (suggestions et réécriture). */
   suggestionModel: modelName.optional(),
+  /**
+   * Recherche web réelle pour les suggestions (outil `google_search`). Activée,
+   * une partie des recettes vient de pages trouvées en ligne ; désactivée, le
+   * modèle les compose toutes lui-même. Google facture chaque requête de
+   * recherche à part des jetons, hors du plafond mensuel de l'application :
+   * c'est pour cela que le choix revient à l'administrateur et non au code.
+   */
+  suggestionWebSearch: z.boolean(),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 

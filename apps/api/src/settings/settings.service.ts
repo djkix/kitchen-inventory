@@ -21,6 +21,9 @@ export class SettingsService {
       expiryAlertDays: this.config.EXPIRY_ALERT_DAYS,
       ...(this.config.VISION_MODEL ? { visionModel: this.config.VISION_MODEL } : {}),
       ...(this.config.SUGGESTION_MODEL ? { suggestionModel: this.config.SUGGESTION_MODEL } : {}),
+      // Recherche web active par défaut : c'est la fonctionnalité demandée
+      // (« des recettes trouvées sur internet »), pas une option à activer.
+      suggestionWebSearch: this.config.SUGGESTION_WEB_SEARCH ?? true,
     };
     const parsed = settingsSchema.safeParse({ ...fromEnv, ...stored });
     return parsed.success ? parsed.data : fromEnv;
@@ -39,6 +42,11 @@ export class SettingsService {
   /** Modèle des appels recettes (suggestions et réécriture), même résolution par appel. */
   async suggestionModel(): Promise<string | undefined> {
     return (await this.get()).suggestionModel;
+  }
+
+  /** Recherche web réelle pour les suggestions, même résolution par appel. */
+  async suggestionWebSearch(): Promise<boolean> {
+    return (await this.get()).suggestionWebSearch;
   }
 
   async update(input: UpdateSettingsInput): Promise<Settings> {
