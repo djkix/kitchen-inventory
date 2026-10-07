@@ -40,9 +40,36 @@ export interface GeminiResponse {
   candidates?: Array<{
     content?: { parts?: Array<{ text?: string }> };
     finishReason?: string;
+    /**
+     * Présent quand le modèle a utilisé l'outil de recherche web.
+     * `webSearchQueries` liste les requêtes qu'il a réellement exécutées :
+     * c'est ce que Google facture, à part des jetons.
+     */
+    groundingMetadata?: { webSearchQueries?: string[] };
   }>;
   promptFeedback?: { blockReason?: string };
   usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+}
+
+/**
+ * Prix public indicatif d'une requête de recherche web, en dollars. Google
+ * facture la recherche **par requête exécutée**, indépendamment des jetons :
+ * sans ce poste, le plafond mensuel laisserait filer toute la dépense de
+ * recherche en annonçant protéger le budget. Réglable par
+ * `SEARCH_COST_USD_PER_1K` : ce tarif change plus souvent que le code.
+ */
+export const DEFAULT_SEARCH_COST_USD_PER_1K = 35;
+
+let searchCostUsdPer1k = DEFAULT_SEARCH_COST_USD_PER_1K;
+
+/** Fixe le tarif de recherche appliqué au compteur de coût (appelé au démarrage depuis la configuration). */
+export function setSearchCostUsdPer1k(value: number): void {
+  searchCostUsdPer1k = value;
+}
+
+/** Nombre de requêtes de recherche réellement exécutées par le modèle dans cette réponse. */
+export function countSearchQueries(raw: GeminiResponse): number {
+  return (raw.candidates ?? []).reduce((total, candidate) => total + (candidate.groundingMetadata?.webSearchQueries?.length ?? 0), 0);
 }
 
 /** Google Gemini via l'API REST `generateContent`, sortie JSON contrainte par `responseSchema`. */
@@ -112,9 +139,20 @@ export function unpricedModelWarning(provider: string, model: string | undefined
   return `Modèle « ${model} » (${variable}) absent de la table de prix : aucun appel ne sera chiffré et le plafond mensuel (VISION_MONTHLY_CAP_CENTS) ne comptera rien. Modèles tarifés : ${Object.keys(PRICES_USD_PER_MTOK).join(', ')}.`;
 }
 
-export function estimateCostCents(model: string, usage: GeminiResponse['usageMetadata']): number | null {
+/**
+ * Coût d'un appel, en centimes. `searchQueries` ajoute le coût des recherches
+ * web, facturées par requête et non par jeton : une fournée de suggestions
+ * peut en exécuter plusieurs, et à 35 $/1000 elles pèsent davantage que les
+ * jetons d'un modèle « lite ». Les ignorer rendrait le plafond mensuel
+ * mensonger dès que la recherche est active.
+ */
+export function estimateCostCents(model: string, usage: GeminiResponse['usageMetadata'], searchQueries = 0): number | null {
   const price = PRICES_USD_PER_MTOK[model];
-  if (!usage || !price) return null;
-  const usd = ((usage.promptTokenCount ?? 0) * price.input + (usage.candidatesTokenCount ?? 0) * price.output) / 1_000_000;
-  return Math.round(usd * 100 * 10_000) / 10_000;
+  // Un modèle hors table laisse quand même compter les recherches : mieux vaut
+  // un coût partiel qu'aucun coût, puisque c'est le plafond qui est en jeu.
+  if (!usage && searchQueries === 0) return null;
+  if (!price && searchQueries === 0) return null;
+  const tokensUsd = usage && price ? ((usage.promptTokenCount ?? 0) * price.input + (usage.candidatesTokenCount ?? 0) * price.output) / 1_000_000 : 0;
+  const searchUsd = (searchQueries * searchCostUsdPer1k) / 1000;
+  return Math.round((tokensUsd + searchUsd) * 100 * 10_000) / 10_000;
 }
