@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/djkix/kitchen-inventory/compare/v0.12.0...v0.12.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **gemini:** retirer temperature, déprécié par Google (EF-03, EF-25) ([c98b269](https://github.com/djkix/kitchen-inventory/commit/c98b2694d2bff9d9f8e49fd032cf08aac20a13c0))
+
 ## [0.12.0](https://github.com/djkix/kitchen-inventory/compare/v0.11.0...v0.12.0) (2026-10-07)
 
 
