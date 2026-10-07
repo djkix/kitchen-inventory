@@ -101,7 +101,10 @@ export class GeminiRecipeRewriter {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: REWRITE_SYSTEM_PROMPT }] },
           contents: [{ role: 'user', parts: [{ text: buildRewritePrompt(input) }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 4096 },
+          // `temperature`, `top_p` et `top_k` sont dépréciés côté Gemini : sans
+          // effet depuis la 3.6 Flash, ils deviendront une erreur. Le modèle
+          // applique ses propres valeurs, qui sont les bonnes.
+          generationConfig: { maxOutputTokens: 4096 },
         }),
       });
     } catch (error) {

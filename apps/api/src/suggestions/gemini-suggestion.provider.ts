@@ -92,7 +92,10 @@ export class GeminiSuggestionProvider implements SuggestionProvider {
           // à part des jetons, et certaines clés la refusent — d'où le réglage
           // qui permet de s'en passer sans perdre les suggestions.
           ...(webSearch ? { tools: [{ google_search: {} }] } : {}),
-          generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
+          // `temperature`, `top_p` et `top_k` sont dépréciés côté Gemini : sans
+          // effet depuis la 3.6 Flash, ils deviendront une erreur. Le modèle
+          // applique ses propres valeurs, qui sont les bonnes.
+          generationConfig: { maxOutputTokens: 8192 },
         }),
       });
     } catch (error) {
