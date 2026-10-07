@@ -100,8 +100,10 @@ export class GeminiProvider implements RecognitionProvider {
               parts: [{ inlineData: { mimeType: input.mimeType, data: input.image.toString('base64') } }, { text: userPrompt(input.hint) }],
             },
           ],
+          // `temperature`, `top_p` et `top_k` sont dépréciés côté Gemini : sans
+          // effet depuis la 3.6 Flash, ils deviendront une erreur. Le modèle
+          // applique ses propres valeurs, qui sont les bonnes.
           generationConfig: {
-            temperature: 0.2,
             maxOutputTokens: 1024,
             responseMimeType: 'application/json',
             responseSchema: GEMINI_RESPONSE_SCHEMA,
