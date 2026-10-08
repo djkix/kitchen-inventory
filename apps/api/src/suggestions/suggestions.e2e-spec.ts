@@ -542,6 +542,11 @@ describe('SuggestionsService (EF-26)', () => {
       origin: 'Cuisine Test',
       region: 'europeenne',
       totalMinutes: 30,
+      // Volontairement haut (bucket de temps actif > 25 min) : « recalcule la
+      // difficulté... (B15) » vérifie que la recette conservée reste
+      // INTERMEDIATE, pas plus — un prepMinutes trop bas ferait tomber le
+      // score sous le seuil et casserait ce garde-fou en silence.
+      prepMinutes: 28, cookMinutes: 2,
       difficulty: 'HARD', dishType: 'MAIN',
       provenance: 'web',
       sourceUrl: `https://${WEB_RECIPE_HOST}/tarte-aux-pommes`,
@@ -554,6 +559,7 @@ describe('SuggestionsService (EF-26)', () => {
       origin: 'Composition',
       region: 'asiatique',
       totalMinutes: 20,
+      prepMinutes: 5, cookMinutes: 10,
       difficulty: 'EASY', dishType: 'MAIN',
       provenance: 'ai',
       sourceUrl: null,
@@ -673,6 +679,8 @@ describe('SuggestionsService (EF-26)', () => {
       // Le classement du modèle suit la recette : « Mes recettes » filtre sur le
       // même vocabulaire, rien à reclasser à la main (2026-10-08).
       expect(recipe.dishType).toBe(AI_RECIPE.dishType);
+      expect(recipe.prepMinutes).toBe(AI_RECIPE.prepMinutes);
+      expect(recipe.cookMinutes).toBe(AI_RECIPE.cookMinutes);
       expect(http.calls).toHaveLength(0);
     });
 
@@ -759,6 +767,7 @@ describe('SuggestionsService (EF-26)', () => {
         origin: 'Composition',
         region: 'asiatique',
         totalMinutes: 15,
+        prepMinutes: 5, cookMinutes: 8,
         difficulty: 'EASY', dishType: 'MAIN',
         provenance: 'ai',
         sourceUrl: null,
@@ -770,6 +779,7 @@ describe('SuggestionsService (EF-26)', () => {
         origin: 'Composition',
         region: 'asiatique',
         totalMinutes: 25,
+        prepMinutes: 8, cookMinutes: 12,
         difficulty: 'EASY', dishType: 'MAIN',
         provenance: 'ai',
         sourceUrl: null,
@@ -901,6 +911,7 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
         origin: 'Cuisine Test',
         region: 'europeenne',
         totalMinutes: 20,
+        prepMinutes: 10, cookMinutes: 8,
         difficulty: 'EASY', dishType: 'MAIN',
         provenance: 'web',
         sourceUrl: 'https://192.168.1.50/recette',
@@ -919,6 +930,7 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
         origin: 'Cuisine Test',
         region: 'europeenne',
         totalMinutes: 20,
+        prepMinutes: 10, cookMinutes: 8,
         difficulty: 'EASY', dishType: 'MAIN',
         provenance: 'web',
         sourceUrl: `https://${UNREACHABLE_HOST}/injoignable`,
@@ -938,6 +950,7 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
         origin: 'Composition',
         region: 'asiatique',
         totalMinutes: 15,
+        prepMinutes: 5, cookMinutes: 8,
         difficulty: 'EASY', dishType: 'MAIN',
         provenance: 'ai',
         sourceUrl: null,

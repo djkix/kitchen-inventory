@@ -54,12 +54,14 @@ export const SUGGESTION_REQUEST_BUFFER = 4;
 
 /**
  * Signature de cache (B12) : identifiants de départ triés + orientation + version
- * du prompt. Passée à `v2` le 2026-10-08 avec l'arrivée du type de plat : les
- * fournées stockées avant ne le portent pas et ne passent plus `modelBatchSchema`.
- * Elles seraient ignorées de toute façon — le type entre aussi dans la signature —
- * mais la version le dit explicitement plutôt que de le laisser déduire.
+ * du prompt. Passée à `v2` le 2026-10-08 avec l'arrivée du type de plat, puis à
+ * `v3` le même jour avec les durées de préparation et de cuisson séparées : les
+ * fournées stockées avant ne les portent pas et ne passent plus `modelBatchSchema`.
+ * Elles seraient ignorées de toute façon — le schéma entre aussi dans la
+ * signature — mais la version le dit explicitement plutôt que de le laisser
+ * déduire.
  */
-const SUGGESTION_SIGNATURE_VERSION = 'v2';
+const SUGGESTION_SIGNATURE_VERSION = 'v3';
 /** Une fournée en cache de plus de 24 heures est ignorée (section 9, B12). */
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -441,6 +443,8 @@ export class SuggestionsService {
         origin: recipe.origin,
         region: recipe.region,
         totalMinutes: recipe.totalMinutes,
+        prepMinutes: recipe.prepMinutes,
+        cookMinutes: recipe.cookMinutes,
         difficulty: recipe.difficulty,
         dishType: recipe.dishType,
         provenance: recipe.provenance,
@@ -560,10 +564,12 @@ export class SuggestionsService {
       servings: 4,
       steps,
       diets: [],
-      // La durée annoncée par le modèle reste crédible (seule la difficulté est
-      // recalculée au barème du foyer, B15) ; faute de détail cuisson/préparation
-      // séparé dans la fournée, elle est portée en préparation.
-      prepMinutes: suggestion.totalMinutes,
+      // Les durées annoncées par le modèle restent crédibles (seule la difficulté
+      // est recalculée au barème du foyer, B15). `prepMinutes`/`cookMinutes`
+      // viennent de la suggestion d'origine, jamais de la réécriture (tâche 9,
+      // B6) : celle-ci ne porte que titre, étapes et ingrédients.
+      prepMinutes: suggestion.prepMinutes,
+      cookMinutes: suggestion.cookMinutes,
       // Le classement du modèle suit la recette conservée : « Mes recettes »
       // filtre sur le même vocabulaire, une suggestion gardée n'a pas à être
       // reclassée à la main (demande du 2026-10-08).

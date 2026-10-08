@@ -35,6 +35,7 @@ export class InvalidRewriteError extends Error {}
 
 const REWRITE_SYSTEM_PROMPT = `Tu réécris une recette de cuisine lue sur une page web, dans le format attendu par une application d'inventaire domestique.
 Tu ne fais que restituer la recette telle que trouvée, sans l'inventer ni la modifier.
+Chaque étape doit être réalisable sans rien deviner : indique la température du four en degrés Celsius, l'intensité du feu (doux, moyen, vif) et la durée de l'étape chaque fois que la cuisson l'exige et que la page le précise. Une étape de cuisson sans température ni durée est inutilisable.
 Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clôtures de bloc de code (pas de \`\`\`).`;
 
 /**

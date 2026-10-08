@@ -3,7 +3,7 @@ import { modelBatchSchema, modelRecipeSchema, suggestionQuerySchema, SUGGESTION_
 
 const recette = {
   title: 'Pâtes à la tomate', origin: 'italienne', region: 'mediterraneenne',
-  totalMinutes: 25, difficulty: 'EASY', dishType: 'MAIN', provenance: 'web',
+  totalMinutes: 25, prepMinutes: 10, cookMinutes: 15, difficulty: 'EASY', dishType: 'MAIN', provenance: 'web',
   sourceUrl: 'https://exemple.test/pates', steps: [],
   ingredients: [{ label: 'spaghettis', quantity: 200, unit: 'GRAM' }],
 };
@@ -30,6 +30,16 @@ describe('modelRecipeSchema', () => {
   });
   it('accepte une URL https écrite en majuscules (test insensible à la casse)', () => {
     expect(modelRecipeSchema.safeParse({ ...recette, sourceUrl: 'HTTPS://EXEMPLE.TEST/pates' }).success).toBe(true);
+  });
+  it('accepte des durées de préparation et de cuisson séparées', () => {
+    const recipe = { ...recette, prepMinutes: 10, cookMinutes: 25 };
+    expect(modelRecipeSchema.parse(recipe).cookMinutes).toBe(25);
+  });
+  it('accepte une recette sans détail de durée : seul le total est exigé', () => {
+    // Une salade n'a pas de cuisson ; le modèle doit pouvoir le dire par `null`
+    // plutôt que d'inventer un zéro qui se lirait « cuisson : 0 minute ».
+    const recipe = { ...recette, prepMinutes: null, cookMinutes: null };
+    expect(modelRecipeSchema.safeParse(recipe).success).toBe(true);
   });
 });
 

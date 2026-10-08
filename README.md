@@ -133,6 +133,15 @@ d'un cran par rapport à celle affichée avant conservation). La recette entre
 dans **Mes recettes**, qui reprend le socle du foyer : cuisson, historique,
 notation par membre.
 
+Gemini rend désormais une durée de préparation et une durée de cuisson
+séparées (`null` quand la recette n'en a pas, comme une salade, ou que le
+modèle ne les distingue pas — jamais un zéro qui se lirait « cuisson : 0
+minute ») en plus de la durée totale affichée sur les cartes, et chaque étape
+de cuisson doit préciser température du four, intensité du feu et durée :
+une étape qui ne le ferait pas est jugée inexploitable. Les deux durées sont
+conservées jusqu'à la recette créée ; leur affichage dans les écrans de
+suggestion et de fiche recette reste à faire.
+
 **Mes recettes**, classées **par défaut selon la note** du foyer (les mieux
 notées en tête, puis les non notées, titre à l'alphabet en dernier recours) —
 le stock n'intervient pas dans ce tri par défaut. La recherche par titre est
@@ -507,6 +516,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.14.0 | 2026-10-08 | Gemini rend désormais une durée de préparation et une durée de cuisson séparées (`null` quand la recette n'en a pas, jamais un zéro qui se lirait « cuisson : 0 minute »), portées jusqu'à la recette conservée — la durée totale reste celle affichée sur les cartes. Chaque étape de cuisson doit préciser température du four, intensité du feu et durée : une étape qui ne le ferait pas est désormais jugée inexploitable, à la composition comme à la réécriture d'une page web. Premier étage du lot recettes « complétude et usage » ; l'affichage de ces durées dans les écrans reste à venir |
 | 0.13.0 | 2026-10-08 | Les suggestions sont classées par type de plat — entrée, plat, dessert, accompagnement, apéritif, petit-déjeuner, boisson — sur la taxonomie qui existait déjà pour « Mes recettes », et qu'une suggestion conservée emporte avec elle. Le type devient la première rangée de filtres des deux écrans, devant la cuisine ; sur Suggestions il filtre la fournée déjà chargée, sans appel ni dépense, et propose une relance ciblée seulement quand il ne reste rien |
 | 0.12.3 | 2026-10-08 | La liste des modèles proposée dans Réglages se limite à la ligne courante de Gemini. La clé en déclare une soixantaine — instantanés datés, aperçus, familles parole, image et vidéo — et les dérouler tous pour choisir entre deux modèles utilisables n'était pas tenable au téléphone. Le filtre reste permissif sur le numéro de version, pour qu'une nouvelle génération apparaisse sans modification du code, et rend la liste complète s'il ne laisse rien passer |
 | 0.12.2 | 2026-10-07 | Nettoyage après audit d'over-engineering : suppression des adaptateurs Anthropic, OpenAI et Ollama, jamais configurés ni exercés hors de leurs propres tests, et de la dépendance `@anthropic-ai/sdk` qui ne servait qu'au premier. `VISION_PROVIDER` n'accepte plus que `none` et `gemini` ; l'interface de fournisseur est conservée, c'est elle qui rend un autre fournisseur ajoutable le jour venu. Disparaissent aussi l'interface de fournisseur de suggestions (une seule implémentation), trois fabriques qui ne faisaient que déléguer, la variable `SEARCH_COST_USD_PER_1K` (devenue une constante au même titre que la table de prix), `TZ` dans le schéma de configuration (Node la lit seul) et un libellé de modèle transporté jusqu'au navigateur sans jamais être affiché. Environ 250 lignes et une dépendance en moins, à comportement identique |

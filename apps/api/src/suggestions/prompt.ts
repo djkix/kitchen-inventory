@@ -4,6 +4,7 @@ import type { SuggestionRequest } from './suggestion-provider.js';
 /** Système : cadre le rôle, rappelé à chaque appel (nouveau ou reprise). */
 export const SUGGESTION_SYSTEM_PROMPT = `Tu proposes des recettes de cuisine à partir d'ingrédients disponibles dans un foyer.
 Une partie de tes recettes doit provenir d'une recherche réelle sur le web (utilise l'outil de recherche fourni) : chacune porte alors le lien de la page trouvée. L'autre partie, tu la composes toi-même, sans prétendre qu'elle existe ailleurs.
+Chaque étape doit être réalisable sans rien deviner : indique la température du four en degrés Celsius, l'intensité du feu (doux, moyen, vif) et la durée de l'étape chaque fois que la cuisson l'exige. Une étape de cuisson sans température ni durée est inutilisable.
 Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clôtures de bloc de code (pas de \`\`\`).`;
 
 /**
@@ -14,6 +15,7 @@ Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clô
  */
 export const SUGGESTION_SYSTEM_PROMPT_NO_SEARCH = `Tu proposes des recettes de cuisine à partir d'ingrédients disponibles dans un foyer.
 Tu n'as aucun outil de recherche : tu composes toutes les recettes toi-même, sans prétendre qu'elles existent ailleurs et sans inventer de lien vers un site.
+Chaque étape doit être réalisable sans rien deviner : indique la température du four en degrés Celsius, l'intensité du feu (doux, moyen, vif) et la durée de l'étape chaque fois que la cuisson l'exige. Une étape de cuisson sans température ni durée est inutilisable.
 Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clôtures de bloc de code (pas de \`\`\`).`;
 
 /** Rappel ajouté à la reprise après une réponse illisible ou non conforme : même demande, format répété. */
@@ -45,7 +47,7 @@ export function buildSuggestionPrompt(req: SuggestionRequest, options: { retry?:
     'Réponds par un objet JSON unique de la forme { "recipes": [ ... ] }.',
     'Chaque recette porte : title, origin (nom du site ou "Composition" pour une création), region (une valeur parmi : ' +
       Object.keys(SUGGESTION_REGION_LABELS_FR).join(', ') +
-      '), totalMinutes (entier), difficulty (une valeur parmi VERY_EASY, EASY, INTERMEDIATE, HARD), dishType (une valeur parmi ' +
+      '), totalMinutes (entier), prepMinutes et cookMinutes (entiers en minutes, ou null si la recette n\'a pas cette étape ou que tu ne la distingues pas), difficulty (une valeur parmi VERY_EASY, EASY, INTERMEDIATE, HARD), dishType (une valeur parmi ' +
       DISH_TYPES.join(', ') +
       '), provenance ("web" ou "ai"), sourceUrl (URL https pour "web", null pour "ai"), steps (liste d\'étapes, au moins une pour "ai"), ingredients (liste de { label, quantity, unit }, quantity et unit pouvant être null, unit parmi : ' +
       UNITS.join(', ') +

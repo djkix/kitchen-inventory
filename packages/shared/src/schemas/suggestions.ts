@@ -75,6 +75,14 @@ const modelRecipeBaseSchema = z.object({
   origin: z.string().trim().min(1, { message: 'Origine requise' }).max(120),
   region: suggestionRegionSchema,
   totalMinutes: z.number().int().positive({ message: 'Durée totale requise' }).max(1440),
+  /**
+   * Préparation et cuisson séparées, `null` quand la recette n'en a pas (une
+   * salade n'a pas de cuisson) ou quand le modèle ne les distingue pas. Jamais
+   * `0` : zéro minute de cuisson et pas de cuisson ne se lisent pas pareil.
+   * `totalMinutes` reste la durée de référence affichée sur les cartes.
+   */
+  prepMinutes: z.number().int().positive().max(1440).nullable(),
+  cookMinutes: z.number().int().positive().max(1440).nullable(),
   difficulty: difficultySchema,
   /**
    * Entrée, plat, dessert… La taxonomie est celle de `Recipe.dishType` : une
@@ -202,6 +210,8 @@ export interface SuggestionDto {
   origin: string;
   region: SuggestionRegion;
   totalMinutes: number;
+  prepMinutes: number | null;
+  cookMinutes: number | null;
   difficulty: z.infer<typeof difficultySchema>;
   dishType: z.infer<typeof dishTypeSchema>;
   provenance: 'web' | 'ai';

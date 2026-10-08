@@ -26,7 +26,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 28,
+      "cookMinutes": 2
     },
     {
       "title": "Riz au parmesan râpé",
@@ -49,7 +51,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     },
     {
       "title": "Pâtes à l'huile et au basilic",
@@ -77,7 +81,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     },
     {
       "title": "Gratin à la crème de parmesan",
@@ -100,7 +106,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     },
     {
       "title": "Riz pilaf nature",
@@ -128,7 +136,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     },
     {
       "title": "Tomates farcies au riz et à la viande",
@@ -156,7 +166,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     },
     {
       "title": "Salade exotique mangue avocat",
@@ -179,7 +191,9 @@
           "unit": null
         }
       ],
-      "dishType": "STARTER"
+      "dishType": "STARTER",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     },
     {
       "title": "Huile d'olive aromatisée",
@@ -197,7 +211,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     },
     {
       "title": "Riz sauté maison",
@@ -223,7 +239,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     },
     {
       "title": "Pâtes au parmesan et au beurre",
@@ -254,7 +272,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     },
     {
       "title": "Riz épicé à l'huile et au paprika",
@@ -285,7 +305,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     },
     {
       "title": "Dessert improvisé au chocolat",
@@ -305,7 +327,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     }
   ]
 }
