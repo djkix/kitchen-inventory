@@ -58,7 +58,9 @@ rapprochement de chaque ingrédient au stock, catégorisation.
 2. L'application compose le point de départ depuis le stock, sans le lui montrer **[B2]**.
 3. Si une fournée en cache correspond, elle s'affiche immédiatement ; sinon Gemini est interrogé.
 4. La fournée s'affiche : une carte par recette — titre, origine, durée, facilité, couverture,
-   manquants, provenance. **Pas d'étapes, quelle que soit la source [B7].**
+   manquants, provenance. **Pas d'étapes à ce stade pour une recette web ; les étapes d'une
+   composition Gemini sont visibles dans sa fiche, déjà dans la fournée [B7, amendé le
+   2026-10-08].**
 5. Franck oriente par région, durée ou facilité : **une recherche ciblée est relancée [B9]**.
 6. Une recette lui plaît : il la conserve. La page est alors récupérée et réécrite au format de
    l'application **[B6]**, et la recette entre dans **Mes recettes**.
@@ -114,11 +116,22 @@ particulier pour que la recherche donne quelque chose. Elles portent une mention
 
 ### 5.3 Ce qui est affiché avant la conservation
 
-**Les deux sources se présentent à l'identique [B7]** : titre, origine, durée, facilité, ingrédients,
-ce qui manque, provenance. **Aucune étape**, même pour une recette composée dont les étapes sont
-pourtant déjà disponibles — sans quoi la moitié des fiches serait bavarde et l'autre muette, et
-l'œil se porterait sur les recettes IA parce qu'elles en disent plus, non parce qu'elles sont
-meilleures.
+**Amendement du 2026-10-08 [B7].** La version du 2026-10-04 imposait une présentation strictement
+identique entre les deux sources, sans aucune étape, même pour une composition — pour que l'œil ne
+se porte pas sur les recettes IA simplement parce qu'elles en disent plus. Le geste de conservation
+s'appelle désormais « Plus d'informations » : le nom promet un détail supplémentaire, et pour une
+composition Gemini, ce détail (les étapes) existe déjà dans la fournée, sans appel ni dépense
+supplémentaire pour l'afficher (B6 : aucun appel réseau pour une composition). Le cacher reviendrait
+à faire mentir le bouton. La distinction reste honnête plutôt qu'uniforme :
+
+- **Composition Gemini (`provenance: 'ai'`)** : les étapes, déjà dans la fournée, s'affichent dans la
+  fiche dès l'ouverture — avant toute conservation.
+- **Recette web (`provenance: 'web'`)** : toujours aucune étape à ce stade. La page n'est récupérée et
+  réécrite qu'à la conservation (B6) ; les inventer ici reviendrait à deviner un contenu non lu. La
+  fiche l'annonce explicitement plutôt que de laisser croire à un oubli.
+
+Les deux sources continuent de se présenter à l'identique pour tout le reste : titre, origine, durée,
+facilité, ingrédients, ce qui manque, provenance.
 
 ### 5.4 Validation
 
@@ -275,7 +288,7 @@ Toute évolution passe par une migration Prisma versionnée et commitée.
 | B4 | Cinq places stables, trois tournantes chaque jour |
 | B5 | Aucune péremption dans le module ; exclusion des épices, du sel et du poivre ; huile et vinaigre éligibles |
 | B6 | La page est extraite et réécrite au format de l'application **à la conservation**, jamais de renvoi vers le site |
-| B7 | Présentation identique des deux sources avant conservation, sans étapes |
+| B7 | Présentation identique des deux sources avant conservation ; **amendé le 2026-10-08** : les étapes d'une composition Gemini s'affichent dès la fiche (déjà dans la fournée), une recette web reste sans étape jusqu'à la conservation (section 5.3) |
 | B8 | Objectif de huit recettes web sur douze, non rigide |
 | B9 | Aucune variété imposée ; toute orientation relance une recherche ciblée, sur les trois dimensions |
 | B10 | L'origine se choisit par région ; la carte affiche le pays |

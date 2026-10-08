@@ -132,10 +132,14 @@ suggestions.
 
 La fiche d'une suggestion montre les ingrédients et ce qui manque (chacun avec
 sa photo, s'il est rapproché d'un produit connu, et la pastille colorée de
-l'emplacement de son lot le plus proche de péremption quand il est en stock),
-jamais les étapes avant conservation. **Plus d'informations** — un seul geste,
-pas une consultation puis une conservation séparée — récupère la page de la
-recette (HTTPS uniquement, 5 secondes maximum), lit ses données structurées
+l'emplacement de son lot le plus proche de péremption quand il est en stock).
+Les étapes d'une recette **composée par l'IA** y sont déjà visibles, puisque
+« Plus d'informations » n'a alors rien de plus à aller chercher ; une recette
+**trouvée sur le web**, elle, n'affiche encore aucune étape à ce stade — sa
+page n'est lue qu'à la conservation, et la fiche l'annonce honnêtement plutôt
+que d'en inventer. **Plus d'informations** — un seul geste, pas une
+consultation puis une conservation séparée — récupère la page de la recette
+(HTTPS uniquement, 5 secondes maximum), lit ses données structurées
 `schema.org/Recipe` quand elles existent, et la fait **réécrire par Gemini au
 format propre à l'application** — l'application n'envoie jamais vers le site
 d'origine, pour une recette composée les étapes déjà produites sont reprises
