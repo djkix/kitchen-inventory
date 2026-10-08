@@ -8,6 +8,7 @@ export const difficultySchema = z.enum(['VERY_EASY', 'EASY', 'INTERMEDIATE', 'HA
 /** Type de plat : une seule valeur par recette (A4). */
 export const DISH_TYPES = ['STARTER', 'MAIN', 'DESSERT', 'SIDE', 'APERITIF', 'BREAKFAST', 'DRINK'] as const;
 export const dishTypeSchema = z.enum(DISH_TYPES);
+export type DishType = z.infer<typeof dishTypeSchema>;
 
 /** Régimes : plusieurs par recette, liste étendue par migration (A5). */
 export const DIETS = ['VEGETARIAN', 'VEGAN', 'GLUTEN_FREE', 'LACTOSE_FREE', 'PORK_FREE'] as const;

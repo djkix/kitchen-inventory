@@ -102,11 +102,22 @@ rien demander, l'application compose un point de départ depuis le stock réel
 jour à l'autre pour renouveler les idées), interroge Google Gemini et affiche
 une fournée d'une douzaine de recettes — certaines trouvées sur de vrais
 sites, d'autres composées par le modèle, chaque carte disant laquelle (nom du
-site, ou « proposée par l'IA »). Trois rangées permettent de s'orienter par
-**région** (asiatique, méditerranéenne…), **durée** (≤ 15, ≤ 30, ≤ 60 min) ou
-**facilité** : chaque choix relance une vraie recherche ciblée auprès du
-modèle, il ne filtre jamais ce qui est déjà affiché. Une fournée est mise en
-cache 24 heures par point de départ et orientation. Les épices, le sel et le
+site, ou « proposée par l'IA »). Gemini classe chaque recette par **type de
+plat** — entrée, plat, dessert, accompagnement, apéritif, petit-déjeuner,
+boisson — sur la même taxonomie que « Mes recettes » : une suggestion
+conservée garde son classement sans reclassement manuel.
+
+Quatre rangées permettent de s'orienter. Le **type de plat** vient en premier,
+c'est la question posée avant toutes les autres ; il **filtre la fournée déjà
+affichée**, sans appel ni dépense. Viennent ensuite la **région** (asiatique,
+méditerranéenne…), la **durée** (≤ 15, ≤ 30, ≤ 60 min) et la **facilité** :
+ces trois-là relancent une vraie recherche ciblée auprès du modèle, elles ne
+filtrent jamais ce qui est déjà affiché — la cascade ne peut pas promettre une
+recette asiatique si le lot courant n'en contenait aucune. Quand le filtre par
+type ne laisse aucune recette, l'écran propose explicitement d'en chercher une
+nouvelle série ciblée, plutôt que de partir seul : le filtre est gratuit, la
+relance ne l'est pas. Une fournée est mise en cache 24 heures par point de
+départ et orientation. Les épices, le sel et le
 poivre ne sont jamais retenus comme point de départ (l'huile et le vinaigre
 le restent) ; les dates de péremption n'interviennent à aucun titre dans les
 suggestions.
@@ -496,6 +507,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.13.0 | 2026-10-08 | Les suggestions sont classées par type de plat — entrée, plat, dessert, accompagnement, apéritif, petit-déjeuner, boisson — sur la taxonomie qui existait déjà pour « Mes recettes », et qu'une suggestion conservée emporte avec elle. Le type devient la première rangée de filtres des deux écrans, devant la cuisine ; sur Suggestions il filtre la fournée déjà chargée, sans appel ni dépense, et propose une relance ciblée seulement quand il ne reste rien |
 | 0.12.3 | 2026-10-08 | La liste des modèles proposée dans Réglages se limite à la ligne courante de Gemini. La clé en déclare une soixantaine — instantanés datés, aperçus, familles parole, image et vidéo — et les dérouler tous pour choisir entre deux modèles utilisables n'était pas tenable au téléphone. Le filtre reste permissif sur le numéro de version, pour qu'une nouvelle génération apparaisse sans modification du code, et rend la liste complète s'il ne laisse rien passer |
 | 0.12.2 | 2026-10-07 | Nettoyage après audit d'over-engineering : suppression des adaptateurs Anthropic, OpenAI et Ollama, jamais configurés ni exercés hors de leurs propres tests, et de la dépendance `@anthropic-ai/sdk` qui ne servait qu'au premier. `VISION_PROVIDER` n'accepte plus que `none` et `gemini` ; l'interface de fournisseur est conservée, c'est elle qui rend un autre fournisseur ajoutable le jour venu. Disparaissent aussi l'interface de fournisseur de suggestions (une seule implémentation), trois fabriques qui ne faisaient que déléguer, la variable `SEARCH_COST_USD_PER_1K` (devenue une constante au même titre que la table de prix), `TZ` dans le schéma de configuration (Node la lit seul) et un libellé de modèle transporté jusqu'au navigateur sans jamais être affiché. Environ 250 lignes et une dépendance en moins, à comportement identique |
 | 0.12.1 | 2026-10-07 | Retrait de `temperature` des trois appels Gemini (reconnaissance photo, suggestions, réécriture). Google l'a déprécié avec `top_p` et `top_k` : sans effet depuis Gemini 3.6 Flash, ces paramètres renverront une erreur sur les modèles à venir. Le modèle applique désormais ses propres valeurs. Aucun `thinking_budget` n'était utilisé, rien d'autre à migrer |

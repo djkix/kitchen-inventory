@@ -17,7 +17,8 @@
           "quantity": 2,
           "unit": "PIECE"
         }
-      ]
+      ],
+      "dishType": "MAIN"
     }
   ]
 }

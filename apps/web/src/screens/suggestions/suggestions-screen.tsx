@@ -1,4 +1,4 @@
-import type { SuggestionDto } from '@kitchen/shared';
+import { DISH_TYPE_LABELS_FR, type DishType, type SuggestionDto } from '@kitchen/shared';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
@@ -24,6 +24,10 @@ export function SuggestionsScreen() {
   const suggestions = useSuggestionsQuery(orientation);
   // Suggestion ouverte dans la fiche de conservation (tâche 12) ; `null` quand le tiroir est fermé.
   const [selected, setSelected] = useState<SuggestionDto | null>(null);
+  // Filtre d'écran, pas une orientation : Gemini classe les douze recettes de la
+  // fournée, le tri se fait donc ici, sans appel ni dépense (choix de Franck du
+  // 2026-10-08). La relance ciblée reste possible, mais demandée explicitement.
+  const [dishType, setDishType] = useState<DishType | undefined>(undefined);
 
   return (
     <>
@@ -37,7 +41,7 @@ export function SuggestionsScreen() {
         }
       />
 
-      <OrientationBar value={orientation} onChange={setOrientation} />
+      <OrientationBar value={orientation} onChange={setOrientation} dishType={dishType} onDishTypeChange={setDishType} />
 
       {suggestions.isPending ? (
         <WaitingState />
@@ -49,7 +53,12 @@ export function SuggestionsScreen() {
               est recherchée (`placeholderData: keepPreviousData`) : seul ce bandeau dit
               qu'un nouvel appel est en cours, la liste ne se vide jamais pour autant. */}
           {suggestions.isFetching && <RefetchingBanner />}
-          <SuggestionsResult batch={suggestions.data} onSelect={setSelected} />
+          <SuggestionsResult
+            batch={suggestions.data}
+            onSelect={setSelected}
+            dishType={dishType}
+            onSearchDishType={() => setOrientation({ ...orientation, dishType, refresh: true })}
+          />
         </>
       )}
 
@@ -138,11 +147,17 @@ export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRe
 function SuggestionsResult({
   batch,
   onSelect,
+  dishType,
+  onSearchDishType,
 }: {
   batch: ReturnType<typeof useSuggestionsQuery>['data'];
   onSelect: (suggestion: SuggestionDto) => void;
+  dishType: DishType | undefined;
+  onSearchDishType: () => void;
 }) {
   if (!batch) return null;
+
+  const items = dishType ? batch.items.filter((item) => item.dishType === dishType) : batch.items;
 
   return (
     <>
@@ -152,14 +167,32 @@ function SuggestionsResult({
         </p>
       )}
 
-      {batch.items.length === 0 ? (
-        <EmptyState
-          title="Aucune suggestion pour cette orientation"
-          description="Essayez une orientation différente, ou revenez plus tard : le stock aura peut-être changé."
-        />
+      {items.length === 0 ? (
+        dishType && batch.items.length > 0 ? (
+          // La fournée existe mais ne contient pas ce type : le filtre est gratuit,
+          // la relance ne l'est pas — elle reste donc un geste explicite.
+          <EmptyState
+            title={`Aucun ${DISH_TYPE_LABELS_FR[dishType].toLowerCase()} dans cette fournée`}
+            description="Les recettes proposées sont d’un autre type. Vous pouvez en demander une nouvelle série, ciblée cette fois."
+            action={
+              <button
+                type="button"
+                onClick={onSearchDishType}
+                className="inline-flex min-h-touch items-center rounded-xl bg-accent px-4 text-[15px] font-semibold text-ink"
+              >
+                Chercher des {DISH_TYPE_LABELS_FR[dishType].toLowerCase()}s
+              </button>
+            }
+          />
+        ) : (
+          <EmptyState
+            title="Aucune suggestion pour cette orientation"
+            description="Essayez une orientation différente, ou revenez plus tard : le stock aura peut-être changé."
+          />
+        )
       ) : (
         <ul className="flex flex-col gap-2 px-4">
-          {batch.items.map((suggestion) => (
+          {items.map((suggestion) => (
             <li key={suggestion.id}>
               {/* La carte elle-même reste purement présentative (tâche 10) : le
                   tiroir de conservation (tâche 12) s'ouvre depuis cet écran. */}

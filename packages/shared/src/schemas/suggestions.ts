@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CoverageGroup, IngredientState } from '../rules/coverage.js';
 import type { MatchState } from '../rules/ingredient-match.js';
 import { clientOpIdSchema, idSchema, positiveQuantitySchema, unitSchema } from './common.js';
-import { difficultySchema } from './recipes.js';
+import { difficultySchema, dishTypeSchema } from './recipes.js';
 
 /**
  * Régions de cuisine proposées comme orientation de recherche (section 12,
@@ -45,6 +45,12 @@ export const suggestionQuerySchema = z.object({
     .optional(),
   difficulty: difficultySchema.optional(),
   /**
+   * Type de plat demandé au modèle. Le filtre de l'écran s'applique d'abord sur
+   * la fournée déjà chargée, sans rien coûter ; cette orientation ne sert qu'au
+   * bouton de relance proposé quand le filtre ne laisse aucune recette.
+   */
+  dishType: dishTypeSchema.optional(),
+  /**
    * Redemande un lot plutôt que de resservir le dernier (notice de B-cache).
    * Jamais `z.coerce.boolean()` : il rend `true` pour la chaîne `"false"`, si
    * bien qu'un `refresh=false` posé par défaut dans l'orientation ferait payer
@@ -70,6 +76,12 @@ const modelRecipeBaseSchema = z.object({
   region: suggestionRegionSchema,
   totalMinutes: z.number().int().positive({ message: 'Durée totale requise' }).max(1440),
   difficulty: difficultySchema,
+  /**
+   * Entrée, plat, dessert… La taxonomie est celle de `Recipe.dishType` : une
+   * suggestion conservée garde son classement sans conversion, et les deux
+   * écrans filtrent sur le même vocabulaire.
+   */
+  dishType: dishTypeSchema,
   provenance: z.enum(['web', 'ai']),
   sourceUrl: z.string().trim().url({ message: 'URL invalide' }).nullable(),
   steps: z.array(z.string().trim().min(1)).max(60),
@@ -191,6 +203,7 @@ export interface SuggestionDto {
   region: SuggestionRegion;
   totalMinutes: number;
   difficulty: z.infer<typeof difficultySchema>;
+  dishType: z.infer<typeof dishTypeSchema>;
   provenance: 'web' | 'ai';
   sourceUrl: string | null;
   ingredients: SuggestionIngredientDto[];

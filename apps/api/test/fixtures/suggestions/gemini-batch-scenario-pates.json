@@ -10,10 +10,23 @@
       "sourceUrl": "https://203.0.113.20/spaghetti-tomate",
       "steps": [],
       "ingredients": [
-        { "label": "Spaghettis", "quantity": null, "unit": null },
-        { "label": "Sauce tomate", "quantity": null, "unit": null },
-        { "label": "Parmesan", "quantity": null, "unit": null }
-      ]
+        {
+          "label": "Spaghettis",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Sauce tomate",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Parmesan",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Riz au parmesan râpé",
@@ -25,9 +38,18 @@
       "sourceUrl": "https://exemple-cuisine-2.test/riz-parmesan",
       "steps": [],
       "ingredients": [
-        { "label": "Riz", "quantity": null, "unit": null },
-        { "label": "parmesan râpé", "quantity": null, "unit": null }
-      ]
+        {
+          "label": "Riz",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "parmesan râpé",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Pâtes à l'huile et au basilic",
@@ -39,10 +61,23 @@
       "sourceUrl": "https://exemple-cuisine-3.test/pates-huile-basilic",
       "steps": [],
       "ingredients": [
-        { "label": "Spaghettis", "quantity": null, "unit": null },
-        { "label": "Huile d'olive", "quantity": null, "unit": null },
-        { "label": "Basilic frais", "quantity": null, "unit": null }
-      ]
+        {
+          "label": "Spaghettis",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Huile d'olive",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Basilic frais",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Gratin à la crème de parmesan",
@@ -54,9 +89,18 @@
       "sourceUrl": "https://exemple-cuisine-4.test/gratin-creme-parmesan",
       "steps": [],
       "ingredients": [
-        { "label": "crème", "quantity": null, "unit": null },
-        { "label": "Parmesan", "quantity": null, "unit": null }
-      ]
+        {
+          "label": "crème",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Parmesan",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Riz pilaf nature",
@@ -68,10 +112,23 @@
       "sourceUrl": "https://exemple-cuisine-5.test/riz-pilaf",
       "steps": [],
       "ingredients": [
-        { "label": "Riz", "quantity": null, "unit": null },
-        { "label": "Spaghettis complets au blé", "quantity": null, "unit": null },
-        { "label": "Spaghettis complets de riz complet", "quantity": null, "unit": null }
-      ]
+        {
+          "label": "Riz",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Spaghettis complets au blé",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Spaghettis complets de riz complet",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Tomates farcies au riz et à la viande",
@@ -83,10 +140,23 @@
       "sourceUrl": "https://exemple-cuisine-6.test/tomates-farcies",
       "steps": [],
       "ingredients": [
-        { "label": "Sauce tomate", "quantity": null, "unit": null },
-        { "label": "Riz", "quantity": null, "unit": null },
-        { "label": "Viande hachée", "quantity": null, "unit": null }
-      ]
+        {
+          "label": "Sauce tomate",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Riz",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Viande hachée",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Salade exotique mangue avocat",
@@ -98,9 +168,18 @@
       "sourceUrl": "https://exemple-cuisine-7.test/salade-exotique",
       "steps": [],
       "ingredients": [
-        { "label": "Mangue", "quantity": null, "unit": null },
-        { "label": "Avocat", "quantity": null, "unit": null }
-      ]
+        {
+          "label": "Mangue",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Avocat",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "STARTER"
     },
     {
       "title": "Huile d'olive aromatisée",
@@ -111,7 +190,14 @@
       "provenance": "web",
       "sourceUrl": "https://exemple-cuisine-8.test/huile-aromatisee",
       "steps": [],
-      "ingredients": [{ "label": "Huile d'olive", "quantity": null, "unit": null }]
+      "ingredients": [
+        {
+          "label": "Huile d'olive",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Riz sauté maison",
@@ -121,11 +207,23 @@
       "difficulty": "VERY_EASY",
       "provenance": "ai",
       "sourceUrl": null,
-      "steps": ["Cuire le riz.", "Faire revenir avec la sauce tomate."],
+      "steps": [
+        "Cuire le riz.",
+        "Faire revenir avec la sauce tomate."
+      ],
       "ingredients": [
-        { "label": "Riz", "quantity": null, "unit": null },
-        { "label": "Sauce tomate", "quantity": null, "unit": null }
-      ]
+        {
+          "label": "Riz",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Sauce tomate",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Pâtes au parmesan et au beurre",
@@ -135,12 +233,28 @@
       "difficulty": "VERY_EASY",
       "provenance": "ai",
       "sourceUrl": null,
-      "steps": ["Cuire les pâtes.", "Mélanger avec le parmesan et le beurre."],
+      "steps": [
+        "Cuire les pâtes.",
+        "Mélanger avec le parmesan et le beurre."
+      ],
       "ingredients": [
-        { "label": "Spaghettis", "quantity": null, "unit": null },
-        { "label": "Parmesan", "quantity": null, "unit": null },
-        { "label": "Beurre", "quantity": null, "unit": null }
-      ]
+        {
+          "label": "Spaghettis",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Parmesan",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Beurre",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Riz épicé à l'huile et au paprika",
@@ -150,12 +264,28 @@
       "difficulty": "VERY_EASY",
       "provenance": "ai",
       "sourceUrl": null,
-      "steps": ["Cuire le riz.", "Assaisonner avec l'huile et le paprika."],
+      "steps": [
+        "Cuire le riz.",
+        "Assaisonner avec l'huile et le paprika."
+      ],
       "ingredients": [
-        { "label": "Riz", "quantity": null, "unit": null },
-        { "label": "Huile d'olive", "quantity": null, "unit": null },
-        { "label": "Paprika", "quantity": null, "unit": null }
-      ]
+        {
+          "label": "Riz",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Huile d'olive",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Paprika",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Dessert improvisé au chocolat",
@@ -165,8 +295,17 @@
       "difficulty": "VERY_EASY",
       "provenance": "ai",
       "sourceUrl": null,
-      "steps": ["Faire fondre le chocolat et dresser."],
-      "ingredients": [{ "label": "Chocolat", "quantity": null, "unit": null }]
+      "steps": [
+        "Faire fondre le chocolat et dresser."
+      ],
+      "ingredients": [
+        {
+          "label": "Chocolat",
+          "quantity": null,
+          "unit": null
+        }
+      ],
+      "dishType": "MAIN"
     }
   ]
 }

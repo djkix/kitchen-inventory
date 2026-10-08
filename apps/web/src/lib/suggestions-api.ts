@@ -1,4 +1,4 @@
-import type { Difficulty, KeepSuggestionInput, RecipeDto, SuggestionBatchDto, SuggestionDuration, SuggestionRegion } from '@kitchen/shared';
+import type { Difficulty, DishType, KeepSuggestionInput, RecipeDto, SuggestionBatchDto, SuggestionDuration, SuggestionRegion } from '@kitchen/shared';
 import { api } from './api';
 
 /**
@@ -10,6 +10,12 @@ export interface SuggestionOrientation {
   region?: SuggestionRegion;
   maxMinutes?: SuggestionDuration;
   difficulty?: Difficulty;
+  /**
+   * Type de plat demandé au modèle. Le filtre de l'écran s'applique d'abord sur
+   * la fournée déjà chargée, sans appel ni dépense ; ce champ ne part au serveur
+   * que par le bouton de relance proposé quand le filtre ne laisse rien.
+   */
+  dishType?: DishType;
   /** Redemande une fournée plutôt que de resservir la dernière en cache (tâche 12). */
   refresh?: boolean;
 }

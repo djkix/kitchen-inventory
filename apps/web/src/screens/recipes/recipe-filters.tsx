@@ -83,10 +83,10 @@ export function RecipeFiltersBar({ value, cuisines, onChange }: RecipeFiltersBar
         </Chip>
       </ChipRow>
 
-      <ChipRow label="Difficulté">
-        {(Object.entries(DIFFICULTY_LABELS_FR) as Array<[keyof typeof DIFFICULTY_LABELS_FR, string]>).map(([key, label]) => (
-          <Chip key={key} active={(value.difficulty ?? []).includes(key)} onClick={() => onChange({ ...value, difficulty: toggleIn(value.difficulty, key) })}>
-            {label}
+      <ChipRow label="Type de plat">
+        {DISH_TYPES.map((key) => (
+          <Chip key={key} active={(value.dishType ?? []).includes(key)} onClick={() => onChange({ ...value, dishType: toggleIn(value.dishType, key) })}>
+            {DISH_TYPE_LABELS_FR[key]}
           </Chip>
         ))}
       </ChipRow>
@@ -101,13 +101,15 @@ export function RecipeFiltersBar({ value, cuisines, onChange }: RecipeFiltersBar
         </ChipRow>
       )}
 
-      <ChipRow label="Type de plat">
-        {DISH_TYPES.map((key) => (
-          <Chip key={key} active={(value.dishType ?? []).includes(key)} onClick={() => onChange({ ...value, dishType: toggleIn(value.dishType, key) })}>
-            {DISH_TYPE_LABELS_FR[key]}
+      <ChipRow label="Difficulté">
+        {(Object.entries(DIFFICULTY_LABELS_FR) as Array<[keyof typeof DIFFICULTY_LABELS_FR, string]>).map(([key, label]) => (
+          <Chip key={key} active={(value.difficulty ?? []).includes(key)} onClick={() => onChange({ ...value, difficulty: toggleIn(value.difficulty, key) })}>
+            {label}
           </Chip>
         ))}
       </ChipRow>
+
+
 
       <ChipRow label="Régime">
         {DIETS.map((key) => (

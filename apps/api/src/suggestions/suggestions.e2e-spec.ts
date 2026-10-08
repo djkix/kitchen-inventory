@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { DynamicModule, Global, Module, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { suggestionIdentities, suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
+import { DISH_TYPES, suggestionIdentities, suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
 import type { Prisma } from '@prisma/client';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -196,6 +196,23 @@ describe('SuggestionsService (EF-26)', () => {
     const ingredient = result.items[0]?.ingredients[0];
     expect(ingredient?.match).toBe('probable');
     expect(ingredient?.productName).toBe('Crème fraîche épaisse 30%');
+  });
+
+  it('classe chaque recette et sait cibler un type de plat (2026-10-08)', async () => {
+    // Le type vient du modèle, sur la taxonomie déjà utilisée par « Mes recettes » :
+    // une suggestion conservée garde son classement sans conversion.
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
+
+    const base = await service.list(QUERY, USER);
+    expect(base.items.every((item) => DISH_TYPES.includes(item.dishType))).toBe(true);
+    expect(String(http.calls[0]?.init?.body)).not.toContain('Ne propose que des recettes de type');
+
+    // Relance ciblée : le type part au modèle, qui ne doit plus rendre que celui-là.
+    await service.list({ ...QUERY, dishType: 'DESSERT' }, USER);
+    expect(String(http.calls[1]?.init?.body)).toContain('Ne propose que des recettes de type « Dessert »');
   });
 
   it('appelle le modèle choisi dans les réglages, sans redémarrage (2026-10-06)', async () => {
@@ -525,7 +542,7 @@ describe('SuggestionsService (EF-26)', () => {
       origin: 'Cuisine Test',
       region: 'europeenne',
       totalMinutes: 30,
-      difficulty: 'HARD',
+      difficulty: 'HARD', dishType: 'MAIN',
       provenance: 'web',
       sourceUrl: `https://${WEB_RECIPE_HOST}/tarte-aux-pommes`,
       steps: [],
@@ -537,7 +554,7 @@ describe('SuggestionsService (EF-26)', () => {
       origin: 'Composition',
       region: 'asiatique',
       totalMinutes: 20,
-      difficulty: 'EASY',
+      difficulty: 'EASY', dishType: 'MAIN',
       provenance: 'ai',
       sourceUrl: null,
       steps: ['Cuire le riz.', 'Faire revenir les légumes.', 'Mélanger le tout.'],
@@ -653,6 +670,9 @@ describe('SuggestionsService (EF-26)', () => {
       expect(recipe.source).toBe('GENERATED');
       expect(recipe.sourceUrl).toBeNull();
       expect(recipe.title).toBe('Riz sauté maison');
+      // Le classement du modèle suit la recette : « Mes recettes » filtre sur le
+      // même vocabulaire, rien à reclasser à la main (2026-10-08).
+      expect(recipe.dishType).toBe(AI_RECIPE.dishType);
       expect(http.calls).toHaveLength(0);
     });
 
@@ -739,7 +759,7 @@ describe('SuggestionsService (EF-26)', () => {
         origin: 'Composition',
         region: 'asiatique',
         totalMinutes: 15,
-        difficulty: 'EASY',
+        difficulty: 'EASY', dishType: 'MAIN',
         provenance: 'ai',
         sourceUrl: null,
         steps: ['Cuire le riz nature.'],
@@ -750,7 +770,7 @@ describe('SuggestionsService (EF-26)', () => {
         origin: 'Composition',
         region: 'asiatique',
         totalMinutes: 25,
-        difficulty: 'EASY',
+        difficulty: 'EASY', dishType: 'MAIN',
         provenance: 'ai',
         sourceUrl: null,
         steps: ["Faire revenir le riz à l'huile d'olive avec les légumes."],
@@ -881,7 +901,7 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
         origin: 'Cuisine Test',
         region: 'europeenne',
         totalMinutes: 20,
-        difficulty: 'EASY',
+        difficulty: 'EASY', dishType: 'MAIN',
         provenance: 'web',
         sourceUrl: 'https://192.168.1.50/recette',
         steps: [],
@@ -899,7 +919,7 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
         origin: 'Cuisine Test',
         region: 'europeenne',
         totalMinutes: 20,
-        difficulty: 'EASY',
+        difficulty: 'EASY', dishType: 'MAIN',
         provenance: 'web',
         sourceUrl: `https://${UNREACHABLE_HOST}/injoignable`,
         steps: [],
@@ -918,7 +938,7 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
         origin: 'Composition',
         region: 'asiatique',
         totalMinutes: 15,
-        difficulty: 'EASY',
+        difficulty: 'EASY', dishType: 'MAIN',
         provenance: 'ai',
         sourceUrl: null,
         steps: ['Cuire le riz.', 'Mélanger le tout.'],

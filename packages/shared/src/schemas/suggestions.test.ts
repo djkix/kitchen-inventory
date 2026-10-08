@@ -3,7 +3,7 @@ import { modelBatchSchema, modelRecipeSchema, suggestionQuerySchema, SUGGESTION_
 
 const recette = {
   title: 'Pâtes à la tomate', origin: 'italienne', region: 'mediterraneenne',
-  totalMinutes: 25, difficulty: 'EASY', provenance: 'web',
+  totalMinutes: 25, difficulty: 'EASY', dishType: 'MAIN', provenance: 'web',
   sourceUrl: 'https://exemple.test/pates', steps: [],
   ingredients: [{ label: 'spaghettis', quantity: 200, unit: 'GRAM' }],
 };

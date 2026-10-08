@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiClientError } from '../../lib/api';
@@ -117,7 +117,7 @@ describe('SuggestionsScreen', () => {
             origin: 'italienne',
             region: 'mediterraneenne',
             totalMinutes: 25,
-            difficulty: 'EASY',
+            difficulty: 'EASY', dishType: 'MAIN' as const,
             provenance: 'web',
             sourceUrl: 'https://exemple.test/pates',
             coverage: 1,
@@ -142,6 +142,60 @@ describe('SuggestionsScreen', () => {
 
     // Utile, pas seulement présent : le titre identifie la suggestion, l'état
     // de couverture dit si elle est cuisinable maintenant avec le stock réel.
-    expect(screen.getByRole('button', { name: 'Pâtes à la tomate, Prête à 100 %' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pâtes à la tomate, Plat, Prête à 100 %' })).toBeTruthy();
+  });
+
+  it('filtre la fournée sur le type de plat, et propose une relance quand il ne reste rien', () => {
+    // Le filtre est gratuit : il s'applique sur les recettes déjà chargées.
+    // La relance, elle, coûte un appel — elle reste donc un geste explicite,
+    // jamais déclenchée toute seule (choix de Franck du 2026-10-08).
+    const base = {
+      origin: 'italienne',
+      region: 'mediterraneenne',
+      totalMinutes: 25,
+      difficulty: 'EASY',
+      provenance: 'web',
+      sourceUrl: 'https://exemple.test/x',
+      coverage: 1,
+      group: 'ready',
+      missingLabels: [],
+      ingredients: [],
+    };
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      data: {
+        batchId: 'batch-1',
+        notice: null,
+        items: [
+          { ...base, id: 's1', title: 'Pâtes à la tomate', dishType: 'MAIN' },
+          { ...base, id: 's2', title: 'Salade de tomates', dishType: 'STARTER' },
+        ],
+      },
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText('Pâtes à la tomate')).toBeTruthy();
+    expect(screen.getByText('Salade de tomates')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Entrée' }));
+    expect(screen.queryByText('Pâtes à la tomate')).toBeNull();
+    expect(screen.getByText('Salade de tomates')).toBeTruthy();
+
+    // Un type absent de la fournée : la liste se vide, et l'écran explique quoi faire.
+    fireEvent.click(screen.getByRole('button', { name: 'Dessert' }));
+    expect(screen.queryByText('Salade de tomates')).toBeNull();
+    expect(screen.getByRole('button', { name: /Chercher des desserts/i })).toBeTruthy();
   });
 });

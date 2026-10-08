@@ -1,9 +1,12 @@
 import {
   DIFFICULTY_LABELS_FR,
+  DISH_TYPES,
+  DISH_TYPE_LABELS_FR,
   SUGGESTION_DURATIONS,
   SUGGESTION_REGIONS,
   SUGGESTION_REGION_LABELS_FR,
   type Difficulty,
+  type DishType,
   type SuggestionDuration,
   type SuggestionRegion,
 } from '@kitchen/shared';
@@ -16,6 +19,9 @@ const DIFFICULTIES = Object.keys(DIFFICULTY_LABELS_FR) as Difficulty[];
 interface OrientationBarProps {
   value: SuggestionOrientation;
   onChange: (value: SuggestionOrientation) => void;
+  /** Filtre d'écran, local : il ne part pas au serveur et ne relance rien. */
+  dishType: DishType | undefined;
+  onDishTypeChange: (dishType: DishType | undefined) => void;
 }
 
 /** Nombre de dimensions actives (B9) : une orientation vide équivaut à la fournée de base. */
@@ -33,17 +39,24 @@ export function countActiveOrientation(value: SuggestionOrientation): number {
  * simple filtrage de ce qui est déjà affiché — la cascade ne peut pas promettre
  * une recette asiatique si le lot courant n'en contenait aucune.
  *
+ * Le type de plat fait exception, et vient en premier (demande de Franck du
+ * 2026-10-08) : Gemini classe les douze recettes de la fournée, le filtre
+ * s'applique donc sur ce qui est déjà chargé, sans appel ni dépense. Quand il
+ * ne laisse rien, l'écran propose une relance explicite plutôt que de partir
+ * chercher tout seul.
+ *
  * Choix laissé au jugement (le cahier des charges ne tranche pas) : une seule
  * valeur active par dimension, pas un multi-choix — cohérent avec
  * `SuggestionOrientation`, où `region`, `maxMinutes` et `difficulty` sont chacun
  * un champ scalaire facultatif, pas un tableau. Cliquer la valeur déjà active la
  * désélectionne (retour à « pas de contrainte » sur cette seule dimension).
  */
-export function OrientationBar({ value, onChange }: OrientationBarProps) {
+export function OrientationBar({ value, onChange, dishType, onDishTypeChange }: OrientationBarProps) {
   const activeCount = countActiveOrientation(value);
 
   const clear = () => {
     onChange({ ...value, region: undefined, maxMinutes: undefined, difficulty: undefined });
+    onDishTypeChange(undefined);
   };
 
   const setRegion = (region: SuggestionRegion) => {
@@ -68,6 +81,15 @@ export function OrientationBar({ value, onChange }: OrientationBarProps) {
           Tout effacer
         </button>
       </div>
+
+      {/* Premier de la liste : c'est la question posée avant toutes les autres — entrée, plat ou dessert. */}
+      <ChipRow label="Type de plat">
+        {DISH_TYPES.map((type) => (
+          <Chip key={type} active={dishType === type} onClick={() => onDishTypeChange(dishType === type ? undefined : type)}>
+            {DISH_TYPE_LABELS_FR[type]}
+          </Chip>
+        ))}
+      </ChipRow>
 
       {/* Par région, jamais par pays (B10) : le pays reste affiché sur la carte, seule la région se choisit ici. */}
       <ChipRow label="Région">

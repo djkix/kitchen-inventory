@@ -1,4 +1,4 @@
-import { DIFFICULTY_LABELS_FR, modelBatchSchema, SUGGESTION_REGION_LABELS_FR, UNITS, type ModelBatch } from '@kitchen/shared';
+import { DIFFICULTY_LABELS_FR, DISH_TYPE_LABELS_FR, DISH_TYPES, modelBatchSchema, SUGGESTION_REGION_LABELS_FR, UNITS, type ModelBatch } from '@kitchen/shared';
 import type { SuggestionRequest } from './suggestion-provider.js';
 
 /** Système : cadre le rôle, rappelé à chaque appel (nouveau ou reprise). */
@@ -40,11 +40,14 @@ export function buildSuggestionPrompt(req: SuggestionRequest, options: { retry?:
   if (req.region) lines.push(`Oriente ${webSearch ? 'la recherche' : 'tes propositions'} vers la cuisine ${SUGGESTION_REGION_LABELS_FR[req.region]}.`);
   if (req.maxMinutes) lines.push(`Chaque recette doit se faire en ${req.maxMinutes} minutes maximum au total.`);
   if (req.difficulty) lines.push(`Niveau de difficulté visé : ${DIFFICULTY_LABELS_FR[req.difficulty]}.`);
+  if (req.dishType) lines.push(`Ne propose que des recettes de type « ${DISH_TYPE_LABELS_FR[req.dishType]} ».`);
   lines.push(
     'Réponds par un objet JSON unique de la forme { "recipes": [ ... ] }.',
     'Chaque recette porte : title, origin (nom du site ou "Composition" pour une création), region (une valeur parmi : ' +
       Object.keys(SUGGESTION_REGION_LABELS_FR).join(', ') +
-      '), totalMinutes (entier), difficulty (une valeur parmi VERY_EASY, EASY, INTERMEDIATE, HARD), provenance ("web" ou "ai"), sourceUrl (URL https pour "web", null pour "ai"), steps (liste d\'étapes, au moins une pour "ai"), ingredients (liste de { label, quantity, unit }, quantity et unit pouvant être null, unit parmi : ' +
+      '), totalMinutes (entier), difficulty (une valeur parmi VERY_EASY, EASY, INTERMEDIATE, HARD), dishType (une valeur parmi ' +
+      DISH_TYPES.join(', ') +
+      '), provenance ("web" ou "ai"), sourceUrl (URL https pour "web", null pour "ai"), steps (liste d\'étapes, au moins une pour "ai"), ingredients (liste de { label, quantity, unit }, quantity et unit pouvant être null, unit parmi : ' +
       UNITS.join(', ') +
       ').',
     'Aucun texte, aucune explication, aucune clôture de bloc de code autour de cet objet JSON.',
