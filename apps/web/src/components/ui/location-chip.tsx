@@ -1,22 +1,28 @@
+import type { ComponentType } from 'react';
 import { cn } from '../../lib/cn';
+import { DropletIcon, SnowflakeIcon, SunIcon, type IconProps } from './icons';
 
 type Temperature = 'ambient' | 'chilled' | 'frozen' | null;
 
 /**
  * Trois jeux de classes distincts par température, plus un repli neutre pour
- * `null`. La palette du thème (`styles.css`) ne réserve qu'une seule teinte
- * hors nuances de gris (`accent`, céladon) — les trois autres couleurs
- * (`danger`, `warn`, `soon`) sont explicitement réservées à la péremption, pas
- * disponibles ici sans brouiller leur sens ailleurs dans l'application.
- * `chilled` reprend donc la teinte `accent` (le froid lui va), `ambient` et
- * `frozen` se distinguent par deux nuances de gris du thème plutôt que
- * d'inventer une couleur hors palette.
+ * `null` — ni la couleur ni la forme ne portent seules l'information
+ * (Franck, round de correction 1) : chaque température a sa propre teinte
+ * (`--color-chilled`/`--color-frozen`, ajoutées au thème dans `styles.css`,
+ * distinctes des couleurs de péremption `danger`/`warn`/`soon`) et son propre
+ * pictogramme décoratif (`aria-hidden`, porté par `icons.tsx`).
+ *
+ * La pastille doit se détacher de SES DEUX conteneurs connus
+ * (`recipe-screen.tsx` : `bg-surface`, `suggestion-sheet.tsx` : `bg-raised`) —
+ * d'où `ambient`, resté neutre, qui se distingue par une bordure plutôt qu'un
+ * fond, et `bg-ink`, le plus sombre du thème, jamais utilisé comme fond de
+ * conteneur de liste.
  */
-const TEMPERATURE_LOOK: Record<NonNullable<Temperature> | 'unknown', string> = {
-  ambient: 'bg-surface text-muted',
-  chilled: 'bg-accent-deep text-accent',
-  frozen: 'bg-line text-fg',
-  unknown: 'bg-surface text-faint',
+const TEMPERATURE_LOOK: Record<NonNullable<Temperature> | 'unknown', { classes: string; Icon: ComponentType<IconProps> | null }> = {
+  ambient: { classes: 'border border-line bg-ink text-muted', Icon: SunIcon },
+  chilled: { classes: 'bg-chilled-deep text-chilled', Icon: DropletIcon },
+  frozen: { classes: 'bg-frozen-deep text-frozen', Icon: SnowflakeIcon },
+  unknown: { classes: 'border border-line bg-ink text-faint', Icon: null },
 };
 
 interface LocationChipProps {
@@ -26,11 +32,16 @@ interface LocationChipProps {
 
 /**
  * Pastille nommant un emplacement (EF-23). La couleur ne porte jamais seule
- * l'information : le nom de l'emplacement est toujours écrit dans la pastille.
+ * l'information : le nom de l'emplacement est toujours écrit dans la pastille,
+ * et le pictogramme de température (décoratif, `aria-hidden`) se lit avant la
+ * couleur et de plus loin.
  */
 export function LocationChip({ name, temperature }: LocationChipProps) {
-  const look = TEMPERATURE_LOOK[temperature ?? 'unknown'];
+  const { classes, Icon } = TEMPERATURE_LOOK[temperature ?? 'unknown'];
   return (
-    <span className={cn('inline-flex max-w-full items-center truncate rounded-full px-2 py-0.5 text-[12px]', look)}>{name}</span>
+    <span className={cn('inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[12px]', classes)}>
+      {Icon && <Icon size={13} className="shrink-0" />}
+      <span className="truncate">{name}</span>
+    </span>
   );
 }

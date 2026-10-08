@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react';
 
-type IconProps = SVGProps<SVGSVGElement> & { size?: number };
+export type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
 function Svg({ size = 22, children, ...rest }: IconProps) {
   return (
@@ -124,5 +124,25 @@ export const WarningIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M12 3.5 22 20H2z" />
     <path d="M12 10v4.5M12 17.5h.01" />
+  </Svg>
+);
+/** Emplacement ambiant (pastille de température, EF-23) : la forme se lit avant la couleur. */
+export const SunIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.5v2.5M12 19v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M2.5 12H5M19 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8" />
+  </Svg>
+);
+/** Emplacement frais (pastille de température, EF-23). */
+export const DropletIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 2.5s6.5 7.1 6.5 11.5a6.5 6.5 0 1 1-13 0C5.5 9.6 12 2.5 12 2.5z" />
+  </Svg>
+);
+/** Emplacement congelé (pastille de température, EF-23). */
+export const SnowflakeIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 2.5v19M4 7l16 10M20 7 4 17" />
+    <path d="M12 2.5 9.8 4.7M12 2.5l2.2 2.2M12 21.5l-2.2-2.2M12 21.5l2.2-2.2M4 7l.3-3M4 7l3-.3M20 7l-3-.3M20 7l-.3-3M4 17l3 .3M4 17l.3 3M20 17l-.3 3M20 17l-3 .3" />
   </Svg>
 );
