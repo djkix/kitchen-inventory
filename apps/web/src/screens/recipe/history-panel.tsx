@@ -65,7 +65,7 @@ export function HistoryPanel({ stats, logs, currentUserId, hasNextPage, isFetchi
                   <Button
                     variant="ghost"
                     size="sm"
-                    aria-label="Supprimer cette réalisation"
+                    aria-label={`Supprimer la réalisation du ${formatDateTime(log.cookedAt)}`}
                     loading={deletingLogId === log.id}
                     onClick={() => onDelete(log)}
                     className="shrink-0 text-danger"

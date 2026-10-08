@@ -122,4 +122,15 @@ describe('RecipeScreen', () => {
     expect(screen.getByRole('button', { name: /Noter la réalisation du .*5 oct/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Noter la réalisation du .*1 oct/i })).toBeTruthy();
   });
+
+  it('distingue aussi les boutons de suppression, un par réalisation', () => {
+    // Même raison que pour « Noter » : plusieurs boutons au nom identique dans
+    // une liste ne se distinguent pas au lecteur d'écran, et une suppression
+    // n'est pas une action qu'on veut déclencher sur la mauvaise ligne.
+    renderRecipeScreen();
+    const boutons = screen.getAllByRole('button', { name: /^Supprimer la réalisation du / });
+    const noms = boutons.map((b) => b.getAttribute('aria-label'));
+    expect(noms.length).toBeGreaterThan(1);
+    expect(new Set(noms).size).toBe(noms.length);
+  });
 });
