@@ -592,17 +592,27 @@ export class SuggestionsService {
     }
 
     const ingredients = await this.attachProducts(rawIngredients);
+    // Les durées annoncées par le modèle restent crédibles (seule la difficulté
+    // est recalculée au barème du foyer, B15). `prepMinutes`/`cookMinutes`
+    // viennent de la suggestion d'origine, jamais de la réécriture (tâche 9,
+    // B6) : celle-ci ne porte que titre, étapes et ingrédients.
+    //
+    // `prepMinutes`/`cookMinutes` sont `nullable` au schéma (fixture
+    // `gemini-batch-absent.json`) : avant la ventilation prep/cuisson,
+    // `prepMinutes` recevait `suggestion.totalMinutes`, qui lui reste
+    // obligatoire et positif. Sans repli ici, une suggestion sans détail
+    // perdrait silencieusement toute durée en arrivant dans « Mes recettes »
+    // (carte, filtre « temps maximum », difficulté recalculée un cran trop
+    // bas — `difficulty.ts` lit `prepMinutes ?? 0`) alors que la fournée
+    // portait bien une durée totale.
+    const hasDetailedDuration = suggestion.prepMinutes !== null || suggestion.cookMinutes !== null;
     const draft = {
       title,
       servings: 4,
       steps,
       diets: [],
-      // Les durées annoncées par le modèle restent crédibles (seule la difficulté
-      // est recalculée au barème du foyer, B15). `prepMinutes`/`cookMinutes`
-      // viennent de la suggestion d'origine, jamais de la réécriture (tâche 9,
-      // B6) : celle-ci ne porte que titre, étapes et ingrédients.
-      prepMinutes: suggestion.prepMinutes,
-      cookMinutes: suggestion.cookMinutes,
+      prepMinutes: hasDetailedDuration ? suggestion.prepMinutes : suggestion.totalMinutes,
+      cookMinutes: hasDetailedDuration ? suggestion.cookMinutes : null,
       // Le classement du modèle suit la recette conservée : « Mes recettes »
       // filtre sur le même vocabulaire, une suggestion gardée n'a pas à être
       // reclassée à la main (demande du 2026-10-08).
