@@ -84,6 +84,9 @@ export class RecipesService {
       const tags = query.tag;
       summaries = summaries.filter((s) => tags.some((tag) => s.stats.tags.includes(tag)));
     }
+    if (query.cooked) {
+      summaries = summaries.filter((s) => s.stats.timesCooked > 0);
+    }
     if (query.group?.length) {
       const groups = query.group;
       summaries = summaries.filter((s) => groups.includes(s.group));

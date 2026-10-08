@@ -586,6 +586,18 @@ describe('recettes (EF-17, EF-21)', () => {
       expect((await agent.get('/api/v1/recipes?tag=never').expect(200)).body.items.map((r: { title: string }) => r.title)).toEqual(['Jamais faite']);
     });
 
+    it('filtre « Déjà faites » sur stats.timesCooked > 0 (EF-21)', async () => {
+      const faite = await createRecipe(agent, 'Faite une fois', []);
+      await createRecipe(agent, 'Jamais réalisée', []);
+      await logCooked(agent, faite.id);
+
+      const res = await agent.get('/api/v1/recipes?cooked=true').expect(200);
+      expect(res.body.items.map((r: { title: string }) => r.title)).toEqual(['Faite une fois']);
+      // Le défaut (`cooked` absent) ne doit exclure personne.
+      const tout = await agent.get('/api/v1/recipes').expect(200);
+      expect(tout.body.items.map((r: { title: string }) => r.title).sort()).toEqual(['Faite une fois', 'Jamais réalisée']);
+    });
+
     it('filtre sur une note minimale', async () => {
       const haute = await createRecipe(agent, 'Haute note', []);
       const log = await logCooked(agent, haute.id);
