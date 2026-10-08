@@ -222,6 +222,14 @@ export interface SuggestionDto {
   dishType: z.infer<typeof dishTypeSchema>;
   provenance: 'web' | 'ai';
   sourceUrl: string | null;
+  /**
+   * Étapes de préparation — jamais garanties fiables pour une recette `web` :
+   * le modèle les propose sans avoir lu la page (B6, EF-25). Le tiroir
+   * (tâche 6) n'en affiche donc le contenu que pour une composition `ai` ;
+   * pour `web`, ce tableau reste vide et l'écran annonce que le détail
+   * viendra avec la conservation plutôt que de prétendre qu'il manque.
+   */
+  steps: string[];
   ingredients: SuggestionIngredientDto[];
   coverage: number;
   group: CoverageGroup;

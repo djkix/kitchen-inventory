@@ -25,11 +25,16 @@ interface SuggestionSheetProps {
 }
 
 /**
- * Fiche d'une suggestion (section 12, EF-25, EF-26) : ingrédients et leur état
- * face au stock, origine, durée, difficulté et provenance — jamais d'étapes,
- * qui ne doivent se lire qu'une fois la recette conservée (B7). Une seule
- * action : conserver, qui déclenche côté serveur la récupération de la page
- * et sa réécriture par Gemini (B6), d'où l'attente explicite pendant l'appel.
+ * Fiche d'une suggestion (section 12, EF-25, EF-26, E2) : ingrédients et leur
+ * état face au stock, origine, durée, difficulté et provenance. Le geste
+ * principal n'est plus de conserver mais de consulter — « Plus
+ * d'informations » déplie le détail (étapes comprises pour une composition
+ * `ai`, déjà dans la fournée) ; la conservation ne s'affiche qu'ensuite,
+ * devenue une action secondaire. Pour une recette `web`, les étapes ne sont
+ * jamais devinées ici : la page n'est lue qu'à la conservation (B6), et la
+ * fiche l'annonce honnêtement plutôt que de laisser croire à un oubli (B7).
+ * La conservation déclenche côté serveur la récupération de la page et sa
+ * réécriture par Gemini, d'où l'attente explicite pendant l'appel.
  *
  * `clientOpId` est **déterministe** (round 1 de revue) — dérivé du lot et de
  * la suggestion, jamais tiré au hasard : un identifiant aléatoire régénéré à
@@ -52,9 +57,17 @@ export function SuggestionSheet({ suggestion, batchId, open, onClose, keep = sug
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Replié à l'ouverture : seul « Plus d'informations » est visible tant que
+  // Franck n'a pas demandé le détail. Reconduit à chaque réouverture, même sur
+  // la même suggestion — un échec de conservation ne doit pas faire sauter ce
+  // premier geste de consultation au prochain essai.
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    if (open) setError(null);
+    if (open) {
+      setError(null);
+      setExpanded(false);
+    }
   }, [open, suggestion?.id]);
 
   if (!suggestion) return null;
@@ -139,21 +152,67 @@ export function SuggestionSheet({ suggestion, batchId, open, onClose, keep = sug
 
         {suggestion.missingLabels.length > 0 && <p className="text-[13px] text-faint">Manque : {suggestion.missingLabels.join(', ')}</p>}
 
-        {busy && (
-          <p role="status" aria-live="polite" className="text-[13px] text-muted">
-            Extraction de la recette en cours… cela peut prendre plusieurs secondes.
-          </p>
+        {!expanded && (
+          <Button variant="primary" block onClick={() => setExpanded(true)}>
+            Plus d’informations
+          </Button>
         )}
 
-        {error && (
-          <p role="alert" className="text-[13px] text-danger">
-            {error}
-          </p>
-        )}
+        {expanded && (
+          <>
+            {(suggestion.prepMinutes !== null || suggestion.cookMinutes !== null) && (
+              <p className="flex flex-wrap gap-x-4 gap-y-0.5 text-[13px] text-muted">
+                {suggestion.prepMinutes !== null && (
+                  <span>
+                    Préparation : <span className="tnum text-fg">{formatMinutes(suggestion.prepMinutes)}</span>
+                  </span>
+                )}
+                {suggestion.cookMinutes !== null && (
+                  <span>
+                    Cuisson : <span className="tnum text-fg">{formatMinutes(suggestion.cookMinutes)}</span>
+                  </span>
+                )}
+              </p>
+            )}
 
-        <Button variant="primary" block loading={busy} disabled={busy} onClick={() => void confirm()}>
-          Conserver
-        </Button>
+            {suggestion.provenance === 'ai' ? (
+              <section>
+                <h2 className="mb-2 px-1 text-[13px] font-semibold text-muted">Étapes</h2>
+                <ol className="flex flex-col gap-3 rounded-card bg-raised px-4 py-3">
+                  {suggestion.steps.map((step, index) => (
+                    <li key={index} className="flex gap-3 text-[15px] leading-snug">
+                      <span className="tnum shrink-0 font-semibold text-accent">{index + 1}</span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ) : (
+              // Honnête, pas un aveu de manque : la page de cette recette n'est
+              // récupérée et réécrite qu'au moment de la conservation (B6), donc
+              // ses étapes ne sont tout simplement pas encore là.
+              <p className="rounded-card bg-raised px-4 py-3 text-[13px] text-muted">
+                Le détail des étapes n’est pas encore disponible : il viendra avec la conservation, qui récupère et réécrit la recette complète.
+              </p>
+            )}
+
+            {busy && (
+              <p role="status" aria-live="polite" className="text-[13px] text-muted">
+                Extraction de la recette en cours… cela peut prendre plusieurs secondes.
+              </p>
+            )}
+
+            {error && (
+              <p role="alert" className="text-[13px] text-danger">
+                {error}
+              </p>
+            )}
+
+            <Button variant="secondary" block loading={busy} disabled={busy} onClick={() => void confirm()}>
+              Conserver
+            </Button>
+          </>
+        )}
       </div>
     </Sheet>
   );
