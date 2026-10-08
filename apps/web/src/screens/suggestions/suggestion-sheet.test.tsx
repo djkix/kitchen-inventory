@@ -20,6 +20,9 @@ const suggestion: SuggestionDto = {
   coverage: 0.8,
   group: 'almost',
   missingLabels: ['Farine'],
+  // Jamais d'étapes pour une suggestion `web` : la page n'est lue qu'à la
+  // conservation (B6) — voir `suggestions.service.ts#toSuggestionDtos`.
+  steps: [],
   ingredients: [
     {
       label: 'Crème', quantity: 200, unit: 'MILLILITER', match: 'probable', productId: 'p1', productName: 'Crème fraîche épaisse 30%',
@@ -34,6 +37,16 @@ const suggestion: SuggestionDto = {
       state: 'missing', productImagePath: null, locationName: null, locationTemperature: null,
     },
   ],
+};
+
+/** Composition par le modèle (B6) : ses étapes sont déjà dans la fournée, affichables sans attendre la conservation. */
+const aiSuggestion: SuggestionDto = {
+  ...suggestion,
+  id: 's2',
+  title: 'Gratin improvisé',
+  provenance: 'ai',
+  sourceUrl: null,
+  steps: ['Préchauffer le four à 200 °C.', 'Mélanger les ingrédients et enfourner 25 minutes.'],
 };
 
 const recipe: RecipeDto = { id: 'r1' } as RecipeDto;
@@ -63,6 +76,11 @@ function renderSheet(props: Partial<ComponentProps<typeof SuggestionSheet>> = {}
   return { onClose, keep, setOpen };
 }
 
+/** Déplie la fiche : seul geste qui fait apparaître « Conserver » (E2). */
+function expand() {
+  fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
+}
+
 describe('SuggestionSheet', () => {
   it('détaille les ingrédients et leur état', () => {
     renderSheet();
@@ -77,15 +95,43 @@ describe('SuggestionSheet', () => {
     expect(screen.getByText(/«\s*Crème\s*».*→.*«\s*Crème fraîche épaisse 30%\s*»/)).toBeTruthy();
   });
 
-  it('n’affiche pas d’étapes (B7)', () => {
+  it('intitule le bouton principal « Plus d’informations », sans « Conserver » tant qu’on ne l’a pas ouvert (E2)', () => {
     renderSheet();
+    expect(screen.getByRole('button', { name: /Plus d’informations/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Conserver$/ })).toBeNull();
+    // Avant dépliage, rien ne mentionne non plus les étapes — ni vraies ni
+    // notice d'indisponibilité : ce contenu n'apparaît qu'après le geste de
+    // consultation, pas avant.
     expect(screen.queryByText(/étape/i)).toBeNull();
+  });
+
+  it('propose la conservation une fois les informations affichées', () => {
+    renderSheet();
+    expand();
+    expect(screen.getByRole('button', { name: 'Conserver' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Plus d’informations/i })).toBeNull();
+  });
+
+  it('affiche les étapes d’une composition de l’IA une fois dépliée, déjà dans la fournée', () => {
+    renderSheet({ suggestion: aiSuggestion });
+    expand();
+    expect(screen.getByText('Préchauffer le four à 200 °C.')).toBeTruthy();
+    expect(screen.getByText('Mélanger les ingrédients et enfourner 25 minutes.')).toBeTruthy();
+  });
+
+  it('n’invente jamais les étapes d’une recette web et annonce qu’elles viendront avec la conservation (B7)', () => {
+    renderSheet();
+    expand();
+    // Pas de fausses étapes : seule l'annonce honnête de leur indisponibilité
+    // avant la conservation (la page n'est lue qu'à ce moment-là, B6).
+    expect(screen.getByText(/détail des étapes.*viendra avec la conservation/i)).toBeTruthy();
   });
 
   it('conserve la recette et annonce l’attente pendant l’extraction', async () => {
     let resolveKeep: (recipe: RecipeDto) => void = () => {};
     const keep = vi.fn().mockImplementation(() => new Promise<RecipeDto>((resolve) => (resolveKeep = resolve)));
     const { onClose } = renderSheet({ keep });
+    expand();
 
     fireEvent.click(screen.getByRole('button', { name: 'Conserver' }));
 
@@ -101,6 +147,7 @@ describe('SuggestionSheet', () => {
     const message = 'La page de la recette n’a pas répondu à temps';
     const keep = vi.fn().mockRejectedValue(new ApiClientError(502, 'provider_unavailable', message));
     renderSheet({ keep });
+    expand();
 
     fireEvent.click(screen.getByRole('button', { name: 'Conserver' }));
 
@@ -112,6 +159,7 @@ describe('SuggestionSheet', () => {
     const message = 'La page de la recette n’a pas répondu à temps';
     const keep = vi.fn().mockRejectedValueOnce(new ApiClientError(502, 'provider_unavailable', message)).mockResolvedValueOnce(recipe);
     renderSheet({ keep });
+    expand();
 
     const button = () => screen.getByRole('button', { name: 'Conserver' });
 
@@ -137,14 +185,18 @@ describe('SuggestionSheet', () => {
     const message = 'La page de la recette n’a pas répondu à temps';
     const keep = vi.fn().mockRejectedValueOnce(new ApiClientError(502, 'provider_unavailable', message)).mockResolvedValueOnce(recipe);
     const { setOpen } = renderSheet({ keep });
+    expand();
 
     fireEvent.click(screen.getByRole('button', { name: 'Conserver' }));
     await waitFor(() => expect(screen.getByText(message)).toBeTruthy());
 
     // Parcours de récupération naturel après un échec : fermer, puis rouvrir
-    // la même suggestion pour réessayer.
+    // la même suggestion pour réessayer. La fiche se replie à la réouverture
+    // (nouvel effet de bord assumé, tâche 6) : il faut rouvrir le détail
+    // avant de retrouver « Conserver ».
     setOpen(false);
     setOpen(true);
+    expand();
 
     fireEvent.click(screen.getByRole('button', { name: 'Conserver' }));
     await waitFor(() => expect(keep).toHaveBeenCalledTimes(2));

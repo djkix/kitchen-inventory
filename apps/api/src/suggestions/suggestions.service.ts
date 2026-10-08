@@ -470,6 +470,11 @@ export class SuggestionsService {
         dishType: recipe.dishType,
         provenance: recipe.provenance,
         sourceUrl: recipe.sourceUrl,
+        // Jamais les étapes d'une recette `web` : le modèle les propose sans
+        // avoir lu la page, seule la conservation (réécriture Gemini de la
+        // page réelle, B6) en garantit le contenu. Une composition `ai` n'a
+        // pas cette réserve : ses étapes SONT la recette, déjà dans la fournée.
+        steps: recipe.provenance === 'ai' ? recipe.steps : [],
         ingredients: ingredientDtos,
         coverage: coverage.coverage,
         group: coverage.group,
