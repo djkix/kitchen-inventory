@@ -164,10 +164,14 @@ retire la retire pour tout le monde. Elle se coche aussi bien sur la fiche que
 sur chaque carte de « Mes recettes », indépendamment de la note : on peut
 adorer une recette compliquée sans vouloir la refaire chaque semaine, et
 marquer une recette banale qu'on fait tout le temps. La fiche porte en plus
-cinq étoiles de **note directe**, posables et retirables sans qu'aucune
+cinq étoiles de « **Note du foyer** », posables et retirables sans qu'aucune
 réalisation n'ait jamais été enregistrée — jusque-là, noter une recette
 supposait d'avoir d'abord coché une cuisson, ce qui laissait beaucoup de
-recettes sans aucun moyen de les noter. **Règle de préséance**, partout où une
+recettes sans aucun moyen de les noter. Comme le favori, cette note directe
+est **partagée par le foyer** plutôt qu'attribuée à chacun : un membre la
+corrige, un autre peut la remplacer sans qu'aucune trace ne distingue qui l'a
+posée en dernier — contrairement à la note par réalisation, qui reste nominative
+et conservée par membre dans l'historique. **Règle de préséance**, partout où une
 note s'affiche (carte, fiche, tri par note) : la note directe prime quand elle
 existe ; sinon la moyenne des réalisations prend le relais ; si ni l'une ni
 l'autre n'existe, rien ne s'affiche — jamais deux chiffres concurrents sous les

@@ -197,11 +197,15 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   const mine = ratingLog?.ratings.find((rating) => rating.userId === auth.user?.id) ?? null;
 
   // La note affichée passe toujours par `effectiveRating` (D3, A5) : jamais
-  // la préséance recalculée à la main ici. `StarRating` n'accepte qu'un entier
-  // de 1 à 5 ; la moyenne des réalisations (ex. 4,3) y est donc arrondie pour
-  // le seul affichage — l'écriture, elle, ne porte jamais que sur `rating`.
+  // la préséance recalculée à la main ici. Le `radiogroup` ne montre une
+  // étoile cochée QUE pour une note directe : une moyenne de réalisations
+  // (ex. 4,3) arrondie dans un contrôle à cinq étoiles cocherait une étoile
+  // que personne n'a posée, et re-taper cette même étoile la convertirait
+  // silencieusement en note directe sans que rien ne le signale (revue
+  // finale du 2026-10-08). La moyenne reste lisible ailleurs — carte, phrase
+  // sous les étoiles — jamais recalculée ici en nombre entier approximatif.
   const effective = effectiveRating(recipe.rating, recipe.stats.averageRating);
-  const ratingDisplay = effective.value === null ? null : Math.min(5, Math.max(1, Math.round(effective.value)));
+  const ratingDisplay = effective.source === 'direct' ? effective.value : null;
 
   // Un seul nombre de parts du début à la fin (F4) : ce ratio sert à la fois
   // à l'affichage des quantités de la fiche et à l'initialisation du tiroir
@@ -239,7 +243,10 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
         {/* Favori et note directe (A1-A3, D1-D5) : utilisables sans réalisation enregistrée. */}
         <section className="flex items-center justify-between gap-3 rounded-card bg-surface px-4 py-3">
           <div className="flex min-w-0 flex-col gap-1.5">
-            <p className="text-[13px] font-semibold text-muted">Ma note</p>
+            {/* « Note du foyer », pas « Ma note » (revue finale du 2026-10-08) :
+                `Recipe.rating` n'a pas de `userId`, exactement comme le favori
+                (D4) — un membre écrase la note d'un autre sans aucun signe. */}
+            <p className="text-[13px] font-semibold text-muted">Note du foyer</p>
             <StarRating value={ratingDisplay} onChange={(stars) => void setDirectRating(stars)} disabled={busy === 'rating'} />
             {effective.source === 'cooked' && (
               <p className="text-[12px] text-muted">Moyenne des réalisations : posez une note pour la remplacer.</p>

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   computeDifficulty,
+  effectiveRating,
   isUsableForRecipes,
   normalizeProductName,
   recipeCoverage,
@@ -81,7 +82,13 @@ export class RecipesService {
     }
     if (query.minRating !== undefined) {
       const minRating = query.minRating;
-      summaries = summaries.filter((s) => s.stats.averageRating !== null && s.stats.averageRating >= minRating);
+      // Passe par `effectiveRating` (D3, A5) : une recette notée directement
+      // doit filtrer et s'afficher sur la même valeur, jamais la moyenne des
+      // réalisations recalculée à part ici.
+      summaries = summaries.filter((s) => {
+        const { value } = effectiveRating(s.rating, s.stats.averageRating);
+        return value !== null && value >= minRating;
+      });
     }
     if (query.tag?.length) {
       const tags = query.tag;

@@ -247,7 +247,18 @@ test('bascule le favori d’une carte sans naviguer vers la fiche (EF-21)', asyn
 
   const star = page.getByRole('button', { name: 'Favori : Croque-monsieur' });
   await expect(star).toHaveAttribute('aria-pressed', 'false');
-  await star.click();
+
+  // Attend le PATCH déclenché par le clic (revue finale du 2026-10-08) :
+  // `recipes-screen.tsx` lit `filters` pour construire la requête `GET
+  // /recipes`, pas `debouncedFilters` — rien n'empêche donc le `GET
+  // ?favorite=true` du clic sur la pastille, juste après, de partir avant que
+  // ce PATCH ne soit commis en base. Sans cette attente, la liste reviendrait
+  // parfois vide selon l'ordre d'arrivée des deux requêtes : un échec invisible
+  // en local, qui n'apparaîtrait qu'en CI après fusion.
+  await Promise.all([
+    page.waitForResponse((candidate) => /\/api\/v1\/recipes\/[^/]+$/.test(candidate.url()) && candidate.request().method() === 'PATCH'),
+    star.click(),
+  ]);
 
   // Le favori a changé (état annoncé, forme de l'étoile) et la page n'a pas
   // navigué vers la fiche de la recette : la preuve que le clic est resté sur

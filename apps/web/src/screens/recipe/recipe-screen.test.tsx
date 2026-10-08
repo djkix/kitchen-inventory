@@ -285,6 +285,28 @@ describe('RecipeScreen', () => {
     expect(vi.mocked(recipesApi.updateRecipe)).toHaveBeenCalledWith('r1', { rating: null });
   });
 
+  // Correctif de revue (2026-10-08, A5) : une moyenne de réalisations ne doit
+  // JAMAIS cocher une étoile du radiogroup — sinon re-taper cette étoile
+  // semblerait ne rien faire alors qu'elle convertirait silencieusement une
+  // moyenne en note directe. Les étoiles restent vides, le chiffre reste
+  // lisible dans la phrase en dessous.
+  it('laisse les étoiles vides quand la seule note vient de la moyenne des réalisations', () => {
+    vi.mocked(useAuth).mockReturnValue(AUTHENTICATED_AUTH);
+    vi.mocked(useRecipeQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { ...recipe, rating: null, stats: { ...recipe.stats, averageRating: 4.3, ratingCount: 3 } },
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRecipeQuery>);
+    vi.mocked(useRecipeLogsInfiniteQuery).mockReturnValue(EMPTY_LOGS_QUERY);
+    renderWith();
+
+    for (const star of [1, 2, 3, 4, 5]) {
+      expect(screen.getByRole('radio', { name: `${star} étoile${star > 1 ? 's' : ''}` }).getAttribute('aria-checked')).toBe('false');
+    }
+    expect(screen.getByText('Moyenne des réalisations : posez une note pour la remplacer.')).toBeTruthy();
+  });
+
   // Sans note directe ni réalisation notée, rien à retirer : le bouton ne s'affiche pas.
   it('ne propose pas de retirer une note qui n’existe pas', () => {
     renderRecipeScreen();

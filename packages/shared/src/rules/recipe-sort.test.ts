@@ -35,6 +35,15 @@ describe('sortRecipes', () => {
     // La note directe (2) prime : la recette se classe moins bien que celle à 3 malgré une moyenne de réalisations à 5.
     expect(titles(sortRecipes(list, 'rating'))).toEqual(['Sans note', 'Avec les deux']);
   });
+  it('à note effective égale, ne pénalise pas une note directe faute de réalisations (correctif de revue)', () => {
+    const list = [
+      // Sans le correctif, le départage par `ratingCount` (0 contre 50) ferait
+      // passer « Z notée par réalisations » devant, malgré le titre.
+      r('Z notée par réalisations', { averageRating: 5, ratingCount: 50 }),
+      r('A notée directement', { rating: 5 }),
+    ];
+    expect(titles(sortRecipes(list, 'rating'))).toEqual(['A notée directement', 'Z notée par réalisations']);
+  });
   it('départage par le titre, accents compris', () => {
     expect(titles(sortRecipes([r('Éclair'), r('Dessert')], 'rating'))).toEqual(['Dessert', 'Éclair']);
   });
