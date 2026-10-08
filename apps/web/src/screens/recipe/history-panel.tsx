@@ -86,7 +86,13 @@ export function HistoryPanel({ stats, logs, currentUserId, hasNextPage, isFetchi
                 )}
 
                 {log.canRate && (
-                  <Button size="sm" variant="outline" className="w-fit" onClick={() => onRate(log)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-fit"
+                    aria-label={`${mine ? 'Modifier ma note sur' : 'Noter'} la réalisation du ${formatDateTime(log.cookedAt)}`}
+                    onClick={() => onRate(log)}
+                  >
                     {mine ? 'Modifier ma note' : 'Noter'}
                   </Button>
                 )}
