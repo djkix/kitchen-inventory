@@ -26,6 +26,10 @@ export const EMPTY_RECIPE_FILTERS: RecipeFilters = {
   group: [],
   archived: false,
   cooked: false,
+  // Pastille « Favoris » (A4) : le picto lui-même est posé par la tâche 3, pas
+  // celle-ci ; seul le défaut du filtre doit exister pour que `RecipeFilters`
+  // reste valide (favori et note directe, EF-21).
+  favorite: false,
   sort: 'rating',
 };
 

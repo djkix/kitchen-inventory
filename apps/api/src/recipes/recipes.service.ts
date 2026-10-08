@@ -51,6 +51,7 @@ export class RecipesService {
   async list(query: RecipeListQuery): Promise<Paginated<RecipeSummaryDto>> {
     const where: Prisma.RecipeWhereInput = {
       archivedAt: query.archived ? { not: null } : null,
+      ...(query.favorite ? { favorite: true } : {}),
       ...(query.difficulty?.length ? { difficulty: { in: query.difficulty } } : {}),
       ...(query.cuisine?.length ? { cuisineId: { in: query.cuisine } } : {}),
       ...(query.dishType?.length ? { dishType: { in: query.dishType } } : {}),
@@ -241,6 +242,11 @@ export class RecipesService {
           ...(input.servings !== undefined ? { servings: input.servings } : {}),
           ...(input.steps !== undefined ? { steps: input.steps } : {}),
           ...(input.diets !== undefined ? { diets: input.diets } : {}),
+          ...(input.favorite !== undefined ? { favorite: input.favorite } : {}),
+          // `rating: null` retire la note (distinct de l'absence de champ) : même
+          // garde `!== undefined` que `cuisineId` ci-dessus, qui laisse déjà
+          // passer `null` pour effacer.
+          ...(input.rating !== undefined ? { rating: input.rating } : {}),
           ...(input.ingredients !== undefined ? { ingredients: { create: input.ingredients.map(toIngredientCreateData) } } : {}),
         },
         include: RECIPE_INCLUDE,

@@ -189,6 +189,70 @@ describe('recettes (EF-17, EF-21)', () => {
     await agent.post('/api/v1/recipes/inconnu/archive').expect(404);
   });
 
+  describe('favori et note directe (EF-21, 2026-10-08)', () => {
+    it('arrive avec favori décoché et aucune note, sans casser la lecture', async () => {
+      const recipe = await createRecipe(agent, 'Neutre', []);
+      expect(recipe).toMatchObject({ favorite: false, rating: null });
+      const relue = await agent.get(`/api/v1/recipes/${recipe.id}`).expect(200);
+      expect(relue.body).toMatchObject({ favorite: false, rating: null });
+    });
+
+    it('marque puis démarque un favori (décision D4, partagé par le foyer)', async () => {
+      const recipe = await createRecipe(agent, 'Favorite', []);
+      const marquee = await agent.patch(`/api/v1/recipes/${recipe.id}`).send({ favorite: true }).expect(200);
+      expect(marquee.body.favorite).toBe(true);
+
+      // Partagé par le foyer (D4) : un autre membre voit, puis retire, le même favori.
+      const marie = await createLoggedInMember(t, agent, { email: 'marie@example.org' });
+      const vueParMarie = await marie.get(`/api/v1/recipes/${recipe.id}`).expect(200);
+      expect(vueParMarie.body.favorite).toBe(true);
+      const demarquee = await marie.patch(`/api/v1/recipes/${recipe.id}`).send({ favorite: false }).expect(200);
+      expect(demarquee.body.favorite).toBe(false);
+    });
+
+    it('pose, corrige puis retire une note directe — indépendante de la note par réalisation (décision D2)', async () => {
+      const recipe = await createRecipe(agent, 'Notée directement', []);
+
+      const posee = await agent.patch(`/api/v1/recipes/${recipe.id}`).send({ rating: 3 }).expect(200);
+      expect(posee.body.rating).toBe(3);
+
+      const corrigee = await agent.patch(`/api/v1/recipes/${recipe.id}`).send({ rating: 5 }).expect(200);
+      expect(corrigee.body.rating).toBe(5);
+
+      // Un champ absent du corps ne touche pas la note (piège : ne pas confondre avec `null`).
+      const inchangee = await agent.patch(`/api/v1/recipes/${recipe.id}`).send({ title: 'Notée directement (renommée)' }).expect(200);
+      expect(inchangee.body.rating).toBe(5);
+
+      // `rating: null` la retire explicitement.
+      const retiree = await agent.patch(`/api/v1/recipes/${recipe.id}`).send({ rating: null }).expect(200);
+      expect(retiree.body.rating).toBeNull();
+
+      // La note par réalisation (stats.averageRating) n'est pas affectée par la note directe (D2).
+      const log = await logCooked(agent, recipe.id);
+      await agent.put(`/api/v1/recipe-logs/${log.id}/rating`).send({ stars: 4 }).expect(200);
+      const finale = await agent.get(`/api/v1/recipes/${recipe.id}`).expect(200);
+      expect(finale.body).toMatchObject({ rating: null, stats: { averageRating: 4 } });
+    });
+
+    it('refuse une note hors de 1 à 5', async () => {
+      const recipe = await createRecipe(agent, 'Hors bornes', []);
+      await agent.patch(`/api/v1/recipes/${recipe.id}`).send({ rating: 0 }).expect(400);
+      await agent.patch(`/api/v1/recipes/${recipe.id}`).send({ rating: 6 }).expect(400);
+    });
+
+    it('filtre « Favoris » dans la première rangée de filtres (A4)', async () => {
+      const favorite = await createRecipe(agent, 'Favorite', []);
+      await createRecipe(agent, 'Pas favorite', []);
+      await agent.patch(`/api/v1/recipes/${favorite.id}`).send({ favorite: true }).expect(200);
+
+      const favoris = await agent.get('/api/v1/recipes?favorite=true').expect(200);
+      expect(favoris.body.items.map((r: { title: string }) => r.title)).toEqual(['Favorite']);
+      // Le défaut (`favorite` absent) ne doit exclure personne.
+      const tout = await agent.get('/api/v1/recipes').expect(200);
+      expect(tout.body.items.map((r: { title: string }) => r.title).sort()).toEqual(['Favorite', 'Pas favorite']);
+    });
+  });
+
   describe('réalisations et notation (EF-28)', () => {
     let rizId: string;
     let placardId: string;

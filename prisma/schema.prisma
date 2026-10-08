@@ -351,6 +351,13 @@ model Recipe {
   // Idempotence de la conservation d'une suggestion (section 8, tâche 9) : une
   // recette créée hors de ce parcours n'en porte pas.
   clientOpId   String?  @unique
+  // Favori et note directe (EF-21, 2026-10-08) : favori partagé par le foyer
+  // (décision D4, pas de table de liaison par personne), note directe
+  // indépendante de la notation par réalisation (décision D2, les deux
+  // coexistent). `effectiveRating` (packages/shared) choisit laquelle
+  // afficher ; cette table se contente de stocker les deux.
+  favorite     Boolean  @default(false)
+  rating       Int?
 
   ingredients RecipeIngredient[]
   logs        RecipeLog[]

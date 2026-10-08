@@ -92,6 +92,8 @@ export function toRecipeSummaryDto(recipe: RecipeWithRelations, stats: RecipeSta
     group: coverage.group,
     missingLabels: coverage.missingLabels,
     stats,
+    favorite: recipe.favorite,
+    rating: recipe.rating,
   };
 }
 

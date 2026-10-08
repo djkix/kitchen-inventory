@@ -37,6 +37,8 @@ const recipe: RecipeDto = {
   coverage: 1,
   group: 'ready',
   missingLabels: [],
+  favorite: false,
+  rating: null,
   difficultyOverride: false,
   source: 'HOUSEHOLD',
   sourceUrl: null,
