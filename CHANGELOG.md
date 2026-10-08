@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.14.0](https://github.com/djkix/kitchen-inventory/compare/v0.13.0...v0.14.0) (2026-10-08)
+
+
+### Features
+
+* **recipes:** couverture recalculée sur le nombre de parts (EF-26) ([88ec4c0](https://github.com/djkix/kitchen-inventory/commit/88ec4c0c00ad390aa4a6a29ac19fc197762ca482))
+* **recipes:** nombre de parts ajustable à la sélection (EF-26) ([f8f75ab](https://github.com/djkix/kitchen-inventory/commit/f8f75ab34b39b5eab4cbe0e3ba19c25614abf2b8))
+* **recipes:** noter une réalisation passée depuis la fiche (EF-21) ([0ee95d3](https://github.com/djkix/kitchen-inventory/commit/0ee95d33a61eb5fb1f41d8669d5cb422e063b632))
+* **recipes:** pastille « Déjà faites » sur Mes recettes (EF-21) ([125e3a2](https://github.com/djkix/kitchen-inventory/commit/125e3a24f8426c4ceca417c5cf3b30ed340fa7be))
+* **recipes:** photo et emplacement du produit sur chaque ingrédient (EF-23) ([042e099](https://github.com/djkix/kitchen-inventory/commit/042e0993be1e71a59f022fad4adeb3c9b4e8db7b))
+* **suggestions:** « Plus d'informations » ouvre la fiche avant de conserver (EF-25) ([27bf4d3](https://github.com/djkix/kitchen-inventory/commit/27bf4d3cb6ef44011a5ec1018007a2cbb8bcb3f4))
+* **suggestions:** durées de préparation et de cuisson séparées, étapes complètes (EF-25) ([7be5a33](https://github.com/djkix/kitchen-inventory/commit/7be5a3369d5c1f42c54ca4c0b92f52b27a24e95d))
+* **web:** bascule Suggestions / Mes recettes en tête du module recettes ([6d9d7f9](https://github.com/djkix/kitchen-inventory/commit/6d9d7f954057ad7d34f52e97c5753784fce23acb))
+* **web:** photo du produit et pastille d'emplacement sur les ingrédients (EF-23) ([4649d58](https://github.com/djkix/kitchen-inventory/commit/4649d58aae7c0245a4418ce6fb04b04340cacbb0))
+
+
+### Bug Fixes
+
+* **recipes:** factoriser la règle de consommation des lots (EF-23) ([3ff4413](https://github.com/djkix/kitchen-inventory/commit/3ff4413c7d0ed6837bcb4fcbd02eca87057318fd))
+* **suggestions:** « Plus d'informations » reste un renommage simple (EF-25) ([ae5174b](https://github.com/djkix/kitchen-inventory/commit/ae5174b8d92051f05b524a8d921467f1d772f954))
+* **suggestions:** replier sur totalMinutes si prep/cuisson sont absentes (EF-25) ([bf53c85](https://github.com/djkix/kitchen-inventory/commit/bf53c85366d8c0047d764b8aa62a53b95408971f))
+* **web:** nommer aussi chaque bouton de suppression par sa réalisation (EF-21) ([2bd26ed](https://github.com/djkix/kitchen-inventory/commit/2bd26ed119358784404111543e4eea16a5639c48))
+* **web:** pastille d'emplacement visible et icône par température (EF-23) ([174133c](https://github.com/djkix/kitchen-inventory/commit/174133cd9e2a693004681d0d19159ded94d37361))
+
 ## [0.13.0](https://github.com/djkix/kitchen-inventory/compare/v0.12.1...v0.13.0) (2026-10-08)
 
 
