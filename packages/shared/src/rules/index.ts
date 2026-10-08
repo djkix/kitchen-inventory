@@ -8,6 +8,7 @@ export * from './lot-merge.js';
 export * from './quantity.js';
 export * from './recipe-stats.js';
 export * from './recipe-sort.js';
+export * from './servings.js';
 export * from './seed-selection.js';
 export * from './ingredient-match.js';
 export * from './suggestion-identity.js';

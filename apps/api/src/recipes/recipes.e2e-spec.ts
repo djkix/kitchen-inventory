@@ -101,6 +101,34 @@ describe('recettes (EF-17, EF-21)', () => {
     expect(placardLot.quantity.toNumber()).toBe(300);
   });
 
+  it('recalcule l’état de couverture de chaque ligne sur le nombre de parts demandé (F2, F3)', async () => {
+    // Le stock ne suit pas quand on double les convives : à quatre parts, 300 g
+    // en stock couvrent les 200 g requis (disponible) ; à huit parts, les 400 g
+    // requis dépassent le stock (insuffisant). `scaleIngredients` est bien
+    // appliqué AVANT `recipeCoverage`, jamais l'inverse — la quantité *affichée*
+    // de la ligne reste celle de la recette (200 g) : l'affichage mis à
+    // l'échelle est la tâche 8, qui branchera l'écran et son sélecteur.
+    //
+    // Note : le `group` agrégé (ready/almost/excluded) ne bascule PAS ici — par
+    // construction de `recipeCoverage` (A10, non modifiable par cette tâche),
+    // un ingrédient « insuffisant » compte comme disponible pour le groupe ;
+    // seule une cible totalement absente du stock rend une recette non prête,
+    // et cette absence ne dépend pas du nombre de parts. Le nombre de parts ne
+    // peut donc faire basculer que l'état par ligne (et son alerte), jamais le
+    // groupe d'une recette dont le produit reste en stock.
+    const rizId = await createProduct(agent, { name: 'Riz', defaultUnit: 'GRAM' });
+    const placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
+    await createStock(agent, { productId: rizId, locationId: placardId, quantity: 300, unit: 'GRAM' });
+    const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM', essential: true }], { servings: 4 });
+
+    const pourQuatre = await agent.get(`/api/v1/recipes/${recipe.id}`).expect(200);
+    expect(pourQuatre.body.ingredients[0]).toMatchObject({ quantity: 200, state: 'available', availableQuantity: null });
+    expect(pourQuatre.body.group).toBe('ready');
+
+    const pourHuit = await agent.get(`/api/v1/recipes/${recipe.id}?servings=8`).expect(200);
+    expect(pourHuit.body.ingredients[0]).toMatchObject({ quantity: 200, state: 'insufficient', availableQuantity: 300 });
+  });
+
   it('respecte une difficulté corrigée et cesse de la recalculer', async () => {
     const created = await agent.post('/api/v1/recipes').send({ title: 'Salade', steps: ['Mélanger'], difficulty: 'HARD' }).expect(201);
     expect(created.body).toMatchObject({ difficulty: 'HARD', difficultyOverride: true });

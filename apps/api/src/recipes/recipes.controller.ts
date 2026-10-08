@@ -2,12 +2,14 @@ import { Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/c
 import {
   cookRecipeSchema,
   createRecipeSchema,
+  recipeDetailQuerySchema,
   recipeListQuerySchema,
   updateRecipeSchema,
   type CookRecipeInput,
   type CookResult,
   type CreateRecipeInput,
   type Paginated,
+  type RecipeDetailQuery,
   type RecipeDto,
   type RecipeListQuery,
   type RecipeSummaryDto,
@@ -31,9 +33,10 @@ export class RecipesController {
     return this.recipes.list(query);
   }
 
+  /** Parts demandées (`servings`, EF-26) : quantités et couverture mises à l'échelle, fiche sur les parts de la recette sinon. */
   @Get(':id')
-  get(@Param('id') id: string): Promise<RecipeDto> {
-    return this.recipes.get(id);
+  get(@Param('id') id: string, @ZodQuery(recipeDetailQuerySchema) query: RecipeDetailQuery): Promise<RecipeDto> {
+    return this.recipes.get(id, query.servings);
   }
 
   @Post()
