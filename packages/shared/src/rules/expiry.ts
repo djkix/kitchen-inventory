@@ -66,3 +66,38 @@ export function expiryStatus(
 export function excludedFromRecipes(status: ExpiryStatus): boolean {
   return status === 'expired_use_by';
 }
+
+/** Les trois champs de `StockItem` que `expiryStatus` lit sur un lot. */
+export interface ExpiryAwareLot {
+  effectiveExpiry: Date | null;
+  dateType: DateType | null;
+  dateEstimated: boolean;
+}
+
+/**
+ * Lot utilisable pour une recette (défaut 2, C4) : exclut seulement celui
+ * dont la DLC est dépassée, jamais un article simplement « bientôt périmé ».
+ * Règle unique, partagée par le calcul de couverture
+ * (`RecipesCoverageService.snapshot()`, `apps/api`) et par la cuisson
+ * (`recipes.cook.ts`) : un correctif apporté à un seul des deux appelants
+ * ferait autrement diverger silencieusement la pastille d'emplacement
+ * affichée (EF-23) de ce que la cuisson consomme réellement.
+ */
+export function isUsableForRecipes(lot: ExpiryAwareLot, today: Date, alertDays: number): boolean {
+  return !excludedFromRecipes(expiryStatus(lot, today, alertDays));
+}
+
+/**
+ * Ordre de consommation d'un stock, lot par lot au sein d'un même produit
+ * (C4, défaut 2) : donnée pure, pas une requête — une liste de critères de
+ * tri sur les colonnes `StockItem` (date effective croissante, une date
+ * absente en dernier, puis date de dépôt croissante à égalité), que chaque
+ * appelant Prisma passe telle quelle à `orderBy`. Partagée par les deux mêmes
+ * fichiers que `isUsableForRecipes`, pour la même raison : le premier lot
+ * rendu par cet ordre est celui qui sera consommé en premier, qu'il s'agisse
+ * d'y lire l'emplacement à afficher ou d'y décrémenter réellement le stock.
+ */
+export const STOCK_CONSUMPTION_ORDER = [
+  { effectiveExpiry: { sort: 'asc', nulls: 'last' } },
+  { createdAt: 'asc' },
+] as const;

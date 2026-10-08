@@ -70,6 +70,37 @@ describe('recettes (EF-17, EF-21)', () => {
     });
   });
 
+  /**
+   * Régression (revue tâche 2, round 1) : la couverture (qui affiche la pastille
+   * d'emplacement, EF-23) et la cuisson (qui décrémente réellement le stock)
+   * doivent désigner le même lot « consommé en premier » (C4, défaut 2). Les deux
+   * lisaient autrefois leur propre copie de la règle (tri + exclusion DLC) ; ce
+   * test échouerait si l'une des deux divergeait de nouveau de la règle partagée
+   * (`isUsableForRecipes`, `STOCK_CONSUMPTION_ORDER` dans `packages/shared`),
+   * ce qu'aucun autre test ne détecte.
+   */
+  it('affiche et décrémente le même lot : couverture et cuisson restent synchronisées (régression)', async () => {
+    const placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
+    const frigoId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/refrigerateur' } })).id;
+    const rizId = await createProduct(agent, { name: 'Riz', defaultUnit: 'GRAM' });
+    // DLC lointaine au placard : ne doit pas être le premier lot consommé.
+    await createStock(agent, { productId: rizId, locationId: placardId, quantity: 300, unit: 'GRAM', expiryDate: isoIn(90), dateType: 'USE_BY' });
+    // DLC proche au réfrigérateur : celui-ci doit être consommé (et affiché) en premier.
+    await createStock(agent, { productId: rizId, locationId: frigoId, quantity: 300, unit: 'GRAM', expiryDate: isoIn(3), dateType: 'USE_BY' });
+    const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' }], { servings: 1 });
+
+    // La couverture affiche l'emplacement du lot qui sera consommé en premier.
+    expect(recipe.ingredients[0]).toMatchObject({ locationName: 'Réfrigérateur', locationTemperature: 'chilled' });
+
+    await cookRecipe(agent, recipe.id, { servingsCooked: 1, lines: [{ ingredientId: recipe.ingredients[0]!.id }] });
+    const lots = await t.prisma.stockItem.findMany({ where: { productId: rizId } });
+    const frigoLot = lots.find((l) => l.locationId === frigoId)!;
+    const placardLot = lots.find((l) => l.locationId === placardId)!;
+    // La cuisson a bien décrémenté le lot affiché par la couverture, pas l'autre.
+    expect(frigoLot.quantity.toNumber()).toBe(100);
+    expect(placardLot.quantity.toNumber()).toBe(300);
+  });
+
   it('respecte une difficulté corrigée et cesse de la recalculer', async () => {
     const created = await agent.post('/api/v1/recipes').send({ title: 'Salade', steps: ['Mélanger'], difficulty: 'HARD' }).expect(201);
     expect(created.body).toMatchObject({ difficulty: 'HARD', difficultyOverride: true });
