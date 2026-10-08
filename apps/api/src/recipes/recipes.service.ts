@@ -283,13 +283,18 @@ export class RecipesService {
   private toCoverageIngredient(ingredient: RecipeIngredientWithRelations): CoverageIngredient {
     return {
       id: ingredient.id,
-      productId: ingredient.productId ? (ingredient.product?.mergedIntoId ?? ingredient.productId) : null,
+      productId: this.resolvedIngredientProductId(ingredient),
       categoryId: this.resolvedIngredientCategoryId(ingredient),
       quantity: toNumber(ingredient.quantity),
       unit: ingredient.unit,
       essential: ingredient.essential,
       substitutable: ingredient.substitutable,
     };
+  }
+
+  /** Produit *résolu* (suivant la fusion, tâche 9) visé par l'ingrédient, celui dont l'instantané de stock connaît la clé. */
+  private resolvedIngredientProductId(ingredient: RecipeIngredientWithRelations): string | null {
+    return ingredient.productId ? (ingredient.product?.mergedIntoId ?? ingredient.productId) : null;
   }
 
   /**
@@ -331,10 +336,18 @@ export class RecipesService {
     for (const ingredient of recipe.ingredients) {
       const outcome = outcomeById.get(ingredient.id);
       const categoryId = categoryByIngredient.get(ingredient.id) ?? null;
+      // Emplacement du lot qui sera consommé en premier (C4) : lu sur l'entrée
+      // de l'instantané désignée par le même produit résolu que la couverture,
+      // jamais recalculé — `null` si l'ingrédient ne vise aucun produit ou
+      // n'est pas en stock.
+      const productId = this.resolvedIngredientProductId(ingredient);
+      const entry = productId ? snapshot.byProduct.get(productId) : undefined;
       map.set(ingredient.id, {
         state: outcome?.state ?? 'untracked',
         availableQuantity: outcome?.availableQuantity ?? null,
         candidates: categoryId ? (candidatesByCategory.get(categoryId) ?? []) : [],
+        locationName: entry?.locationName ?? null,
+        locationTemperature: entry?.locationTemperature ?? null,
       });
     }
     return map;

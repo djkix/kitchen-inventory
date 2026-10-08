@@ -3,7 +3,8 @@ import { availableInUnit, buildStockSnapshot, ingredientOutcome, recipeCoverage,
 
 const entry = (over: Partial<StockEntry> = {}): StockEntry => ({
   productId: 'p1', categoryId: 'c1', unit: 'GRAM', quantity: 500,
-  netContent: null, netContentUnit: null, nearExpiry: false, ...over,
+  netContent: null, netContentUnit: null, nearExpiry: false,
+  locationId: null, locationName: null, locationTemperature: null, ...over,
 });
 const ing = (over: Partial<CoverageIngredient> = {}): CoverageIngredient => ({
   id: 'i1', productId: 'p1', categoryId: null, quantity: 200, unit: 'GRAM',

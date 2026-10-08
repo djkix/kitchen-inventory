@@ -16,6 +16,11 @@
           "label": "Crème",
           "quantity": 200,
           "unit": "MILLILITER"
+        },
+        {
+          "label": "Tomate",
+          "quantity": 3,
+          "unit": "PIECE"
         }
       ],
       "dishType": "MAIN",

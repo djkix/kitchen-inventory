@@ -15,6 +15,15 @@ export interface StockEntry {
   netContentUnit: Unit | null;
   nearExpiry: boolean;
   /**
+   * Emplacement du lot qui sera consommé en premier parmi ceux de ce produit
+   * (C4) : l'ordre de consommation est celui déjà appliqué par l'appelant
+   * (`RecipesCoverageService.snapshot()`) pour construire cette entrée, jamais
+   * recalculé ici.
+   */
+  locationId: string | null;
+  locationName: string | null;
+  locationTemperature: 'ambient' | 'chilled' | 'frozen' | null;
+  /**
    * Au moins un lot de ce produit n'a pas pu être converti dans son unité par
    * défaut lors de l'agrégation (API, pas ce module) : `quantity` ne reflète
    * donc qu'une partie du stock réel. Un total mesurable déjà suffisant reste

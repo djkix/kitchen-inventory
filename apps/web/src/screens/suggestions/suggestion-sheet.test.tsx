@@ -21,9 +21,18 @@ const suggestion: SuggestionDto = {
   group: 'almost',
   missingLabels: ['Farine'],
   ingredients: [
-    { label: 'Crème', quantity: 200, unit: 'MILLILITER', match: 'probable', productId: 'p1', productName: 'Crème fraîche épaisse 30%', state: 'available' },
-    { label: 'Œufs', quantity: 3, unit: 'PIECE', match: 'sure', productId: 'p2', productName: 'Œufs', state: 'available' },
-    { label: 'Farine', quantity: null, unit: null, match: 'absent', productId: null, productName: null, state: 'missing' },
+    {
+      label: 'Crème', quantity: 200, unit: 'MILLILITER', match: 'probable', productId: 'p1', productName: 'Crème fraîche épaisse 30%',
+      state: 'available', productImagePath: null, locationName: null, locationTemperature: null,
+    },
+    {
+      label: 'Œufs', quantity: 3, unit: 'PIECE', match: 'sure', productId: 'p2', productName: 'Œufs',
+      state: 'available', productImagePath: null, locationName: null, locationTemperature: null,
+    },
+    {
+      label: 'Farine', quantity: null, unit: null, match: 'absent', productId: null, productName: null,
+      state: 'missing', productImagePath: null, locationName: null, locationTemperature: null,
+    },
   ],
 };
 

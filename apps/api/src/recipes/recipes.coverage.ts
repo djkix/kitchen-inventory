@@ -6,6 +6,7 @@ import {
   expiryStatus,
   normalizeProductName,
   roundQuantity,
+  temperatureSchema,
   type SeedCandidate,
   type StockEntry,
   type StockSnapshot,
@@ -75,6 +76,22 @@ interface LotContribution {
   unit: Unit;
   quantity: number;
   nearExpiry: boolean;
+  locationId: string;
+  locationName: string;
+  locationTemperature: 'ambient' | 'chilled' | 'frozen' | null;
+}
+
+/**
+ * `Location.temperature` est un `String?` libre en base (migration manuelle,
+ * pas une colonne d'énumération) : seule l'écriture, validée par
+ * `temperatureSchema` (module emplacements), garantit qu'elle ne contient que
+ * l'une des trois valeurs. Une valeur étrangère (donnée historique ou
+ * corrompue) tombe ici en `null` plutôt que de fausser la couleur de la
+ * pastille (C3).
+ */
+function parseLocationTemperature(value: string | null): 'ambient' | 'chilled' | 'frozen' | null {
+  const parsed = temperatureSchema.nullable().safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
 /**
@@ -98,6 +115,11 @@ export class RecipesCoverageService {
     const [lots, loadedCategories, alertDays] = await Promise.all([
       this.prisma.stockItem.findMany({
         where: { archivedAt: null, quantity: { gt: 0 } },
+        // Le lot consommé en premier (C4) est celui de la règle déjà en place pour
+        // la cuisson (`recipes.cook.ts`) : date effective la plus proche d'abord,
+        // puis le plus ancien déposé. Jamais réinventé ici, juste appliqué pour
+        // que `contributions[0]` désigne le même lot que la cuisson déciderait.
+        orderBy: [{ effectiveExpiry: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
         select: {
           quantity: true,
           unit: true,
@@ -110,6 +132,7 @@ export class RecipesCoverageService {
               mergedInto: { select: { ...PRODUCT_MERGE_SELECT, mergedInto: { select: PRODUCT_MERGE_SELECT } } },
             },
           },
+          location: { select: { id: true, name: true, temperature: true } },
         },
       }),
       categories ? Promise.resolve(categories) : loadCategoryRows(this.prisma),
@@ -131,7 +154,14 @@ export class RecipesCoverageService {
 
       const target = resolveTargetProduct(lot.product);
       const group = groups.get(target.id) ?? { product: target, lots: [] };
-      group.lots.push({ unit: lot.unit, quantity: toNumber(lot.quantity) ?? 0, nearExpiry });
+      group.lots.push({
+        unit: lot.unit,
+        quantity: toNumber(lot.quantity) ?? 0,
+        nearExpiry,
+        locationId: lot.location.id,
+        locationName: lot.location.name,
+        locationTemperature: parseLocationTemperature(lot.location.temperature),
+      });
       groups.set(target.id, group);
     }
 
@@ -152,6 +182,9 @@ export class RecipesCoverageService {
             netContent: product.netContent,
             netContentUnit: product.netContentUnit,
             nearExpiry: lot.nearExpiry,
+            locationId: null,
+            locationName: null,
+            locationTemperature: null,
           },
           product.defaultUnit,
         );
@@ -162,6 +195,11 @@ export class RecipesCoverageService {
         measuredAny = true;
         total += contribution;
       }
+
+      // Le lot consommé en premier (C4) : le tri de la requête fait de
+      // `contributions[0]` ce lot, qu'il ait pu être mesuré ou non — un groupe
+      // n'existe que si au moins un lot y a été poussé.
+      const firstLot = contributions[0]!;
 
       if (measuredAny) {
         entries.push({
@@ -176,6 +214,9 @@ export class RecipesCoverageService {
           // ci-dessus la sous-estime, donc `ingredientOutcome` (règle partagée) ne
           // doit pas conclure `insufficient` dessus, seulement `unverifiable`.
           unmeasured: unmeasured.length > 0,
+          locationId: firstLot.locationId,
+          locationName: firstLot.locationName,
+          locationTemperature: firstLot.locationTemperature,
         });
       } else if (unmeasured.length > 0) {
         // Aucun lot ne se convertit dans l'unité par défaut du produit : on
@@ -191,6 +232,9 @@ export class RecipesCoverageService {
           netContent: product.netContent,
           netContentUnit: product.netContentUnit,
           nearExpiry,
+          locationId: firstLot.locationId,
+          locationName: firstLot.locationName,
+          locationTemperature: firstLot.locationTemperature,
         });
       }
     }
