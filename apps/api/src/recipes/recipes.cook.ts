@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import {
   capConsumption,
   convertWithNetContent,
-  excludedFromRecipes,
-  expiryStatus,
+  isUsableForRecipes,
   roundQuantity,
+  STOCK_CONSUMPTION_ORDER,
   type CookRecipeInput,
   type CookResult,
   type CookResultLine,
@@ -166,14 +166,13 @@ export class RecipesCookService {
 
     const candidateLots = await tx.stockItem.findMany({
       where: { productId: target.id, archivedAt: null, quantity: { gt: 0 } },
-      orderBy: [{ effectiveExpiry: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
+      orderBy: [...STOCK_CONSUMPTION_ORDER],
     });
     // Une DLC dépassée écarte le lot de la cuisson, exactement comme du calcul de
     // couverture (défaut 2) : sinon le lot périmé est vidé en premier (tri par date
-    // croissante) pendant que le lot encore bon reste en stock, intact.
-    const lots = candidateLots.filter(
-      (lot) => !excludedFromRecipes(expiryStatus({ effectiveExpiry: lot.effectiveExpiry, dateType: lot.dateType, dateEstimated: lot.dateEstimated }, today, alertDays)),
-    );
+    // croissante) pendant que le lot encore bon reste en stock, intact. Règle
+    // partagée avec `recipes.coverage.ts` (`@kitchen/shared`), jamais recopiée.
+    const lots = candidateLots.filter((lot) => isUsableForRecipes(lot, today, alertDays));
 
     // `applied` et `unit` s'expriment toujours dans l'unité de l'ingrédient (celle de
     // `requested`), jamais dans celle d'un lot : un même ingrédient peut être servi par

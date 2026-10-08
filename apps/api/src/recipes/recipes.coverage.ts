@@ -2,10 +2,11 @@ import { Injectable } from '@nestjs/common';
 import {
   availableInUnit,
   buildStockSnapshot,
-  excludedFromRecipes,
   expiryStatus,
+  isUsableForRecipes,
   normalizeProductName,
   roundQuantity,
+  STOCK_CONSUMPTION_ORDER,
   temperatureSchema,
   type SeedCandidate,
   type StockEntry,
@@ -115,11 +116,11 @@ export class RecipesCoverageService {
     const [lots, loadedCategories, alertDays] = await Promise.all([
       this.prisma.stockItem.findMany({
         where: { archivedAt: null, quantity: { gt: 0 } },
-        // Le lot consommé en premier (C4) est celui de la règle déjà en place pour
-        // la cuisson (`recipes.cook.ts`) : date effective la plus proche d'abord,
-        // puis le plus ancien déposé. Jamais réinventé ici, juste appliqué pour
-        // que `contributions[0]` désigne le même lot que la cuisson déciderait.
-        orderBy: [{ effectiveExpiry: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
+        // Le lot consommé en premier (C4) est celui de la règle partagée avec la
+        // cuisson (`recipes.cook.ts`), lue depuis `@kitchen/shared` : jamais
+        // réinventée ici, pour que `contributions[0]` désigne toujours le même
+        // lot que celui que la cuisson déciderait de décrémenter en premier.
+        orderBy: [...STOCK_CONSUMPTION_ORDER],
         select: {
           quantity: true,
           unit: true,
@@ -143,13 +144,11 @@ export class RecipesCoverageService {
 
     const groups = new Map<string, { product: ResolvedProduct; lots: LotContribution[] }>();
     for (const lot of lots) {
-      const status = expiryStatus(
-        { effectiveExpiry: lot.effectiveExpiry, dateType: lot.dateType, dateEstimated: lot.dateEstimated },
-        today,
-        alertDays,
-      );
-      // Une DLC dépassée écarte le lot du calcul de couverture (section 15).
-      if (excludedFromRecipes(status)) continue;
+      const lotDates = { effectiveExpiry: lot.effectiveExpiry, dateType: lot.dateType, dateEstimated: lot.dateEstimated };
+      // Une DLC dépassée écarte le lot du calcul de couverture (section 15) : même
+      // règle, partagée avec la cuisson, que celle qui a servi à trier la requête.
+      if (!isUsableForRecipes(lotDates, today, alertDays)) continue;
+      const status = expiryStatus(lotDates, today, alertDays);
       const nearExpiry = status === 'soon' || status === 'expired_best_before';
 
       const target = resolveTargetProduct(lot.product);
