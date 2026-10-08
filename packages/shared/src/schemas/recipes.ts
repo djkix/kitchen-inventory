@@ -125,6 +125,17 @@ export const recipeListQuerySchema = paginationQuerySchema.extend({
 });
 export type RecipeListQuery = z.infer<typeof recipeListQuerySchema>;
 
+/**
+ * Fiche d'une recette pour un nombre de parts donné (EF-26, section 15) :
+ * quantités et couverture mises à l'échelle, affichage ET cuisson à l'avenant
+ * (tâche 8 branchera l'écran). Omis, la fiche reste sur les parts de la
+ * recette elle-même.
+ */
+export const recipeDetailQuerySchema = z.object({
+  servings: z.coerce.number().int().min(1).max(50).optional(),
+});
+export type RecipeDetailQuery = z.infer<typeof recipeDetailQuerySchema>;
+
 export const recipeFiltersSchema = recipeListQuerySchema.pick({
   difficulty: true, cuisine: true, dishType: true, diet: true, tag: true, group: true,
   maxTime: true, minRating: true, archived: true, cooked: true, sort: true,

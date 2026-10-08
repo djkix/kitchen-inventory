@@ -4,6 +4,8 @@ import {
   isUsableForRecipes,
   normalizeProductName,
   recipeCoverage,
+  scaleIngredients,
+  servingsRatio,
   sortRecipes,
   type CoverageIngredient,
   type CreateRecipeInput,
@@ -111,9 +113,9 @@ export class RecipesService {
     return { items, total, page: query.page, limit: query.limit };
   }
 
-  async get(id: string): Promise<RecipeDto> {
+  async get(id: string, servings?: number): Promise<RecipeDto> {
     const recipe = await this.require(id);
-    return this.toDto(recipe);
+    return this.toDto(recipe, servings);
   }
 
   async create(input: CreateRecipeInput, userId: string | null): Promise<RecipeDto> {
@@ -269,11 +271,21 @@ export class RecipesService {
     return this.toDto(updated);
   }
 
-  private async toDto(recipe: RecipeWithRelations): Promise<RecipeDto> {
+  /**
+   * Parts demandées (`servings`, EF-26, F2/F3) : les quantités des lignes
+   * sont mises à l'échelle AVANT d'appeler la couverture, jamais `coverage.ts`
+   * lui-même — une recette prête pour quatre ne l'est pas forcément pour huit,
+   * et c'est ce qui alimente le tri, les groupes et les pastilles de l'écran
+   * Suggestions. Omis, `servings` vaut celui de la recette (ratio 1, aucun
+   * changement).
+   */
+  private async toDto(recipe: RecipeWithRelations, servings?: number): Promise<RecipeDto> {
     const snapshot = await this.coverage.snapshot();
+    const ratio = servingsRatio(servings ?? recipe.servings, recipe.servings);
+    const coverageIngredients = scaleIngredients(recipe.ingredients.map((i) => this.toCoverageIngredient(i)), ratio);
     // Calculée une seule fois, puis réutilisée par la carte (résumé) et par le
     // détail de chaque ligne (état, candidats) : même recette, même instantané.
-    const result = recipeCoverage(recipe.ingredients.map((i) => this.toCoverageIngredient(i)), snapshot);
+    const result = recipeCoverage(coverageIngredients, snapshot);
     const [stats, ingredientCoverages] = await Promise.all([
       this.stats.statsForOne(recipe.id),
       this.ingredientCoverages(recipe, result, snapshot),
