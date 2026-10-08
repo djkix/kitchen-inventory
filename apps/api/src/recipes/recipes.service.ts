@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   computeDifficulty,
-  excludedFromRecipes,
-  expiryStatus,
+  isUsableForRecipes,
   normalizeProductName,
   recipeCoverage,
   sortRecipes,
@@ -387,9 +386,9 @@ export class RecipesService {
     for (const product of products) {
       nameByProduct.set(product.id, product.name);
       const dates = product.stockItems
-        .filter(
-          (lot) => !excludedFromRecipes(expiryStatus({ effectiveExpiry: lot.effectiveExpiry, dateType: lot.dateType, dateEstimated: lot.dateEstimated }, today, alertDays)),
-        )
+        // Même critère que la couverture et la cuisson, par la même fonction :
+        // trois copies du « ce lot compte-t-il ? » finiraient par diverger.
+        .filter((lot) => isUsableForRecipes({ effectiveExpiry: lot.effectiveExpiry, dateType: lot.dateType, dateEstimated: lot.dateEstimated }, today, alertDays))
         .map((lot) => lot.effectiveExpiry)
         .filter((date): date is Date => date !== null)
         .sort((a, b) => a.getTime() - b.getTime());
