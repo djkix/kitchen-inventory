@@ -1,4 +1,6 @@
 import { INGREDIENT_STATE_LABELS_FR, type RecipeIngredientDto } from '@kitchen/shared';
+import { LocationChip } from '../../components/ui/location-chip';
+import { mediaUrl } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { formatQuantity } from '../../lib/quantity-ui';
 
@@ -34,6 +36,7 @@ interface IngredientRowProps {
 export function IngredientRow({ ingredient }: IngredientRowProps) {
   const untracked = ingredient.state === 'untracked';
   const showsOwnQuantity = ingredient.state !== 'insufficient';
+  const imageUrl = mediaUrl(ingredient.productImagePath);
 
   return (
     <li className={cn('flex items-start gap-3 px-4 py-3', untracked && 'opacity-50')}>
@@ -50,7 +53,20 @@ export function IngredientRow({ ingredient }: IngredientRowProps) {
           <p className="tnum text-[13px] text-muted">{formatQuantity(ingredient.quantity, ingredient.unit)}</p>
         )}
         <p className={cn('text-[13px]', STATE_TEXT_LOOK[ingredient.state])}>{stateDetail(ingredient)}</p>
+        {ingredient.locationName && (
+          <p className="mt-1">
+            <LocationChip name={ingredient.locationName} temperature={ingredient.locationTemperature} />
+          </p>
+        )}
       </div>
+      {imageUrl && (
+        <img
+          src={imageUrl}
+          alt=""
+          loading="lazy"
+          className="ml-auto h-12 w-12 shrink-0 rounded-card object-cover"
+        />
+      )}
     </li>
   );
 }
