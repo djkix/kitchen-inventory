@@ -183,6 +183,12 @@ export interface RecipeIngredientDto {
    * la présélection du tiroir.
    */
   candidates: { productId: string; name: string; nearestExpiry: string | null }[];
+  /** Photo du produit rapproché, pour identifier le contenant d'un coup d'œil ; `null` sans produit. */
+  productImagePath: string | null;
+  /** Emplacement du lot qui sera consommé en premier ; `null` si l'ingrédient n'est pas en stock. */
+  locationName: string | null;
+  /** Clé de couleur de la pastille : la température de cet emplacement, `null` si non renseignée. */
+  locationTemperature: 'ambient' | 'chilled' | 'frozen' | null;
 }
 
 export interface RecipeStatsDto {

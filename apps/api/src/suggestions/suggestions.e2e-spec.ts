@@ -114,18 +114,26 @@ describe('SuggestionsService (EF-26)', () => {
     return { id: user.id, email: user.email, name: user.name, role: 'ADMIN', via: 'session', sessionId: 's1' };
   }
 
-  async function seedLocation(db: PrismaService): Promise<string> {
-    const location = await db.location.create({ data: { name: 'Test', path: '/test', depth: 0 } });
+  /**
+   * `temperature` par défaut à `'chilled'` (plutôt que `null`) : la plupart des
+   * tests ne s'en soucient pas, mais la tâche 2 (photo et emplacement,
+   * EF-23) vérifie une pastille colorée sans que chaque appelant existant
+   * n'ait à le préciser.
+   */
+  async function seedLocation(db: PrismaService, temperature: string | null = 'chilled'): Promise<string> {
+    const location = await db.location.create({ data: { name: 'Test', path: '/test', depth: 0, temperature } });
     return location.id;
   }
 
   async function seedProduct(
     db: PrismaService,
     locationId: string,
-    opts: { name: string; categoryId?: string | null; quantity: number; unit?: string },
+    opts: { name: string; categoryId?: string | null; quantity: number; unit?: string; imagePath?: string | null },
   ): Promise<string> {
     const unit = opts.unit ?? 'GRAM';
-    const product = await db.product.create({ data: { name: opts.name, categoryId: opts.categoryId ?? null, defaultUnit: unit as never } });
+    const product = await db.product.create({
+      data: { name: opts.name, categoryId: opts.categoryId ?? null, defaultUnit: unit as never, imagePath: opts.imagePath ?? null },
+    });
     await db.stockItem.create({ data: { productId: product.id, locationId, quantity: opts.quantity, unit: unit as never } });
     return product.id;
   }
@@ -196,6 +204,33 @@ describe('SuggestionsService (EF-26)', () => {
     const ingredient = result.items[0]?.ingredients[0];
     expect(ingredient?.match).toBe('probable');
     expect(ingredient?.productName).toBe('Crème fraîche épaisse 30%');
+  });
+
+  it('donne la photo et l’emplacement du produit rapproché à chaque ingrédient (EF-23)', async () => {
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db); // doit porter temperature: 'chilled'
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE', imagePath: 'scans/tomate.jpg' });
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
+
+    const result = await service.list(QUERY, USER);
+    const tomate = result.items.flatMap((i) => i.ingredients).find((i) => i.productName === 'Tomate');
+    expect(tomate?.productImagePath).toBe('scans/tomate.jpg');
+    expect(tomate?.locationName).toBeTruthy();
+    expect(tomate?.locationTemperature).toBe('chilled');
+  });
+
+  it('laisse photo et emplacement à null pour un ingrédient hors stock', async () => {
+    // Cas le plus fréquent d'une suggestion : l'ingrédient n'est pas au placard.
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
+
+    const result = await service.list(QUERY, USER);
+    const absent = result.items.flatMap((i) => i.ingredients).find((i) => i.productId === null);
+    expect(absent?.productImagePath).toBeNull();
+    expect(absent?.locationName).toBeNull();
+    expect(absent?.locationTemperature).toBeNull();
   });
 
   it('classe chaque recette et sait cibler un type de plat (2026-10-08)', async () => {

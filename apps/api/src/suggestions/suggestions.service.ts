@@ -387,7 +387,7 @@ export class SuggestionsService {
     // qui précèdent dans ce même tableau, pas de la recette isolée.
     const identities = suggestionIdentities(recipes);
 
-    return recipes.map((recipe, recipeIndex) => {
+    const perRecipe = recipes.map((recipe, recipeIndex) => {
       const rows = recipe.ingredients.map((ingredient, ingredientIndex) => {
         const match = classifyMatch(ingredient.label, matchesByLabel.get(ingredient.label.trim()) ?? []);
         return { id: `${recipeIndex}:${ingredientIndex}`, ingredient, match };
@@ -418,18 +418,39 @@ export class SuggestionsService {
       }));
       const coverage = recipeCoverage(coverageIngredients, snapshot);
       const outcomeById = new Map(coverage.outcomes.map((o) => [o.id, o]));
-
-      const ingredientDtos: SuggestionIngredientDto[] = rows.map(({ id, ingredient, match }) => ({
-        label: ingredient.label,
-        quantity: ingredient.quantity,
-        unit: ingredient.unit,
-        match: match.state,
-        productId: match.productId,
-        productName: match.productName,
-        state: outcomeById.get(id)?.state ?? 'untracked',
-      }));
       const labelById = new Map(rows.map(({ id, ingredient }) => [id, ingredient.label]));
       const missingLabels = coverage.missingIds.map((id) => labelById.get(id) ?? id);
+
+      return { recipe, recipeIndex, rows, coverage, outcomeById, missingLabels };
+    });
+
+    // Photo du produit rapproché (EF-23) : une seule requête pour toute la
+    // fournée, sur les produits réellement rapprochés (jamais le sentinel de
+    // couverture, qui ne désigne aucun produit réel).
+    const matchedProductIds = [
+      ...new Set(perRecipe.flatMap(({ rows }) => rows.map(({ match }) => match.productId).filter((id): id is string => id !== null))),
+    ];
+    const imagePathByProduct = await this.productImagePaths(matchedProductIds);
+
+    return perRecipe.map(({ recipe, recipeIndex, rows, coverage, outcomeById, missingLabels }) => {
+      const ingredientDtos: SuggestionIngredientDto[] = rows.map(({ id, ingredient, match }) => {
+        // Emplacement du lot qui sera consommé en premier (C4) : lu sur
+        // l'instantané déjà chargé, jamais recalculé ici. `null` pour un
+        // ingrédient non rapproché ou dont le produit n'est pas en stock.
+        const entry = match.productId ? snapshot.byProduct.get(match.productId) : undefined;
+        return {
+          label: ingredient.label,
+          quantity: ingredient.quantity,
+          unit: ingredient.unit,
+          match: match.state,
+          productId: match.productId,
+          productName: match.productName,
+          productImagePath: match.productId ? (imagePathByProduct.get(match.productId) ?? null) : null,
+          locationName: entry?.locationName ?? null,
+          locationTemperature: entry?.locationTemperature ?? null,
+          state: outcomeById.get(id)?.state ?? 'untracked',
+        };
+      });
 
       const dto: SuggestionDto = {
         // Identité dérivée du contenu, jamais le rang dans le tableau (règle
@@ -456,6 +477,13 @@ export class SuggestionsService {
       };
       return dto;
     });
+  }
+
+  /** Photo de chaque produit rapproché (EF-23), en une seule requête pour toute la fournée. */
+  private async productImagePaths(productIds: readonly string[]): Promise<Map<string, string | null>> {
+    if (productIds.length === 0) return new Map();
+    const products = await this.prisma.product.findMany({ where: { id: { in: [...productIds] } }, select: { id: true, imagePath: true } });
+    return new Map(products.map((p) => [p.id, p.imagePath]));
   }
 
   /**

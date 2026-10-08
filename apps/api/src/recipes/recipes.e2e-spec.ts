@@ -42,6 +42,34 @@ describe('recettes (EF-17, EF-21)', () => {
     expect(res.body.ingredients[0]).toMatchObject({ label: 'Nouilles', productId: nouillesId, state: 'missing', candidates: [] });
   });
 
+  it('donne la photo et l’emplacement du produit rapproché à chaque ingrédient (EF-23)', async () => {
+    const placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
+    const rizId = await createProduct(agent, { name: 'Riz', defaultUnit: 'GRAM', imagePath: 'scans/riz.jpg' });
+    await createStock(agent, { productId: rizId, locationId: placardId, quantity: 1000, unit: 'GRAM' });
+    const recipe = await createRecipe(agent, 'Riz', [{ label: 'Riz', productId: rizId, quantity: 200, unit: 'GRAM' }]);
+
+    expect(recipe.ingredients[0]).toMatchObject({
+      productImagePath: 'scans/riz.jpg',
+      locationName: 'Placard',
+      locationTemperature: 'ambient',
+    });
+  });
+
+  it('laisse l’emplacement à null pour un ingrédient hors stock, sans perdre sa photo (piège : le cas le plus fréquent)', async () => {
+    // Le cas le plus fréquent d'une recette : un ingrédient rapproché d'un
+    // produit connu (donc sa photo existe), mais que le foyer n'a pas en stock
+    // au moment de la lecture. Seul l'emplacement doit alors manquer.
+    const sucreId = await createProduct(agent, { name: 'Sucre', imagePath: 'scans/sucre.jpg' });
+    const recipe = await createRecipe(agent, 'Gâteau', [{ label: 'Sucre', productId: sucreId, quantity: 200, unit: 'GRAM' }]);
+
+    expect(recipe.ingredients[0]).toMatchObject({
+      state: 'missing',
+      productImagePath: 'scans/sucre.jpg',
+      locationName: null,
+      locationTemperature: null,
+    });
+  });
+
   it('respecte une difficulté corrigée et cesse de la recalculer', async () => {
     const created = await agent.post('/api/v1/recipes').send({ title: 'Salade', steps: ['Mélanger'], difficulty: 'HARD' }).expect(201);
     expect(created.body).toMatchObject({ difficulty: 'HARD', difficultyOverride: true });

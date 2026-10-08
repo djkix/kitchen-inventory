@@ -35,12 +35,17 @@ export interface IngredientCoverage {
   state: IngredientState;
   availableQuantity: number | null;
   candidates: RecipeIngredientDto['candidates'];
+  /** Emplacement du lot qui sera consommé en premier (C4) ; `null` si l'ingrédient n'est pas en stock. */
+  locationName: string | null;
+  locationTemperature: RecipeIngredientDto['locationTemperature'];
 }
 
 const NEUTRAL_INGREDIENT_COVERAGE: IngredientCoverage = {
   state: 'untracked',
   availableQuantity: null,
   candidates: [],
+  locationName: null,
+  locationTemperature: null,
 };
 
 export function toRecipeIngredientDto(
@@ -61,6 +66,11 @@ export function toRecipeIngredientDto(
     state: coverage.state,
     availableQuantity: coverage.availableQuantity,
     candidates: coverage.candidates,
+    // Photo du produit visé, indépendante du stock (EF-23) : un ingrédient
+    // rapproché d'un produit connu garde sa photo même s'il n'en reste plus.
+    productImagePath: ingredient.product?.imagePath ?? null,
+    locationName: coverage.locationName,
+    locationTemperature: coverage.locationTemperature,
   };
 }
 
