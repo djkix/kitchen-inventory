@@ -17,10 +17,15 @@ describe('LocationChip', () => {
   /**
    * Round de correction 1 : l'`ambient` utilisait `bg-surface`, exactement le
    * fond du conteneur qui enveloppe la liste d'ingrédients dans
-   * `recipe-screen.tsx` — la pastille y était invisible. Ce test échoue si
-   * l'une des trois pastilles redevient le fond de l'un des deux conteneurs
-   * connus (`bg-surface` dans `recipe-screen.tsx`, `bg-raised` dans
-   * `suggestion-sheet.tsx`).
+   * `recipe-screen.tsx` — la pastille y était invisible.
+   *
+   * Portée exacte de ce test, pour qu'on ne lui prête pas plus : il compare des
+   * NOMS DE CLASSES, pas des couleurs rendues. Il rattrape le retour littéral
+   * de `bg-surface` ou `bg-raised` sur une pastille ; il ne verrait pas une
+   * variable de thème redéfinie à la même valeur, ni une classe arbitraire
+   * produisant le même fond. Vérifier la couleur effective demanderait un
+   * rendu réel avec résolution des variables CSS, qu'aucun test du projet ne
+   * fait aujourd'hui.
    */
   it.each(['ambient', 'chilled', 'frozen'] as const)('%s se détache des deux conteneurs connus (bg-surface, bg-raised)', (temperature) => {
     const { container } = render(<LocationChip name="Test" temperature={temperature} />);
