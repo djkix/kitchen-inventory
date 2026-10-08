@@ -4,6 +4,7 @@ import {
   convertWithNetContent,
   isUsableForRecipes,
   roundQuantity,
+  servingsRatio,
   STOCK_CONSUMPTION_ORDER,
   type CookRecipeInput,
   type CookResult,
@@ -145,8 +146,11 @@ export class RecipesCookService {
       return { ingredientId: ingredient.id, label: ingredient.label, requested: null, applied: 0, unit: null, capped: false };
     }
 
-    // A14 : mise à l'échelle unique, côté serveur, jamais à partir d'une valeur envoyée par le client.
-    const requested = roundQuantity((quantity * servingsCooked) / recipe.servings);
+    // A14 : mise à l'échelle unique, côté serveur, jamais à partir d'une valeur
+    // envoyée par le client. Par `servingsRatio`, la même règle que l'écran
+    // utilise pour afficher les quantités : c'est ici qu'on écrit en base, une
+    // formule recopiée ferait décrémenter autre chose que ce qui a été montré.
+    const requested = roundQuantity(quantity * servingsRatio(servingsCooked, recipe.servings));
 
     // Une ligne qui vise une catégorie (A15) exige que le client résolve un produit ;
     // sans lui, impossible de décrémenter. Signalé `capped` plutôt qu'ignoré en silence
@@ -256,7 +260,8 @@ export class RecipesCookService {
         continue;
       }
 
-      const requested = roundQuantity((quantity * log.servingsCooked) / recipe.servings);
+      // Même règle que ci-dessus et que l'écran : `servingsRatio`, jamais une division recopiée.
+      const requested = roundQuantity(quantity * servingsRatio(log.servingsCooked, recipe.servings));
       const lotMovements = movementsByIngredient.get(ingredient.id);
       if (!lotMovements) {
         lines.push({ ingredientId: ingredient.id, label: ingredient.label, requested, applied: 0, unit, capped: requested > 0 });
