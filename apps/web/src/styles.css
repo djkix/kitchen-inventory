@@ -22,6 +22,17 @@
   --color-soon: #f5c84c;
   --color-soon-deep: #3a3012;
 
+  /*
+   * Température de stockage (pastille d'emplacement, EF-23) : nommées par leur
+   * sens, pas par leur teinte, comme les couleurs d'état ci-dessus — mais
+   * distinctes d'elles, pour qu'un emplacement ne se confonde jamais avec une
+   * alerte de péremption (`danger`/`warn`/`soon`).
+   */
+  --color-chilled: #7ec8f0;
+  --color-chilled-deep: #122d42;
+  --color-frozen: #d4f1f9;
+  --color-frozen-deep: #1e4d5c;
+
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 
   --radius-card: 14px;
