@@ -38,6 +38,13 @@ const byTitle = (a: SortableRecipe, b: SortableRecipe): number => a.title.locale
 const byRating = (a: SortableRecipe, b: SortableRecipe): number => {
   const aEffective = effectiveRating(a.rating, a.averageRating);
   const bEffective = effectiveRating(b.rating, b.averageRating);
+  // Le nombre d'avis ne départage que deux notes issues de réalisations. Une
+  // note directe n'en a aucun : l'y comparer la ferait perdre à coup sûr, et
+  // rangerait systématiquement derrière les autres les recettes qu'on vient de
+  // noter à la main — l'inverse de ce que la notation directe cherche à faire.
+  // À égalité entre une note directe et une moyenne, c'est donc le titre qui
+  // tranche : arbitraire, mais assumé. Rien ne dit qu'un avis unique vaut moins
+  // qu'une moyenne de cinquante, ni l'inverse.
   const compareByReviewCount = aEffective.source === 'cooked' && bEffective.source === 'cooked';
   return (
     Number(bEffective.value !== null) - Number(aEffective.value !== null) ||
