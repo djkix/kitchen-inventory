@@ -44,7 +44,9 @@ export function HistoryPanel({ stats, logs, currentUserId, hasNextPage, isFetchi
       </div>
 
       {logs.length === 0 ? (
-        <p className="px-1 text-[14px] text-muted">Jamais faite : aucune réalisation enregistrée.</p>
+        <p className="px-1 text-[14px] text-muted">
+          Jamais faite : aucune réalisation enregistrée. La note directe, ci-dessus, reste possible dès maintenant.
+        </p>
       ) : (
         <ol className="flex flex-col divide-y divide-line rounded-card bg-surface">
           {logs.map((log) => {

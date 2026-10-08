@@ -1,4 +1,4 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import type {
   AuthStatus,
   AvailableModels,
@@ -14,6 +14,7 @@ import type {
   RecognitionStats,
   Settings,
   StockItemDto,
+  UpdateRecipeInput,
 } from '@kitchen/shared';
 import { api } from './api';
 import { recipesApi } from './recipes-api';
@@ -189,6 +190,60 @@ export function useRecipeQuery(id: string | undefined, servings?: number) {
     enabled: Boolean(id),
     placeholderData: keepPreviousData,
   });
+}
+
+/** Favori et note directe (A2, A3) : les deux seuls champs qu'un geste à l'écran écrit sans passer par le formulaire de modification. */
+export type RecipeDirectPatch = Pick<UpdateRecipeInput, 'favorite' | 'rating'>;
+
+/**
+ * Écrit `favorite`/`rating` dans toutes les entrées déjà en cache qui
+ * connaissent cette recette — chaque page de chaque liste, et la fiche quel
+ * que soit le nombre de parts demandé (`queryKeys.recipeDetail`) — avant même
+ * la réponse du serveur : en cuisine, l'étoile doit changer d'aspect au
+ * contact du doigt, pas après un aller-retour réseau. Les deux vues restent
+ * ainsi synchrones dès le geste, sans état local dupliqué (le cache partagé
+ * de TanStack Query est la seule source de vérité, pas une mutation dédiée
+ * inventée pour l'occasion). Retourne de quoi revenir en arrière si l'appel
+ * échoue ensuite.
+ */
+function patchRecipeInCache(queryClient: QueryClient, recipeId: string, patch: RecipeDirectPatch): () => void {
+  const previousLists = queryClient.getQueriesData<InfiniteData<Paginated<RecipeSummaryDto>>>({ queryKey: queryKeys.recipesAll });
+  const previousDetails = queryClient.getQueriesData<RecipeDto>({ queryKey: queryKeys.recipe(recipeId) });
+
+  queryClient.setQueriesData<InfiniteData<Paginated<RecipeSummaryDto>>>({ queryKey: queryKeys.recipesAll }, (data) => {
+    if (!data) return data;
+    return {
+      ...data,
+      pages: data.pages.map((page) => ({
+        ...page,
+        items: page.items.map((item) => (item.id === recipeId ? { ...item, ...patch } : item)),
+      })),
+    };
+  });
+  queryClient.setQueriesData<RecipeDto>({ queryKey: queryKeys.recipe(recipeId) }, (data) => (data ? { ...data, ...patch } : data));
+
+  return () => {
+    for (const [key, data] of previousLists) queryClient.setQueryData(key, data);
+    for (const [key, data] of previousDetails) queryClient.setQueryData(key, data);
+  };
+}
+
+/**
+ * Pose un favori ou une note directe (A2, A3) : écriture immédiate du cache
+ * (`patchRecipeInCache`) puis appel au serveur ; un échec revient sur l'état
+ * d'avant et relance l'erreur pour que l'écran appelant affiche son propre
+ * message (même usage que le reste de l'application : try/catch et toast
+ * côté écran, jamais ici).
+ */
+export function useRecipeDirectPatch() {
+  const queryClient = useQueryClient();
+  return (recipeId: string, patch: RecipeDirectPatch) => {
+    const rollback = patchRecipeInCache(queryClient, recipeId, patch);
+    return recipesApi.updateRecipe(recipeId, patch).catch((error: unknown) => {
+      rollback();
+      throw error;
+    });
+  };
 }
 
 /** Historique des réalisations d'une recette (A26), du plus récent au plus ancien. */
