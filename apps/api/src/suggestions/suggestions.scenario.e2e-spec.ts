@@ -285,7 +285,10 @@ describe('scénario de réussite figé des suggestions', () => {
     // de la fournée de départ : la fournée annonçait « Spaghetti à la tomate ».
     expect(res.body.title).toBe('Tarte aux pommes (réécrite)');
     // La fournée annonçait HARD ; huit étapes sans aucune technique détectée et
-    // trente minutes (bucket étapes 2 + bucket temps 2 + 0 technique = score 4)
+    // `computeDifficulty` lit `activeTime ?? prepMinutes` : depuis que la fournée
+    // porte des durées séparées, c'est `prepMinutes` (28) qui pilote le palier de
+    // temps, non `totalMinutes` (30). Même tranche, même score — mais ce n'est
+    // plus la même valeur qui le détermine (bucket étapes 2 + bucket temps 2 + 0 technique = score 4)
     // donnent INTERMEDIATE au barème du foyer (`computeDifficulty`), jamais le HARD
     // annoncé par le modèle.
     expect(res.body.difficulty).toBe('INTERMEDIATE');
