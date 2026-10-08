@@ -13,6 +13,7 @@ import { recipesApi } from '../../lib/recipes-api';
 import { RecipeCard, recipeAccessibleName } from './recipe-card';
 import { countActiveRecipeFilters, EMPTY_RECIPE_FILTERS, RecipeFiltersBar } from './recipe-filters';
 import { RatingReminderBanner } from './rating-reminder';
+import { RecipeTabSwitch } from './recipe-tab-switch';
 
 export function RecipesScreen() {
   const [query, setQuery] = useState('');
@@ -51,9 +52,10 @@ export function RecipesScreen() {
     <>
       <ScreenHeader
         title="Mes recettes"
-        back="/recettes"
         subtitle={recipes.isSuccess ? <span className="tnum">{total} recette{total > 1 ? 's' : ''}</span> : undefined}
       />
+
+      <RecipeTabSwitch />
 
       <RatingReminderBanner />
 
