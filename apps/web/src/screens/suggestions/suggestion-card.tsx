@@ -1,4 +1,4 @@
-import { COVERAGE_GROUP_LABELS_FR, DIFFICULTY_LABELS_FR, type SuggestionDto } from '@kitchen/shared';
+import { COVERAGE_GROUP_LABELS_FR, DIFFICULTY_LABELS_FR, DISH_TYPE_LABELS_FR, type SuggestionDto } from '@kitchen/shared';
 import { cn } from '../../lib/cn';
 import { formatMinutes } from '../../lib/quantity-ui';
 
@@ -42,7 +42,7 @@ export function provenanceLabel(suggestion: SuggestionDto): string {
  * que le badge coloré, en mots.
  */
 export function suggestionAccessibleName(suggestion: SuggestionDto): string {
-  return `${suggestion.title}, ${COVERAGE_GROUP_LABELS_FR[suggestion.group]} à ${Math.round(suggestion.coverage * 100)} %`;
+  return `${suggestion.title}, ${DISH_TYPE_LABELS_FR[suggestion.dishType]}, ${COVERAGE_GROUP_LABELS_FR[suggestion.group]} à ${Math.round(suggestion.coverage * 100)} %`;
 }
 
 export function SuggestionCard({ suggestion }: SuggestionCardProps) {
@@ -57,6 +57,8 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
       </div>
 
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-muted">
+        <span>{DISH_TYPE_LABELS_FR[suggestion.dishType]}</span>
+        <span aria-hidden>·</span>
         <span>{suggestion.origin}</span>
         <span aria-hidden>·</span>
         {time && <span className="tnum">{time}</span>}

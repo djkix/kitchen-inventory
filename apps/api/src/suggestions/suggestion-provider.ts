@@ -1,4 +1,4 @@
-import type { Difficulty, ModelRecipe, SuggestionRegion } from '@kitchen/shared';
+import type { Difficulty, DishType, ModelRecipe, SuggestionRegion } from '@kitchen/shared';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 
 /** Orientation facultative de la recherche (section 12, EF-25, B9) et nombre de recettes voulues. */
@@ -7,6 +7,8 @@ export interface SuggestionRequest {
   region?: SuggestionRegion;
   maxMinutes?: number;
   difficulty?: Difficulty;
+  /** Type de plat demandé ; sert au bouton de relance quand le filtre d'écran ne laisse rien. */
+  dishType?: DishType;
   count: number;
   /**
    * Modèle choisi pour CET appel, résolu par le service depuis les réglages

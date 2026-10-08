@@ -23,7 +23,8 @@
           "quantity": null,
           "unit": null
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette web 2",
@@ -48,7 +49,8 @@
           "quantity": null,
           "unit": null
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette web 3",
@@ -73,7 +75,8 @@
           "quantity": null,
           "unit": null
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette web 4",
@@ -98,7 +101,8 @@
           "quantity": null,
           "unit": null
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette web 5",
@@ -123,7 +127,8 @@
           "quantity": null,
           "unit": null
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette web 6",
@@ -148,7 +153,8 @@
           "quantity": null,
           "unit": null
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette web 7",
@@ -173,7 +179,8 @@
           "quantity": null,
           "unit": null
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette web 8",
@@ -198,7 +205,8 @@
           "quantity": null,
           "unit": null
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette web 9",
@@ -223,7 +231,8 @@
           "quantity": null,
           "unit": null
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette web 10",
@@ -248,7 +257,8 @@
           "quantity": null,
           "unit": null
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette composée 1",
@@ -267,7 +277,8 @@
           "quantity": 200,
           "unit": "GRAM"
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette composée 2",
@@ -286,7 +297,8 @@
           "quantity": 200,
           "unit": "GRAM"
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette composée 3",
@@ -305,7 +317,8 @@
           "quantity": 200,
           "unit": "GRAM"
         }
-      ]
+      ],
+      "dishType": "MAIN"
     },
     {
       "title": "Recette composée 4",
@@ -324,7 +337,8 @@
           "quantity": 200,
           "unit": "GRAM"
         }
-      ]
+      ],
+      "dishType": "MAIN"
     }
   ]
 }

@@ -52,8 +52,14 @@ const SUGGESTION_WEB_TARGET = SUGGESTION_BATCH_SIZE - SUGGESTION_AI_TARGET;
  */
 export const SUGGESTION_REQUEST_BUFFER = 4;
 
-/** Signature de cache (B12) : identifiants de départ triés + orientation + version du prompt. */
-const SUGGESTION_SIGNATURE_VERSION = 'v1';
+/**
+ * Signature de cache (B12) : identifiants de départ triés + orientation + version
+ * du prompt. Passée à `v2` le 2026-10-08 avec l'arrivée du type de plat : les
+ * fournées stockées avant ne le portent pas et ne passent plus `modelBatchSchema`.
+ * Elles seraient ignorées de toute façon — le type entre aussi dans la signature —
+ * mais la version le dit explicitement plutôt que de le laisser déduire.
+ */
+const SUGGESTION_SIGNATURE_VERSION = 'v2';
 /** Une fournée en cache de plus de 24 heures est ignorée (section 9, B12). */
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -115,6 +121,7 @@ function computeSignature(seedProductIds: readonly string[], query: SuggestionQu
     region: query.region ?? null,
     maxMinutes: query.maxMinutes ?? null,
     difficulty: query.difficulty ?? null,
+    dishType: query.dishType ?? null,
     version: SUGGESTION_SIGNATURE_VERSION,
   });
   return createHash('sha256').update(payload).digest('hex');
@@ -286,6 +293,7 @@ export class SuggestionsService {
       region: query.region,
       maxMinutes: query.maxMinutes,
       difficulty: query.difficulty,
+      dishType: query.dishType,
       count: SUGGESTION_BATCH_SIZE + SUGGESTION_REQUEST_BUFFER,
     };
 
@@ -434,6 +442,7 @@ export class SuggestionsService {
         region: recipe.region,
         totalMinutes: recipe.totalMinutes,
         difficulty: recipe.difficulty,
+        dishType: recipe.dishType,
         provenance: recipe.provenance,
         sourceUrl: recipe.sourceUrl,
         ingredients: ingredientDtos,
@@ -555,6 +564,10 @@ export class SuggestionsService {
       // recalculée au barème du foyer, B15) ; faute de détail cuisson/préparation
       // séparé dans la fournée, elle est portée en préparation.
       prepMinutes: suggestion.totalMinutes,
+      // Le classement du modèle suit la recette conservée : « Mes recettes »
+      // filtre sur le même vocabulaire, une suggestion gardée n'a pas à être
+      // reclassée à la main (demande du 2026-10-08).
+      dishType: suggestion.dishType,
       ingredients,
       // `difficulty` délibérément omis : `RecipesService.create` la calcule via
       // `computeDifficulty`, jamais recopiée ici (B15, règle métier partagée).

@@ -11,7 +11,7 @@ function recipe(provenance: 'web' | 'ai', index: number): ModelRecipe {
     origin: provenance === 'web' ? 'Site' : 'Composition',
     region: 'mediterraneenne',
     totalMinutes: 30,
-    difficulty: 'EASY',
+    difficulty: 'EASY', dishType: 'MAIN',
     provenance,
     sourceUrl: provenance === 'web' ? `https://exemple.test/${index}` : null,
     steps: ['Cuire'],

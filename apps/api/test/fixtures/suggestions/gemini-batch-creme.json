@@ -17,7 +17,8 @@
           "quantity": 200,
           "unit": "MILLILITER"
         }
-      ]
+      ],
+      "dishType": "MAIN"
     }
   ]
 }
