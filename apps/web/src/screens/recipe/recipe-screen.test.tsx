@@ -328,4 +328,13 @@ describe('RecipeScreen', () => {
     expect(screen.getByText(/Jamais faite/)).toBeTruthy();
     expect(screen.getByText(/note directe.*reste possible/)).toBeTruthy();
   });
+
+  it('intitule la note « Note du foyer », jamais « Ma note »', () => {
+    // `Recipe.rating` n'a pas de `userId` : la note est partagée, comme le
+    // favori. Un libellé possessif laisserait croire à une note personnelle
+    // qu'un autre membre ne pourrait pas écraser — ce qu'il peut faire.
+    renderRecipeScreen();
+    expect(screen.getByText('Note du foyer')).toBeTruthy();
+    expect(screen.queryByText('Ma note')).toBeNull();
+  });
 });
