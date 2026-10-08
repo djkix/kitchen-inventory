@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.0](https://github.com/djkix/kitchen-inventory/compare/v0.12.1...v0.13.0) (2026-10-08)
+
+
+### Features
+
+* **settings:** limiter le choix des modèles à la ligne courante de Gemini ([77335c4](https://github.com/djkix/kitchen-inventory/commit/77335c49b4eb3d60918422d5ab24dd15f8a50899))
+* **suggestions:** classer les recettes par type de plat (EF-25, EF-26) ([307470e](https://github.com/djkix/kitchen-inventory/commit/307470e5cdf43a3353f6eb17efcc1e4f67528d49))
+
+
+### Bug Fixes
+
+* **ci:** retirer @anthropic-ai/sdk du verrou sans le régénérer ([948a863](https://github.com/djkix/kitchen-inventory/commit/948a863bbbdd1247b1cf039ac158b20357fe8a46))
+
 ## [0.12.1](https://github.com/djkix/kitchen-inventory/compare/v0.12.0...v0.12.1) (2026-10-07)
 
 
