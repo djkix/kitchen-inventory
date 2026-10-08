@@ -183,4 +183,19 @@ describe('RecipeScreen', () => {
 
     expect((screen.getByLabelText('Portions réalisées') as HTMLInputElement).value).toBe('8');
   });
+
+  it('laisse remplacer le nombre de parts, pas seulement y ajouter des chiffres', () => {
+    // Le champ se repliait sur le nombre courant quand il était vide : effacer
+    // réaffichait aussitôt l'ancien chiffre, donc taper « 2 » sur « 4 » donnait
+    // « 42 » et jamais « 2 ». Rencontré par Franck le 2026-10-08.
+    renderRecipeScreen();
+    const champ = screen.getByLabelText('Nombre de parts') as HTMLInputElement;
+    expect(champ.value).toBe('4');
+
+    fireEvent.change(champ, { target: { value: '' } });
+    expect(champ.value).toBe('');
+
+    fireEvent.change(champ, { target: { value: '2' } });
+    expect(champ.value).toBe('2');
+  });
 });

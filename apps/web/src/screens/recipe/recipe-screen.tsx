@@ -75,8 +75,12 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   // Brouillon du champ « Nombre de parts » (EF-26) : `''` tant que Franck n'a
   // pas tapé, même geste que les autres champs décimaux de l'application
   // (clavier décimal français, virgule acceptée en silence).
-  const [rawServings, setRawServings] = useState('');
-  useEffect(() => setRawServings(''), [recipe.id]);
+  // Le champ EST sa propre valeur, jamais un repli sur le nombre courant : avec
+  // `raw === '' ? String(valeur) : raw`, effacer réaffichait aussitôt l'ancien
+  // chiffre, si bien qu'on ne pouvait plus le remplacer — taper « 2 » sur « 4 »
+  // donnait « 42 ». Franck l'a rencontré le 2026-10-08.
+  const [rawServings, setRawServings] = useState(String(servings));
+  useEffect(() => setRawServings(String(recipe.servings)), [recipe.id, recipe.servings]);
 
   const archived = recipe.archivedAt !== null;
   const hasHistory = recipe.stats.timesCooked > 0;
@@ -205,7 +209,7 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
           // produit une virgule, qu'un champ numérique rejette en silence.
           type="text"
           inputMode="numeric"
-          value={rawServings === '' ? String(servings) : rawServings}
+          value={rawServings}
           onChange={(event) => onServingsTyped(event.target.value)}
           className="w-28"
         />
