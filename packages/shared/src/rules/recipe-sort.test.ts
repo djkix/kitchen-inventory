@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { RECIPE_SORTS, sortRecipes, type SortableRecipe } from './recipe-sort.js';
 
 const r = (title: string, over: Partial<SortableRecipe> = {}): SortableRecipe => ({
-  title, coverage: 0.5, averageRating: null, ratingCount: 0, timesCooked: 0, lastCookedAt: null, ...over,
+  title, coverage: 0.5, rating: null, averageRating: null, ratingCount: 0, timesCooked: 0, lastCookedAt: null, ...over,
 });
 const titles = (list: SortableRecipe[]): string[] => list.map((x) => x.title);
 
@@ -15,6 +15,25 @@ describe('sortRecipes', () => {
       r('Moyenne', { averageRating: 3, ratingCount: 4 }),
     ];
     expect(titles(sortRecipes(list, 'rating'))).toEqual(['Bonne sur dix avis', 'Bonne sur un avis', 'Moyenne', 'Jamais notée']);
+  });
+  it('par note : directe et par réalisations se classent sur la même échelle (A5)', () => {
+    const list = [
+      r('Notée par réalisations à 4', { averageRating: 4, ratingCount: 3 }),
+      r('Notée directement à 5', { rating: 5 }),
+      r('Notée directement à 3', { rating: 3 }),
+      r('Jamais notée'),
+    ];
+    expect(titles(sortRecipes(list, 'rating'))).toEqual([
+      'Notée directement à 5',
+      'Notée par réalisations à 4',
+      'Notée directement à 3',
+      'Jamais notée',
+    ]);
+  });
+  it('la note directe prime sur la moyenne des réalisations pour une même recette', () => {
+    const list = [r('Avec les deux', { rating: 2, averageRating: 5, ratingCount: 10 }), r('Sans note', { averageRating: 3, ratingCount: 1 })];
+    // La note directe (2) prime : la recette se classe moins bien que celle à 3 malgré une moyenne de réalisations à 5.
+    expect(titles(sortRecipes(list, 'rating'))).toEqual(['Sans note', 'Avec les deux']);
   });
   it('départage par le titre, accents compris', () => {
     expect(titles(sortRecipes([r('Éclair'), r('Dessert')], 'rating'))).toEqual(['Dessert', 'Éclair']);
