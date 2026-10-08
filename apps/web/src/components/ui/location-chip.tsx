@@ -13,10 +13,13 @@ type Temperature = 'ambient' | 'chilled' | 'frozen' | null;
  * pictogramme décoratif (`aria-hidden`, porté par `icons.tsx`).
  *
  * La pastille doit se détacher de SES DEUX conteneurs connus
- * (`recipe-screen.tsx` : `bg-surface`, `suggestion-sheet.tsx` : `bg-raised`) —
- * d'où `ambient`, resté neutre, qui se distingue par une bordure plutôt qu'un
- * fond, et `bg-ink`, le plus sombre du thème, jamais utilisé comme fond de
- * conteneur de liste.
+ * (`recipe-screen.tsx` : `bg-surface`, `suggestion-sheet.tsx` : `bg-raised`).
+ * Chacune y parvient par un moyen différent, et il faut le savoir avant d'y
+ * toucher : `ambient` tient par sa BORDURE, son fond `bg-ink` étant proche en
+ * clarté des deux conteneurs ; `chilled` tient par sa TEINTE et par la clarté
+ * de son texte, son fond étant presque aussi sombre que `bg-raised` ; seule
+ * `frozen` se détache vraiment par son fond. Retirer la bordure d'`ambient` ou
+ * assombrir le texte de `chilled` les rendrait illisibles.
  */
 const TEMPERATURE_LOOK: Record<NonNullable<Temperature> | 'unknown', { classes: string; Icon: ComponentType<IconProps> | null }> = {
   ambient: { classes: 'border border-line bg-ink text-muted', Icon: SunIcon },
