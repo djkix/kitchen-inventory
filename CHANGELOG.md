@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.15.0](https://github.com/djkix/kitchen-inventory/compare/v0.14.0...v0.15.0) (2026-10-08)
+
+
+### Features
+
+* **recipes:** favori et note directe, migration 0008 (EF-21) ([666d99f](https://github.com/djkix/kitchen-inventory/commit/666d99f9c92b2b575bb3a73702ff7387e954b963))
+* **recipes:** règle de note effective (EF-21) ([8eeb19e](https://github.com/djkix/kitchen-inventory/commit/8eeb19ea165206cb4b008c1c90946e6d475e8bc9))
+* **recipes:** tri par note via effectiveRating, e2e et doc (EF-21, A5) ([b01ddd4](https://github.com/djkix/kitchen-inventory/commit/b01ddd44fc88566d245db19bdf0e4fec670aad04))
+* **web:** favoris et note directe à l'écran (EF-21) ([77bcccf](https://github.com/djkix/kitchen-inventory/commit/77bcccf89244b2bc9dd683e2bf7465328fd7596c))
+
+
+### Bug Fixes
+
+* **docker:** transmettre SUGGESTION_WEB_SEARCH au conteneur ([96307e9](https://github.com/djkix/kitchen-inventory/commit/96307e93e0989024032914113f1a8e25232ef325))
+* **recipes:** six correctifs de revue finale (EF-28, A5, D3, D4) ([9471d16](https://github.com/djkix/kitchen-inventory/commit/9471d16ecfdc593b93f448941aaabfe6eeaf9986))
+* **web:** rendre le nombre de parts remplaçable, pas seulement extensible (EF-26) ([9b8a4c0](https://github.com/djkix/kitchen-inventory/commit/9b8a4c0435e983d931a8e511e0fea3ee694c371e))
+* **web:** sortir l'étoile de favori de l'ancre de la carte (EF-21) ([3c33ea9](https://github.com/djkix/kitchen-inventory/commit/3c33ea9a25765eb99e9f46940996b08a120e118f))
+
 ## [0.14.0](https://github.com/djkix/kitchen-inventory/compare/v0.13.0...v0.14.0) (2026-10-08)
 
 
