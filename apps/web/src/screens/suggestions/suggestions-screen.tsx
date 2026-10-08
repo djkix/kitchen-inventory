@@ -10,6 +10,7 @@ import type { SuggestionOrientation } from '../../lib/suggestions-api';
 import { OrientationBar } from './orientation-bar';
 import { SuggestionCard, suggestionAccessibleName } from './suggestion-card';
 import { SuggestionSheet } from './suggestion-sheet';
+import { RecipeTabSwitch } from '../recipes/recipe-tab-switch';
 
 /**
  * Écran Suggestions (section 12, EF-25, EF-26) : entrée du module recettes —
@@ -31,15 +32,9 @@ export function SuggestionsScreen() {
 
   return (
     <>
-      <ScreenHeader
-        title="Suggestions"
-        subtitle="À partir de votre stock"
-        actions={
-          <Link to="/recettes/bibliotheque" className="inline-flex min-h-touch items-center rounded-xl px-3 text-[14px] font-medium text-accent active:bg-raised">
-            Mes recettes
-          </Link>
-        }
-      />
+      <ScreenHeader title="Suggestions" subtitle="À partir de votre stock" />
+
+      <RecipeTabSwitch />
 
       <OrientationBar value={orientation} onChange={setOrientation} dishType={dishType} onDishTypeChange={setDishType} />
 
