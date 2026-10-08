@@ -234,6 +234,23 @@ describe('recettes (EF-17, EF-21)', () => {
       expect(finale.body).toMatchObject({ rating: null, stats: { averageRating: 4 } });
     });
 
+    it('partage la note directe entre les membres du foyer, comme le favori (pas de userId sur Recipe.rating)', async () => {
+      const recipe = await createRecipe(agent, 'Note du foyer', []);
+      const posee = await agent.patch(`/api/v1/recipes/${recipe.id}`).send({ rating: 3 }).expect(200);
+      expect(posee.body.rating).toBe(3);
+
+      // Un autre membre voit la même note, et peut l'écraser sans qu'aucune
+      // trace ne distingue qui l'a posée en dernier (pas de `userId`,
+      // contrairement à la note par réalisation).
+      const marie = await createLoggedInMember(t, agent, { email: 'marie@example.org' });
+      const vueParMarie = await marie.get(`/api/v1/recipes/${recipe.id}`).expect(200);
+      expect(vueParMarie.body.rating).toBe(3);
+      const corrigeeParMarie = await marie.patch(`/api/v1/recipes/${recipe.id}`).send({ rating: 1 }).expect(200);
+      expect(corrigeeParMarie.body.rating).toBe(1);
+      const vueParAgent = await agent.get(`/api/v1/recipes/${recipe.id}`).expect(200);
+      expect(vueParAgent.body.rating).toBe(1);
+    });
+
     it('refuse une note hors de 1 à 5', async () => {
       const recipe = await createRecipe(agent, 'Hors bornes', []);
       await agent.patch(`/api/v1/recipes/${recipe.id}`).send({ rating: 0 }).expect(400);
@@ -250,6 +267,27 @@ describe('recettes (EF-17, EF-21)', () => {
       // Le défaut (`favorite` absent) ne doit exclure personne.
       const tout = await agent.get('/api/v1/recipes').expect(200);
       expect(tout.body.items.map((r: { title: string }) => r.title).sort()).toEqual(['Favorite', 'Pas favorite']);
+    });
+
+    it('filtre « Note minimale » sur la note directe, pas sur la seule moyenne des réalisations (A5)', async () => {
+      // Notée directement 5, jamais cuisinée : une moyenne de réalisations
+      // resterait `null` et la ferait disparaître à tort du filtre « ★ 4+ ».
+      const noteeDirecte = await createRecipe(agent, 'Notée directe à 5', []);
+      await agent.patch(`/api/v1/recipes/${noteeDirecte.id}`).send({ rating: 5 }).expect(200);
+
+      // Notée directement 2, mais moyenne de réalisations à 4,5 (décision D3
+      // : la note directe prime, cette recette ne doit PAS apparaître).
+      const ecart = await createRecipe(agent, 'Note directe basse, moyenne haute', []);
+      await agent.patch(`/api/v1/recipes/${ecart.id}`).send({ rating: 2 }).expect(200);
+      const log = await logCooked(agent, ecart.id);
+      await agent.put(`/api/v1/recipe-logs/${log.id}/rating`).send({ stars: 5 }).expect(200);
+      const marie = await createLoggedInMember(t, agent, { email: 'marie@example.org' });
+      await marie.put(`/api/v1/recipe-logs/${log.id}/rating`).send({ stars: 4 }).expect(200);
+
+      await createRecipe(agent, 'Jamais notée', []);
+
+      const res = await agent.get('/api/v1/recipes?minRating=4').expect(200);
+      expect(res.body.items.map((r: { title: string }) => r.title)).toEqual(['Notée directe à 5']);
     });
   });
 

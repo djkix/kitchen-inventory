@@ -25,15 +25,24 @@ const byTitle = (a: SortableRecipe, b: SortableRecipe): number => a.title.locale
 /**
  * Note : passe par `effectiveRating` (D3, A5) pour que note directe et
  * moyenne des réalisations se classent sur la même échelle, puis par le
- * nombre d'avis de réalisation, puis par le titre.
+ * nombre d'avis de réalisation (seulement entre deux recettes départagées
+ * par leur moyenne — `ratingCount` ne compte que des avis de réalisation, il
+ * ne mesure rien pour une note directe), puis par le titre.
+ *
+ * Correctif de revue (2026-10-08) : départager par `ratingCount` dès que
+ * l'une des deux valeurs vient d'une note directe pénalisait systématiquement
+ * cette dernière (`ratingCount` vaut 0 tant qu'aucune réalisation n'est
+ * notée) — une recette notée directement 5 passait derrière une recette de
+ * moyenne 5 construite sur dix avis, l'inverse de l'intention du lot.
  */
 const byRating = (a: SortableRecipe, b: SortableRecipe): number => {
-  const aEffective = effectiveRating(a.rating, a.averageRating).value;
-  const bEffective = effectiveRating(b.rating, b.averageRating).value;
+  const aEffective = effectiveRating(a.rating, a.averageRating);
+  const bEffective = effectiveRating(b.rating, b.averageRating);
+  const compareByReviewCount = aEffective.source === 'cooked' && bEffective.source === 'cooked';
   return (
-    Number(bEffective !== null) - Number(aEffective !== null) ||
-    (bEffective ?? 0) - (aEffective ?? 0) ||
-    b.ratingCount - a.ratingCount ||
+    Number(bEffective.value !== null) - Number(aEffective.value !== null) ||
+    (bEffective.value ?? 0) - (aEffective.value ?? 0) ||
+    (compareByReviewCount ? b.ratingCount - a.ratingCount : 0) ||
     byTitle(a, b)
   );
 };
