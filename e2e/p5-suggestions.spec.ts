@@ -65,7 +65,10 @@ import { restoreDatabase } from './support/database.ts';
  * - Le nom du site (`exemple-cuisine-N.test`) et « Proposée par l'IA » —
  *   `provenanceLabel`, même fichier (`siteName(sourceUrl)` retire le
  *   protocole et un éventuel `www.`, jamais affiché en entier — B10).
- * - `getByRole('dialog', { name: <titre> })`, le bouton « Conserver » —
+ * - `getByRole('dialog', { name: <titre> })`, le bouton « Plus d'informations »
+ *   (round de correction finale du 2026-10-08 : renomme « Conserver », même
+ *   geste, même effet — conserve directement, ce n'est pas une consultation
+ *   suivie d'une conservation séparée) —
  *   `apps/web/src/screens/suggestions/suggestion-sheet.tsx` (titre du
  *   `Sheet`, rendu en `<h2>` par `apps/web/src/components/ui/sheet.tsx`,
  *   `aria-label` du tiroir = ce même titre).
@@ -152,27 +155,28 @@ test('affiche une fournée construite sur le stock, chaque carte avec sa provena
   await expect(page.getByText('Proposée par l’IA')).toHaveCount(AI_RECIPE_COUNT);
 });
 
-test('n’affiche aucune étape avant conservation, quelle que soit la provenance', async ({ page }) => {
+test('affiche les étapes d’une composition dès la fiche, mais jamais celles d’une recette web avant conservation (B7, amendé le 2026-10-08)', async ({ page }) => {
   await page.goto('/recettes');
 
-  const cases: Array<{ title: string; stepText: string }> = [
-    { title: 'Recette web 1', stepText: 'Préparer les ingrédients de la recette 1.' },
-    { title: 'Recette composée 1', stepText: 'Étape unique de composition pour la recette 1.' },
-  ];
+  // Recette composée : les étapes sont déjà dans la fournée (B6, aucun appel
+  // réseau pour une composition) — « Plus d'informations » n'aurait rien de
+  // plus à aller chercher, elle doit donc déjà les montrer.
+  const aiDialog = await openSuggestionSheet(page, 'Recette composée 1');
+  await expect(aiDialog.getByRole('heading', { name: 'Étapes', level: 2 })).toBeVisible();
+  await expect(page.getByText('Étape unique de composition pour la recette 1.')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(aiDialog).toBeHidden();
 
-  for (const { title, stepText } of cases) {
-    const dialog = await openSuggestionSheet(page, title);
-    // Les deux provenances doivent se ressembler avant conservation (B7,
-    // décision du 2026-10-04) : aucune section « Étapes », aucun texte
-    // d'étape, copié ici tel quel depuis la fixture plutôt que deviné.
-    await expect(dialog.getByRole('heading', { name: 'Étapes' })).toHaveCount(0);
-    await expect(page.getByText(stepText)).toHaveCount(0);
-    // L'écran affiche bien autre chose (les ingrédients) : ce n'est pas un tiroir vide par accident.
-    await expect(dialog.getByRole('listitem').first()).toBeVisible();
-
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
-  }
+  // Recette web : sa page n'est récupérée et réécrite qu'à la conservation
+  // (B6) — aucune étape à deviner ici, copié tel quel depuis la fixture
+  // plutôt qu'un titre plausible.
+  const webDialog = await openSuggestionSheet(page, 'Recette web 1');
+  await expect(webDialog.getByRole('heading', { name: 'Étapes' })).toHaveCount(0);
+  await expect(page.getByText('Préparer les ingrédients de la recette 1.')).toHaveCount(0);
+  // L'écran affiche bien autre chose (les ingrédients) : ce n'est pas un tiroir vide par accident.
+  await expect(webDialog.getByRole('listitem').first()).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(webDialog).toBeHidden();
 });
 
 test('relance une recherche quand on choisit une région, plutôt que de filtrer ce qui est affiché', async ({ page }) => {
@@ -193,11 +197,11 @@ test('relance une recherche quand on choisit une région, plutôt que de filtrer
   expect(second.batchId).not.toBe(first.batchId);
 });
 
-test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où ses étapes apparaissent enfin', async ({ page }) => {
+test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où ses étapes restent affichées', async ({ page }) => {
   await page.goto('/recettes');
   const dialog = await openSuggestionSheet(page, 'Recette composée 1');
 
-  await dialog.getByRole('button', { name: 'Conserver' }).click();
+  await dialog.getByRole('button', { name: 'Plus d’informations' }).click();
 
   // Composition IA (B6) : aucun appel réseau supplémentaire, contrairement au
   // chemin web (récupération de page + réécriture Gemini, hors périmètre ici
@@ -205,8 +209,9 @@ test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où
   await page.waitForURL(/\/recettes\/[^/]+$/);
   await expect(page.getByRole('heading', { name: 'Recette composée 1', level: 1 })).toBeVisible();
 
-  // C'est SEULEMENT maintenant, sur la fiche de la recette conservée, que les
-  // étapes apparaissent (B7) — texte exact de la fixture, jamais reformulé.
+  // Les étapes d'une composition étaient déjà visibles dans le tiroir (B7,
+  // amendé le 2026-10-08) ; elles restent affichées sur la fiche de la
+  // recette conservée — texte exact de la fixture, jamais reformulé.
   await expect(page.getByRole('heading', { name: 'Étapes', level: 2 })).toBeVisible();
   await expect(page.getByText('Étape unique de composition pour la recette 1.')).toBeVisible();
 
