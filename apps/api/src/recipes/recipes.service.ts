@@ -101,6 +101,7 @@ export class RecipesService {
 
     const sortable: (RecipeSummaryDto & SortableRecipe)[] = summaries.map((s) => ({
       ...s,
+      rating: s.rating,
       averageRating: s.stats.averageRating,
       ratingCount: s.stats.ratingCount,
       timesCooked: s.stats.timesCooked,

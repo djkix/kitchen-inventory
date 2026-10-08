@@ -228,3 +228,35 @@ test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où
   // réel, d'où la correspondance partielle plutôt qu'un nom exact.
   await expect(page.getByRole('link', { name: /^Recette composée 1,/ })).toBeVisible();
 });
+
+test('bascule le favori d’une carte sans naviguer vers la fiche (EF-21)', async ({ page }) => {
+  // Ajouté à la tâche 4 du lot « favoris et note directe » (2026-10-08) :
+  // la carte de liste n'enveloppe plus le lien de navigation, c'est
+  // maintenant l'inverse (`recipes-screen.tsx` — le `<Link>` est un calque
+  // `absolute inset-0` SOUS la carte, qui elle-même laisse passer le clic
+  // sauf sur l'étoile, qui le reprend par `pointer-events-auto`). Un
+  // changement structurel analogue a déjà cassé une fois ce même geste
+  // (commit 3c33ea9, « sortir l'étoile de favori de l'ancre de la carte »,
+  // EF-21) : un test de composant (jsdom) ne peut pas prouver qu'un clic sur
+  // l'étoile ne traverse pas jusqu'au lien superposé en dessous — seul un
+  // vrai moteur de rendu, avec un vrai calcul de superposition CSS, le peut.
+  // « Croque-monsieur » : recette du jeu de développement (`prisma/seed/dev.ts`),
+  // jamais favorite au départ (`favorite: false` par défaut, migration `0008`).
+  await page.goto('/recettes/bibliotheque');
+  await page.getByPlaceholder('Rechercher une recette').fill('Croque-monsieur');
+
+  const star = page.getByRole('button', { name: 'Favori : Croque-monsieur' });
+  await expect(star).toHaveAttribute('aria-pressed', 'false');
+  await star.click();
+
+  // Le favori a changé (état annoncé, forme de l'étoile) et la page n'a pas
+  // navigué vers la fiche de la recette : la preuve que le clic est resté sur
+  // l'étoile plutôt que de retomber sur le lien posé dessous.
+  await expect(star).toHaveAttribute('aria-pressed', 'true');
+  await expect(page).toHaveURL(/\/recettes\/bibliotheque$/);
+  await expect(page.getByRole('heading', { name: 'Croque-monsieur', level: 1 })).toHaveCount(0);
+
+  // Pastille « Favoris » (A4) : la recette fraîchement marquée s'y retrouve.
+  await page.getByRole('group', { name: 'Pastilles rapides' }).getByRole('button', { name: 'Favoris' }).click();
+  await expect(page.getByRole('link', { name: /^Croque-monsieur,/ })).toBeVisible();
+});

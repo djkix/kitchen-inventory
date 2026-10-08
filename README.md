@@ -157,21 +157,41 @@ ferait pas est jugée inexploitable. Les deux durées, une fois la recette
 conservée, s'affichent sur la fiche recette (à côté du temps actif et du
 repos) et sur la fiche d'une suggestion.
 
-**Mes recettes**, classées **par défaut selon la note** du foyer (les mieux
-notées en tête, puis les non notées, titre à l'alphabet en dernier recours) —
-le stock n'intervient pas dans ce tri par défaut. La recherche par titre est
-tolérante aux accents et à la casse, comme la recherche produits (« crepes »
-trouve « Crêpes »). Trois autres tris au choix, mémorisés avec les filtres par
-utilisateur : réalisables avec le stock (couverture), les plus faites, les
-moins récentes. Filtres par difficulté, cuisine, type de plat, régime, temps
-(préparation + cuisson, repos exclu) et note minimale, plus des pastilles
-rapides (valeurs sûres, jamais faites, déjà faites, pas faites depuis
-longtemps, réalisables maintenant). Chaque carte affiche son **taux de
-couverture et son groupe** (prête, presque, incomplète) calculés depuis le
-stock réel, même si ce groupe ne change plus l'ordre ni la visibilité de la
-liste. Chaque carte affiche aussi la note du foyer et le nombre de
-réalisations (« Faite N fois · il y a X jours · ★ Y », ou « Jamais faite »
-sans note ni compteur).
+**Favoris et note directe.** Une étoile à cocher (pleine contre vide, jamais la
+seule couleur, annoncée par `aria-pressed`) marque une recette comme favorite —
+une seule liste partagée par le foyer, pas de favori par personne : qui la
+retire la retire pour tout le monde. Elle se coche aussi bien sur la fiche que
+sur chaque carte de « Mes recettes », indépendamment de la note : on peut
+adorer une recette compliquée sans vouloir la refaire chaque semaine, et
+marquer une recette banale qu'on fait tout le temps. La fiche porte en plus
+cinq étoiles de **note directe**, posables et retirables sans qu'aucune
+réalisation n'ait jamais été enregistrée — jusque-là, noter une recette
+supposait d'avoir d'abord coché une cuisson, ce qui laissait beaucoup de
+recettes sans aucun moyen de les noter. **Règle de préséance**, partout où une
+note s'affiche (carte, fiche, tri par note) : la note directe prime quand elle
+existe ; sinon la moyenne des réalisations prend le relais ; si ni l'une ni
+l'autre n'existe, rien ne s'affiche — jamais deux chiffres concurrents sous les
+yeux. La note par réalisation continue d'exister telle quelle, à part : c'est
+l'avis sur un repas réellement cuisiné, par membre du foyer, conservé dans
+l'historique.
+
+**Mes recettes**, classées **par défaut selon la note** (les mieux notées en
+tête, note directe et moyenne des réalisations classées ensemble par la même
+règle de préséance, puis les non notées, titre à l'alphabet en dernier
+recours) — le stock n'intervient pas dans ce tri par défaut. La recherche par
+titre est tolérante aux accents et à la casse, comme la recherche produits
+(« crepes » trouve « Crêpes »). Trois autres tris au choix, mémorisés avec les
+filtres par utilisateur : réalisables avec le stock (couverture), les plus
+faites, les moins récentes. Filtres par difficulté, cuisine, type de plat,
+régime, temps (préparation + cuisson, repos exclu) et note minimale, plus des
+pastilles rapides (valeurs sûres, jamais faites, déjà faites, **favoris**, pas
+faites depuis longtemps, réalisables maintenant). Chaque carte affiche son
+**taux de couverture et son groupe** (prête, presque, incomplète) calculés
+depuis le stock réel, même si ce groupe ne change plus l'ordre ni la visibilité
+de la liste. Chaque carte affiche aussi la note retenue par la règle de
+préséance ci-dessus et le nombre de réalisations (« Faite N fois · il y a X
+jours · ★ Y », ou « Jamais faite » sans note ni compteur, ou encore « Jamais
+faite · ★ Y » pour une recette jamais cuisinée mais déjà notée directement).
 
 Il n'y a **plus de création manuelle** : le bouton d'ajout a disparu, et le
 formulaire ne sert plus qu'à **modifier** une recette déjà conservée (titre,
@@ -220,7 +240,9 @@ seule — y compris une réalisation passée, directement depuis son bouton
 recettes, un bandeau invite à noter la dernière
 réalisation récente encore sans note (pas celle d'une recette depuis
 archivée) ; il se ferme pour la journée et se rouvre le lendemain tant qu'il
-reste quelque chose à noter.
+reste quelque chose à noter. Une recette jamais cuisinée ne montre plus un
+historique vide sans explication : la fiche dit qu'aucune réalisation n'est
+enregistrée, et que la note directe, elle, reste possible dès maintenant.
 
 Une recette jamais cuisinée se supprime réellement ; une recette déjà
 réalisée ne se supprime pas (la suppression échoue avec le nombre de
@@ -559,6 +581,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.15.0 | 2026-10-08 | Favoris et note directe sur une recette (EF-21). Une étoile à cocher marque une recette comme favorite — liste unique partagée par le foyer — depuis sa fiche et chaque carte de « Mes recettes », indépendamment de la note. La fiche gagne cinq étoiles de note directe, posables sans aucune réalisation enregistrée. Partout où une note s'affiche (carte, fiche, tri), la note directe prime désormais sur la moyenne des réalisations, qui prend le relais en son absence ; la note par réalisation reste par ailleurs inchangée, pour l'historique. Pastille « Favoris » dans les filtres rapides de « Mes recettes ». La fiche d'une recette jamais cuisinée explique désormais l'absence d'historique au lieu de l'afficher vide |
 | 0.14.0 | 2026-10-08 | Lot recettes « complétude et usage ». Gemini rend une durée de préparation et une durée de cuisson séparées (`null` quand la recette n'en a pas, jamais un zéro qui se lirait « cuisson : 0 minute »), affichées sur la fiche recette et sur une suggestion ; chaque étape de cuisson doit préciser température du four, intensité du feu et durée, sous peine d'être jugée inexploitable. Chaque ingrédient affiche la photo du produit rapproché et une pastille colorée de l'emplacement de son lot le plus proche de péremption. « Déjà faites » rejoint les pastilles de filtre rapide de Mes recettes, dont chaque carte affiche déjà note et réalisations. Une réalisation passée se note depuis l'historique de la fiche, sans repasser par une cuisson. « Plus d'informations » remplace « Conserver » sur une suggestion (même geste, même effet). Le nombre de parts affiché sur la fiche recette est désormais ajustable : les quantités par ligne et l'état de chaque ingrédient suivent, et ce même nombre préremplit le tiroir de cuisson — un seul champ du début à la fin. L'onglet Recettes de la barre du bas ouvre désormais un écran à deux volets, Suggestions et Mes recettes, avec une bascule en tête visible sans défilement ; l'application se souvient du dernier volet ouvert (ou retombe sur Suggestions si le stockage est indisponible) |
 | 0.13.0 | 2026-10-08 | Les suggestions sont classées par type de plat — entrée, plat, dessert, accompagnement, apéritif, petit-déjeuner, boisson — sur la taxonomie qui existait déjà pour « Mes recettes », et qu'une suggestion conservée emporte avec elle. Le type devient la première rangée de filtres des deux écrans, devant la cuisine ; sur Suggestions il filtre la fournée déjà chargée, sans appel ni dépense, et propose une relance ciblée seulement quand il ne reste rien |
 | 0.12.3 | 2026-10-08 | La liste des modèles proposée dans Réglages se limite à la ligne courante de Gemini. La clé en déclare une soixantaine — instantanés datés, aperçus, familles parole, image et vidéo — et les dérouler tous pour choisir entre deux modèles utilisables n'était pas tenable au téléphone. Le filtre reste permissif sur le numéro de version, pour qu'une nouvelle génération apparaisse sans modification du code, et rend la liste complète s'il ne laisse rien passer |
