@@ -152,8 +152,52 @@ describe('RecipesScreen', () => {
       },
     } as unknown as Partial<ReturnType<typeof useRecipesInfiniteQuery>>);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Favori : Poulet basquaise' }));
+    const star = screen.getByRole('button', { name: 'Favori : Poulet basquaise' });
+    fireEvent.click(star);
 
     expect(patch).toHaveBeenCalledWith('r1', { favorite: true });
+  });
+
+  // Un bouton dans un lien est du HTML invalide, et mal exploré au doigt par
+  // les lecteurs d'écran mobiles (balayage) : l'étoile doit être la voisine
+  // du lien de la carte, jamais sa descendante (round de correction 1).
+  it('ne pose jamais l’étoile de favori à l’intérieur du lien de la carte', () => {
+    renderRecipesScreen({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: 'r1',
+                title: 'Poulet basquaise',
+                difficulty: 'EASY',
+                cuisineName: 'Française',
+                dishType: 'MAIN',
+                prepMinutes: 10,
+                cookMinutes: 20,
+                totalMinutes: 30,
+                servings: 4,
+                diets: [],
+                imagePath: null,
+                archivedAt: null,
+                coverage: 1,
+                group: 'ready',
+                missingLabels: [],
+                favorite: false,
+                rating: null,
+                stats: { timesCooked: 0, lastCookedAt: null, averageRating: null, recentTrend: null },
+              },
+            ],
+            total: 1,
+            page: 1,
+            limit: 30,
+          },
+        ],
+      },
+    } as unknown as Partial<ReturnType<typeof useRecipesInfiniteQuery>>);
+
+    const link = screen.getByRole('link', { name: 'Poulet basquaise, Prête à 100 %' });
+    const star = screen.getByRole('button', { name: 'Favori : Poulet basquaise' });
+    expect(link.contains(star)).toBe(false);
   });
 });

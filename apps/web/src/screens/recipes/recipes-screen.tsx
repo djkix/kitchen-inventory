@@ -97,14 +97,27 @@ export function RecipesScreen() {
         <>
           <ul className="flex flex-col gap-2 px-4">
             {items.map((recipe) => (
-              <li key={recipe.id}>
+              <li key={recipe.id} className="relative">
+                {/*
+                  L'étoile de favori est un bouton, posé dans la carte juste
+                  en dessous : un bouton dans un lien est du HTML invalide, et
+                  sur mobile un lecteur d'écran qui explore au doigt (pas à la
+                  tabulation) l'absorbe souvent comme une simple action du
+                  lien plutôt que comme un arrêt distinct. Le lien devient donc
+                  un calque qui couvre toute la carte (`absolute inset-0`),
+                  sous elle plutôt qu'autour d'elle ; la carte, non interactive
+                  elle-même, laisse passer le clic (`pointer-events-none`),
+                  sauf sur l'étoile qui le reprend (`pointer-events-auto`,
+                  posé par `FavoriteStar` lui-même).
+                */}
                 <Link
                   to={`/recettes/${recipe.id}`}
                   aria-label={recipeAccessibleName(recipe)}
-                  className="block rounded-card focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                >
+                  className="absolute inset-0 rounded-card focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                />
+                <div className="pointer-events-none relative">
                   <RecipeCard recipe={recipe} onToggleFavorite={() => toggleFavorite(recipe)} />
-                </Link>
+                </div>
               </li>
             ))}
           </ul>
