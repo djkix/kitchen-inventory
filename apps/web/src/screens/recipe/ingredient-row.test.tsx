@@ -26,4 +26,21 @@ describe('IngredientRow', () => {
     expect(screen.getByText('Manquant')).toBeTruthy();
     expect(screen.getByLabelText('Ingrédient essentiel')).toBeTruthy();
   });
+  it('affiche la photo du produit à droite, en élément décoratif', () => {
+    render(<IngredientRow ingredient={{ ...base, state: 'available', productImagePath: 'scans/tomate.jpg' }} />);
+    const img = document.querySelector('img');
+    expect(img?.getAttribute('alt')).toBe('');
+  });
+  it('n’affiche ni photo ni cadre vide sans produit rapproché', () => {
+    render(<IngredientRow ingredient={{ ...base, state: 'available', productImagePath: null }} />);
+    expect(document.querySelector('img')).toBeNull();
+  });
+  it('affiche l’emplacement à côté de l’état disponible', () => {
+    render(
+      <IngredientRow
+        ingredient={{ ...base, state: 'available', locationName: 'Réfrigérateur', locationTemperature: 'chilled' }}
+      />,
+    );
+    expect(screen.getByText('Réfrigérateur')).toBeTruthy();
+  });
 });

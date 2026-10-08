@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { DIFFICULTY_LABELS_FR, INGREDIENT_STATE_LABELS_FR, type KeepSuggestionInput, type RecipeDto, type SuggestionDto } from '@kitchen/shared';
 import { Button } from '../../components/ui/button';
+import { LocationChip } from '../../components/ui/location-chip';
 import { Sheet } from '../../components/ui/sheet';
-import { errorMessage } from '../../lib/api';
+import { errorMessage, mediaUrl } from '../../lib/api';
 import { formatMinutes, formatQuantity } from '../../lib/quantity-ui';
 import { queryKeys } from '../../lib/queries';
 import { suggestionsApi } from '../../lib/suggestions-api';
@@ -98,24 +99,42 @@ export function SuggestionSheet({ suggestion, batchId, open, onClose, keep = sug
         </p>
 
         <ul className="flex flex-col divide-y divide-line rounded-card bg-raised">
-          {suggestion.ingredients.map((ingredient, index) => (
-            <li key={`${ingredient.label}-${index}`} className="flex flex-col gap-0.5 px-3 py-2">
-              <div className="flex items-start justify-between gap-2">
-                <span className="min-w-0 flex-1 text-[15px] leading-tight">{ingredient.label}</span>
-                <span className="shrink-0 text-[13px] text-muted">{INGREDIENT_STATE_LABELS_FR[ingredient.state]}</span>
-              </div>
-              {ingredient.quantity !== null && ingredient.unit !== null && (
-                <span className="text-[13px] text-faint">{formatQuantity(ingredient.quantity, ingredient.unit)}</span>
-              )}
-              {/* Rapprochement approximatif (A11, B11) : jamais tu, pour que Franck
-                  puisse corriger une mauvaise supposition avant de cuisiner. */}
-              {ingredient.match === 'probable' && ingredient.productName && (
-                <span className="text-[13px] text-soon">
-                  Rapprochement probable : « {ingredient.label} » → « {ingredient.productName} »
-                </span>
-              )}
-            </li>
-          ))}
+          {suggestion.ingredients.map((ingredient, index) => {
+            const imageUrl = mediaUrl(ingredient.productImagePath);
+            return (
+              <li key={`${ingredient.label}-${index}`} className="flex items-start gap-3 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 flex-1 text-[15px] leading-tight">{ingredient.label}</span>
+                    <span className="shrink-0 text-[13px] text-muted">{INGREDIENT_STATE_LABELS_FR[ingredient.state]}</span>
+                  </div>
+                  {ingredient.quantity !== null && ingredient.unit !== null && (
+                    <span className="block text-[13px] text-faint">{formatQuantity(ingredient.quantity, ingredient.unit)}</span>
+                  )}
+                  {/* Rapprochement approximatif (A11, B11) : jamais tu, pour que Franck
+                      puisse corriger une mauvaise supposition avant de cuisiner. */}
+                  {ingredient.match === 'probable' && ingredient.productName && (
+                    <span className="block text-[13px] text-soon">
+                      Rapprochement probable : « {ingredient.label} » → « {ingredient.productName} »
+                    </span>
+                  )}
+                  {ingredient.locationName && (
+                    <p className="mt-1">
+                      <LocationChip name={ingredient.locationName} temperature={ingredient.locationTemperature} />
+                    </p>
+                  )}
+                </div>
+                {imageUrl && (
+                  <img
+                    src={imageUrl}
+                    alt=""
+                    loading="lazy"
+                    className="ml-auto h-12 w-12 shrink-0 rounded-card object-cover"
+                  />
+                )}
+              </li>
+            );
+          })}
         </ul>
 
         {suggestion.missingLabels.length > 0 && <p className="text-[13px] text-faint">Manque : {suggestion.missingLabels.join(', ')}</p>}
