@@ -23,7 +23,9 @@
           "unit": "PIECE"
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": null,
+      "cookMinutes": null
     }
   ]
 }

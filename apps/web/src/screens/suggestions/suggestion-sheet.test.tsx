@@ -13,6 +13,7 @@ const suggestion: SuggestionDto = {
   origin: 'française',
   region: 'europeenne',
   totalMinutes: 40,
+  prepMinutes: 15, cookMinutes: 25,
   difficulty: 'EASY', dishType: 'MAIN' as const,
   provenance: 'web',
   sourceUrl: 'https://exemple.test/tarte',

@@ -38,7 +38,9 @@
           "unit": null
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     }
   ]
 }

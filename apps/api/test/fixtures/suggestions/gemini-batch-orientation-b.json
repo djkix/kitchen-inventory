@@ -18,7 +18,9 @@
           "unit": "PIECE"
         }
       ],
-      "dishType": "MAIN"
+      "dishType": "MAIN",
+      "prepMinutes": 10,
+      "cookMinutes": 6
     }
   ]
 }
