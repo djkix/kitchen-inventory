@@ -20,6 +20,8 @@ const base: RecipeSummaryDto = {
   group: 'ready',
   missingLabels: [],
   stats: { timesCooked: 0, lastCookedAt: null, averageRating: null, ratingCount: 0, recentTrend: null, tags: ['never'] },
+  favorite: false,
+  rating: null,
 };
 
 /**

@@ -78,7 +78,16 @@ export const createRecipeSchema = z.object({
 });
 export type CreateRecipeInput = z.infer<typeof createRecipeSchema>;
 
-export const updateRecipeSchema = createRecipeSchema.partial();
+export const updateRecipeSchema = createRecipeSchema.partial().extend({
+  /** Favori partagé par le foyer (décision D4) : pas de favori par personne. */
+  favorite: z.boolean().optional(),
+  /**
+   * Note directe (A3) : `undefined` (absent du corps) laisse la note en
+   * l'état, `null` la retire — distinction volontaire, ne pas fusionner ces
+   * deux cas (piège signalé par le brief).
+   */
+  rating: z.number().int().min(1).max(5).nullable().optional(),
+});
 export type UpdateRecipeInput = z.infer<typeof updateRecipeSchema>;
 
 /** Un filtre peut arriver une fois (`?cuisine=a`) ou plusieurs (`?cuisine=a&cuisine=b`). */
@@ -121,6 +130,11 @@ export const recipeListQuerySchema = paginationQuerySchema.extend({
     .union([z.literal('true'), z.literal('false'), z.boolean()])
     .optional()
     .transform((value) => value === 'true' || value === true),
+  /** Pastille « Favoris » (A4), même piège d'encodage booléen que `cooked` ci-dessus. */
+  favorite: z
+    .union([z.literal('true'), z.literal('false'), z.boolean()])
+    .optional()
+    .transform((value) => value === 'true' || value === true),
   sort: recipeSortSchema.default('rating'),
 });
 export type RecipeListQuery = z.infer<typeof recipeListQuerySchema>;
@@ -138,7 +152,7 @@ export type RecipeDetailQuery = z.infer<typeof recipeDetailQuerySchema>;
 
 export const recipeFiltersSchema = recipeListQuerySchema.pick({
   difficulty: true, cuisine: true, dishType: true, diet: true, tag: true, group: true,
-  maxTime: true, minRating: true, archived: true, cooked: true, sort: true,
+  maxTime: true, minRating: true, archived: true, cooked: true, favorite: true, sort: true,
 });
 export type RecipeFilters = z.infer<typeof recipeFiltersSchema>;
 
@@ -236,6 +250,10 @@ export interface RecipeSummaryDto {
   group: z.infer<typeof coverageGroupSchema>;
   missingLabels: string[];
   stats: RecipeStatsDto;
+  /** Favori partagé par le foyer (A2, A4, décision D4). */
+  favorite: boolean;
+  /** Note directe (A3), indépendante de `stats.averageRating` (décision D2) ; `null` si jamais notée directement. */
+  rating: number | null;
 }
 
 export interface RecipeRatingDto {

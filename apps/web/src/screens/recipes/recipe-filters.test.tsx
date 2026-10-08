@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { RecipeFiltersBar } from './recipe-filters';
 
-const empty = { difficulty: [], cuisine: [], dishType: [], diet: [], tag: [], group: [], archived: false, cooked: false, sort: 'rating' as const };
+const empty = { difficulty: [], cuisine: [], dishType: [], diet: [], tag: [], group: [], archived: false, cooked: false, favorite: false, sort: 'rating' as const };
 
 describe('RecipeFiltersBar', () => {
   it('ajoute une difficulté sans toucher aux autres filtres', () => {

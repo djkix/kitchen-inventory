@@ -36,7 +36,10 @@ describe('base de test et migration initiale', () => {
     expect(await columns('UserPreference')).toEqual(['key', 'updatedAt', 'userId', 'value']);
     expect(await columns('RecipeRating')).toEqual(['comment', 'createdAt', 'id', 'recipeLogId', 'stars', 'updatedAt', 'userId']);
     expect(await columns('Recipe')).toEqual(expect.arrayContaining(['activeTime', 'restMinutes', 'archivedAt']));
-    expect(await columns('Recipe')).not.toContain('rating');
+    // Note directe (EF-21, 2026-10-08) : `rating` vit désormais aussi sur `Recipe`
+    // (favori et note directe, décision D2), à côté de la notation par
+    // réalisation que porte toujours `RecipeRating` ci-dessus — les deux coexistent.
+    expect(await columns('Recipe')).toEqual(expect.arrayContaining(['favorite', 'rating']));
     expect(await columns('Cuisine')).toContain('normalizedName');
     expect(await columns('RecipeLog')).toContain('clientOpId');
     expect(await columns('RecipeLog')).not.toContain('rating');
