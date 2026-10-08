@@ -719,6 +719,30 @@ describe('SuggestionsService (EF-26)', () => {
       expect(http.calls).toHaveLength(0);
     });
 
+    it('reporte la durée totale sur prepMinutes quand la suggestion n’a ni préparation ni cuisson détaillée (constat final 3)', async () => {
+      // Avant la ventilation prep/cuisson, `prepMinutes` recevait
+      // `suggestion.totalMinutes` ; le cas `null`/`null` n'existait pas. Sans
+      // repli, une telle suggestion perdrait toute durée en arrivant dans
+      // « Mes recettes » alors que `totalMinutes` reste obligatoire au schéma.
+      const SANS_DUREE_DETAILLEE: ModelRecipe = {
+        ...AI_RECIPE,
+        title: 'Riz sauté sans détail',
+        totalMinutes: 35,
+        prepMinutes: null,
+        cookMinutes: null,
+      };
+      const sansDureeId = suggestionIdentity(SANS_DUREE_DETAILLEE);
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const batchId = await seedBatch(db, [SANS_DUREE_DETAILLEE]);
+
+      const recipe = await service.keep({ batchId, suggestionId: sansDureeId, clientOpId: 'op-keep-sans-duree-01' }, keeper);
+
+      expect(recipe.prepMinutes).toBe(35);
+      expect(recipe.cookMinutes).toBeNull();
+      expect(recipe.totalMinutes).toBe(35);
+    });
+
     it('recalcule la difficulté avec le barème du foyer à la conservation (B15)', async () => {
       // la suggestion annonçait HARD, les étapes conservées donnent INTERMEDIATE
       const { service, db } = await createService();
