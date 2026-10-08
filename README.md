@@ -197,7 +197,11 @@ dédié plutôt qu'un message passager. Voir `docs/decisions/`.
 **Choix des modèles.** Réglages › Reconnaissance propose aux administrateurs
 deux lignes de choix : le modèle de la photo et celui des recettes. La liste
 n'est pas écrite dans le code — elle est demandée au fournisseur, et ne montre
-que les modèles que la clé configurée sert réellement. Un nom de modèle
+que les modèles que la clé configurée sert réellement, réduits à la ligne
+courante de Gemini : ni instantanés datés, ni aperçus, ni familles parole,
+image ou vidéo, qui répondent pourtant à la même API. Si ce filtre ne laissait
+rien passer — famille renommée, convention changée — la liste complète reprend
+la main plutôt que d'afficher un choix vide. Un nom de modèle
 inexistant ne peut donc plus être retenu : c'était la cause de l'écran de
 recettes resté vide du 2026-10-04 au 2026-10-06, invisible pour les tests
 puisque tous répondent à une doublure locale. « Défaut du serveur » efface le
@@ -492,6 +496,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.12.3 | 2026-10-08 | La liste des modèles proposée dans Réglages se limite à la ligne courante de Gemini. La clé en déclare une soixantaine — instantanés datés, aperçus, familles parole, image et vidéo — et les dérouler tous pour choisir entre deux modèles utilisables n'était pas tenable au téléphone. Le filtre reste permissif sur le numéro de version, pour qu'une nouvelle génération apparaisse sans modification du code, et rend la liste complète s'il ne laisse rien passer |
 | 0.12.2 | 2026-10-07 | Nettoyage après audit d'over-engineering : suppression des adaptateurs Anthropic, OpenAI et Ollama, jamais configurés ni exercés hors de leurs propres tests, et de la dépendance `@anthropic-ai/sdk` qui ne servait qu'au premier. `VISION_PROVIDER` n'accepte plus que `none` et `gemini` ; l'interface de fournisseur est conservée, c'est elle qui rend un autre fournisseur ajoutable le jour venu. Disparaissent aussi l'interface de fournisseur de suggestions (une seule implémentation), trois fabriques qui ne faisaient que déléguer, la variable `SEARCH_COST_USD_PER_1K` (devenue une constante au même titre que la table de prix), `TZ` dans le schéma de configuration (Node la lit seul) et un libellé de modèle transporté jusqu'au navigateur sans jamais être affiché. Environ 250 lignes et une dépendance en moins, à comportement identique |
 | 0.12.1 | 2026-10-07 | Retrait de `temperature` des trois appels Gemini (reconnaissance photo, suggestions, réécriture). Google l'a déprécié avec `top_p` et `top_k` : sans effet depuis Gemini 3.6 Flash, ces paramètres renverront une erreur sur les modèles à venir. Le modèle applique désormais ses propres valeurs. Aucun `thinking_budget` n'était utilisé, rien d'autre à migrer |
 | 0.12.0 | 2026-10-07 | Interrupteur « Recherche web des recettes » dans Réglages › Reconnaissance, pour les administrateurs. La recherche web est facturée par requête, hors du plafond mensuel de l'application, et certaines clés la refusent — c'est ce refus qui faisait échouer toutes les suggestions chez Franck. Désactivée, le modèle compose les recettes lui-même, avec une consigne explicite de ne pas inventer de lien vers un site. Activée par défaut : c'est la fonctionnalité demandée, pas une option. Les requêtes de recherche entrent désormais dans le plafond mensuel : facturées par requête et non par jeton, elles lui échappaient entièrement, si bien qu'il annonçait une protection qu'il n'assurait pas dès que la recherche était active. Une fournée de douze recettes coûte plus cher en recherches qu'en jetons |
