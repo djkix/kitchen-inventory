@@ -94,7 +94,10 @@ interface CookSheetViewProps {
  * fiche recette, jamais un second calcul de ratio.
  */
 export function CookSheetView({ recipe, initialServings, busy, onConfirm, onCancel }: CookSheetViewProps) {
-  const [raw, setRaw] = useState('');
+  // Le champ EST sa propre valeur : un repli sur le nombre courant quand il est
+  // vide empêche de l'effacer, donc de le remplacer (taper « 2 » sur « 4 »
+  // donnait « 42 »). Même correction que sur la fiche recette, 2026-10-08.
+  const [raw, setRaw] = useState(String(initialServings));
   const [servingsCooked, setServingsCooked] = useState(initialServings);
   const [checked, setChecked] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(recipe.ingredients.filter(isDecrementable).map((ingredient) => [ingredient.id, true])),
@@ -130,7 +133,7 @@ export function CookSheetView({ recipe, initialServings, busy, onConfirm, onCanc
         // produit une virgule, qu'un champ numérique rejette en silence.
         type="text"
         inputMode="numeric"
-        value={raw === '' ? String(servingsCooked) : raw}
+        value={raw}
         onChange={(event) => onPortionsTyped(event.target.value)}
         disabled={busy}
         className="w-28"
