@@ -1,5 +1,5 @@
 import type { CookRecipeInput, CookResult, RecipeDto, RecipeIngredientDto, Unit } from '@kitchen/shared';
-import { roundQuantity } from '@kitchen/shared';
+import { scaleIngredients, servingsRatio } from '@kitchen/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/button';
@@ -77,6 +77,8 @@ function defaultProductSelections(ingredients: CookableIngredient[]): Record<str
 
 interface CookSheetViewProps {
   recipe: CookableRecipe;
+  /** Parts choisies sur la fiche (EF-26, F4) : valeur initiale du champ, jamais un second nombre à tenir à côté de celui de l'écran. */
+  initialServings: number;
   busy: boolean;
   onConfirm: (payload: CookConfirmPayload) => void;
   onCancel: () => void;
@@ -87,11 +89,13 @@ interface CookSheetViewProps {
  * du scan (section 8) : portions réalisées, lignes à décrémenter cochées par
  * défaut, produit choisi pour les lignes substituables, note facultative.
  * N'envoie jamais de quantité mise à l'échelle (A14) : elle n'est affichée ici
- * que pour information, recalculée depuis la quantité de base de la recette.
+ * que pour information, recalculée depuis la quantité de base de la recette
+ * par `servingsRatio`/`scaleIngredients` (tâche 7) — la même règle que la
+ * fiche recette, jamais un second calcul de ratio.
  */
-export function CookSheetView({ recipe, busy, onConfirm, onCancel }: CookSheetViewProps) {
+export function CookSheetView({ recipe, initialServings, busy, onConfirm, onCancel }: CookSheetViewProps) {
   const [raw, setRaw] = useState('');
-  const [servingsCooked, setServingsCooked] = useState(recipe.servings);
+  const [servingsCooked, setServingsCooked] = useState(initialServings);
   const [checked, setChecked] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(recipe.ingredients.filter(isDecrementable).map((ingredient) => [ingredient.id, true])),
   );
@@ -105,7 +109,8 @@ export function CookSheetView({ recipe, busy, onConfirm, onCancel }: CookSheetVi
   };
 
   const validPortions = Number.isInteger(servingsCooked) && servingsCooked >= 1 && servingsCooked <= 50;
-  const ratio = validPortions ? servingsCooked / recipe.servings : 1;
+  const ratio = validPortions ? servingsRatio(servingsCooked, recipe.servings) : 1;
+  const scaledIngredients = scaleIngredients(recipe.ingredients, ratio);
 
   const confirm = () => {
     const lines = recipe.ingredients
@@ -132,7 +137,7 @@ export function CookSheetView({ recipe, busy, onConfirm, onCancel }: CookSheetVi
       />
 
       <ul className="flex flex-col divide-y divide-line rounded-card bg-raised">
-        {recipe.ingredients.map((ingredient) => {
+        {scaledIngredients.map((ingredient) => {
           if (!isDecrementable(ingredient)) {
             return (
               <li key={ingredient.id} className="flex items-center gap-3 px-3 py-2 opacity-50">
@@ -141,7 +146,7 @@ export function CookSheetView({ recipe, busy, onConfirm, onCancel }: CookSheetVi
               </li>
             );
           }
-          const scaled = ingredient.quantity === null || ingredient.unit === null ? null : roundQuantity(ingredient.quantity * ratio);
+          const scaled = ingredient.quantity;
           return (
             <li key={ingredient.id} className="flex flex-col gap-2 px-3 py-2">
               <Checkbox
@@ -186,6 +191,8 @@ export function CookSheetView({ recipe, busy, onConfirm, onCancel }: CookSheetVi
 interface CookSheetProps {
   open: boolean;
   recipe: RecipeDto | null;
+  /** Parts choisies sur la fiche (EF-26, F4) : valeur initiale du champ « Portions réalisées ». Omis, reprend les parts de la recette. */
+  initialServings?: number;
   onClose: () => void;
   /** Appelé après une cuisson réussie, pour que l'appelant invalide ce qui lui appartient. */
   onCooked?: () => void;
@@ -197,7 +204,7 @@ interface CookSheetProps {
  * et conservé pour toute nouvelle tentative de la même cuisson (double
  * appui, réseau lent) afin que le rejeu ne décrémente jamais deux fois.
  */
-export function CookSheet({ open, recipe, onClose, onCooked }: CookSheetProps) {
+export function CookSheet({ open, recipe, initialServings, onClose, onCooked }: CookSheetProps) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -245,7 +252,13 @@ export function CookSheet({ open, recipe, onClose, onCooked }: CookSheetProps) {
 
   return (
     <Sheet open={open} onClose={onClose} locked={busy} title={`Cuisiner ${recipe.title}`}>
-      <CookSheetView recipe={recipe} busy={busy} onConfirm={(payload) => void confirm(payload)} onCancel={onClose} />
+      <CookSheetView
+        recipe={recipe}
+        initialServings={initialServings ?? recipe.servings}
+        busy={busy}
+        onConfirm={(payload) => void confirm(payload)}
+        onCancel={onClose}
+      />
     </Sheet>
   );
 }

@@ -27,37 +27,49 @@ const recipeWithCategoryLine: CookableRecipe = {
 
 describe('CookSheetView', () => {
   it('recalcule les quantités au prorata des portions', () => {
-    render(<CookSheetView recipe={recipe} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    render(<CookSheetView recipe={recipe} initialServings={recipe.servings} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />);
     expect(screen.getByText('200 g')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Portions réalisées'), { target: { value: '2' } });
     expect(screen.getByText('100 g')).toBeTruthy();
   });
   it('n’envoie que les lignes cochées, et rien avant validation', () => {
     const onConfirm = vi.fn();
-    render(<CookSheetView recipe={recipe} busy={false} onConfirm={onConfirm} onCancel={vi.fn()} />);
+    render(<CookSheetView recipe={recipe} initialServings={recipe.servings} busy={false} onConfirm={onConfirm} onCancel={vi.fn()} />);
     expect(onConfirm).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('checkbox', { name: /Riz/ }));
     fireEvent.click(screen.getByRole('button', { name: /Cuisiner/ }));
     expect(onConfirm.mock.calls[0]![0].lines).toEqual([{ ingredientId: 'i3', productId: 'p9' }]);
   });
   it('ne propose pas de décrémenter un ingrédient hors inventaire', () => {
-    render(<CookSheetView recipe={recipe} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    render(<CookSheetView recipe={recipe} initialServings={recipe.servings} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />);
     expect(screen.queryByRole('checkbox', { name: /Sel/ })).toBeNull();
   });
   it('propose le sélecteur de produit et envoie son productId pour une ligne catégorie non substituable (défaut 1)', () => {
     const onConfirm = vi.fn();
-    render(<CookSheetView recipe={recipeWithCategoryLine} busy={false} onConfirm={onConfirm} onCancel={vi.fn()} />);
+    render(<CookSheetView recipe={recipeWithCategoryLine} initialServings={recipeWithCategoryLine.servings} busy={false} onConfirm={onConfirm} onCancel={vi.fn()} />);
     expect(screen.getByLabelText('Produit pour Fromage râpé')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Cuisiner/ }));
     expect(onConfirm.mock.calls[0]![0].lines).toEqual([{ ingredientId: 'i4', productId: 'p20' }]);
   });
   it('présélectionne le produit qui périme le plus tôt (A15)', () => {
-    render(<CookSheetView recipe={recipe} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    render(<CookSheetView recipe={recipe} initialServings={recipe.servings} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />);
     expect((screen.getByLabelText('Produit pour Huile') as HTMLSelectElement).value).toBe('p9');
   });
+  /**
+   * F4 (tâche 8) : un seul nombre de parts du début à la fin. Le nombre
+   * choisi sur la fiche (ici 8, pour une recette de base à 4 parts) est la
+   * valeur initiale du champ « Portions réalisées », pas celui de la
+   * recette — et les quantités affichées suivent ce nombre dès l'ouverture.
+   */
+  it('reprend le nombre de parts choisi au moment de cuisiner (F4)', () => {
+    render(<CookSheetView recipe={recipe} initialServings={8} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    expect((screen.getByLabelText('Portions réalisées') as HTMLInputElement).value).toBe('8');
+    expect(screen.getByText('400 g')).toBeTruthy();
+  });
+
   it('envoie la note quand elle est donnée, et rien sinon', () => {
     const onConfirm = vi.fn();
-    render(<CookSheetView recipe={recipe} busy={false} onConfirm={onConfirm} onCancel={vi.fn()} />);
+    render(<CookSheetView recipe={recipe} initialServings={recipe.servings} busy={false} onConfirm={onConfirm} onCancel={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /Cuisiner/ }));
     expect(onConfirm.mock.calls[0]![0].stars).toBeNull();
     fireEvent.click(screen.getByRole('radio', { name: '4 étoiles' }));

@@ -42,7 +42,26 @@ const recipe: RecipeDto = {
   sourceUrl: null,
   createdAt: '2026-09-01T10:00:00.000Z',
   steps: ['Faire cuire le riz'],
-  ingredients: [],
+  ingredients: [
+    {
+      id: 'ing1',
+      label: 'Riz',
+      productId: null,
+      productName: null,
+      categoryId: null,
+      categoryName: null,
+      quantity: 200,
+      unit: 'GRAM',
+      essential: true,
+      substitutable: false,
+      state: 'available',
+      availableQuantity: 500,
+      candidates: [],
+      productImagePath: null,
+      locationName: null,
+      locationTemperature: null,
+    },
+  ],
   stats: {
     timesCooked: 2,
     lastCookedAt: '2026-10-05T19:00:00.000Z',
@@ -132,5 +151,36 @@ describe('RecipeScreen', () => {
     const noms = boutons.map((b) => b.getAttribute('aria-label'));
     expect(noms.length).toBeGreaterThan(1);
     expect(new Set(noms).size).toBe(noms.length);
+  });
+
+  /**
+   * Tâche 8 (EF-26, F1) : la quantité affichée par ligne n'est pas mise à
+   * l'échelle par l'API (`RecipeIngredientDto.quantity` reste celui de la
+   * recette, tâche 7) — c'est l'écran qui applique `scaleIngredients` à
+   * l'affichage, avec le même ratio que celui envoyé au serveur.
+   */
+  it('recalcule les quantités affichées quand le nombre de parts change', () => {
+    renderRecipeScreen();
+
+    expect(screen.getByText('200 g')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Nombre de parts'), { target: { value: '8' } });
+
+    expect(screen.getByText('400 g')).toBeTruthy();
+    expect(screen.queryByText('200 g')).toBeNull();
+  });
+
+  /**
+   * F4 : un seul nombre de parts du début à la fin — jamais deux à tenir.
+   * Le nombre choisi sur la fiche devient la valeur initiale du champ
+   * « Portions réalisées » du tiroir de cuisson, pas celui de la recette.
+   */
+  it('reprend le nombre de parts choisi au moment de cuisiner (F4)', () => {
+    renderRecipeScreen();
+
+    fireEvent.change(screen.getByLabelText('Nombre de parts'), { target: { value: '8' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cuisiner' }));
+
+    expect((screen.getByLabelText('Portions réalisées') as HTMLInputElement).value).toBe('8');
   });
 });

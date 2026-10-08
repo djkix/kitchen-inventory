@@ -1,10 +1,11 @@
-import { DIFFICULTY_LABELS_FR, type RecipeDto, type RecipeLogDto } from '@kitchen/shared';
+import { DIFFICULTY_LABELS_FR, scaleIngredients, servingsRatio, type RecipeDto, type RecipeLogDto } from '@kitchen/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Button } from '../../components/ui/button';
 import { ErrorState } from '../../components/ui/empty-state';
+import { Input } from '../../components/ui/input';
 import { Skeleton } from '../../components/ui/skeleton';
 import { Sheet } from '../../components/ui/sheet';
 import { useToast } from '../../components/ui/toast';
@@ -20,10 +21,21 @@ import { RatingSheet } from '../recipes/rating-reminder';
 
 type ConfirmTarget = { kind: 'delete-recipe' } | { kind: 'delete-log'; log: RecipeLogDto };
 
+/** Parts acceptées (`recipeDetailQuerySchema`, `cookRecipeSchema`, section 15) : mêmes bornes côté écran que côté serveur. */
+const MIN_SERVINGS = 1;
+const MAX_SERVINGS = 50;
+
 /** Fiche recette (section 14/15) : ingrédients face au stock réel, étapes, temps et historique des réalisations. */
 export function RecipeScreen() {
   const { id } = useParams<{ id: string }>();
-  const recipe = useRecipeQuery(id);
+  // Parts choisies à l'écran (EF-26) : `undefined` tant que Franck n'y a pas
+  // touché, pour que la requête reste sur les parts de la recette elle-même
+  // (comportement par défaut du serveur) sans attendre de savoir combien.
+  const [servings, setServings] = useState<number | undefined>(undefined);
+  // Une recette ouverte après une autre (navigation sans démontage) ne doit
+  // pas hériter des parts choisies pour la précédente.
+  useEffect(() => setServings(undefined), [id]);
+  const recipe = useRecipeQuery(id, servings);
 
   if (recipe.isPending) return <RecipeSkeleton />;
   if (recipe.isError) {
@@ -39,10 +51,17 @@ export function RecipeScreen() {
       </>
     );
   }
-  return <RecipeDetails recipe={recipe.data} />;
+  return <RecipeDetails recipe={recipe.data} servings={servings ?? recipe.data.servings} onServingsChange={setServings} />;
 }
 
-function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
+interface RecipeDetailsProps {
+  recipe: RecipeDto;
+  /** Parts actuellement sélectionnées (EF-26) : du sélecteur à la cuisson, un seul nombre tenu du début à la fin (F4). */
+  servings: number;
+  onServingsChange: (servings: number) => void;
+}
+
+function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -53,6 +72,11 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
   const [confirm, setConfirm] = useState<ConfirmTarget | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [cooking, setCooking] = useState(false);
+  // Brouillon du champ « Nombre de parts » (EF-26) : `''` tant que Franck n'a
+  // pas tapé, même geste que les autres champs décimaux de l'application
+  // (clavier décimal français, virgule acceptée en silence).
+  const [rawServings, setRawServings] = useState('');
+  useEffect(() => setRawServings(''), [recipe.id]);
 
   const archived = recipe.archivedAt !== null;
   const hasHistory = recipe.stats.timesCooked > 0;
@@ -70,7 +94,9 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
   const logCooked = async () => {
     setBusy('log');
     try {
-      await recipesApi.logCooked(recipe.id, { servingsCooked: recipe.servings, clientOpId: newClientOpId() });
+      // Même nombre de parts que celui choisi à l'écran (F4) : ce bouton
+      // n'ouvre pas de second champ, il reprend donc celui déjà affiché.
+      await recipesApi.logCooked(recipe.id, { servingsCooked: servings, clientOpId: newClientOpId() });
       toast.show({ message: 'Réalisation enregistrée', tone: 'success', durationMs: 3000 });
       await refreshRecipe();
     } catch (error) {
@@ -133,6 +159,18 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
   const time = formatMinutes(recipe.totalMinutes);
   const mine = ratingLog?.ratings.find((rating) => rating.userId === auth.user?.id) ?? null;
 
+  // Un seul nombre de parts du début à la fin (F4) : ce ratio sert à la fois
+  // à l'affichage des quantités de la fiche et à l'initialisation du tiroir
+  // de cuisson, jamais recalculé deux fois avec deux formules différentes.
+  const ratio = servingsRatio(servings, recipe.servings);
+  const scaledIngredients = useMemo(() => scaleIngredients(recipe.ingredients, ratio), [recipe.ingredients, ratio]);
+
+  const onServingsTyped = (value: string) => {
+    setRawServings(value);
+    const parsed = Math.round(Number(value.replace(',', '.')));
+    if (Number.isInteger(parsed) && parsed >= MIN_SERVINGS && parsed <= MAX_SERVINGS) onServingsChange(parsed);
+  };
+
   return (
     <>
       <ScreenHeader title={recipe.title} back="/recettes/bibliotheque" subtitle={archived ? 'Archivée' : undefined} />
@@ -145,9 +183,6 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
             {DIFFICULTY_LABELS_FR[recipe.difficulty]}
             {recipe.difficultyOverride && ' (corrigée)'}
           </span>
-          <span className="tnum">
-            {recipe.servings} portion{recipe.servings > 1 ? 's' : ''}
-          </span>
         </section>
 
         <section className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-card bg-surface px-4 py-3 text-[14px]">
@@ -157,10 +192,28 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
           <TimeField label="Repos" minutes={recipe.restMinutes} />
         </section>
 
+        {/*
+          Sélecteur de parts (EF-26, F1) : un seul champ, qui pilote à la fois
+          la couverture (requête relancée avec `servings`, tâche 7) et
+          l'affichage des quantités ci-dessous (`scaleIngredients`, même
+          ratio). La recette garde ses parts d'origine en mémoire
+          (`recipe.servings`) : seule la fiche s'adapte.
+        */}
+        <Input
+          label="Nombre de parts"
+          // Champ texte et non « number » : le clavier décimal français
+          // produit une virgule, qu'un champ numérique rejette en silence.
+          type="text"
+          inputMode="numeric"
+          value={rawServings === '' ? String(servings) : rawServings}
+          onChange={(event) => onServingsTyped(event.target.value)}
+          className="w-28"
+        />
+
         <section>
           <h2 className="mb-2 px-1 text-[13px] font-semibold text-muted">Ingrédients</h2>
           <ul className="flex flex-col divide-y divide-line rounded-card bg-surface">
-            {recipe.ingredients.map((ingredient) => (
+            {scaledIngredients.map((ingredient) => (
               <IngredientRow key={ingredient.id} ingredient={ingredient} />
             ))}
           </ul>
@@ -223,7 +276,7 @@ function RecipeDetails({ recipe }: { recipe: RecipeDto }) {
         </div>
       )}
 
-      <CookSheet open={cooking} recipe={recipe} onClose={() => setCooking(false)} onCooked={() => void refreshRecipe()} />
+      <CookSheet open={cooking} recipe={recipe} initialServings={servings} onClose={() => setCooking(false)} onCooked={() => void refreshRecipe()} />
 
       <RatingSheet
         open={ratingLog !== null}

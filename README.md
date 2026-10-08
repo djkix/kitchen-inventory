@@ -122,25 +122,28 @@ poivre ne sont jamais retenus comme point de départ (l'huile et le vinaigre
 le restent) ; les dates de péremption n'interviennent à aucun titre dans les
 suggestions.
 
-La fiche d'une suggestion montre les ingrédients et ce qui manque, jamais les
-étapes avant conservation. **Conserver** une recette récupère sa page (HTTPS
-uniquement, 5 secondes maximum), lit ses données structurées `schema.org/Recipe`
-quand elles existent, et la fait **réécrire par Gemini au format propre à
-l'application** — l'application n'envoie jamais vers le site d'origine, pour
-une recette composée les étapes déjà produites sont reprises telles quelles.
-La difficulté est alors recalculée par le barème du foyer (elle peut changer
-d'un cran par rapport à celle affichée avant conservation). La recette entre
-dans **Mes recettes**, qui reprend le socle du foyer : cuisson, historique,
-notation par membre.
+La fiche d'une suggestion montre les ingrédients et ce qui manque (chacun avec
+sa photo, s'il est rapproché d'un produit connu, et la pastille colorée de
+l'emplacement de son lot le plus proche de péremption quand il est en stock),
+jamais les étapes avant conservation. **Plus d'informations** — un seul geste,
+pas une consultation puis une conservation séparée — récupère la page de la
+recette (HTTPS uniquement, 5 secondes maximum), lit ses données structurées
+`schema.org/Recipe` quand elles existent, et la fait **réécrire par Gemini au
+format propre à l'application** — l'application n'envoie jamais vers le site
+d'origine, pour une recette composée les étapes déjà produites sont reprises
+telles quelles. La difficulté est alors recalculée par le barème du foyer
+(elle peut changer d'un cran par rapport à celle affichée avant conservation).
+La recette entre dans **Mes recettes**, qui reprend le socle du foyer :
+cuisson, historique, notation par membre.
 
-Gemini rend désormais une durée de préparation et une durée de cuisson
-séparées (`null` quand la recette n'en a pas, comme une salade, ou que le
-modèle ne les distingue pas — jamais un zéro qui se lirait « cuisson : 0
-minute ») en plus de la durée totale affichée sur les cartes, et chaque étape
-de cuisson doit préciser température du four, intensité du feu et durée :
-une étape qui ne le ferait pas est jugée inexploitable. Les deux durées sont
-conservées jusqu'à la recette créée ; leur affichage dans les écrans de
-suggestion et de fiche recette reste à faire.
+Gemini rend une durée de préparation et une durée de cuisson séparées (`null`
+quand la recette n'en a pas, comme une salade, ou que le modèle ne les
+distingue pas — jamais un zéro qui se lirait « cuisson : 0 minute ») en plus
+de la durée totale affichée sur les cartes, et chaque étape de cuisson doit
+préciser température du four, intensité du feu et durée : une étape qui ne le
+ferait pas est jugée inexploitable. Les deux durées, une fois la recette
+conservée, s'affichent sur la fiche recette (à côté du temps actif et du
+repos) et sur la fiche d'une suggestion.
 
 **Mes recettes**, classées **par défaut selon la note** du foyer (les mieux
 notées en tête, puis les non notées, titre à l'alphabet en dernier recours) —
@@ -150,10 +153,13 @@ trouve « Crêpes »). Trois autres tris au choix, mémorisés avec les filtres 
 utilisateur : réalisables avec le stock (couverture), les plus faites, les
 moins récentes. Filtres par difficulté, cuisine, type de plat, régime, temps
 (préparation + cuisson, repos exclu) et note minimale, plus des pastilles
-rapides (valeurs sûres, jamais faites, pas faites depuis longtemps,
-réalisables maintenant). Chaque carte affiche son **taux de couverture et son
-groupe** (prête, presque, incomplète) calculés depuis le stock réel, même si
-ce groupe ne change plus l'ordre ni la visibilité de la liste.
+rapides (valeurs sûres, jamais faites, déjà faites, pas faites depuis
+longtemps, réalisables maintenant). Chaque carte affiche son **taux de
+couverture et son groupe** (prête, presque, incomplète) calculés depuis le
+stock réel, même si ce groupe ne change plus l'ordre ni la visibilité de la
+liste. Chaque carte affiche aussi la note du foyer et le nombre de
+réalisations (« Faite N fois · il y a X jours · ★ Y », ou « Jamais faite »
+sans note ni compteur).
 
 Il n'y a **plus de création manuelle** : le bouton d'ajout a disparu, et le
 formulaire ne sert plus qu'à **modifier** une recette déjà conservée (titre,
@@ -161,11 +167,29 @@ cuisine, type de plat, régimes, portions, temps, étapes, ingrédients). Une
 recette de famille qu'on ne trouve pas sur le web n'a, de ce fait, plus sa
 place dans l'application.
 
+La fiche d'une recette conservée affiche chaque ingrédient avec, quand elle
+existe, la photo du produit rapproché et une pastille colorée (par icône
+autant que par teinte — la couleur ne porte jamais seule l'information)
+désignant l'emplacement de son lot le plus proche de péremption : ambiant,
+frais ou congelé.
+
+Le **nombre de parts** affiché en tête de fiche est ajustable (champ
+numérique, initialisé aux portions de la recette) : le modifier recalcule
+aussitôt la quantité de chaque ligne et son état face au stock (une ligne
+tout juste suffisante à quatre parts peut devenir insuffisante à huit — voir
+la limite connue ci-dessous). C'est
+le **même nombre**, du premier coup d'œil jusqu'à la cuisson — jamais un
+second champ à tenir à côté : il préremplit « Portions réalisées » dans le
+tiroir de cuisson, et c'est aussi lui que reprend « J'ai fait cette
+recette » pour une réalisation sans décrément.
+
 Depuis la fiche recette, « Cuisiner » ouvre un tiroir de cuisson : portions
-réalisées ajustables, chaque ligne décrémentable cochée par défaut, choix du
+réalisées ajustables (préremplies par le nombre de parts choisi sur la fiche),
+chaque ligne décrémentable cochée par défaut, choix du
 produit retenu (celui qui périme le plus tôt, modifiable) pour toute ligne
 substituable ou visant directement une catégorie, et note facultative à cinq
-étoiles. Le serveur fait l'unique mise à l'échelle des quantités, exclut du
+étoiles. La mise à l'échelle des quantités affichées (fiche comme tiroir) suit
+une seule règle partagée, exclut du
 choix les lots dont la date de péremption est dépassée (comme le calcul de
 couverture) et suit la fusion d'un produit s'il en a rejoint un autre
 depuis. Une ligne décochée ou sans quantité chiffrée (hors inventaire)
@@ -179,7 +203,9 @@ fiche recette porte un bloc Historique (moyenne, nombre de réalisations,
 tendance, puis chaque réalisation avec qui a cuisiné et la note de chaque
 membre du foyer) : chaque membre note une réalisation de 1 à 5 étoiles, une
 fois, modifiable pendant les **sept jours** qui suivent, puis en lecture
-seule. Sur l'écran Mes recettes, un bandeau invite à noter la dernière
+seule — y compris une réalisation passée, directement depuis son bouton
+« Noter » dans l'historique, sans repasser par une cuisson. Sur l'écran Mes
+recettes, un bandeau invite à noter la dernière
 réalisation récente encore sans note (pas celle d'une recette depuis
 archivée) ; il se ferme pour la journée et se rouvre le lendemain tant qu'il
 reste quelque chose à noter.
@@ -209,7 +235,12 @@ un ingrédient rapproché par approximation (« crème » → *Crème fraîche �
 30 %*) est affiché comme probable, compte comme disponible dans la couverture,
 et se confirme ou se corrige au moment de cuisiner, jamais avant ; une recette
 composée par l'IA peut inventer une proportion, annoncé par sa mention
-« proposée par l'IA », jamais masqué. Sans fournisseur d'IA configuré
+« proposée par l'IA », jamais masqué. Augmenter le nombre de parts d'une
+recette ne fait jamais basculer son groupe global (prête, presque,
+incomplète) vers « presque » ou « incomplète » : seul l'état de chaque ligne
+d'ingrédient suit les parts, une recette dont chaque produit a au moins un
+lot en stock — même insuffisant pour le nombre choisi — reste annoncée
+« Prête ». Sans fournisseur d'IA configuré
 (`VISION_PROVIDER=none`), l'écran Suggestions n'appelle rien : il l'explique
 et renvoie vers les **Réglages** ; le scan photo affiche de même son écran
 dédié plutôt qu'un message passager. Voir `docs/decisions/`.
@@ -516,7 +547,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.14.0 | 2026-10-08 | Gemini rend désormais une durée de préparation et une durée de cuisson séparées (`null` quand la recette n'en a pas, jamais un zéro qui se lirait « cuisson : 0 minute »), portées jusqu'à la recette conservée — la durée totale reste celle affichée sur les cartes. Chaque étape de cuisson doit préciser température du four, intensité du feu et durée : une étape qui ne le ferait pas est désormais jugée inexploitable, à la composition comme à la réécriture d'une page web. Premier étage du lot recettes « complétude et usage » ; l'affichage de ces durées dans les écrans reste à venir |
+| 0.14.0 | 2026-10-08 | Lot recettes « complétude et usage ». Gemini rend une durée de préparation et une durée de cuisson séparées (`null` quand la recette n'en a pas, jamais un zéro qui se lirait « cuisson : 0 minute »), affichées sur la fiche recette et sur une suggestion ; chaque étape de cuisson doit préciser température du four, intensité du feu et durée, sous peine d'être jugée inexploitable. Chaque ingrédient affiche la photo du produit rapproché et une pastille colorée de l'emplacement de son lot le plus proche de péremption. « Déjà faites » rejoint les pastilles de filtre rapide de Mes recettes, dont chaque carte affiche déjà note et réalisations. Une réalisation passée se note depuis l'historique de la fiche, sans repasser par une cuisson. « Plus d'informations » remplace « Conserver » sur une suggestion (même geste, même effet). Le nombre de parts affiché sur la fiche recette est désormais ajustable : les quantités par ligne et l'état de chaque ingrédient suivent, et ce même nombre préremplit le tiroir de cuisson — un seul champ du début à la fin |
 | 0.13.0 | 2026-10-08 | Les suggestions sont classées par type de plat — entrée, plat, dessert, accompagnement, apéritif, petit-déjeuner, boisson — sur la taxonomie qui existait déjà pour « Mes recettes », et qu'une suggestion conservée emporte avec elle. Le type devient la première rangée de filtres des deux écrans, devant la cuisine ; sur Suggestions il filtre la fournée déjà chargée, sans appel ni dépense, et propose une relance ciblée seulement quand il ne reste rien |
 | 0.12.3 | 2026-10-08 | La liste des modèles proposée dans Réglages se limite à la ligne courante de Gemini. La clé en déclare une soixantaine — instantanés datés, aperçus, familles parole, image et vidéo — et les dérouler tous pour choisir entre deux modèles utilisables n'était pas tenable au téléphone. Le filtre reste permissif sur le numéro de version, pour qu'une nouvelle génération apparaisse sans modification du code, et rend la liste complète s'il ne laisse rien passer |
 | 0.12.2 | 2026-10-07 | Nettoyage après audit d'over-engineering : suppression des adaptateurs Anthropic, OpenAI et Ollama, jamais configurés ni exercés hors de leurs propres tests, et de la dépendance `@anthropic-ai/sdk` qui ne servait qu'au premier. `VISION_PROVIDER` n'accepte plus que `none` et `gemini` ; l'interface de fournisseur est conservée, c'est elle qui rend un autre fournisseur ajoutable le jour venu. Disparaissent aussi l'interface de fournisseur de suggestions (une seule implémentation), trois fabriques qui ne faisaient que déléguer, la variable `SEARCH_COST_USD_PER_1K` (devenue une constante au même titre que la table de prix), `TZ` dans le schéma de configuration (Node la lit seul) et un libellé de modèle transporté jusqu'au navigateur sans jamais être affiché. Environ 250 lignes et une dépendance en moins, à comportement identique |

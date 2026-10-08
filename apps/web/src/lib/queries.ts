@@ -48,6 +48,10 @@ export const queryKeys = {
   recipes: (params: RecipeListParams) => ['recipes', 'list', params] as const,
   recipesAll: ['recipes', 'list'] as const,
   recipe: (id: string) => ['recipes', 'item', id] as const,
+  // Parts demandées (EF-26) en queue de clé : `recipe(id)` reste un préfixe
+  // valide de cette clé, donc invalider `recipe(id)` invalide bien toutes les
+  // variantes de parts mises en cache pour cette recette.
+  recipeDetail: (id: string, servings?: number) => [...queryKeys.recipe(id), servings ?? null] as const,
   recipeLogs: (recipeId: string) => ['recipes', 'item', recipeId, 'logs'] as const,
   cuisines: ['cuisines'] as const,
   recipeFilters: ['preferences', 'recipe-filters'] as const,
@@ -172,12 +176,18 @@ export function useRecipesInfiniteQuery(params: RecipeListParams) {
   });
 }
 
-/** Fiche recette (section 14/15) : ingrédients, étapes et statistiques déjà résolus par l'API. */
-export function useRecipeQuery(id: string | undefined) {
+/**
+ * Fiche recette (section 14/15) : ingrédients, étapes et statistiques déjà
+ * résolus par l'API. `servings` (EF-26) demande au serveur la couverture pour
+ * ce nombre de parts plutôt que celui de la recette ; omis, la fiche reste
+ * sur les parts de la recette elle-même.
+ */
+export function useRecipeQuery(id: string | undefined, servings?: number) {
   return useQuery({
-    queryKey: queryKeys.recipe(id ?? ''),
-    queryFn: () => api.get<RecipeDto>(`/recipes/${id}`),
+    queryKey: queryKeys.recipeDetail(id ?? '', servings),
+    queryFn: () => api.get<RecipeDto>(`/recipes/${id}`, { query: servings !== undefined ? { servings } : undefined }),
     enabled: Boolean(id),
+    placeholderData: keepPreviousData,
   });
 }
 
