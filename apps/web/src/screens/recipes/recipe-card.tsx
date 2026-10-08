@@ -50,6 +50,15 @@ export function recipeAccessibleName(recipe: RecipeSummaryDto): string {
   return `${recipe.title}, ${COVERAGE_GROUP_LABELS_FR[recipe.group]} à ${Math.round(recipe.coverage * 100)} %`;
 }
 
+/**
+ * RÈGLE pour qui ajoute un élément interactif à cette carte : il sera INERTE
+ * par défaut. La liste pose `pointer-events-none` sur la carte entière pour que
+ * le clic traverse jusqu'au lien de navigation posé dessous (voir
+ * `recipes-screen.tsx`). Tout bouton ou lien ajouté ici doit donc reprendre
+ * explicitement `pointer-events-auto`, comme le fait `FavoriteStar` — et rester
+ * frère du lien, jamais son descendant : un élément interactif dans un autre est
+ * du HTML invalide, et les lecteurs d'écran tactiles l'absorbent.
+ */
 export function RecipeCard({ recipe, onToggleFavorite }: RecipeCardProps) {
   const time = formatMinutes(recipe.totalMinutes);
   return (
