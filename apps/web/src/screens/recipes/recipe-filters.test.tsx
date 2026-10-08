@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { RecipeFiltersBar } from './recipe-filters';
 
-const empty = { difficulty: [], cuisine: [], dishType: [], diet: [], tag: [], group: [], archived: false, sort: 'rating' as const };
+const empty = { difficulty: [], cuisine: [], dishType: [], diet: [], tag: [], group: [], archived: false, cooked: false, sort: 'rating' as const };
 
 describe('RecipeFiltersBar', () => {
   it('ajoute une difficulté sans toucher aux autres filtres', () => {
@@ -24,6 +24,14 @@ describe('RecipeFiltersBar', () => {
     expect(onChange).toHaveBeenCalledWith({ ...empty, tag: ['trusted'] });
     fireEvent.click(screen.getByRole('button', { name: 'Réalisables maintenant' }));
     expect(onChange).toHaveBeenCalledWith({ ...empty, group: ['ready'] });
+  });
+  it('propose « Déjà faites » dans la première rangée', () => {
+    const onChange = vi.fn();
+    render(<RecipeFiltersBar value={empty} cuisines={[]} onChange={onChange} />);
+    const group = screen.getByRole('group', { name: 'Pastilles rapides' });
+    const button = within(group).getByRole('button', { name: 'Déjà faites' });
+    fireEvent.click(button);
+    expect(onChange).toHaveBeenCalledWith({ ...empty, cooked: true });
   });
   it('compte les filtres actifs sans compter le tri', () => {
     render(<RecipeFiltersBar value={{ ...empty, difficulty: ['EASY'], maxTime: 30, sort: 'coverage' }} cuisines={[]} onChange={vi.fn()} />);

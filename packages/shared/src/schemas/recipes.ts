@@ -113,13 +113,21 @@ export const recipeListQuerySchema = paginationQuerySchema.extend({
     .union([z.literal('true'), z.literal('false'), z.boolean()])
     .optional()
     .transform((value) => value === 'true' || value === true),
+  /**
+   * Pastille « Déjà faites » : `stats.timesCooked > 0` (section 14). Même
+   * piège d'encodage booléen que `archived` ci-dessus, même parade.
+   */
+  cooked: z
+    .union([z.literal('true'), z.literal('false'), z.boolean()])
+    .optional()
+    .transform((value) => value === 'true' || value === true),
   sort: recipeSortSchema.default('rating'),
 });
 export type RecipeListQuery = z.infer<typeof recipeListQuerySchema>;
 
 export const recipeFiltersSchema = recipeListQuerySchema.pick({
   difficulty: true, cuisine: true, dishType: true, diet: true, tag: true, group: true,
-  maxTime: true, minRating: true, archived: true, sort: true,
+  maxTime: true, minRating: true, archived: true, cooked: true, sort: true,
 });
 export type RecipeFilters = z.infer<typeof recipeFiltersSchema>;
 

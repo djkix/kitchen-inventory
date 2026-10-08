@@ -25,6 +25,7 @@ export const EMPTY_RECIPE_FILTERS: RecipeFilters = {
   tag: [],
   group: [],
   archived: false,
+  cooked: false,
   sort: 'rating',
 };
 
@@ -51,6 +52,7 @@ export function countActiveRecipeFilters(value: RecipeFilters): number {
   if (value.maxTime !== undefined) count += 1;
   if (value.minRating !== undefined) count += 1;
   if (value.archived) count += 1;
+  if (value.cooked) count += 1;
   return count;
 }
 
@@ -77,6 +79,9 @@ export function RecipeFiltersBar({ value, cuisines, onChange }: RecipeFiltersBar
         </Chip>
         <Chip active={(value.group ?? []).includes('ready')} onClick={() => onChange({ ...value, group: toggleIn(value.group, 'ready') })}>
           Réalisables maintenant
+        </Chip>
+        <Chip active={value.cooked} onClick={() => onChange({ ...value, cooked: !value.cooked })}>
+          Déjà faites
         </Chip>
         <Chip active={value.archived} onClick={() => onChange({ ...value, archived: !value.archived })}>
           Archivées
