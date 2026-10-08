@@ -1,4 +1,4 @@
-import type { RecipeFilters } from '@kitchen/shared';
+import type { RecipeFilters, RecipeSummaryDto } from '@kitchen/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
@@ -6,9 +6,10 @@ import { Button } from '../../components/ui/button';
 import { EmptyState, ErrorState } from '../../components/ui/empty-state';
 import { SearchIcon } from '../../components/ui/icons';
 import { ListSkeleton } from '../../components/ui/skeleton';
+import { useToast } from '../../components/ui/toast';
 import { useDebouncedValue } from '../../hooks/use-debounced-value';
 import { errorMessage } from '../../lib/api';
-import { useCuisinesQuery, useRecipeFiltersQuery, useRecipesInfiniteQuery } from '../../lib/queries';
+import { useCuisinesQuery, useRecipeDirectPatch, useRecipeFiltersQuery, useRecipesInfiniteQuery } from '../../lib/queries';
 import { recipesApi } from '../../lib/recipes-api';
 import { RecipeCard, recipeAccessibleName } from './recipe-card';
 import { countActiveRecipeFilters, EMPTY_RECIPE_FILTERS, RecipeFiltersBar } from './recipe-filters';
@@ -25,6 +26,15 @@ export function RecipesScreen() {
   const cuisines = useCuisinesQuery();
   const hasAppliedSaved = useRef(false);
   const lastSaved = useRef<RecipeFilters>(EMPTY_RECIPE_FILTERS);
+  const patchRecipe = useRecipeDirectPatch();
+  const toast = useToast();
+
+  /** Bascule le favori depuis la carte (A2) : la liste n'attend pas le serveur, voir `useRecipeDirectPatch`. */
+  const toggleFavorite = (recipe: RecipeSummaryDto) => {
+    patchRecipe(recipe.id, { favorite: !recipe.favorite }).catch((error: unknown) => {
+      toast.show({ message: errorMessage(error, 'Impossible de mettre à jour le favori'), tone: 'danger' });
+    });
+  };
 
   // Les préférences enregistrées remplacent les filtres par défaut, une seule fois au montage.
   useEffect(() => {
@@ -93,7 +103,7 @@ export function RecipesScreen() {
                   aria-label={recipeAccessibleName(recipe)}
                   className="block rounded-card focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  <RecipeCard recipe={recipe} />
+                  <RecipeCard recipe={recipe} onToggleFavorite={() => toggleFavorite(recipe)} />
                 </Link>
               </li>
             ))}

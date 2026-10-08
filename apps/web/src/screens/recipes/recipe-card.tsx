@@ -1,10 +1,13 @@
-import { COVERAGE_GROUP_LABELS_FR, DIFFICULTY_LABELS_FR, type RecipeSummaryDto } from '@kitchen/shared';
+import { COVERAGE_GROUP_LABELS_FR, DIFFICULTY_LABELS_FR, effectiveRating, type RecipeSummaryDto } from '@kitchen/shared';
+import { FavoriteStar } from '../../components/ui/favorite-star';
 import { formatRelativeDays } from '../../lib/expiry-ui';
 import { cn } from '../../lib/cn';
 import { formatMinutes, formatRatingAverage } from '../../lib/quantity-ui';
 
 interface RecipeCardProps {
   recipe: RecipeSummaryDto;
+  /** Omis (ex. dans les tests existants), la carte reste muette sur le favori plutôt que de planter. */
+  onToggleFavorite?: () => void;
 }
 
 const GROUP_LOOK: Record<RecipeSummaryDto['group'], string> = {
@@ -13,13 +16,24 @@ const GROUP_LOOK: Record<RecipeSummaryDto['group'], string> = {
   excluded: 'bg-raised text-faint',
 };
 
-/** « Faite 7 fois · il y a 12 jours · ★ 4,3 », ou « Jamais faite » (section 14). */
-function formatHistory(stats: RecipeSummaryDto['stats']): string {
-  if (stats.timesCooked === 0) return 'Jamais faite';
+/**
+ * « Faite 7 fois · il y a 12 jours · ★ 4,3 », ou « Jamais faite », ou encore
+ * « Jamais faite · ★ 4,3 » pour une recette jamais cuisinée mais déjà notée
+ * directement (section 14). La note affichée passe toujours par
+ * `effectiveRating` (D3, A5) : jamais la moyenne des réalisations recalculée
+ * à la main ici, jamais d'étoiles vides.
+ */
+function formatHistory(recipe: RecipeSummaryDto): string {
+  const { stats } = recipe;
+  const { value } = effectiveRating(recipe.rating, stats.averageRating);
+  const ratingLabel = formatRatingAverage(value);
+
+  if (stats.timesCooked === 0) {
+    return ratingLabel !== null ? `Jamais faite · ★ ${ratingLabel}` : 'Jamais faite';
+  }
   const parts = [`Faite ${stats.timesCooked} fois`];
   if (stats.lastCookedAt) parts.push(formatRelativeDays(stats.lastCookedAt));
-  const averageLabel = formatRatingAverage(stats.averageRating);
-  if (averageLabel !== null) parts.push(`★ ${averageLabel}`);
+  if (ratingLabel !== null) parts.push(`★ ${ratingLabel}`);
   return parts.join(' · ');
 }
 
@@ -36,12 +50,15 @@ export function recipeAccessibleName(recipe: RecipeSummaryDto): string {
   return `${recipe.title}, ${COVERAGE_GROUP_LABELS_FR[recipe.group]} à ${Math.round(recipe.coverage * 100)} %`;
 }
 
-export function RecipeCard({ recipe }: RecipeCardProps) {
+export function RecipeCard({ recipe, onToggleFavorite }: RecipeCardProps) {
   const time = formatMinutes(recipe.totalMinutes);
   return (
     <article className="flex flex-col gap-2 rounded-card bg-surface p-3.5">
       <div className="flex items-start justify-between gap-2">
         <h3 className="min-w-0 flex-1 truncate text-[16px] font-medium leading-tight">{recipe.title}</h3>
+        {onToggleFavorite && (
+          <FavoriteStar favorite={recipe.favorite} recipeTitle={recipe.title} onToggle={onToggleFavorite} className="-my-2.5" />
+        )}
         <span className={cn('tnum shrink-0 rounded-md px-1.5 py-0.5 text-[13px] font-semibold', GROUP_LOOK[recipe.group])}>
           {COVERAGE_GROUP_LABELS_FR[recipe.group]} · {Math.round(recipe.coverage * 100)} %
         </span>
@@ -55,7 +72,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
         <span>{DIFFICULTY_LABELS_FR[recipe.difficulty]}</span>
       </p>
 
-      <p className="tnum text-[13px] text-muted">{formatHistory(recipe.stats)}</p>
+      <p className="tnum text-[13px] text-muted">{formatHistory(recipe)}</p>
 
       {recipe.missingLabels.length > 0 && (
         <p className="truncate text-[13px] text-faint">Manque : {recipe.missingLabels.join(', ')}</p>

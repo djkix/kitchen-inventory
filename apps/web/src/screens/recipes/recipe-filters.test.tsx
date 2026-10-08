@@ -33,9 +33,24 @@ describe('RecipeFiltersBar', () => {
     fireEvent.click(button);
     expect(onChange).toHaveBeenCalledWith({ ...empty, cooked: true });
   });
+
+  // A4 : la pastille « Favoris » vit à côté de « Déjà faites », dans la première rangée.
+  it('propose « Favoris » dans la première rangée, à côté de « Déjà faites »', () => {
+    const onChange = vi.fn();
+    render(<RecipeFiltersBar value={empty} cuisines={[]} onChange={onChange} />);
+    const group = screen.getByRole('group', { name: 'Pastilles rapides' });
+    const button = within(group).getByRole('button', { name: 'Favoris' });
+    fireEvent.click(button);
+    expect(onChange).toHaveBeenCalledWith({ ...empty, favorite: true });
+  });
   it('compte les filtres actifs sans compter le tri', () => {
     render(<RecipeFiltersBar value={{ ...empty, difficulty: ['EASY'], maxTime: 30, sort: 'coverage' }} cuisines={[]} onChange={vi.fn()} />);
     expect(screen.getByText('2 filtres')).toBeTruthy();
+  });
+
+  it('compte le filtre « Favoris » parmi les filtres actifs', () => {
+    render(<RecipeFiltersBar value={{ ...empty, favorite: true }} cuisines={[]} onChange={vi.fn()} />);
+    expect(screen.getByText('1 filtre')).toBeTruthy();
   });
   it('remet les filtres à zéro en gardant le tri', () => {
     const onChange = vi.fn();

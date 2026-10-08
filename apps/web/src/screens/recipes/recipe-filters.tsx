@@ -26,9 +26,7 @@ export const EMPTY_RECIPE_FILTERS: RecipeFilters = {
   group: [],
   archived: false,
   cooked: false,
-  // Pastille « Favoris » (A4) : le picto lui-même est posé par la tâche 3, pas
-  // celle-ci ; seul le défaut du filtre doit exister pour que `RecipeFilters`
-  // reste valide (favori et note directe, EF-21).
+  // Pastille « Favoris » (A4, EF-21) : aucun favori actif par défaut.
   favorite: false,
   sort: 'rating',
 };
@@ -57,6 +55,7 @@ export function countActiveRecipeFilters(value: RecipeFilters): number {
   if (value.minRating !== undefined) count += 1;
   if (value.archived) count += 1;
   if (value.cooked) count += 1;
+  if (value.favorite) count += 1;
   return count;
 }
 
@@ -86,6 +85,9 @@ export function RecipeFiltersBar({ value, cuisines, onChange }: RecipeFiltersBar
         </Chip>
         <Chip active={value.cooked} onClick={() => onChange({ ...value, cooked: !value.cooked })}>
           Déjà faites
+        </Chip>
+        <Chip active={value.favorite} onClick={() => onChange({ ...value, favorite: !value.favorite })}>
+          Favoris
         </Chip>
         <Chip active={value.archived} onClick={() => onChange({ ...value, archived: !value.archived })}>
           Archivées

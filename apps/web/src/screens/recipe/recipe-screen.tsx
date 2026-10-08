@@ -1,17 +1,19 @@
-import { DIFFICULTY_LABELS_FR, scaleIngredients, servingsRatio, type RecipeDto, type RecipeLogDto } from '@kitchen/shared';
+import { DIFFICULTY_LABELS_FR, effectiveRating, scaleIngredients, servingsRatio, type RecipeDto, type RecipeLogDto } from '@kitchen/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Button } from '../../components/ui/button';
 import { ErrorState } from '../../components/ui/empty-state';
+import { FavoriteStar } from '../../components/ui/favorite-star';
 import { Input } from '../../components/ui/input';
 import { Skeleton } from '../../components/ui/skeleton';
 import { Sheet } from '../../components/ui/sheet';
+import { StarRating } from '../../components/ui/star-rating';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../hooks/use-auth';
 import { errorMessage, isApiError, newClientOpId } from '../../lib/api';
-import { queryKeys, useRecipeLogsInfiniteQuery, useRecipeQuery } from '../../lib/queries';
+import { queryKeys, useRecipeDirectPatch, useRecipeLogsInfiniteQuery, useRecipeQuery } from '../../lib/queries';
 import { formatMinutes } from '../../lib/quantity-ui';
 import { recipesApi } from '../../lib/recipes-api';
 import { CookSheet } from './cook-sheet';
@@ -67,6 +69,7 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   const toast = useToast();
   const auth = useAuth();
   const logs = useRecipeLogsInfiniteQuery(recipe.id);
+  const patchRecipe = useRecipeDirectPatch();
 
   const [ratingLog, setRatingLog] = useState<RecipeLogDto | null>(null);
   const [confirm, setConfirm] = useState<ConfirmTarget | null>(null);
@@ -123,6 +126,36 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
     }
   };
 
+  /**
+   * Favori et note directe (A2, A3, D1) : `useRecipeDirectPatch` écrit déjà
+   * le cache avant même l'appel réseau — la fiche se met à jour d'elle-même
+   * (elle lit `recipe` via `useRecipeQuery`, abonné au même cache), aucun
+   * état local ni `refreshRecipe` à prévoir ici. `busy` empêche seulement un
+   * double envoi, il ne retarde pas l'affichage.
+   */
+  const toggleFavorite = async () => {
+    setBusy('favorite');
+    try {
+      await patchRecipe(recipe.id, { favorite: !recipe.favorite });
+    } catch (error) {
+      toast.show({ message: errorMessage(error, 'Impossible de mettre à jour le favori'), tone: 'danger' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** Pose, corrige ou retire la note directe (A3) ; `null` l'efface (distinct de l'absence, voir `updateRecipeSchema`). */
+  const setDirectRating = async (stars: number | null) => {
+    setBusy('rating');
+    try {
+      await patchRecipe(recipe.id, { rating: stars });
+    } catch (error) {
+      toast.show({ message: errorMessage(error, 'Impossible d’enregistrer la note'), tone: 'danger' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const restore = async () => {
     setBusy('restore');
     try {
@@ -163,6 +196,13 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   const time = formatMinutes(recipe.totalMinutes);
   const mine = ratingLog?.ratings.find((rating) => rating.userId === auth.user?.id) ?? null;
 
+  // La note affichée passe toujours par `effectiveRating` (D3, A5) : jamais
+  // la préséance recalculée à la main ici. `StarRating` n'accepte qu'un entier
+  // de 1 à 5 ; la moyenne des réalisations (ex. 4,3) y est donc arrondie pour
+  // le seul affichage — l'écriture, elle, ne porte jamais que sur `rating`.
+  const effective = effectiveRating(recipe.rating, recipe.stats.averageRating);
+  const ratingDisplay = effective.value === null ? null : Math.min(5, Math.max(1, Math.round(effective.value)));
+
   // Un seul nombre de parts du début à la fin (F4) : ce ratio sert à la fois
   // à l'affichage des quantités de la fiche et à l'initialisation du tiroir
   // de cuisson, jamais recalculé deux fois avec deux formules différentes.
@@ -194,6 +234,29 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
           <TimeField label="Cuisson" minutes={recipe.cookMinutes} />
           <TimeField label="Temps actif" minutes={recipe.activeTime} />
           <TimeField label="Repos" minutes={recipe.restMinutes} />
+        </section>
+
+        {/* Favori et note directe (A1-A3, D1-D5) : utilisables sans réalisation enregistrée. */}
+        <section className="flex items-center justify-between gap-3 rounded-card bg-surface px-4 py-3">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <p className="text-[13px] font-semibold text-muted">Ma note</p>
+            <StarRating value={ratingDisplay} onChange={(stars) => void setDirectRating(stars)} disabled={busy === 'rating'} />
+            {effective.source === 'cooked' && (
+              <p className="text-[12px] text-muted">Moyenne des réalisations : posez une note pour la remplacer.</p>
+            )}
+            {effective.source === 'direct' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-fit px-0 text-accent"
+                disabled={busy === 'rating'}
+                onClick={() => void setDirectRating(null)}
+              >
+                Retirer la note
+              </Button>
+            )}
+          </div>
+          <FavoriteStar favorite={recipe.favorite} recipeTitle={recipe.title} onToggle={() => void toggleFavorite()} disabled={busy === 'favorite'} />
         </section>
 
         {/*

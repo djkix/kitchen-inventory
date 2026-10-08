@@ -17,7 +17,13 @@ export const recipesApi = {
   getFilters(): Promise<Partial<RecipeFilters>> {
     return api.get<Partial<RecipeFilters>>('/preferences/recipe-filters');
   },
-  /** Modification (EF-17) : les ingrédients envoyés remplacent entièrement ceux de la recette. */
+  /**
+   * Modification (EF-17) : les ingrédients envoyés remplacent entièrement ceux
+   * de la recette. Également le point d'entrée du favori et de la note
+   * directe (A2, A3, `useRecipeDirectPatch` dans `queries.ts`) : un appel
+   * `{ favorite }` ou `{ rating }` ne touche que ce champ, les autres restant
+   * `undefined` (absents du corps envoyé par `api.patch`, donc inchangés).
+   */
   updateRecipe(id: string, input: UpdateRecipeInput): Promise<RecipeDto> {
     return api.patch<RecipeDto>(`/recipes/${id}`, input);
   },

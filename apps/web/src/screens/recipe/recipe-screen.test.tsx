@@ -1,12 +1,14 @@
 import type { RecipeDto, RecipeLogDto } from '@kitchen/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../../components/ui/toast';
 import { useAuth } from '../../hooks/use-auth';
 import type * as queries from '../../lib/queries';
 import { useRecipeLogsInfiniteQuery, useRecipeQuery } from '../../lib/queries';
+import type * as recipesApiModule from '../../lib/recipes-api';
+import { recipesApi } from '../../lib/recipes-api';
 import { RecipeScreen } from './recipe-screen';
 
 vi.mock('../../lib/queries', async () => {
@@ -17,6 +19,13 @@ vi.mock('../../lib/queries', async () => {
 vi.mock('../../hooks/use-auth', () => ({
   useAuth: vi.fn(),
 }));
+
+// Le favori et la note directe passent par `recipesApi.updateRecipe` (`useRecipeDirectPatch`,
+// `lib/queries.ts`) : une vraie requête réseau planterait en test (jsdom, pas de serveur).
+vi.mock('../../lib/recipes-api', async () => {
+  const actual = await vi.importActual<typeof recipesApiModule>('../../lib/recipes-api');
+  return { recipesApi: { ...actual.recipesApi, updateRecipe: vi.fn().mockResolvedValue({}) } };
+});
 
 const recipe: RecipeDto = {
   id: 'r1',
@@ -79,15 +88,39 @@ const logs: RecipeLogDto[] = [
   { id: 'log2', cookedAt: '2026-10-01T19:00:00.000Z', servingsCooked: 4, stockApplied: true, cookedByName: 'Franck', canRate: true, ratings: [] },
 ];
 
+const AUTHENTICATED_AUTH = {
+  state: 'authenticated',
+  user: { id: 'u1', username: 'franck', role: 'MEMBER' },
+  isAdmin: false,
+  refresh: vi.fn(),
+  clear: vi.fn(),
+  error: null,
+} as unknown as ReturnType<typeof useAuth>;
+
+const EMPTY_LOGS_QUERY = {
+  data: { pages: [{ items: [], total: 0, page: 1, limit: 20 }] },
+  hasNextPage: false,
+  isFetchingNextPage: false,
+  fetchNextPage: vi.fn(),
+} as unknown as ReturnType<typeof useRecipeLogsInfiniteQuery>;
+
+function renderWith() {
+  const client = new QueryClient();
+  render(
+    <QueryClientProvider client={client}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/recettes/r1']}>
+          <Routes>
+            <Route path="/recettes/:id" element={<RecipeScreen />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>,
+  );
+}
+
 function renderRecipeScreen() {
-  vi.mocked(useAuth).mockReturnValue({
-    state: 'authenticated',
-    user: { id: 'u1', username: 'franck', role: 'MEMBER' },
-    isAdmin: false,
-    refresh: vi.fn(),
-    clear: vi.fn(),
-    error: null,
-  } as unknown as ReturnType<typeof useAuth>);
+  vi.mocked(useAuth).mockReturnValue(AUTHENTICATED_AUTH);
 
   vi.mocked(useRecipeQuery).mockReturnValue({
     isPending: false,
@@ -103,18 +136,7 @@ function renderRecipeScreen() {
     fetchNextPage: vi.fn(),
   } as unknown as ReturnType<typeof useRecipeLogsInfiniteQuery>);
 
-  const client = new QueryClient();
-  render(
-    <QueryClientProvider client={client}>
-      <ToastProvider>
-        <MemoryRouter initialEntries={['/recettes/r1']}>
-          <Routes>
-            <Route path="/recettes/:id" element={<RecipeScreen />} />
-          </Routes>
-        </MemoryRouter>
-      </ToastProvider>
-    </QueryClientProvider>,
-  );
+  renderWith();
 }
 
 /**
@@ -123,6 +145,11 @@ function renderRecipeScreen() {
  * bouton « Noter », qui ouvre le même tiroir que celui du bandeau de rappel.
  */
 describe('RecipeScreen', () => {
+  beforeEach(() => {
+    vi.mocked(recipesApi.updateRecipe).mockClear();
+  });
+
+
   it('permet de noter une réalisation passée depuis la fiche, sans cuisiner', () => {
     renderRecipeScreen();
 
@@ -199,5 +226,84 @@ describe('RecipeScreen', () => {
 
     fireEvent.change(champ, { target: { value: '2' } });
     expect(champ.value).toBe('2');
+  });
+
+  // A2 : l'étoile de favori bascule et annonce son état (aria-pressed), sans réalisation requise.
+  it('annonce l’état du favori par aria-pressed et bascule au clic', () => {
+    vi.mocked(useAuth).mockReturnValue(AUTHENTICATED_AUTH);
+    vi.mocked(useRecipeQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { ...recipe, favorite: true },
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRecipeQuery>);
+    vi.mocked(useRecipeLogsInfiniteQuery).mockReturnValue(EMPTY_LOGS_QUERY);
+    renderWith();
+
+    const star = screen.getByRole('button', { name: `Favori : ${recipe.title}` });
+    expect(star.getAttribute('aria-pressed')).toBe('true');
+    expect(star.textContent).toBe('★');
+
+    fireEvent.click(star);
+
+    // La recette affichée vient d'une donnée figée par le test (mock de `useRecipeQuery`) :
+    // on vérifie donc le geste envoyé au serveur, pas le nouvel état visuel, qui dépend du
+    // cache réel de TanStack Query (`patchRecipeInCache`, `lib/queries.ts`) hors de ce test.
+    expect(vi.mocked(recipesApi.updateRecipe)).toHaveBeenCalledWith('r1', { favorite: false });
+  });
+
+  // A3 : cinq étoiles posent une note directe, utilisable sans réalisation enregistrée.
+  it('pose une note directe depuis la fiche', () => {
+    renderRecipeScreen();
+
+    fireEvent.click(screen.getByRole('radio', { name: '4 étoiles' }));
+
+    expect(vi.mocked(recipesApi.updateRecipe)).toHaveBeenCalledWith('r1', { rating: 4 });
+  });
+
+  // A3 : une note directe déjà posée se corrige et se retire.
+  it('corrige puis retire une note directe déjà posée', async () => {
+    vi.mocked(useAuth).mockReturnValue(AUTHENTICATED_AUTH);
+    vi.mocked(useRecipeQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { ...recipe, rating: 3 },
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRecipeQuery>);
+    vi.mocked(useRecipeLogsInfiniteQuery).mockReturnValue(EMPTY_LOGS_QUERY);
+    renderWith();
+
+    expect(screen.getByRole('radio', { name: '3 étoiles', checked: true })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('radio', { name: '2 étoiles' }));
+    expect(vi.mocked(recipesApi.updateRecipe)).toHaveBeenCalledWith('r1', { rating: 2 });
+    // Laisse la requête (simulée) se résoudre avant le geste suivant : sinon le
+    // bouton reste désactivé le temps de celle-ci (`busy`, évite un double envoi).
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Retirer la note' }) as HTMLButtonElement).disabled).toBe(false));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retirer la note' }));
+    expect(vi.mocked(recipesApi.updateRecipe)).toHaveBeenCalledWith('r1', { rating: null });
+  });
+
+  // Sans note directe ni réalisation notée, rien à retirer : le bouton ne s'affiche pas.
+  it('ne propose pas de retirer une note qui n’existe pas', () => {
+    renderRecipeScreen();
+    expect(screen.queryByRole('button', { name: 'Retirer la note' })).toBeNull();
+  });
+
+  // A6 : la fiche d'une recette jamais cuisinée explique l'absence d'historique et rappelle la note directe.
+  it('explique l’absence d’historique pour une recette jamais cuisinée', () => {
+    vi.mocked(useAuth).mockReturnValue(AUTHENTICATED_AUTH);
+    vi.mocked(useRecipeQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { ...recipe, stats: { ...recipe.stats, timesCooked: 0, lastCookedAt: null } },
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRecipeQuery>);
+    vi.mocked(useRecipeLogsInfiniteQuery).mockReturnValue(EMPTY_LOGS_QUERY);
+    renderWith();
+
+    expect(screen.getByText(/Jamais faite/)).toBeTruthy();
+    expect(screen.getByText(/note directe.*reste possible/)).toBeTruthy();
   });
 });

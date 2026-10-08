@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../../components/ui/toast';
-import { useCuisinesQuery, useRecipeFiltersQuery, useRecipesInfiniteQuery, usePendingRatingQuery } from '../../lib/queries';
+import { useCuisinesQuery, useRecipeDirectPatch, useRecipeFiltersQuery, useRecipesInfiniteQuery, usePendingRatingQuery } from '../../lib/queries';
 import { RecipesScreen } from './recipes-screen';
 
 vi.mock('../../lib/queries', () => ({
@@ -11,6 +11,9 @@ vi.mock('../../lib/queries', () => ({
   useRecipeFiltersQuery: vi.fn(),
   useRecipesInfiniteQuery: vi.fn(),
   usePendingRatingQuery: vi.fn(),
+  // Favori depuis la carte (A2) : un geste à l'écran le pose, aucun des tests
+  // existants de cet écran ne l'exerce, d'où un simple bouchon qui ne fait rien.
+  useRecipeDirectPatch: vi.fn(() => vi.fn()),
 }));
 
 function renderRecipesScreen(recipesQuery?: Partial<ReturnType<typeof useRecipesInfiniteQuery>>) {
@@ -89,6 +92,8 @@ describe('RecipesScreen', () => {
                 coverage: 1,
                 group: 'ready',
                 missingLabels: [],
+                favorite: false,
+                rating: null,
                 stats: { timesCooked: 0, lastCookedAt: null, averageRating: null, recentTrend: null },
               },
             ],
@@ -106,5 +111,49 @@ describe('RecipesScreen', () => {
     const link = screen.getByRole('link', { name: 'Poulet basquaise, Prête à 100 %' });
     expect(link).toBeTruthy();
     expect(link.getAttribute('href')).toBe('/recettes/r1');
+  });
+
+  // A2 : la carte bascule le favori sans ouvrir la fiche (le favori n'est pas une navigation).
+  it('bascule le favori d’une carte sans suivre son lien', () => {
+    const patch = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useRecipeDirectPatch).mockReturnValue(patch);
+
+    renderRecipesScreen({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: 'r1',
+                title: 'Poulet basquaise',
+                difficulty: 'EASY',
+                cuisineName: 'Française',
+                dishType: 'MAIN',
+                prepMinutes: 10,
+                cookMinutes: 20,
+                totalMinutes: 30,
+                servings: 4,
+                diets: [],
+                imagePath: null,
+                archivedAt: null,
+                coverage: 1,
+                group: 'ready',
+                missingLabels: [],
+                favorite: false,
+                rating: null,
+                stats: { timesCooked: 0, lastCookedAt: null, averageRating: null, recentTrend: null },
+              },
+            ],
+            total: 1,
+            page: 1,
+            limit: 30,
+          },
+        ],
+      },
+    } as unknown as Partial<ReturnType<typeof useRecipesInfiniteQuery>>);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Favori : Poulet basquaise' }));
+
+    expect(patch).toHaveBeenCalledWith('r1', { favorite: true });
   });
 });
