@@ -33,7 +33,7 @@ export function countActiveOrientation(value: SuggestionOrientation): number {
 }
 
 const SELECT_CLASS =
-  'min-h-touch min-w-0 flex-1 truncate rounded-xl border border-line bg-surface px-2 text-[13px] text-fg focus:border-accent focus:outline-none';
+  'min-h-touch min-w-0 flex-1 truncate rounded-xl border border-line bg-surface px-2.5 text-[14px] text-fg focus:border-accent focus:outline-none';
 
 /**
  * Orientation des suggestions par région, durée et difficulté (section 12, EF-26,
@@ -47,14 +47,23 @@ const SELECT_CLASS =
  * ne laisse rien, l'écran propose une relance explicite plutôt que de partir
  * chercher tout seul.
  *
- * Quatre `<select>` natifs sur une ligne (D5, 2026-10-11) plutôt que les
- * quatre rangées de pastilles d'origine, qui prenaient la moitié d'un écran de
- * téléphone. Natif, pas un menu reconstruit en React : au téléphone, le menu
- * système ouvre une roue pleine largeur, confortable au pouce, et gère le
- * clavier et le lecteur d'écran gratuitement — un menu maison ferait moins
- * bien pour plus de code. `min-h-touch` tient par la hauteur du contrôle, pas
- * par sa police (A7) : le texte reste à 13px pour que les quatre tiennent sur
- * une ligne à 375 px de large.
+ * Quatre `<select>` natifs sur deux lignes de deux (D5, 2026-10-11) plutôt que
+ * les quatre rangées de pastilles d'origine, qui prenaient la moitié d'un
+ * écran de téléphone. Natif, pas un menu reconstruit en React : au téléphone,
+ * le menu système ouvre une roue pleine largeur, confortable au pouce, et
+ * gère le clavier et le lecteur d'écran gratuitement — un menu maison ferait
+ * moins bien pour plus de code. `min-h-touch` tient par la hauteur du
+ * contrôle, pas par sa police (A7).
+ *
+ * Deux par ligne, pas quatre (revue du 2026-10-11, djkix avait autorisé « 1
+ * ou 2 lignes ») : à 375 px, quatre sélecteurs sur une seule ligne ne
+ * laissent qu'environ 45 px de texte utile chacun une fois marges, gouttières,
+ * padding et flèche native déduits — trop peu pour lire « Latino-américaine »
+ * ou « Petit-déjeuner », qui existent réellement dans les taxonomies
+ * (`SUGGESTION_REGIONS`, `DISH_TYPES`). Deux lignes de deux donnent environ
+ * 160 px par sélecteur, largement suffisant, pour un coût d'environ 40 px de
+ * hauteur supplémentaire — on garde l'essentiel du gain d'espace de la
+ * fusion sans sacrifier la lisibilité, qui est l'objet de la demande.
  *
  * Choix laissé au jugement (le cahier des charges ne tranche pas) : une seule
  * valeur active par dimension, pas un multi-choix — cohérent avec
@@ -100,44 +109,48 @@ export function OrientationBar({ value, onChange, dishType, onDishTypeChange }: 
         </button>
       </div>
 
-      <div className="flex items-center gap-1.5">
-        {/* Premier de la ligne : c'est la question posée avant toutes les autres — entrée, plat ou dessert. */}
-        <select aria-label="Type de plat" value={dishType ?? ''} onChange={handleDishType} className={SELECT_CLASS}>
-          <option value="">Tous les types</option>
-          {DISH_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {DISH_TYPE_LABELS_FR[type]}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-1.5">
+          {/* Premier des quatre : c'est la question posée avant toutes les autres — entrée, plat ou dessert. */}
+          <select aria-label="Type de plat" value={dishType ?? ''} onChange={handleDishType} className={SELECT_CLASS}>
+            <option value="">Tous les types</option>
+            {DISH_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {DISH_TYPE_LABELS_FR[type]}
+              </option>
+            ))}
+          </select>
 
-        {/* Par région, jamais par pays (B10) : le pays reste affiché sur la carte, seule la région se choisit ici. */}
-        <select aria-label="Cuisine" value={value.region ?? ''} onChange={handleRegion} className={SELECT_CLASS}>
-          <option value="">Toutes les cuisines</option>
-          {SUGGESTION_REGIONS.map((region) => (
-            <option key={region} value={region}>
-              {SUGGESTION_REGION_LABELS_FR[region]}
-            </option>
-          ))}
-        </select>
+          {/* Par région, jamais par pays (B10) : le pays reste affiché sur la carte, seule la région se choisit ici. */}
+          <select aria-label="Cuisine" value={value.region ?? ''} onChange={handleRegion} className={SELECT_CLASS}>
+            <option value="">Toutes les cuisines</option>
+            {SUGGESTION_REGIONS.map((region) => (
+              <option key={region} value={region}>
+                {SUGGESTION_REGION_LABELS_FR[region]}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <select aria-label="Durée" value={value.maxMinutes?.toString() ?? ''} onChange={handleDuration} className={SELECT_CLASS}>
-          <option value="">Toutes durées</option>
-          {SUGGESTION_DURATIONS.map((minutes) => (
-            <option key={minutes} value={minutes}>
-              ≤ {minutes} min
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-1.5">
+          <select aria-label="Durée" value={value.maxMinutes?.toString() ?? ''} onChange={handleDuration} className={SELECT_CLASS}>
+            <option value="">Toutes durées</option>
+            {SUGGESTION_DURATIONS.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                ≤ {minutes} min
+              </option>
+            ))}
+          </select>
 
-        <select aria-label="Facilité" value={value.difficulty ?? ''} onChange={handleDifficulty} className={SELECT_CLASS}>
-          <option value="">Toutes difficultés</option>
-          {DIFFICULTIES.map((difficulty) => (
-            <option key={difficulty} value={difficulty}>
-              {DIFFICULTY_LABELS_FR[difficulty]}
-            </option>
-          ))}
-        </select>
+          <select aria-label="Facilité" value={value.difficulty ?? ''} onChange={handleDifficulty} className={SELECT_CLASS}>
+            <option value="">Toutes difficultés</option>
+            {DIFFICULTIES.map((difficulty) => (
+              <option key={difficulty} value={difficulty}>
+                {DIFFICULTY_LABELS_FR[difficulty]}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </div>
   );
