@@ -96,39 +96,49 @@ porte aussi sur le nom d'origine et la marque.
 révocables, verrouillage après échecs répétés, jeton de service en lecture
 seule pour Home Assistant. Export CSV et JSON.
 
-**Module recettes.** L'onglet **Recettes** de la barre du bas ouvre un écran à
-deux volets, **Suggestions** et **Mes recettes**, avec une bascule en tête
-visible sans défilement (le volet actif ne se distingue pas par la seule
-couleur : bordure, fond et poids du texte changent, et un lecteur d'écran
-l'annonce). L'application se souvient du dernier volet ouvert et y retombe
-directement à la prochaine ouverture de l'onglet — ou sur Suggestions si le
-stockage du téléphone est indisponible (navigation privée).
+**Module recettes.** L'onglet **Recettes** de la barre du bas ouvre toujours
+l'écran **Suggestions**, la porte d'entrée du module ; **Mes recettes** reste
+à une tape, par la bascule en tête (visible sans défilement, le volet actif
+se distingue par la bordure, le fond et le poids du texte, et un lecteur
+d'écran l'annonce). Le dernier volet consulté n'est plus mémorisé : l'onglet
+ouvre toujours Suggestions, jamais un volet où une visite précédente aurait
+laissé l'application.
 
-L'écran **Suggestions** est la porte d'entrée : sans
-rien demander, l'application compose un point de départ depuis le stock réel
-(huit ingrédients au plus, les plus structurants, trois places tournant d'un
-jour à l'autre pour renouveler les idées), interroge Google Gemini et affiche
-une fournée d'une douzaine de recettes — certaines trouvées sur de vrais
-sites, d'autres composées par le modèle, chaque carte disant laquelle (nom du
-site, ou « proposée par l'IA »). Gemini classe chaque recette par **type de
-plat** — entrée, plat, dessert, accompagnement, apéritif, petit-déjeuner,
-boisson — sur la même taxonomie que « Mes recettes » : une suggestion
-conservée garde son classement sans reclassement manuel.
+À l'arrivée sur **Suggestions**, une question bloquante demande le type de
+plat recherché — entrée, plat, dessert, accompagnement, apéritif,
+petit-déjeuner, boisson — avant d'afficher quoi que ce soit d'autre : ni
+liste, ni filtres, ni squelette de chargement. La réponse oriente la
+recherche initiale : l'application compose un point de départ depuis le
+stock réel (huit ingrédients au plus, les plus structurants, trois places
+tournant d'un jour à l'autre pour renouveler les idées), interroge Google
+Gemini et affiche une fournée d'une douzaine de recettes — certaines trouvées
+sur de vrais sites, d'autres composées par le modèle, chaque carte disant
+laquelle (nom du site, ou « proposée par l'IA »). Gemini classe chaque
+recette par **type de plat** sur la même taxonomie que « Mes recettes » :
+une suggestion conservée garde son classement sans reclassement manuel. Un
+bouton permet de reposer la question pour repartir d'un autre type, sans
+recharger l'application.
 
-Quatre rangées permettent de s'orienter. Le **type de plat** vient en premier,
-c'est la question posée avant toutes les autres ; il **filtre la fournée déjà
-affichée**, sans appel ni dépense. Viennent ensuite la **région** (asiatique,
-méditerranéenne…), la **durée** (≤ 15, ≤ 30, ≤ 60 min) et la **facilité** :
-ces trois-là relancent une vraie recherche ciblée auprès du modèle, elles ne
-filtrent jamais ce qui est déjà affiché — la cascade ne peut pas promettre une
-recette asiatique si le lot courant n'en contenait aucune. Quand le filtre par
-type ne laisse aucune recette, l'écran propose explicitement d'en chercher une
-nouvelle série ciblée, plutôt que de partir seul : le filtre est gratuit, la
-relance ne l'est pas. Une fournée est mise en cache 24 heures par point de
-départ et orientation. Les épices, le sel et le
-poivre ne sont jamais retenus comme point de départ (l'huile et le vinaigre
-le restent) ; les dates de péremption n'interviennent à aucun titre dans les
-suggestions.
+Une fois la fournée affichée, quatre sélecteurs natifs tiennent sur deux
+lignes de deux (type de plat et cuisine, puis durée et facilité) — plus
+compacts que les quatre rangées de pastilles d'origine, qui occupaient la
+moitié d'un écran de téléphone. Changer le **type de plat** filtre la
+fournée déjà chargée, sans appel ni dépense. Changer la **cuisine**
+(asiatique, méditerranéenne…), la **durée** (≤ 15, ≤ 30, ≤ 60 min) ou la
+**facilité** relance en revanche une vraie recherche ciblée auprès du
+modèle — ces trois-là ne filtrent jamais ce qui est déjà affiché, la cascade
+ne peut pas promettre une recette asiatique si le lot courant n'en contenait
+aucune. Quand le filtre par type ne laisse aucune recette, l'écran propose
+explicitement d'en chercher une nouvelle série ciblée, plutôt que de partir
+seul : le filtre est gratuit, la relance ne l'est pas. Une fournée est mise
+en cache 24 heures par point de départ et orientation. Les épices, le sel et
+le poivre ne sont jamais retenus comme point de départ (l'huile et le
+vinaigre le restent) ; les dates de péremption n'interviennent à aucun titre
+dans les suggestions.
+
+Le titre d'une recette tient sur deux lignes au plus, sans jamais être
+tronqué sur une seule — aussi bien sur une carte de suggestion que sur une
+carte de « Mes recettes ».
 
 La fiche d'une suggestion montre les ingrédients et ce qui manque (chacun avec
 sa photo, s'il est rapproché d'un produit connu, et la pastille colorée de
@@ -585,6 +595,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.16.0 | 2026-10-11 | Parcours dirigé des suggestions sur mobile (EF-25). L'onglet Recettes ouvre toujours Suggestions ; la mémorisation du dernier volet consulté est retirée. À l'arrivée, une question bloquante demande le type de plat avant d'afficher quoi que ce soit d'autre, et oriente la recherche initiale. Les quatre rangées de pastilles d'orientation (type de plat, cuisine, durée, facilité) font place à quatre sélecteurs natifs sur deux lignes de deux, qui ne prennent plus la moitié d'un écran de téléphone. Le titre d'une recette tient désormais sur deux lignes au plus, sans jamais être tronqué sur une seule, aussi bien sur une carte de suggestion que sur « Mes recettes » |
 | 0.15.0 | 2026-10-08 | Favoris et note directe sur une recette (EF-21). Une étoile à cocher marque une recette comme favorite — liste unique partagée par le foyer — depuis sa fiche et chaque carte de « Mes recettes », indépendamment de la note. La fiche gagne cinq étoiles de note directe, posables sans aucune réalisation enregistrée. Partout où une note s'affiche (carte, fiche, tri), la note directe prime désormais sur la moyenne des réalisations, qui prend le relais en son absence ; la note par réalisation reste par ailleurs inchangée, pour l'historique. Pastille « Favoris » dans les filtres rapides de « Mes recettes ». La fiche d'une recette jamais cuisinée explique désormais l'absence d'historique au lieu de l'afficher vide |
 | 0.14.0 | 2026-10-08 | Lot recettes « complétude et usage ». Gemini rend une durée de préparation et une durée de cuisson séparées (`null` quand la recette n'en a pas, jamais un zéro qui se lirait « cuisson : 0 minute »), affichées sur la fiche recette et sur une suggestion ; chaque étape de cuisson doit préciser température du four, intensité du feu et durée, sous peine d'être jugée inexploitable. Chaque ingrédient affiche la photo du produit rapproché et une pastille colorée de l'emplacement de son lot le plus proche de péremption. « Déjà faites » rejoint les pastilles de filtre rapide de Mes recettes, dont chaque carte affiche déjà note et réalisations. Une réalisation passée se note depuis l'historique de la fiche, sans repasser par une cuisson. « Plus d'informations » remplace « Conserver » sur une suggestion (même geste, même effet). Le nombre de parts affiché sur la fiche recette est désormais ajustable : les quantités par ligne et l'état de chaque ingrédient suivent, et ce même nombre préremplit le tiroir de cuisson — un seul champ du début à la fin. L'onglet Recettes de la barre du bas ouvre désormais un écran à deux volets, Suggestions et Mes recettes, avec une bascule en tête visible sans défilement ; l'application se souvient du dernier volet ouvert (ou retombe sur Suggestions si le stockage est indisponible) |
 | 0.13.0 | 2026-10-08 | Les suggestions sont classées par type de plat — entrée, plat, dessert, accompagnement, apéritif, petit-déjeuner, boisson — sur la taxonomie qui existait déjà pour « Mes recettes », et qu'une suggestion conservée emporte avec elle. Le type devient la première rangée de filtres des deux écrans, devant la cuisine ; sur Suggestions il filtre la fournée déjà chargée, sans appel ni dépense, et propose une relance ciblée seulement quand il ne reste rien |
