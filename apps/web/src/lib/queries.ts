@@ -290,13 +290,20 @@ export function usePendingRatingQuery() {
  * un vrai appel ciblé plutôt qu'un filtrage local. Garder les données
  * précédentes affichées pendant ce temps évite de vider la liste à chaque
  * geste ; l'écran distingue l'attente via `isFetching`, pas `isPending`.
+ *
+ * `enabled` (tâche 2, D2/D3) : l'écran Suggestions pose d'abord une question
+ * bloquante de type de plat — tant qu'elle n'a pas de réponse, aucun appel ne
+ * doit partir, sans quoi un premier appel générique (sans type) partirait au
+ * montage puis un second, ciblé, à la réponse : deux appels payants pour une
+ * seule visite.
  */
-export function useSuggestionsQuery(orientation: SuggestionOrientation) {
+export function useSuggestionsQuery(orientation: SuggestionOrientation, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.suggestions(orientation),
     queryFn: () => suggestionsApi.list(orientation),
     retry: false,
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   });
 }
 

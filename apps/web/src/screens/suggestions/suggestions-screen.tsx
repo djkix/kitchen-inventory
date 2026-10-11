@@ -7,6 +7,7 @@ import { EmptyState, ErrorState } from '../../components/ui/empty-state';
 import { isApiError } from '../../lib/api';
 import { useSuggestionsQuery } from '../../lib/queries';
 import type { SuggestionOrientation } from '../../lib/suggestions-api';
+import { DishTypeQuestion, useDishTypeAnswer } from './dish-type-question';
 import { OrientationBar } from './orientation-bar';
 import { SuggestionCard, suggestionAccessibleName } from './suggestion-card';
 import { SuggestionSheet } from './suggestion-sheet';
@@ -17,18 +18,51 @@ import { RecipeTabSwitch } from '../recipes/recipe-tab-switch';
  * « que puis-je cuisiner ce soir avec ce que j'ai ? ». L'orientation par
  * région, durée et difficulté (tâche 11) relance une vraie recherche à chaque
  * geste ; aucune conservation ici (tâche 12).
+ *
+ * Question bloquante de type de plat (tâche 2, EF-25, décisions D2/D3 du
+ * 2026-10-11) : tant qu'aucun type n'est choisi, rien d'autre ne s'affiche —
+ * ni liste, ni squelette, ni barre de filtres. La première réponse oriente la
+ * requête initiale (`SuggestionOrientation.dishType`, un vrai appel part de
+ * toute façon) ; `useDishTypeAnswer` la garde en mémoire au-delà du
+ * démontage de cet écran, qui survient en visitant la fiche d'une recette
+ * conservée (route distincte) puis en y revenant.
  */
 export function SuggestionsScreen() {
-  // Orientation vide au départ : aucune contrainte, le serveur compose depuis
-  // le stock réel seul.
-  const [orientation, setOrientation] = useState<SuggestionOrientation>({});
-  const suggestions = useSuggestionsQuery(orientation);
+  const { dishType: answeredDishType, answer: answerDishType, askAgain } = useDishTypeAnswer();
+  // Orientation vide tant qu'aucun type n'est répondu ; une fois répondu, elle
+  // part dans la requête initiale et ne change plus pour ce seul champ — les
+  // changements suivants de type filtrent la fournée déjà chargée (tâche 3,
+  // D4), jamais une relance.
+  const [orientation, setOrientation] = useState<SuggestionOrientation>(() => (answeredDishType ? { dishType: answeredDishType } : {}));
+  // Pas d'appel tant que la question n'a pas de réponse (voir `useSuggestionsQuery`).
+  const suggestions = useSuggestionsQuery(orientation, { enabled: answeredDishType !== null });
   // Suggestion ouverte dans la fiche de conservation (tâche 12) ; `null` quand le tiroir est fermé.
   const [selected, setSelected] = useState<SuggestionDto | null>(null);
   // Filtre d'écran, pas une orientation : Gemini classe les douze recettes de la
   // fournée, le tri se fait donc ici, sans appel ni dépense (choix de djkix du
   // 2026-10-08). La relance ciblée reste possible, mais demandée explicitement.
+  //
+  // Volontairement non préremplie par la réponse à la question bloquante : la
+  // demande envoyée au modèle n'est qu'une orientation, pas une garantie — si
+  // la fournée revient avec un autre mélange de types, préfiltrer ici
+  // reproduirait localement le pire enchaînement que D3 cherche à éviter côté
+  // serveur (une liste vide juste après avoir répondu).
   const [dishType, setDishType] = useState<DishType | undefined>(undefined);
+
+  if (!answeredDishType) {
+    return (
+      <>
+        <ScreenHeader title="Suggestions" subtitle="À partir de votre stock" />
+        <RecipeTabSwitch />
+        <DishTypeQuestion
+          onSelect={(type) => {
+            answerDishType(type);
+            setOrientation((current) => ({ ...current, dishType: type }));
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <>
@@ -37,6 +71,12 @@ export function SuggestionsScreen() {
       <RecipeTabSwitch />
 
       <OrientationBar value={orientation} onChange={setOrientation} dishType={dishType} onDishTypeChange={setDishType} />
+
+      <div className="px-4 pb-3">
+        <button type="button" onClick={askAgain} className="min-h-touch text-[14px] font-medium text-accent active:underline">
+          Changer de type de plat
+        </button>
+      </div>
 
       {suggestions.isPending ? (
         <WaitingState />
