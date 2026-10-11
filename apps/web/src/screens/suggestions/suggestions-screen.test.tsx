@@ -205,12 +205,12 @@ describe('SuggestionsScreen', () => {
     expect(screen.getByText('Pâtes à la tomate')).toBeTruthy();
     expect(screen.getByText('Salade de tomates')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Entrée' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Type de plat' }), { target: { value: 'STARTER' } });
     expect(screen.queryByText('Pâtes à la tomate')).toBeNull();
     expect(screen.getByText('Salade de tomates')).toBeTruthy();
 
     // Un type absent de la fournée : la liste se vide, et l'écran explique quoi faire.
-    fireEvent.click(screen.getByRole('button', { name: 'Dessert' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Type de plat' }), { target: { value: 'DESSERT' } });
     expect(screen.queryByText('Salade de tomates')).toBeNull();
     expect(screen.getByRole('button', { name: /Chercher des desserts/i })).toBeTruthy();
   });
@@ -239,9 +239,9 @@ describe('SuggestionsScreen', () => {
 
     // Ni squelette d'attente, ni barre de filtres (région/durée/difficulté) tant que le type n'est pas choisi.
     expect(screen.queryByText(/Recherche de recettes en cours/i)).toBeNull();
-    expect(screen.queryByRole('group', { name: 'Région' })).toBeNull();
-    expect(screen.queryByRole('group', { name: 'Durée' })).toBeNull();
-    expect(screen.queryByRole('group', { name: 'Difficulté' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Cuisine' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Durée' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Facilité' })).toBeNull();
 
     // `useSuggestionsQuery` n'a encore reçu aucune orientation de type de plat.
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({});
@@ -269,7 +269,7 @@ describe('SuggestionsScreen', () => {
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'DESSERT' });
     // La question a disparu, la barre de filtres (désormais utile) est affichée.
     expect(screen.queryByRole('heading', { name: /Que cherchez-vous/i })).toBeNull();
-    expect(screen.getByRole('group', { name: 'Région' })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Cuisine' })).toBeTruthy();
   });
 
   /** Piège signalé par la tâche : un rafraîchissement de la fournée ne doit pas reposer la question. */
