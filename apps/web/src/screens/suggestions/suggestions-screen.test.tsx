@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiClientError } from '../../lib/api';
 import { useSuggestionsQuery } from '../../lib/queries';
 import { resetDishTypeAnswerForTests } from './dish-type-question';
-import { SuggestionsErrorState, SuggestionsScreen } from './suggestions-screen';
+import { nextOrientationAfterDishTypeAnswer, SuggestionsErrorState, SuggestionsScreen } from './suggestions-screen';
 
 vi.mock('../../lib/queries', () => ({
   useSuggestionsQuery: vi.fn(),
@@ -78,6 +78,34 @@ describe('SuggestionsErrorState', () => {
     );
     expect(screen.getByText(serverMessage)).toBeTruthy();
     expect(screen.queryByText(/fournée connue est affichée/i)).toBeNull();
+  });
+});
+
+/**
+ * Revue finale du 2026-10-11 : fonction pure extraite pour tester
+ * directement le chemin « revenir à la question puis rechoisir le même
+ * type » signalé comme risqué, sans dépendre d'un bouton de retour à la
+ * question qui n'existe plus dans l'écran (voir le commentaire de la
+ * fonction).
+ */
+describe('nextOrientationAfterDishTypeAnswer', () => {
+  it('relance avec le nouveau type quand il diffère du précédent', () => {
+    expect(nextOrientationAfterDishTypeAnswer({ dishType: 'MAIN', region: 'asiatique' }, 'DESSERT')).toEqual({
+      dishType: 'DESSERT',
+      region: 'asiatique',
+      refresh: undefined,
+    });
+  });
+
+  it('force un `refresh` quand le type répété est déjà celui de l’orientation en cours', () => {
+    // Sans ce `refresh: true`, l'orientation ({ dishType: 'MAIN' }) serait
+    // identique à celle déjà utilisée : la clé de requête ne changerait pas,
+    // et l'écran semblerait n'avoir rien fait en réponse à la question.
+    expect(nextOrientationAfterDishTypeAnswer({ dishType: 'MAIN' }, 'MAIN')).toEqual({ dishType: 'MAIN', refresh: true });
+  });
+
+  it('ne force rien quand il n’y avait encore aucun type (première réponse)', () => {
+    expect(nextOrientationAfterDishTypeAnswer({}, 'MAIN')).toEqual({ dishType: 'MAIN', refresh: undefined });
   });
 });
 
@@ -157,10 +185,17 @@ describe('SuggestionsScreen', () => {
     expect(screen.getByRole('button', { name: 'Pâtes à la tomate, Plat, Prête à 100 %' })).toBeTruthy();
   });
 
-  it('filtre la fournée sur le type de plat, et propose une relance quand il ne reste rien', () => {
-    // Le filtre est gratuit : il s'applique sur les recettes déjà chargées.
-    // La relance, elle, coûte un appel — elle reste donc un geste explicite,
-    // jamais déclenchée toute seule (choix de Franck du 2026-10-08).
+  /**
+   * Revue finale du 2026-10-11 : le sélecteur « Type de plat » relance
+   * désormais une vraie recherche, comme cuisine/durée/facilité, au lieu de
+   * filtrer localement une fournée qui ne peut plus mélanger les types (la
+   * question bloquante envoie le type au modèle, qui ne propose plus que ce
+   * type-là — D4 est devenue sans objet). L'ancien test fabriquait une
+   * fournée mixte MAIN + STARTER que la production ne peut plus produire :
+   * il ne prouvait donc plus rien et est remplacé par celui-ci, qui vérifie
+   * la relance plutôt qu'un filtrage impossible à observer en vrai.
+   */
+  it('changer le type de plat dans la barre relance une recherche, comme les trois autres dimensions', () => {
     const base = {
       origin: 'italienne',
       region: 'mediterraneenne',
@@ -180,10 +215,7 @@ describe('SuggestionsScreen', () => {
       data: {
         batchId: 'batch-1',
         notice: null,
-        items: [
-          { ...base, id: 's1', title: 'Pâtes à la tomate', dishType: 'MAIN' },
-          { ...base, id: 's2', title: 'Salade de tomates', dishType: 'STARTER' },
-        ],
+        items: [{ ...base, id: 's1', title: 'Pâtes à la tomate', dishType: 'MAIN' }],
       },
       error: null,
       refetch: vi.fn(),
@@ -198,21 +230,39 @@ describe('SuggestionsScreen', () => {
       </QueryClientProvider>,
     );
 
-    // Répond d'abord à la question bloquante (A2) avec un type différent de
-    // ceux utilisés pour filtrer ensuite, pour ne pas ambiguïser les clics.
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN' });
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Type de plat' }), { target: { value: 'DESSERT' } });
+
+    // Une vraie relance, pas un filtre : la nouvelle orientation part dans la requête.
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'DESSERT' });
+    // Les contrôles propres à l'ancien filtre local ont disparu avec lui.
+    expect(screen.queryByText(/Aucun .* dans cette fournée/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Chercher des/i })).toBeNull();
+  });
+
+  /** Revue finale du 2026-10-11 : le type de plat compte comme orientation active, la barre ne doit pas dire « Aucune orientation ». */
+  it('affiche le type de plat répondu comme une orientation active dans la barre', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: true,
+      isError: false,
+      isFetching: true,
+      data: undefined,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    render(
+      <MemoryRouter>
+        <SuggestionsScreen />
+      </MemoryRouter>,
+    );
+
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
 
-    expect(screen.getByText('Pâtes à la tomate')).toBeTruthy();
-    expect(screen.getByText('Salade de tomates')).toBeTruthy();
-
-    fireEvent.change(screen.getByRole('combobox', { name: 'Type de plat' }), { target: { value: 'STARTER' } });
-    expect(screen.queryByText('Pâtes à la tomate')).toBeNull();
-    expect(screen.getByText('Salade de tomates')).toBeTruthy();
-
-    // Un type absent de la fournée : la liste se vide, et l'écran explique quoi faire.
-    fireEvent.change(screen.getByRole('combobox', { name: 'Type de plat' }), { target: { value: 'DESSERT' } });
-    expect(screen.queryByText('Salade de tomates')).toBeNull();
-    expect(screen.getByRole('button', { name: /Chercher des desserts/i })).toBeTruthy();
+    expect(screen.getByText('1 orientation')).toBeTruthy();
+    expect(screen.queryByText('Aucune orientation')).toBeNull();
   });
 
   /** A2 : la question bloque tout le reste de l'écran tant qu'elle n'a pas de réponse. */
@@ -327,8 +377,14 @@ describe('SuggestionsScreen', () => {
     expect(screen.getByText('Pâtes à la tomate')).toBeTruthy();
   });
 
-  /** A5 : un moyen explicite de revenir à la question existe. */
-  it('permet de revenir à la question pour repartir d’un autre type', () => {
+  /**
+   * Revue finale du 2026-10-11 : le bouton dédié « Relancer une recherche
+   * avec un autre type de plat » a été retiré — il faisait doublon avec le
+   * sélecteur de la barre, qui relance désormais lui-même (voir le test
+   * ci-dessus). Changer de type ne passe donc plus par un aller-retour à la
+   * question : le sélecteur en est le seul contrôle.
+   */
+  it('ne propose plus de bouton séparé pour relancer avec un autre type', () => {
     vi.mocked(useSuggestionsQuery).mockReturnValue({
       isPending: true,
       isError: false,
@@ -345,12 +401,56 @@ describe('SuggestionsScreen', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
-    expect(screen.queryByRole('heading', { name: /Que cherchez-vous/i })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: /Relancer une recherche avec un autre type de plat/i }));
+    expect(screen.queryByRole('button', { name: /Relancer une recherche avec un autre type de plat/i })).toBeNull();
+  });
 
-    expect(screen.getByRole('heading', { name: /Que cherchez-vous/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Dessert' })).toBeTruthy();
+  /**
+   * Revue finale du 2026-10-11, piège signalé par Franck : sans le bouton
+   * dédié, le seul chemin restant vers la question bloquante est un
+   * rechargement complet de la page — qui réinitialise à la fois la réponse
+   * ET l'orientation déjà en mémoire. Répondre ensuite le MÊME type qu'avant
+   * le rechargement ne doit pas laisser un écran inchangé sans explication :
+   * comme tout repart de zéro (orientation vide, aucune donnée en cache),
+   * une vraie recherche part bien, avec son indicateur d'attente.
+   */
+  it('répondre à nouveau le même type après un rechargement complet relance bien une recherche', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: true,
+      isError: false,
+      isFetching: true,
+      data: undefined,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    const { unmount } = render(
+      <MemoryRouter>
+        <SuggestionsScreen />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN' });
+
+    // Rechargement complet simulé : la réponse mémorisée en variable de
+    // module s'efface (décision D2), exactement comme un vrai rechargement
+    // de page l'aurait fait.
+    unmount();
+    resetDishTypeAnswerForTests();
+
+    render(
+      <MemoryRouter>
+        <SuggestionsScreen />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+
+    // Une recherche repart bien, avec une orientation fraîche — pas un écran
+    // figé sur la fournée précédente sans explication.
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN' });
+    expect(screen.getByText(/Recherche de recettes en cours/i)).toBeTruthy();
   });
 
   /** Piège signalé par la tâche : la réponse ne doit pas se perdre au retour depuis une fiche de recette. */

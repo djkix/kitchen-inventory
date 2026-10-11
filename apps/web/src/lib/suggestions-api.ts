@@ -11,9 +11,11 @@ export interface SuggestionOrientation {
   maxMinutes?: SuggestionDuration;
   difficulty?: Difficulty;
   /**
-   * Type de plat demandé au modèle. Le filtre de l'écran s'applique d'abord sur
-   * la fournée déjà chargée, sans appel ni dépense ; ce champ ne part au serveur
-   * que par le bouton de relance proposé quand le filtre ne laisse rien.
+   * Type de plat demandé au modèle (`prompt.ts` : « Ne propose que des
+   * recettes de type X »). Orientation serveur à part entière, comme les
+   * trois autres champs ci-dessous (revue finale du 2026-10-11) : la
+   * fournée qui en résulte est mono-type, un filtre d'écran local sur un
+   * seul type déjà présent n'aurait donc plus d'objet.
    */
   dishType?: DishType;
   /** Redemande une fournée plutôt que de resservir la dernière en cache (tâche 12). */

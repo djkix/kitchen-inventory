@@ -1,4 +1,4 @@
-import { DISH_TYPE_LABELS_FR, type DishType, type SuggestionDto } from '@kitchen/shared';
+import type { DishType, SuggestionDto } from '@kitchen/shared';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
@@ -15,8 +15,8 @@ import { RecipeTabSwitch } from '../recipes/recipe-tab-switch';
 
 /**
  * Écran Suggestions (section 12, EF-25, EF-26) : entrée du module recettes —
- * « que puis-je cuisiner ce soir avec ce que j'ai ? ». L'orientation par
- * région, durée et difficulté (tâche 11) relance une vraie recherche à chaque
+ * « que puis-je cuisiner ce soir avec ce que j'ai ? ». L'orientation par type
+ * de plat, région, durée et difficulté relance une vraie recherche à chaque
  * geste ; aucune conservation ici (tâche 12).
  *
  * Question bloquante de type de plat (tâche 2, EF-25, décisions D2/D3 du
@@ -26,28 +26,46 @@ import { RecipeTabSwitch } from '../recipes/recipe-tab-switch';
  * toute façon) ; `useDishTypeAnswer` la garde en mémoire au-delà du
  * démontage de cet écran, qui survient en visitant la fiche d'une recette
  * conservée (route distincte) puis en y revenant.
+ *
+ * Revue finale du 2026-10-11 : le sélecteur « Type de plat » de la barre est
+ * désormais le contrôle UNIQUE du type — il relance comme les trois autres
+ * (voir `orientation-bar.tsx`). Le bouton séparé « Relancer une recherche
+ * avec un autre type de plat », le filtre local et l'état vide « Aucun X
+ * dans cette fournée » ont disparu avec lui : une fournée mono-type (la
+ * question envoie désormais le type au modèle, qui ne propose plus que ce
+ * type-là) ne peut plus rendre un autre type à filtrer localement, ces
+ * contrôles n'avaient donc plus d'objet.
  */
+
+/**
+ * Orientation à envoyer après une réponse (initiale ou répétée) à la
+ * question bloquante. Extraite en fonction pure pour être testée
+ * directement (section « règles métier… fonctions pures testées ») : le
+ * chemin qu'elle protège — répondre deux fois le MÊME type sans que
+ * l'orientation n'ait changé entre-temps — n'est plus atteignable depuis
+ * l'écran aujourd'hui (le bouton qui ramenait à la question a été retiré,
+ * voir plus haut), mais reste la règle à respecter si un chemin de retour à
+ * la question était réintroduit : sans `refresh: true` dans ce cas précis,
+ * la clé de requête resterait identique et l'écran semblerait n'avoir rien
+ * fait. `refresh` ne survit pas au-delà de cet appel : chaque geste de la
+ * barre de filtres le remet à `undefined` explicitement (voir
+ * `orientation-bar.tsx`).
+ */
+export function nextOrientationAfterDishTypeAnswer(current: SuggestionOrientation, type: DishType): SuggestionOrientation {
+  if (current.dishType === type) return { ...current, dishType: type, refresh: true };
+  return { ...current, dishType: type, refresh: undefined };
+}
+
 export function SuggestionsScreen() {
-  const { dishType: answeredDishType, answer: answerDishType, askAgain } = useDishTypeAnswer();
+  const { dishType: answeredDishType, answer: answerDishType } = useDishTypeAnswer();
   // Orientation vide tant qu'aucun type n'est répondu ; une fois répondu, elle
-  // part dans la requête initiale et ne change plus pour ce seul champ — les
-  // changements suivants de type filtrent la fournée déjà chargée (tâche 3,
-  // D4), jamais une relance.
+  // part dans la requête initiale et continue d'y porter le type (le
+  // sélecteur de la barre en prend ensuite le contrôle).
   const [orientation, setOrientation] = useState<SuggestionOrientation>(() => (answeredDishType ? { dishType: answeredDishType } : {}));
   // Pas d'appel tant que la question n'a pas de réponse (voir `useSuggestionsQuery`).
   const suggestions = useSuggestionsQuery(orientation, { enabled: answeredDishType !== null });
   // Suggestion ouverte dans la fiche de conservation (tâche 12) ; `null` quand le tiroir est fermé.
   const [selected, setSelected] = useState<SuggestionDto | null>(null);
-  // Filtre d'écran, pas une orientation : Gemini classe les douze recettes de la
-  // fournée, le tri se fait donc ici, sans appel ni dépense (choix de Franck du
-  // 2026-10-08). La relance ciblée reste possible, mais demandée explicitement.
-  //
-  // Volontairement non préremplie par la réponse à la question bloquante : la
-  // demande envoyée au modèle n'est qu'une orientation, pas une garantie — si
-  // la fournée revient avec un autre mélange de types, préfiltrer ici
-  // reproduirait localement le pire enchaînement que D3 cherche à éviter côté
-  // serveur (une liste vide juste après avoir répondu).
-  const [dishType, setDishType] = useState<DishType | undefined>(undefined);
 
   if (!answeredDishType) {
     return (
@@ -57,7 +75,7 @@ export function SuggestionsScreen() {
         <DishTypeQuestion
           onSelect={(type) => {
             answerDishType(type);
-            setOrientation((current) => ({ ...current, dishType: type }));
+            setOrientation((current) => nextOrientationAfterDishTypeAnswer(current, type));
           }}
         />
       </>
@@ -70,18 +88,7 @@ export function SuggestionsScreen() {
 
       <RecipeTabSwitch />
 
-      <OrientationBar value={orientation} onChange={setOrientation} dishType={dishType} onDishTypeChange={setDishType} />
-
-      <div className="px-4 pb-3">
-        {/* Distinct du sélecteur « Type de plat » de la barre, qui ne fait que
-            filtrer la fournée déjà chargée (D4) : ce bouton repose la question
-            bloquante d'entrée et relance une vraie recherche serveur. Le
-            libellé le dit explicitement pour ne pas laisser croire aux deux
-            contrôles qu'ils font la même chose (revue du 2026-10-11). */}
-        <button type="button" onClick={askAgain} className="min-h-touch text-[14px] font-medium text-accent active:underline">
-          Relancer une recherche avec un autre type de plat
-        </button>
-      </div>
+      <OrientationBar value={orientation} onChange={setOrientation} />
 
       {suggestions.isPending ? (
         <WaitingState />
@@ -93,12 +100,7 @@ export function SuggestionsScreen() {
               est recherchée (`placeholderData: keepPreviousData`) : seul ce bandeau dit
               qu'un nouvel appel est en cours, la liste ne se vide jamais pour autant. */}
           {suggestions.isFetching && <RefetchingBanner />}
-          <SuggestionsResult
-            batch={suggestions.data}
-            onSelect={setSelected}
-            dishType={dishType}
-            onSearchDishType={() => setOrientation({ ...orientation, dishType, refresh: true })}
-          />
+          <SuggestionsResult batch={suggestions.data} onSelect={setSelected} />
         </>
       )}
 
@@ -184,20 +186,22 @@ export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRe
   );
 }
 
+/**
+ * Plus de filtre local par type (revue finale du 2026-10-11) : le type de
+ * plat est désormais une orientation serveur, la fournée qu'il contraint est
+ * mono-type — `batch.items` n'a donc plus jamais besoin d'être filtré ici,
+ * et l'état vide dédié « Aucun X dans cette fournée » avec son bouton de
+ * relance ciblée a disparu avec lui (une relance par type ne peut plus
+ * rendre un autre type à proposer).
+ */
 function SuggestionsResult({
   batch,
   onSelect,
-  dishType,
-  onSearchDishType,
 }: {
   batch: ReturnType<typeof useSuggestionsQuery>['data'];
   onSelect: (suggestion: SuggestionDto) => void;
-  dishType: DishType | undefined;
-  onSearchDishType: () => void;
 }) {
   if (!batch) return null;
-
-  const items = dishType ? batch.items.filter((item) => item.dishType === dishType) : batch.items;
 
   return (
     <>
@@ -207,32 +211,14 @@ function SuggestionsResult({
         </p>
       )}
 
-      {items.length === 0 ? (
-        dishType && batch.items.length > 0 ? (
-          // La fournée existe mais ne contient pas ce type : le filtre est gratuit,
-          // la relance ne l'est pas — elle reste donc un geste explicite.
-          <EmptyState
-            title={`Aucun ${DISH_TYPE_LABELS_FR[dishType].toLowerCase()} dans cette fournée`}
-            description="Les recettes proposées sont d’un autre type. Vous pouvez en demander une nouvelle série, ciblée cette fois."
-            action={
-              <button
-                type="button"
-                onClick={onSearchDishType}
-                className="inline-flex min-h-touch items-center rounded-xl bg-accent px-4 text-[15px] font-semibold text-ink"
-              >
-                Chercher des {DISH_TYPE_LABELS_FR[dishType].toLowerCase()}s
-              </button>
-            }
-          />
-        ) : (
-          <EmptyState
-            title="Aucune suggestion pour cette orientation"
-            description="Essayez une orientation différente, ou revenez plus tard : le stock aura peut-être changé."
-          />
-        )
+      {batch.items.length === 0 ? (
+        <EmptyState
+          title="Aucune suggestion pour cette orientation"
+          description="Essayez une orientation différente, ou revenez plus tard : le stock aura peut-être changé."
+        />
       ) : (
         <ul className="flex flex-col gap-2 px-4">
-          {items.map((suggestion) => (
+          {batch.items.map((suggestion) => (
             <li key={suggestion.id}>
               {/* La carte elle-même reste purement présentative (tâche 10) : le
                   tiroir de conservation (tâche 12) s'ouvre depuis cet écran. */}

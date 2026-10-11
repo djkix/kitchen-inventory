@@ -18,14 +18,17 @@ const DIFFICULTIES = Object.keys(DIFFICULTY_LABELS_FR) as Difficulty[];
 interface OrientationBarProps {
   value: SuggestionOrientation;
   onChange: (value: SuggestionOrientation) => void;
-  /** Filtre d'écran, local : il ne part pas au serveur et ne relance rien. */
-  dishType: DishType | undefined;
-  onDishTypeChange: (dishType: DishType | undefined) => void;
 }
 
-/** Nombre de dimensions actives (B9) : une orientation vide équivaut à la fournée de base. */
+/**
+ * Nombre de dimensions actives (B9) : une orientation vide équivaut à la
+ * fournée de base. Le type de plat compte désormais à part entière (revue
+ * finale du 2026-10-11, voir plus bas) : ce n'est plus un filtre local
+ * gratuit, c'est une orientation serveur comme les trois autres.
+ */
 export function countActiveOrientation(value: SuggestionOrientation): number {
   let count = 0;
+  if (value.dishType !== undefined) count += 1;
   if (value.region !== undefined) count += 1;
   if (value.maxMinutes !== undefined) count += 1;
   if (value.difficulty !== undefined) count += 1;
@@ -36,16 +39,24 @@ const SELECT_CLASS =
   'min-h-touch min-w-0 flex-1 truncate rounded-xl border border-line bg-surface px-2.5 text-[14px] text-fg focus:border-accent focus:outline-none';
 
 /**
- * Orientation des suggestions par région, durée et difficulté (section 12, EF-26,
- * décision du 2026-10-04) : chaque geste relance une recherche ciblée, jamais un
- * simple filtrage de ce qui est déjà affiché — la cascade ne peut pas promettre
- * une recette asiatique si le lot courant n'en contenait aucune.
+ * Orientation des suggestions par type de plat, région, durée et difficulté
+ * (section 12, EF-25, EF-26) : chaque geste relance une recherche ciblée,
+ * jamais un simple filtrage de ce qui est déjà affiché — la cascade ne peut
+ * pas promettre une recette asiatique si le lot courant n'en contenait
+ * aucune.
  *
- * Le type de plat fait exception, et vient en premier (demande de Franck du
- * 2026-10-08) : Gemini classe les douze recettes de la fournée, le filtre
- * s'applique donc sur ce qui est déjà chargé, sans appel ni dépense. Quand il
- * ne laisse rien, l'écran propose une relance explicite plutôt que de partir
- * chercher tout seul.
+ * Le type de plat relance désormais lui aussi (revue finale du 2026-10-11) :
+ * il filtrait auparavant gratuitement la fournée déjà chargée (D4, décision
+ * du 2026-10-08), un choix cohérent tant que la fournée restait mélangée. La
+ * question bloquante ajoutée ensuite (D2/D3, même journée) envoie le type
+ * répondu au modèle, qui reçoit alors la consigne « Ne propose que des
+ * recettes de type X » (`apps/api/src/suggestions/prompt.ts`) — la fournée
+ * devient mono-type. Un filtre local sur un seul type déjà présent ne peut
+ * donc plus que soit ne rien faire, soit tout vider ; D4 est devenue sans
+ * objet et n'a pas été rouverte à temps. Le sélecteur est maintenant le
+ * contrôle unique du type (valeur prise directement dans `value.dishType`,
+ * plus de prop locale séparée) et se comporte exactement comme les trois
+ * autres.
  *
  * Quatre `<select>` natifs sur deux lignes de deux (D5, 2026-10-11) plutôt que
  * les quatre rangées de pastilles d'origine, qui prenaient la moitié d'un
@@ -70,32 +81,39 @@ const SELECT_CLASS =
  * `SuggestionOrientation`, où `region`, `maxMinutes` et `difficulty` sont chacun
  * un champ scalaire facultatif, pas un tableau.
  */
-export function OrientationBar({ value, onChange, dishType, onDishTypeChange }: OrientationBarProps) {
+export function OrientationBar({ value, onChange }: OrientationBarProps) {
   const activeCount = countActiveOrientation(value);
 
+  // `refresh: undefined` posé explicitement à chaque geste normal (revue finale
+  // du 2026-10-11) : un `refresh: true` ne doit valoir que pour LA recherche qui
+  // l'a demandé, jamais pour les gestes suivants. Sans cette remise à zéro, un
+  // `refresh: true` posé ailleurs (relance forcée depuis la question d'entrée,
+  // voir `suggestions-screen.tsx`) resterait collé à l'orientation : tout geste
+  // suivant ici — cuisine, durée, difficulté, type de plat — contournerait alors
+  // le cache de 24 h et consommerait quota et euros à chaque geste, au lieu de
+  // ne le faire que pour un changement qui le justifie.
   const clear = () => {
-    onChange({ ...value, region: undefined, maxMinutes: undefined, difficulty: undefined });
-    onDishTypeChange(undefined);
+    onChange({ ...value, dishType: undefined, region: undefined, maxMinutes: undefined, difficulty: undefined, refresh: undefined });
   };
 
   const handleDishType = (event: ChangeEvent<HTMLSelectElement>) => {
     const next = event.target.value;
-    onDishTypeChange(next === '' ? undefined : (next as DishType));
+    onChange({ ...value, dishType: next === '' ? undefined : (next as DishType), refresh: undefined });
   };
 
   const handleRegion = (event: ChangeEvent<HTMLSelectElement>) => {
     const next = event.target.value;
-    onChange({ ...value, region: next === '' ? undefined : (next as SuggestionRegion) });
+    onChange({ ...value, region: next === '' ? undefined : (next as SuggestionRegion), refresh: undefined });
   };
 
   const handleDuration = (event: ChangeEvent<HTMLSelectElement>) => {
     const next = event.target.value;
-    onChange({ ...value, maxMinutes: next === '' ? undefined : (Number(next) as SuggestionDuration) });
+    onChange({ ...value, maxMinutes: next === '' ? undefined : (Number(next) as SuggestionDuration), refresh: undefined });
   };
 
   const handleDifficulty = (event: ChangeEvent<HTMLSelectElement>) => {
     const next = event.target.value;
-    onChange({ ...value, difficulty: next === '' ? undefined : (next as Difficulty) });
+    onChange({ ...value, difficulty: next === '' ? undefined : (next as Difficulty), refresh: undefined });
   };
 
   return (
@@ -111,8 +129,9 @@ export function OrientationBar({ value, onChange, dishType, onDishTypeChange }: 
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-1.5">
-          {/* Premier des quatre : c'est la question posée avant toutes les autres — entrée, plat ou dessert. */}
-          <select aria-label="Type de plat" value={dishType ?? ''} onChange={handleDishType} className={SELECT_CLASS}>
+          {/* Premier des quatre : c'est la question posée avant toutes les autres — entrée, plat ou dessert.
+              Relance désormais comme les trois autres (revue finale du 2026-10-11). */}
+          <select aria-label="Type de plat" value={value.dishType ?? ''} onChange={handleDishType} className={SELECT_CLASS}>
             <option value="">Tous les types</option>
             {DISH_TYPES.map((type) => (
               <option key={type} value={type}>
