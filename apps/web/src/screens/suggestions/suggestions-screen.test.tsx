@@ -1,14 +1,21 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiClientError } from '../../lib/api';
 import { useSuggestionsQuery } from '../../lib/queries';
+import { resetDishTypeAnswerForTests } from './dish-type-question';
 import { SuggestionsErrorState, SuggestionsScreen } from './suggestions-screen';
 
 vi.mock('../../lib/queries', () => ({
   useSuggestionsQuery: vi.fn(),
 }));
+
+beforeEach(() => {
+  // La réponse à la question de type de plat vit dans une variable de module
+  // (tâche 2) : sans reset, un scénario hériterait de la réponse du précédent.
+  resetDishTypeAnswerForTests();
+});
 
 describe('SuggestionsErrorState', () => {
   it('annonce le stock insuffisant sur son code, pas sur le statut 409', () => {
@@ -140,6 +147,11 @@ describe('SuggestionsScreen', () => {
       </QueryClientProvider>,
     );
 
+    // La question bloquante (A2) précède la liste : y répondre est nécessaire
+    // pour atteindre la fournée, même dans ce scénario qui ne teste pas la
+    // question elle-même.
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+
     // Utile, pas seulement présent : le titre identifie la suggestion, l'état
     // de couverture dit si elle est cuisinable maintenant avec le stock réel.
     expect(screen.getByRole('button', { name: 'Pâtes à la tomate, Plat, Prête à 100 %' })).toBeTruthy();
@@ -186,6 +198,10 @@ describe('SuggestionsScreen', () => {
       </QueryClientProvider>,
     );
 
+    // Répond d'abord à la question bloquante (A2) avec un type différent de
+    // ceux utilisés pour filtrer ensuite, pour ne pas ambiguïser les clics.
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+
     expect(screen.getByText('Pâtes à la tomate')).toBeTruthy();
     expect(screen.getByText('Salade de tomates')).toBeTruthy();
 
@@ -197,5 +213,178 @@ describe('SuggestionsScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dessert' }));
     expect(screen.queryByText('Salade de tomates')).toBeNull();
     expect(screen.getByRole('button', { name: /Chercher des desserts/i })).toBeTruthy();
+  });
+
+  /** A2 : la question bloque tout le reste de l'écran tant qu'elle n'a pas de réponse. */
+  it('pose la question de type de plat et n’affiche ni liste ni barre de filtres avant d’y répondre', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: true,
+      isError: false,
+      isFetching: true,
+      data: undefined,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    render(
+      <MemoryRouter>
+        <SuggestionsScreen />
+      </MemoryRouter>,
+    );
+
+    // Les sept types de la taxonomie, nommés par la question.
+    for (const label of ['Entrée', 'Plat', 'Dessert', 'Accompagnement', 'Apéritif', 'Petit-déjeuner', 'Boisson']) {
+      expect(screen.getByRole('button', { name: label })).toBeTruthy();
+    }
+
+    // Ni squelette d'attente, ni barre de filtres (région/durée/difficulté) tant que le type n'est pas choisi.
+    expect(screen.queryByText(/Recherche de recettes en cours/i)).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Région' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Durée' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Difficulté' })).toBeNull();
+
+    // `useSuggestionsQuery` n'a encore reçu aucune orientation de type de plat.
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({});
+  });
+
+  /** A3 : la première réponse part dans la requête initiale. */
+  it('envoie le type choisi dans la requête initiale', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: true,
+      isError: false,
+      isFetching: true,
+      data: undefined,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    render(
+      <MemoryRouter>
+        <SuggestionsScreen />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dessert' }));
+
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'DESSERT' });
+    // La question a disparu, la barre de filtres (désormais utile) est affichée.
+    expect(screen.queryByRole('heading', { name: /Que cherchez-vous/i })).toBeNull();
+    expect(screen.getByRole('group', { name: 'Région' })).toBeTruthy();
+  });
+
+  /** Piège signalé par la tâche : un rafraîchissement de la fournée ne doit pas reposer la question. */
+  it('ne repose pas la question quand la fournée se rafraîchit', () => {
+    const base = {
+      origin: 'italienne', region: 'mediterraneenne', totalMinutes: 25, difficulty: 'EASY',
+      provenance: 'web', sourceUrl: 'https://exemple.test/x', coverage: 1, group: 'ready', missingLabels: [], ingredients: [],
+    };
+    const batch = {
+      batchId: 'batch-1',
+      notice: null,
+      items: [{ ...base, id: 's1', title: 'Pâtes à la tomate', dishType: 'MAIN' }],
+    };
+
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      data: batch,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    const client = new QueryClient();
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+    expect(screen.getByText('Pâtes à la tomate')).toBeTruthy();
+
+    // La fournée se rafraîchit (`isFetching` repasse à vrai, les données restent) : la question ne doit pas revenir.
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      isFetching: true,
+      data: batch,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByRole('heading', { name: /Que cherchez-vous/i })).toBeNull();
+    expect(screen.getByText('Pâtes à la tomate')).toBeTruthy();
+  });
+
+  /** A5 : un moyen explicite de revenir à la question existe. */
+  it('permet de revenir à la question pour repartir d’un autre type', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: true,
+      isError: false,
+      isFetching: true,
+      data: undefined,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    render(
+      <MemoryRouter>
+        <SuggestionsScreen />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+    expect(screen.queryByRole('heading', { name: /Que cherchez-vous/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /Changer de type de plat/i }));
+
+    expect(screen.getByRole('heading', { name: /Que cherchez-vous/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Dessert' })).toBeTruthy();
+  });
+
+  /** Piège signalé par la tâche : la réponse ne doit pas se perdre au retour depuis une fiche de recette. */
+  it('ne reperd pas la réponse quand l’écran se démonte puis se remonte (retour depuis une fiche de recette)', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: true,
+      isError: false,
+      isFetching: true,
+      data: undefined,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    const { unmount } = render(
+      <MemoryRouter>
+        <SuggestionsScreen />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dessert' }));
+    expect(screen.queryByRole('heading', { name: /Que cherchez-vous/i })).toBeNull();
+
+    // `/recettes` et `/recettes/:id` sont deux routes distinctes (`app.tsx`) :
+    // visiter la fiche d'une recette conservée démonte cet écran.
+    unmount();
+
+    render(
+      <MemoryRouter>
+        <SuggestionsScreen />
+      </MemoryRouter>,
+    );
+
+    // La question ne revient pas : la réponse a survécu au remontage.
+    expect(screen.queryByRole('heading', { name: /Que cherchez-vous/i })).toBeNull();
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'DESSERT' });
   });
 });
