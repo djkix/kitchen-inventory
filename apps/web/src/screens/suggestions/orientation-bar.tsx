@@ -10,8 +10,7 @@ import {
   type SuggestionDuration,
   type SuggestionRegion,
 } from '@kitchen/shared';
-import type { ReactNode } from 'react';
-import { cn } from '../../lib/cn';
+import type { ChangeEvent } from 'react';
 import type { SuggestionOrientation } from '../../lib/suggestions-api';
 
 const DIFFICULTIES = Object.keys(DIFFICULTY_LABELS_FR) as Difficulty[];
@@ -33,6 +32,9 @@ export function countActiveOrientation(value: SuggestionOrientation): number {
   return count;
 }
 
+const SELECT_CLASS =
+  'min-h-touch min-w-0 flex-1 truncate rounded-xl border border-line bg-surface px-2 text-[13px] text-fg focus:border-accent focus:outline-none';
+
 /**
  * Orientation des suggestions par région, durée et difficulté (section 12, EF-26,
  * décision du 2026-10-04) : chaque geste relance une recherche ciblée, jamais un
@@ -45,11 +47,19 @@ export function countActiveOrientation(value: SuggestionOrientation): number {
  * ne laisse rien, l'écran propose une relance explicite plutôt que de partir
  * chercher tout seul.
  *
+ * Quatre `<select>` natifs sur une ligne (D5, 2026-10-11) plutôt que les
+ * quatre rangées de pastilles d'origine, qui prenaient la moitié d'un écran de
+ * téléphone. Natif, pas un menu reconstruit en React : au téléphone, le menu
+ * système ouvre une roue pleine largeur, confortable au pouce, et gère le
+ * clavier et le lecteur d'écran gratuitement — un menu maison ferait moins
+ * bien pour plus de code. `min-h-touch` tient par la hauteur du contrôle, pas
+ * par sa police (A7) : le texte reste à 13px pour que les quatre tiennent sur
+ * une ligne à 375 px de large.
+ *
  * Choix laissé au jugement (le cahier des charges ne tranche pas) : une seule
  * valeur active par dimension, pas un multi-choix — cohérent avec
  * `SuggestionOrientation`, où `region`, `maxMinutes` et `difficulty` sont chacun
- * un champ scalaire facultatif, pas un tableau. Cliquer la valeur déjà active la
- * désélectionne (retour à « pas de contrainte » sur cette seule dimension).
+ * un champ scalaire facultatif, pas un tableau.
  */
 export function OrientationBar({ value, onChange, dishType, onDishTypeChange }: OrientationBarProps) {
   const activeCount = countActiveOrientation(value);
@@ -59,20 +69,28 @@ export function OrientationBar({ value, onChange, dishType, onDishTypeChange }: 
     onDishTypeChange(undefined);
   };
 
-  const setRegion = (region: SuggestionRegion) => {
-    onChange({ ...value, region: value.region === region ? undefined : region });
+  const handleDishType = (event: ChangeEvent<HTMLSelectElement>) => {
+    const next = event.target.value;
+    onDishTypeChange(next === '' ? undefined : (next as DishType));
   };
 
-  const setDuration = (maxMinutes: SuggestionDuration) => {
-    onChange({ ...value, maxMinutes: value.maxMinutes === maxMinutes ? undefined : maxMinutes });
+  const handleRegion = (event: ChangeEvent<HTMLSelectElement>) => {
+    const next = event.target.value;
+    onChange({ ...value, region: next === '' ? undefined : (next as SuggestionRegion) });
   };
 
-  const setDifficulty = (difficulty: Difficulty) => {
-    onChange({ ...value, difficulty: value.difficulty === difficulty ? undefined : difficulty });
+  const handleDuration = (event: ChangeEvent<HTMLSelectElement>) => {
+    const next = event.target.value;
+    onChange({ ...value, maxMinutes: next === '' ? undefined : (Number(next) as SuggestionDuration) });
+  };
+
+  const handleDifficulty = (event: ChangeEvent<HTMLSelectElement>) => {
+    const next = event.target.value;
+    onChange({ ...value, difficulty: next === '' ? undefined : (next as Difficulty) });
   };
 
   return (
-    <div className="flex flex-col gap-3 px-4 pb-3">
+    <div className="flex flex-col gap-2 px-4 pb-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[13px] text-muted">
           {activeCount > 0 ? `${activeCount} orientation${activeCount > 1 ? 's' : ''}` : 'Aucune orientation'}
@@ -82,63 +100,45 @@ export function OrientationBar({ value, onChange, dishType, onDishTypeChange }: 
         </button>
       </div>
 
-      {/* Premier de la liste : c'est la question posée avant toutes les autres — entrée, plat ou dessert. */}
-      <ChipRow label="Type de plat">
-        {DISH_TYPES.map((type) => (
-          <Chip key={type} active={dishType === type} onClick={() => onDishTypeChange(dishType === type ? undefined : type)}>
-            {DISH_TYPE_LABELS_FR[type]}
-          </Chip>
-        ))}
-      </ChipRow>
+      <div className="flex items-center gap-1.5">
+        {/* Premier de la ligne : c'est la question posée avant toutes les autres — entrée, plat ou dessert. */}
+        <select aria-label="Type de plat" value={dishType ?? ''} onChange={handleDishType} className={SELECT_CLASS}>
+          <option value="">Tous les types</option>
+          {DISH_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {DISH_TYPE_LABELS_FR[type]}
+            </option>
+          ))}
+        </select>
 
-      {/* Par région, jamais par pays (B10) : le pays reste affiché sur la carte, seule la région se choisit ici. */}
-      <ChipRow label="Région">
-        {SUGGESTION_REGIONS.map((region) => (
-          <Chip key={region} active={value.region === region} onClick={() => setRegion(region)}>
-            {SUGGESTION_REGION_LABELS_FR[region]}
-          </Chip>
-        ))}
-      </ChipRow>
+        {/* Par région, jamais par pays (B10) : le pays reste affiché sur la carte, seule la région se choisit ici. */}
+        <select aria-label="Cuisine" value={value.region ?? ''} onChange={handleRegion} className={SELECT_CLASS}>
+          <option value="">Toutes les cuisines</option>
+          {SUGGESTION_REGIONS.map((region) => (
+            <option key={region} value={region}>
+              {SUGGESTION_REGION_LABELS_FR[region]}
+            </option>
+          ))}
+        </select>
 
-      <ChipRow label="Durée">
-        {SUGGESTION_DURATIONS.map((minutes) => (
-          <Chip key={minutes} active={value.maxMinutes === minutes} onClick={() => setDuration(minutes)}>
-            ≤ {minutes} min
-          </Chip>
-        ))}
-      </ChipRow>
+        <select aria-label="Durée" value={value.maxMinutes?.toString() ?? ''} onChange={handleDuration} className={SELECT_CLASS}>
+          <option value="">Toutes durées</option>
+          {SUGGESTION_DURATIONS.map((minutes) => (
+            <option key={minutes} value={minutes}>
+              ≤ {minutes} min
+            </option>
+          ))}
+        </select>
 
-      <ChipRow label="Difficulté">
-        {DIFFICULTIES.map((difficulty) => (
-          <Chip key={difficulty} active={value.difficulty === difficulty} onClick={() => setDifficulty(difficulty)}>
-            {DIFFICULTY_LABELS_FR[difficulty]}
-          </Chip>
-        ))}
-      </ChipRow>
+        <select aria-label="Facilité" value={value.difficulty ?? ''} onChange={handleDifficulty} className={SELECT_CLASS}>
+          <option value="">Toutes difficultés</option>
+          {DIFFICULTIES.map((difficulty) => (
+            <option key={difficulty} value={difficulty}>
+              {DIFFICULTY_LABELS_FR[difficulty]}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
-  );
-}
-
-function ChipRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div role="group" aria-label={label} className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none]">
-      {children}
-    </div>
-  );
-}
-
-function Chip({ active, onClick, children }: { active?: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={Boolean(active)}
-      onClick={onClick}
-      className={cn(
-        'min-h-touch shrink-0 rounded-full border px-3.5 text-[14px] font-medium',
-        active ? 'border-accent bg-accent-deep text-accent' : 'border-line text-muted',
-      )}
-    >
-      {children}
-    </button>
   );
 }
