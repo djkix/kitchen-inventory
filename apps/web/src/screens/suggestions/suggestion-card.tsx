@@ -50,7 +50,7 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
   return (
     <article className="flex flex-col gap-2 rounded-card bg-surface p-3.5">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="min-w-0 flex-1 truncate text-[16px] font-medium leading-tight">{suggestion.title}</h3>
+        <h3 className="min-w-0 flex-1 line-clamp-2 text-[16px] font-medium leading-tight">{suggestion.title}</h3>
         <span className={cn('tnum shrink-0 rounded-md px-1.5 py-0.5 text-[13px] font-semibold', GROUP_LOOK[suggestion.group])}>
           {COVERAGE_GROUP_LABELS_FR[suggestion.group]} · {Math.round(suggestion.coverage * 100)} %
         </span>

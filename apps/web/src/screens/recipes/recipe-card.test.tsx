@@ -91,6 +91,16 @@ describe('RecipeCard', () => {
     expect(screen.getByRole('button', { name: `Favori : ${base.title}` })).toBeTruthy();
   });
 
+  // jsdom ne calcule aucune mise en page : ce test vérifie la classe qui pose
+  // la limite à deux lignes (A6), pas le rendu réel — vérifié au navigateur
+  // séparément, à 375 px, avec un titre long.
+  it('affiche le titre sur deux lignes au plus, jamais tronqué sur une seule (A6)', () => {
+    render(<RecipeCard recipe={{ ...base, title: 'Un titre de recette particulièrement long pour vérifier le passage à la ligne' }} />);
+    const title = screen.getByText(/Un titre de recette particulièrement long/);
+    expect(title.className).toContain('line-clamp-2');
+    expect(title.className).not.toContain('truncate');
+  });
+
   it('bascule le favori sans déclencher la navigation de la carte', () => {
     const onToggleFavorite = vi.fn();
     const onCardClick = vi.fn();

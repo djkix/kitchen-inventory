@@ -64,7 +64,7 @@ export function RecipeCard({ recipe, onToggleFavorite }: RecipeCardProps) {
   return (
     <article className="flex flex-col gap-2 rounded-card bg-surface p-3.5">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="min-w-0 flex-1 truncate text-[16px] font-medium leading-tight">{recipe.title}</h3>
+        <h3 className="min-w-0 flex-1 line-clamp-2 text-[16px] font-medium leading-tight">{recipe.title}</h3>
         {onToggleFavorite && (
           <FavoriteStar favorite={recipe.favorite} recipeTitle={recipe.title} onToggle={onToggleFavorite} className="-my-2.5" />
         )}

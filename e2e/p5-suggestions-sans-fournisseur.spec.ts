@@ -25,6 +25,14 @@ import { restoreDatabase } from './support/database.ts';
  * fichiers, sans traitement particulier.
  *
  * Sélecteurs, avec leur source :
+ * - `getByRole('group', { name: 'Type de plat' }).getByRole('button', { name:
+ *   'Plat' })` — question bloquante à l'entrée de l'écran (décision D2 du
+ *   2026-10-11, `apps/web/src/screens/suggestions/dish-type-question.tsx`) :
+ *   depuis cette décision, aucun appel à `GET /suggestions` ne part tant
+ *   qu'un type de plat n'a pas été choisi — ni liste, ni erreur ne peuvent
+ *   donc apparaître avant d'y répondre. Peu importe lequel des sept types
+ *   est choisi ici : le fournisseur est absent quelle que soit l'orientation
+ *   envoyée.
  * - `getByRole('heading', { name: 'Aucun fournisseur de suggestions configuré',
  *   level: 2 })` — `apps/web/src/components/ui/empty-state.tsx`
  *   (`EmptyState`, titre en `<h2>`), monté par
@@ -46,6 +54,9 @@ useSharedAdminSession();
 
 test('dit en français que le fournisseur n’est pas configuré', async ({ page }) => {
   await page.goto('/recettes');
+  // Question bloquante (D2) : aucun appel ne part avant d'y répondre, donc
+  // aucune erreur ne peut encore s'afficher à ce stade.
+  await page.getByRole('group', { name: 'Type de plat' }).getByRole('button', { name: 'Plat' }).click();
 
   await expect(page.getByRole('heading', { name: 'Aucun fournisseur de suggestions configuré', level: 2 })).toBeVisible();
   await expect(

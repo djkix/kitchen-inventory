@@ -51,6 +51,17 @@ import { restoreDatabase } from './support/database.ts';
  * réponse porte déjà pour exactement cet usage (section 12, « conservation
  * d'une suggestion… identifiant de lot »).
  *
+ * Question bloquante à l'entrée (décision D2 du 2026-10-11,
+ * `apps/web/src/screens/suggestions/dish-type-question.tsx`) : depuis cette
+ * décision, aucun appel à `GET /suggestions` ne part tant qu'un type de plat
+ * n'a pas été choisi, et ni liste, ni squelette, ni barre de filtres ne
+ * s'affichent avant cette réponse. Tout parcours de ce fichier qui atterrit
+ * sur `/recettes` répond donc d'abord par `answerDishTypeQuestion(page)`
+ * (définie plus bas) avant de pouvoir observer une suggestion, une recherche
+ * ou une erreur. La réponse donnée ne pèse pas sur le contenu servi : la
+ * doublure renvoie toujours la même fixture quelle que soit l'orientation
+ * (voir plus bas).
+ *
  * Sélecteurs, avec leur source :
  * - `getByRole('link', { name: 'Recettes' })` — `apps/web/src/components/
  *   shell/bottom-nav.tsx` (`NavLink` vers `/recettes`, l'écran Suggestions —
@@ -58,7 +69,14 @@ import { restoreDatabase } from './support/database.ts';
  * - `getByRole('heading', { name: 'Suggestions', level: 1 })`, le sous-titre
  *   « À partir de votre stock », le lien « Mes recettes » —
  *   `apps/web/src/screens/suggestions/suggestions-screen.tsx`
- *   (`ScreenHeader`).
+ *   (`ScreenHeader`) : affichés dès l'arrivée sur l'écran, même avant la
+ *   question bloquante (`ScreenHeader` et `RecipeTabSwitch` sont rendus dans
+ *   les deux branches de `SuggestionsScreen`).
+ * - `getByRole('group', { name: 'Type de plat' }).getByRole('button', { name:
+ *   <libellé> })` — les sept boutons de la question bloquante elle-même
+ *   (`DishTypeQuestion`, `DISH_TYPE_LABELS_FR`). À ne pas confondre avec le
+ *   `<select aria-label="Type de plat">` de la barre de filtres, qui est un
+ *   `combobox`, pas un `group` de boutons.
  * - `page.locator('article')` pour une carte de suggestion — même structure
  *   que les cartes de stock et de recettes (`<article>`), lue dans
  *   `apps/web/src/screens/suggestions/suggestion-card.tsx`.
@@ -72,11 +90,15 @@ import { restoreDatabase } from './support/database.ts';
  *   `apps/web/src/screens/suggestions/suggestion-sheet.tsx` (titre du
  *   `Sheet`, rendu en `<h2>` par `apps/web/src/components/ui/sheet.tsx`,
  *   `aria-label` du tiroir = ce même titre).
- * - `getByRole('group', { name: 'Région' })`, les boutons de région
- *   (« Européenne », « Méditerranéenne »…) —
- *   `apps/web/src/screens/suggestions/orientation-bar.tsx`
- *   (`ChipRow label="Région"`, libellés `SUGGESTION_REGION_LABELS_FR`,
- *   `packages/shared/src/schemas/suggestions.ts`).
+ * - `getByRole('combobox', { name: 'Cuisine' })` avec `selectOption` — barre
+ *   de filtres (décision D5 du 2026-10-11,
+ *   `apps/web/src/screens/suggestions/orientation-bar.tsx`) : les quatre
+ *   rangées de pastilles de région/durée/difficulté ont été remplacées par
+ *   quatre `<select>` natifs sur deux lignes de deux. L'ancien repère
+ *   (`getByRole('group', { name: 'Région' })` avec des boutons de pastille)
+ *   n'existe plus pour la cuisine, la durée ni la difficulté — seule la
+ *   question d'entrée garde un `role="group"` de boutons, pour le type de
+ *   plat (voir plus haut).
  * - `getByRole('heading', { name: 'Étapes', level: 2 })`, le texte exact
  *   d'une étape — `apps/web/src/screens/recipe/recipe-screen.tsx`.
  * - `getByPlaceholder('Rechercher une recette')` —
@@ -106,6 +128,17 @@ async function waitForSuggestionsResponse(page: Page, trigger: () => Promise<unk
     trigger(),
   ]);
   return (await response.json()) as SuggestionBatchResponse;
+}
+
+/**
+ * Répond à la question bloquante d'entrée (D2) : condition pour que
+ * `SuggestionsScreen` affiche autre chose (liste, filtres, erreur) et pour
+ * qu'un appel à `GET /suggestions` parte. Le type choisi n'a pas d'effet sur
+ * le contenu servi par la doublure (voir l'en-tête du fichier) : « Plat »
+ * convient à tous les tests qui n'ont pas de raison d'en choisir un autre.
+ */
+async function answerDishTypeQuestion(page: Page, label = 'Plat') {
+  await page.getByRole('group', { name: 'Type de plat' }).getByRole('button', { name: label, exact: true }).click();
 }
 
 /** Ouvre le tiroir de conservation d'une suggestion depuis sa carte, par son titre exact. */
@@ -141,7 +174,9 @@ test('Suggestions ouvre en entrée du module Recettes', async ({ page }) => {
 });
 
 test('affiche une fournée construite sur le stock, chaque carte avec sa provenance', async ({ page }) => {
-  const batch = await waitForSuggestionsResponse(page, () => page.goto('/recettes'));
+  await page.goto('/recettes');
+  // Question bloquante (D2) : c'est la réponse, pas la navigation, qui déclenche l'appel initial.
+  const batch = await waitForSuggestionsResponse(page, () => answerDishTypeQuestion(page));
   expect(batch.items).toHaveLength(SUGGESTION_BATCH_SIZE);
 
   const cards = page.locator('article');
@@ -157,6 +192,7 @@ test('affiche une fournée construite sur le stock, chaque carte avec sa provena
 
 test('affiche les étapes d’une composition dès la fiche, mais jamais celles d’une recette web avant conservation (B7, amendé le 2026-10-08)', async ({ page }) => {
   await page.goto('/recettes');
+  await answerDishTypeQuestion(page);
 
   // Recette composée : les étapes sont déjà dans la fournée (B6, aucun appel
   // réseau pour une composition) — « Plus d'informations » n'aurait rien de
@@ -180,11 +216,15 @@ test('affiche les étapes d’une composition dès la fiche, mais jamais celles 
 });
 
 test('relance une recherche quand on choisit une région, plutôt que de filtrer ce qui est affiché', async ({ page }) => {
-  const first = await waitForSuggestionsResponse(page, () => page.goto('/recettes'));
+  await page.goto('/recettes');
+  const first = await waitForSuggestionsResponse(page, () => answerDishTypeQuestion(page));
   expect(first.items.length).toBeGreaterThan(0);
 
+  // D5 (2026-10-11) : les pastilles de région ont fait place à un `<select>`
+  // natif — `getByRole('combobox', { name: 'Cuisine' })` avec `selectOption`,
+  // plus de `getByRole('group', { name: 'Région' })` ni de bouton de pastille.
   const second = await waitForSuggestionsResponse(page, () =>
-    page.getByRole('group', { name: 'Région' }).getByRole('button', { name: 'Européenne', exact: true }).click(),
+    page.getByRole('combobox', { name: 'Cuisine' }).selectOption({ label: 'Européenne' }),
   );
 
   // La doublure sert un contenu identique quelle que soit l'orientation (voir
@@ -199,6 +239,7 @@ test('relance une recherche quand on choisit une région, plutôt que de filtrer
 
 test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où ses étapes restent affichées', async ({ page }) => {
   await page.goto('/recettes');
+  await answerDishTypeQuestion(page);
   const dialog = await openSuggestionSheet(page, 'Recette composée 1');
 
   await dialog.getByRole('button', { name: 'Plus d’informations' }).click();
