@@ -73,8 +73,13 @@ export function SuggestionsScreen() {
       <OrientationBar value={orientation} onChange={setOrientation} dishType={dishType} onDishTypeChange={setDishType} />
 
       <div className="px-4 pb-3">
+        {/* Distinct du sélecteur « Type de plat » de la barre, qui ne fait que
+            filtrer la fournée déjà chargée (D4) : ce bouton repose la question
+            bloquante d'entrée et relance une vraie recherche serveur. Le
+            libellé le dit explicitement pour ne pas laisser croire aux deux
+            contrôles qu'ils font la même chose (revue du 2026-10-11). */}
         <button type="button" onClick={askAgain} className="min-h-touch text-[14px] font-medium text-accent active:underline">
-          Changer de type de plat
+          Relancer une recherche avec un autre type de plat
         </button>
       </div>
 

@@ -347,7 +347,7 @@ describe('SuggestionsScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
     expect(screen.queryByRole('heading', { name: /Que cherchez-vous/i })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: /Changer de type de plat/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Relancer une recherche avec un autre type de plat/i }));
 
     expect(screen.getByRole('heading', { name: /Que cherchez-vous/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Dessert' })).toBeTruthy();
