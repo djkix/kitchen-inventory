@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.16.0](https://github.com/djkix/kitchen-inventory/compare/v0.15.0...v0.16.0) (2026-10-11)
+
+
+### Features
+
+* **suggestions:** quatre filtres sur une ligne (EF-25) ([0f751fd](https://github.com/djkix/kitchen-inventory/commit/0f751fd164d4f2ed11e3c597b4bce0d753bd81d1))
+* **suggestions:** question de type de plat à l'entrée (EF-25) ([9fc7fe4](https://github.com/djkix/kitchen-inventory/commit/9fc7fe49939ed3f30cc805bde3f5c83627510836))
+* **web:** Suggestions redevient l'entrée du module (EF-25) ([8bb3aa5](https://github.com/djkix/kitchen-inventory/commit/8bb3aa53b8e20cb0e8e14308fffd857ff775fd6a))
+
+
+### Bug Fixes
+
+* **suggestions:** deux lignes de deux filtres, bouton de relance renommé (EF-25) ([79f20d9](https://github.com/djkix/kitchen-inventory/commit/79f20d9201008c4b86215529f9411f1cf70f8dbc))
+* **suggestions:** le type de plat relance au lieu de filtrer, refresh ne persiste plus (EF-25) ([3f91e78](https://github.com/djkix/kitchen-inventory/commit/3f91e78c793a66cf16996738b1a93fb5c69a20ec))
+* **web:** titres de recette sur deux lignes, e2e et doc du parcours dirigé (EF-25) ([c3196ae](https://github.com/djkix/kitchen-inventory/commit/c3196aeebc2e29078860ff52d7820e680ebfe51c))
+
 ## [0.15.0](https://github.com/djkix/kitchen-inventory/compare/v0.14.0...v0.15.0) (2026-10-08)
 
 
