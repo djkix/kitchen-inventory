@@ -44,16 +44,4 @@ describe('useDishTypeAnswer', () => {
     expect(second.result.current.dishType).toBe('DESSERT');
   });
 
-  it('oublie la réponse sur demande explicite (A5)', () => {
-    const { result } = renderHook(() => useDishTypeAnswer());
-    act(() => {
-      result.current.answer('MAIN');
-    });
-    expect(result.current.dishType).toBe('MAIN');
-
-    act(() => {
-      result.current.askAgain();
-    });
-    expect(result.current.dishType).toBeNull();
-  });
 });

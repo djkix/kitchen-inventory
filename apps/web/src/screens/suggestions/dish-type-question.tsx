@@ -68,21 +68,8 @@ export function useDishTypeAnswer() {
     setDishType(type);
   };
 
-  /**
-   * Revient à la question. Plus appelée depuis `SuggestionsScreen` depuis la
-   * revue finale du 2026-10-11 : le bouton dédié qui l'utilisait faisait
-   * doublon avec le sélecteur « Type de plat » de la barre de filtres, qui
-   * relance désormais lui-même une recherche au choix d'un autre type (A5
-   * est donc satisfaite par ce sélecteur). Conservée et testée isolément :
-   * retirer `askAgain` romprait l'API du hook sans bénéfice, pour un coût
-   * nul tant qu'elle n'est appelée par personne.
-   */
-  const askAgain = () => {
-    answeredDishType = null;
-    setDishType(null);
-  };
 
-  return { dishType, answer, askAgain };
+  return { dishType, answer };
 }
 
 /** Réservé aux tests : isole les scénarios qui, sinon, partageraient la réponse mémorisée. */
