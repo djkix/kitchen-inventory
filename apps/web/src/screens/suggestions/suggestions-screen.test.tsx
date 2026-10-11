@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiClientError } from '../../lib/api';
 import { useSuggestionsQuery } from '../../lib/queries';
 import { resetDishTypeAnswerForTests } from './dish-type-question';
-import { nextOrientationAfterDishTypeAnswer, SuggestionsErrorState, SuggestionsScreen } from './suggestions-screen';
+import { SuggestionsErrorState, SuggestionsScreen } from './suggestions-screen';
 
 vi.mock('../../lib/queries', () => ({
   useSuggestionsQuery: vi.fn(),
@@ -88,26 +88,6 @@ describe('SuggestionsErrorState', () => {
  * question qui n'existe plus dans l'écran (voir le commentaire de la
  * fonction).
  */
-describe('nextOrientationAfterDishTypeAnswer', () => {
-  it('relance avec le nouveau type quand il diffère du précédent', () => {
-    expect(nextOrientationAfterDishTypeAnswer({ dishType: 'MAIN', region: 'asiatique' }, 'DESSERT')).toEqual({
-      dishType: 'DESSERT',
-      region: 'asiatique',
-      refresh: undefined,
-    });
-  });
-
-  it('force un `refresh` quand le type répété est déjà celui de l’orientation en cours', () => {
-    // Sans ce `refresh: true`, l'orientation ({ dishType: 'MAIN' }) serait
-    // identique à celle déjà utilisée : la clé de requête ne changerait pas,
-    // et l'écran semblerait n'avoir rien fait en réponse à la question.
-    expect(nextOrientationAfterDishTypeAnswer({ dishType: 'MAIN' }, 'MAIN')).toEqual({ dishType: 'MAIN', refresh: true });
-  });
-
-  it('ne force rien quand il n’y avait encore aucun type (première réponse)', () => {
-    expect(nextOrientationAfterDishTypeAnswer({}, 'MAIN')).toEqual({ dishType: 'MAIN', refresh: undefined });
-  });
-});
 
 describe('SuggestionsScreen', () => {
   it('donne accès à Mes recettes depuis Suggestions', () => {

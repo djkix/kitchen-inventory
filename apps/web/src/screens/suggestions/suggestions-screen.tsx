@@ -1,4 +1,4 @@
-import type { DishType, SuggestionDto } from '@kitchen/shared';
+import type { SuggestionDto } from '@kitchen/shared';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
@@ -37,24 +37,6 @@ import { RecipeTabSwitch } from '../recipes/recipe-tab-switch';
  * contrôles n'avaient donc plus d'objet.
  */
 
-/**
- * Orientation à envoyer après une réponse (initiale ou répétée) à la
- * question bloquante. Extraite en fonction pure pour être testée
- * directement (section « règles métier… fonctions pures testées ») : le
- * chemin qu'elle protège — répondre deux fois le MÊME type sans que
- * l'orientation n'ait changé entre-temps — n'est plus atteignable depuis
- * l'écran aujourd'hui (le bouton qui ramenait à la question a été retiré,
- * voir plus haut), mais reste la règle à respecter si un chemin de retour à
- * la question était réintroduit : sans `refresh: true` dans ce cas précis,
- * la clé de requête resterait identique et l'écran semblerait n'avoir rien
- * fait. `refresh` ne survit pas au-delà de cet appel : chaque geste de la
- * barre de filtres le remet à `undefined` explicitement (voir
- * `orientation-bar.tsx`).
- */
-export function nextOrientationAfterDishTypeAnswer(current: SuggestionOrientation, type: DishType): SuggestionOrientation {
-  if (current.dishType === type) return { ...current, dishType: type, refresh: true };
-  return { ...current, dishType: type, refresh: undefined };
-}
 
 export function SuggestionsScreen() {
   const { dishType: answeredDishType, answer: answerDishType } = useDishTypeAnswer();
@@ -75,7 +57,9 @@ export function SuggestionsScreen() {
         <DishTypeQuestion
           onSelect={(type) => {
             answerDishType(type);
-            setOrientation((current) => nextOrientationAfterDishTypeAnswer(current, type));
+            // Le type répondu devient l'orientation : la question n'est posée que
+            // sur une orientation vide, il n'y a donc jamais rien à fusionner.
+            setOrientation({ dishType: type });
           }}
         />
       </>
