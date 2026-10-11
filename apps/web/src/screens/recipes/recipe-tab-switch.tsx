@@ -1,29 +1,21 @@
-import { useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router';
+import { NavLink } from 'react-router';
 import { cn } from '../../lib/cn';
-import { pathForRecipeTab, recipeTabForPath, writeRecipeTab } from './recipe-tab-storage';
 
 /**
  * Bascule à deux volets, Suggestions et Mes recettes, en tête des deux écrans
  * du module recettes (tâche 9). Le volet actif se voit par la bordure, le
  * fond et le poids du texte — jamais par la seule couleur — et est annoncé
  * aux lecteurs d'écran par `aria-current` (posé automatiquement par
- * `NavLink`). Le dernier volet ouvert est mémorisé pour que l'onglet Recettes
- * de la barre du bas y retombe directement.
+ * `NavLink`). Suggestions reste l'écran d'entrée du module, toujours (A1) :
+ * aucun volet n'est mémorisé.
  */
 export function RecipeTabSwitch() {
-  const location = useLocation();
-
-  useEffect(() => {
-    writeRecipeTab(recipeTabForPath(location.pathname));
-  }, [location.pathname]);
-
   return (
     <nav aria-label="Volet du module recettes" className="flex gap-2 px-4 pb-3">
-      <NavLink to={pathForRecipeTab('suggestions')} end className={tabClassName}>
+      <NavLink to="/recettes" end className={tabClassName}>
         Suggestions
       </NavLink>
-      <NavLink to={pathForRecipeTab('bibliotheque')} className={tabClassName}>
+      <NavLink to="/recettes/bibliotheque" className={tabClassName}>
         Mes recettes
       </NavLink>
     </nav>
