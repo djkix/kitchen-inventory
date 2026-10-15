@@ -86,14 +86,15 @@ function htmlResponse(html: string, status = 200): Response {
  * qu'ils vérifient est un rapprochement d'ingrédient, pas une place dans la
  * liste.
  *
- * Conserver la recette « Spaghetti à la tomate » (web) ne rappelle plus le
- * site et n'appelle plus le modèle (tâche 6, D10) : sa page portait
- * `schema.org/Recipe` (`page-schema-simple.html`), recopié au réservoir dès
- * l'ingestion, et la recette créée est bâtie directement dessus — titre
- * « Tarte aux pommes », ses quatre étapes, ses quatre lignes d'ingrédients.
- * Elle est `IMPORTED`, avec une difficulté recalculée au barème du foyer
- * (`EASY` : quatre étapes, 28 minutes de préparation, aucune technique) —
- * jamais le `HARD` annoncé par la fournée.
+ * Conserver la recette « Spaghetti à la tomate » (web) ne rappelle plus jamais
+ * le site (tâche 6, D10) : sa page a été lue une seule fois, à l'entrée au
+ * réservoir, et son `schema.org/Recipe` (`page-schema-simple.html`) y est
+ * recopié. La réécriture par Gemini, elle, a toujours lieu
+ * (`gemini-rewrite-tarte.json`, huit étapes, aucune technique détectée) : elle
+ * seule rend des ingrédients chiffrés, dont vivent le rapprochement au stock
+ * et la couverture. La recette créée est `IMPORTED`, avec une difficulté
+ * `INTERMEDIATE` recalculée au barème du foyer — jamais le `HARD` annoncé par
+ * la fournée.
  */
 describe('scénario de réussite figé des suggestions', () => {
   let t: TestApp;
@@ -147,11 +148,10 @@ describe('scénario de réussite figé des suggestions', () => {
    * prompt (même procédé que `suggestions.e2e-spec.ts`, test « orientation ») :
    * la recherche de fournée porte « Ingrédients disponibles dans le foyer »,
    * la réécriture d'une recette conservée porte « Titre de la recette proposé ».
-   * Cette seconde branche n'est plus empruntée depuis la tâche 6 (la page de
-   * ce scénario est structurée, donc recopiée telle quelle) : elle reste
-   * branchée pour qu'un retour en arrière réponde au lieu d'échouer faute de
-   * fixture — c'est le compte d'appels du test de conservation qui le
-   * dénoncerait, pas une erreur de doublure.
+   * Depuis la tâche 6, la seconde branche ne reçoit plus la page récupérée au
+   * moment de la conservation mais le contenu déjà recopié au réservoir : le
+   * site, lui, n'est rappelé nulle part — ce que le test de conservation
+   * vérifie en comptant les requêtes faites à son hôte.
    */
   function wireModel(): void {
     http.on('generateContent', (_url, init) => {
@@ -295,40 +295,35 @@ describe('scénario de réussite figé des suggestions', () => {
     expect(justeEnDessous?.productId).toBeNull();
   });
 
-  it('conserve la première recette en Recipe IMPORTED depuis la page déjà recopiée, sans rappeler le site ni le modèle', async () => {
+  it('conserve la première recette en Recipe IMPORTED sans jamais rappeler le site, difficulté recalculée au barème du foyer', async () => {
     const list = await agent.get('/api/v1/suggestions').expect(200);
     const batchId = list.body.batchId as string;
     // Identifiant rendu par la liste, dérivé du contenu de la recette : jamais
     // un rang — la recette est donc retrouvée par son titre, pas par sa place.
     const spaghetti = list.body.items.find((i: { title: string }) => i.title === 'Spaghetti à la tomate');
     const suggestionId = spaghetti.id as string;
-    const callsAvant = http.calls.length;
+    const pagesAvant = http.calls.filter((c) => c.url.includes(WEB_RECIPE_HOST)).length;
 
     const res = await agent
       .post('/api/v1/suggestions/keep')
       .send({ batchId, suggestionId, clientOpId: 'op-scenario-pates-00001' })
       .expect(201);
 
-    // Le bénéfice du réservoir, figé ici : conserver ne coûte plus rien.
-    expect(http.calls).toHaveLength(callsAvant);
+    // Le site a été lu à l'ingestion, et plus jamais ensuite (D10).
+    expect(http.calls.filter((c) => c.url.includes(WEB_RECIPE_HOST))).toHaveLength(pagesAvant);
     expect(res.body.source).toBe('IMPORTED');
     expect(res.body.sourceUrl).toBe(`https://${WEB_RECIPE_HOST}/spaghetti-tomate`);
-    // Titre, étapes et ingrédients viennent du `schema.org/Recipe` recopié à
-    // l'ingestion (`page-schema-simple.html`), jamais de la fournée de départ,
-    // qui annonçait « Spaghetti à la tomate ».
-    expect(res.body.title).toBe('Tarte aux pommes');
-    expect(res.body.steps).toEqual([
-      'Préchauffer le four à 180°C.',
-      'Éplucher et couper les pommes en lamelles.',
-      'Étaler la pâte dans un moule et disposer les pommes.',
-      "Cuire 35 minutes jusqu'à coloration.",
-    ]);
-    expect(res.body.ingredients.map((i: { label: string }) => i.label)).toEqual(['4 pommes', '200 g de farine', '100 g de beurre', '2 œufs']);
-    // La fournée annonçait HARD ; quatre étapes (palier 1), 28 minutes de
-    // préparation (palier 2, `computeDifficulty` lit `activeTime ?? prepMinutes`)
-    // et aucune technique détectée donnent un score de 3, soit EASY au barème
-    // du foyer — jamais le HARD annoncé par le modèle.
-    expect(res.body.difficulty).toBe('EASY');
+    // Titre et étapes viennent de la réécriture (`gemini-rewrite-tarte.json`), jamais
+    // de la fournée de départ : la fournée annonçait « Spaghetti à la tomate ».
+    expect(res.body.title).toBe('Tarte aux pommes (réécrite)');
+    // La fournée annonçait HARD ; huit étapes sans aucune technique détectée et
+    // `computeDifficulty` lit `activeTime ?? prepMinutes` : depuis que la fournée
+    // porte des durées séparées, c'est `prepMinutes` (28) qui pilote le palier de
+    // temps, non `totalMinutes` (30). Même tranche, même score — mais ce n'est
+    // plus la même valeur qui le détermine (bucket étapes 2 + bucket temps 2 + 0 technique = score 4)
+    // donnent INTERMEDIATE au barème du foyer (`computeDifficulty`), jamais le HARD
+    // annoncé par le modèle.
+    expect(res.body.difficulty).toBe('INTERMEDIATE');
     expect(res.body.difficultyOverride).toBe(false);
   });
 });

@@ -23,9 +23,9 @@ import { restoreDatabase } from './support/database.ts';
  * 'ai'`) est conservée ici : `SuggestionsService.buildCreateInput`
  * (apps/api/src/suggestions/suggestions.service.ts) ne fait alors AUCUN appel
  * réseau (B6) — les étapes et ingrédients de la fournée sont repris tels
- * quels. Depuis la tâche 6 (2026-10-15), la conservation ne fait plus AUCUNE
- * requête réseau non plus pour une recette web : la page a été lue une seule
- * fois, à l'entrée au réservoir (D10).
+ * quels. Depuis la tâche 6 (2026-10-15), la conservation d'une recette web ne
+ * contacte plus le site : sa page a été lue une seule fois, à l'entrée au
+ * réservoir (D10), et la réécriture part de ce contenu recopié.
  *
  * Fournée vue par ces tests : la doublure (`e2e/fixtures/stub-server.ts`,
  * `SUGGESTIONS_FIXTURE`) sert toujours `apps/api/test/fixtures/suggestions/
@@ -248,9 +248,10 @@ test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où
 
   await dialog.getByRole('button', { name: 'Plus d’informations' }).click();
 
-  // Composition IA (B6) : aucun appel réseau supplémentaire — et depuis la
-  // tâche 6, le chemin web n'en fait plus non plus (page déjà recopiée au
-  // réservoir, [C15]) : la navigation suit directement, sans attente prolongée.
+  // Composition IA (B6) : aucun appel supplémentaire, contrairement au chemin
+  // web, qui fait toujours réécrire la recette par Gemini — mais depuis le
+  // contenu déjà recopié au réservoir, sans rappeler le site ([C15]) : la
+  // navigation suit directement, sans attente prolongée à prévoir.
   await page.waitForURL(/\/recettes\/[^/]+$/);
   await expect(page.getByRole('heading', { name: 'Recette composée 1', level: 1 })).toBeVisible();
 
