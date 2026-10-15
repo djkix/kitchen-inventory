@@ -4,6 +4,7 @@ import { DynamicModule, Global, Module, type INestApplicationContext } from '@ne
 import { NestFactory } from '@nestjs/core';
 import { DISH_TYPES, suggestionIdentities, suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
 import type { Prisma } from '@prisma/client';
+import { LoggerModule } from 'nestjs-pino';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ConfigModule } from '../common/config.module.js';
@@ -36,7 +37,7 @@ class SuggestionsTestModule {
   static forRoot(config: AppConfig, httpClient: HttpClient): DynamicModule {
     return {
       module: SuggestionsTestModule,
-      imports: [ConfigModule.forRoot(config), PrismaModule, SettingsModule, RecipesModule, SuggestionsModule],
+      imports: [ConfigModule.forRoot(config), LoggerModule.forRoot({ pinoHttp: { level: 'silent' } }), PrismaModule, SettingsModule, RecipesModule, SuggestionsModule],
       providers: [{ provide: HTTP_CLIENT, useValue: httpClient }],
       exports: [HTTP_CLIENT],
     };
