@@ -181,7 +181,8 @@ describe('SuggestionPoolService.ingest (EF-26)', () => {
     await db.suggestionPoolRecipe.create({
       data: { identity: suggestionIdentity(WEB), payload: WEB as unknown as Prisma.InputJsonValue, provenance: 'web', dishType: 'MAIN', sourceUrl: WEB.sourceUrl, model: 'm0' },
     });
-    expect(await service.ingest([WEB], 'm')).toBe(1);
+    // La ligne existait déjà : elle est vérifiée, pas créée — d'où 0 et non 1.
+    expect(await service.ingest([WEB], 'm')).toBe(0);
     const first = await db.suggestionPoolRecipe.findFirstOrThrow();
     expect(first.verifiedAt).not.toBeNull();
     expect(first.pageText).toBe('texte');

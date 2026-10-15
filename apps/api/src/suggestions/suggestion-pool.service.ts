@@ -62,13 +62,13 @@ export class SuggestionPoolService {
     private readonly logger: Logger,
   ) {}
 
-  /** Rend le nombre de recettes retenues. Un échec sur une recette n'en fait jamais tomber une autre. */
+  /** Rend le nombre de recettes nouvellement créées au réservoir (une ligne déjà connue, seulement revue, ne compte pas). Un échec sur une recette n'en fait jamais tomber une autre. */
   async ingest(recipes: readonly ModelRecipe[], model: string): Promise<number> {
     const identities = recipes.map((recipe) => suggestionIdentity(recipe));
+    const known = await this.prisma.suggestionPoolRecipe.findMany({ where: { identity: { in: identities } }, select: { identity: true, verifiedAt: true } });
+    const existing = new Set(known.map((row) => row.identity));
     // D10 : une page déjà lue ne se relit pas, on ne fait que rafraîchir lastSeenAt.
-    const alreadyRead = new Set(
-      (await this.prisma.suggestionPoolRecipe.findMany({ where: { identity: { in: identities }, verifiedAt: { not: null } }, select: { identity: true } })).map((row) => row.identity),
-    );
+    const alreadyRead = new Set(known.filter((row) => row.verifiedAt !== null).map((row) => row.identity));
     // Un seul instant pour toute la fournée (revue de la tâche 4) : pris dans
     // `ingestOne`, il tombait APRÈS l'`await` de lecture de page, si bien que
     // les recettes web héritaient d'un `firstSeenAt` dicté par l'ordre d'arrivée
@@ -76,8 +76,10 @@ export class SuggestionPoolService {
     // à l'autre. Une fournée est découverte d'un bloc, et l'ordre se départage
     // ensuite sur le titre et l'identité (`comparePoolEntries`).
     const now = new Date();
-    const kept = await Promise.all(recipes.map((recipe, index) => this.ingestOne(recipe, identities[index] as string, model, alreadyRead, now)));
-    return kept.filter(Boolean).length;
+    const written = await Promise.all(recipes.map((recipe, index) => this.ingestOne(recipe, identities[index] as string, model, alreadyRead, now)));
+    // Une identité n'est comptée qu'une fois, même répétée dans la fournée.
+    const created = new Set(identities.filter((identity, index) => written[index] && !existing.has(identity)));
+    return created.size;
   }
 
   async read(filter: PoolFilter = {}): Promise<PoolRecipe[]> {

@@ -24,12 +24,17 @@ function httpFor(html: string): HttpClient {
   return async () => htmlResponse(html);
 }
 
+/** Lecture structurée seule, via `fetchContent` : la seule entrée publique du lecteur. */
+async function structuredOf(fetcher: RecipePageFetcher, url: string) {
+  return (await fetcher.fetchContent(url))?.structured ?? null;
+}
+
 describe('RecipePageFetcher (tâche 9, B6, B14)', () => {
   it('lit un schema.org/Recipe simple', async () => {
     const html = await fixtureHtml('page-schema-simple.html');
     const fetcher = new RecipePageFetcher(httpFor(html));
 
-    const recipe = await fetcher.fetch(`https://${PUBLIC_HOST}/tarte-aux-pommes`);
+    const recipe = await structuredOf(fetcher, `https://${PUBLIC_HOST}/tarte-aux-pommes`);
 
     expect(recipe).not.toBeNull();
     expect(recipe?.title).toBe('Tarte aux pommes');
@@ -41,7 +46,7 @@ describe('RecipePageFetcher (tâche 9, B6, B14)', () => {
     const html = await fixtureHtml('page-schema-graph.html');
     const fetcher = new RecipePageFetcher(httpFor(html));
 
-    const recipe = await fetcher.fetch(`https://${PUBLIC_HOST}/curry-de-legumes`);
+    const recipe = await structuredOf(fetcher, `https://${PUBLIC_HOST}/curry-de-legumes`);
 
     expect(recipe).not.toBeNull();
     expect(recipe?.title).toBe('Curry de légumes');
@@ -53,7 +58,7 @@ describe('RecipePageFetcher (tâche 9, B6, B14)', () => {
     const html = await fixtureHtml('page-schema-tableau.html');
     const fetcher = new RecipePageFetcher(httpFor(html));
 
-    const recipe = await fetcher.fetch(`https://${PUBLIC_HOST}/soupe-de-potiron`);
+    const recipe = await structuredOf(fetcher, `https://${PUBLIC_HOST}/soupe-de-potiron`);
 
     expect(recipe).not.toBeNull();
     expect(recipe?.title).toBe('Soupe de potiron');
@@ -64,7 +69,7 @@ describe('RecipePageFetcher (tâche 9, B6, B14)', () => {
     const html = await fixtureHtml('page-sans-schema.html');
     const fetcher = new RecipePageFetcher(httpFor(html));
 
-    const recipe = await fetcher.fetch(`https://${PUBLIC_HOST}/gratin-dauphinois`);
+    const recipe = await structuredOf(fetcher, `https://${PUBLIC_HOST}/gratin-dauphinois`);
 
     expect(recipe).toBeNull();
   });
@@ -73,7 +78,7 @@ describe('RecipePageFetcher (tâche 9, B6, B14)', () => {
     const html = await fixtureHtml('page-hors-sujet.html');
     const fetcher = new RecipePageFetcher(httpFor(html));
 
-    const recipe = await fetcher.fetch(`https://${PUBLIC_HOST}/bienfaits-du-gratin`);
+    const recipe = await structuredOf(fetcher, `https://${PUBLIC_HOST}/bienfaits-du-gratin`);
 
     expect(recipe).toBeNull();
   });
@@ -89,19 +94,19 @@ describe('RecipePageFetcher (tâche 9, B6, B14)', () => {
       });
     const fetcher = new RecipePageFetcher(hanging, 20);
 
-    await expect(fetcher.fetch(`https://${PUBLIC_HOST}/trop-lente`)).resolves.toBeNull();
+    await expect(structuredOf(fetcher, `https://${PUBLIC_HOST}/trop-lente`)).resolves.toBeNull();
   });
 
   it('refuse une URL qui n’est pas en HTTPS', async () => {
     const fetcher = new RecipePageFetcher(async () => htmlResponse('<html></html>'));
 
-    await expect(fetcher.fetch(`http://${PUBLIC_HOST}/recette`)).rejects.toBeInstanceOf(RecipePageRefusedError);
+    await expect(structuredOf(fetcher, `http://${PUBLIC_HOST}/recette`)).rejects.toBeInstanceOf(RecipePageRefusedError);
   });
 
   it('refuse une URL qui vise une adresse privée (vigilance 2)', async () => {
     const fetcher = new RecipePageFetcher(async () => htmlResponse('<html></html>'));
 
-    await expect(fetcher.fetch('https://192.168.1.20/recette')).rejects.toBeInstanceOf(RecipePageRefusedError);
+    await expect(structuredOf(fetcher, 'https://192.168.1.20/recette')).rejects.toBeInstanceOf(RecipePageRefusedError);
   });
 
   it('refuse une redirection qui vise http://, localhost ou une adresse privée, au second saut', async () => {
@@ -120,7 +125,7 @@ describe('RecipePageFetcher (tâche 9, B6, B14)', () => {
       };
       const fetcher = new RecipePageFetcher(http);
 
-      await expect(fetcher.fetch(`https://${PUBLIC_HOST}/premier-saut`)).rejects.toBeInstanceOf(RecipePageRefusedError);
+      await expect(structuredOf(fetcher, `https://${PUBLIC_HOST}/premier-saut`)).rejects.toBeInstanceOf(RecipePageRefusedError);
     }
   });
 
@@ -136,7 +141,7 @@ describe('RecipePageFetcher (tâche 9, B6, B14)', () => {
     const http: HttpClient = async () => new Response(stream, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
     const fetcher = new RecipePageFetcher(http, 20);
 
-    await expect(fetcher.fetch(`https://${PUBLIC_HOST}/flux-bloque`)).resolves.toBeNull();
+    await expect(structuredOf(fetcher, `https://${PUBLIC_HOST}/flux-bloque`)).resolves.toBeNull();
   });
 
   it('coupe une réponse qui dépasse le plafond de taille, plutôt que de la mettre en mémoire en entier', async () => {
@@ -156,7 +161,7 @@ describe('RecipePageFetcher (tâche 9, B6, B14)', () => {
     const http: HttpClient = async () => new Response(stream, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
     const fetcher = new RecipePageFetcher(http);
 
-    const recipe = await fetcher.fetch(`https://${PUBLIC_HOST}/page-trop-grosse`);
+    const recipe = await structuredOf(fetcher, `https://${PUBLIC_HOST}/page-trop-grosse`);
 
     expect(recipe).toBeNull();
     expect(cancelled).toBe(true);

@@ -260,8 +260,6 @@ export interface SuggestionDto {
  * renvoyer au serveur, qui l'ignorait.
  */
 export interface SuggestionBatchDto {
-  /** Instant de la dernière livraison du modèle, journal (`SuggestionBatch`) — jamais ce qui désigne les recettes. */
-  generatedAt: string;
   /** Servi sans aucun appel au modèle — depuis le réservoir permanent (D8, 2026-10-15). */
   fromCache: boolean;
   items: SuggestionDto[];
