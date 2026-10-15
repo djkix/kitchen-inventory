@@ -252,7 +252,15 @@ describe('SuggestionsScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Chercher de nouvelles recettes' }));
-    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN', refresh: true });
+    // La relance passe par un compteur hors de l'orientation (tour 3) : celle-ci
+    // ne porte jamais `refresh`, qui y resterait collé jusqu'au geste suivant.
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN' });
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(1);
+
+    // Chaque appui compte : le second ne doit pas tomber dans le vide, c'est
+    // justement dans l'état vide qu'il sera donné (revue, tour 3).
+    fireEvent.click(screen.getByRole('button', { name: 'Chercher de nouvelles recettes' }));
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(2);
 
     // Le texte d'état vide n'invite plus à attendre un changement de stock :
     // depuis D11 la recherche n'en dépend plus (revue, tour 2).
@@ -260,13 +268,13 @@ describe('SuggestionsScreen', () => {
   });
 
   /**
-   * Le `refresh: true` ne doit valoir que pour LA recherche qui l'a demandé :
-   * collé à l'orientation, chaque geste suivant contournerait le verrou de
-   * 24 heures et consommerait quota et euros. `OrientationBar` le remet à
-   * `undefined` à chaque geste — vérifié ici depuis le bouton de relance, le
-   * seul endroit qui le pose désormais.
+   * Une relance ne doit valoir que pour LA recherche qu'elle déclenche : collée
+   * à l'orientation, elle contournerait le verrou de 24 heures à chaque geste
+   * suivant — et, le `staleTime` aidant, à chaque retour sur l'onglet. Le
+   * compteur vit donc hors de l'orientation et repart de zéro dès qu'un filtre
+   * bouge (revue, tour 3).
    */
-  it('ne laisse pas refresh collé à l’orientation après la relance', () => {
+  it('ne laisse pas la relance collée à l’orientation', () => {
     vi.mocked(useSuggestionsQuery).mockReturnValue({
       isPending: false,
       isError: false,
@@ -286,11 +294,12 @@ describe('SuggestionsScreen', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
     fireEvent.click(screen.getByRole('button', { name: 'Chercher de nouvelles recettes' }));
-    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN', refresh: true });
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(1);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'asiatique' } });
 
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN', region: 'asiatique', refresh: undefined });
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(0);
   });
 
   /** Revue finale du 2026-10-11 : le type de plat compte comme orientation active, la barre ne doit pas dire « Aucune orientation ». */

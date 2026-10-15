@@ -50,8 +50,16 @@ export function SuggestionsScreen() {
   // part dans la requête initiale et continue d'y porter le type (le
   // sélecteur de la barre en prend ensuite le contrôle).
   const [orientation, setOrientation] = useState<SuggestionOrientation>(() => (answeredDishType ? { dishType: answeredDishType } : {}));
+  /**
+   * Nombre de relances explicites demandées sur l'orientation courante (revue
+   * de la tâche 4, tour 3). Il vit **hors** de l'orientation : posé dedans, un
+   * `refresh: true` y restait collé jusqu'au geste suivant sur un filtre, et
+   * tout retour sur l'onglet repayait un appel. Remis à zéro à chaque
+   * changement d'orientation, qui est déjà une nouvelle recherche en soi.
+   */
+  const [relaunch, setRelaunch] = useState(0);
   // Pas d'appel tant que la question n'a pas de réponse (voir `useSuggestionsQuery`).
-  const suggestions = useSuggestionsQuery(orientation, { enabled: answeredDishType !== null });
+  const suggestions = useSuggestionsQuery(orientation, { enabled: answeredDishType !== null, relaunch });
   // Suggestion ouverte dans la fiche de conservation (tâche 12) ; `null` quand le tiroir est fermé.
   const [selected, setSelected] = useState<SuggestionDto | null>(null);
 
@@ -78,7 +86,16 @@ export function SuggestionsScreen() {
 
       <RecipeTabSwitch />
 
-      <OrientationBar value={orientation} onChange={setOrientation} />
+      <OrientationBar
+        value={orientation}
+        onChange={(next) => {
+          // Une orientation différente est déjà une nouvelle recherche : le
+          // compteur de relances repart de zéro, sans quoi il resterait collé
+          // exactement comme le faisait `refresh: true` avant lui.
+          setRelaunch(0);
+          setOrientation(next);
+        }}
+      />
 
       {suggestions.isPending ? (
         <WaitingState />
@@ -99,7 +116,10 @@ export function SuggestionsScreen() {
             // serveur accepte `refresh` depuis toujours, mais plus aucun
             // appelant ne le posait depuis la disparition du bouton de relance
             // au lot du 2026-10-11 — le recours existait sans être atteignable.
-            onRefresh={() => setOrientation((current) => ({ ...current, refresh: true }))}
+            // Un compteur, pas un drapeau (tour 3) : chaque appui change la clé
+            // de requête, donc relance réellement, et rien ne reste posé dans
+            // l'orientation entre deux recherches.
+            onRefresh={() => setRelaunch((count) => count + 1)}
           />
         </>
       )}

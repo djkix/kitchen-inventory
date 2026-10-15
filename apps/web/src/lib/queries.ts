@@ -296,13 +296,32 @@ export function usePendingRatingQuery() {
  * doit partir, sans quoi un premier appel générique (sans type) partirait au
  * montage puis un second, ciblé, à la réponse : deux appels payants pour une
  * seule visite.
+ *
+ * `refetchOnWindowFocus: false` et `staleTime: Infinity` (revue de la tâche 4,
+ * tour 3, 2026-10-15) : c'est la **seule route du module qui coûte de
+ * l'argent**, et TanStack Query v5 rejoue par défaut toute requête périmée au
+ * retour sur l'onglet — avec un `staleTime` à zéro, chaque va-et-vient entre
+ * applications sur le téléphone déclenchait un appel. Le réservoir rend par
+ * ailleurs la fraîcheur automatique sans objet : ce qu'il contient ne change
+ * que lorsqu'on demande explicitement une nouvelle recherche, et c'est
+ * `relaunch` qui le dit. Rien ne doit partir vers Gemini sans un geste.
+ *
+ * `relaunch` (tour 3) : compteur de relances explicites. Il entre dans la clé
+ * de requête — deux appuis font donc deux recherches, là où un `refresh: true`
+ * posé dans l'orientation laissait la clé inchangée et rendait le bouton muet
+ * au second appui — mais ne repart pas tel quel au serveur : seul le booléen
+ * `refresh` y va, pour la recherche que ce compteur déclenche et elle seule.
+ * Posé hors de l'orientation, il ne peut pas y rester collé.
  */
-export function useSuggestionsQuery(orientation: SuggestionOrientation, options?: { enabled?: boolean }) {
+export function useSuggestionsQuery(orientation: SuggestionOrientation, options?: { enabled?: boolean; relaunch?: number }) {
+  const relaunch = options?.relaunch ?? 0;
   return useQuery({
-    queryKey: queryKeys.suggestions(orientation),
-    queryFn: () => suggestionsApi.list(orientation),
+    queryKey: [...queryKeys.suggestions(orientation), relaunch] as const,
+    queryFn: () => suggestionsApi.list({ ...orientation, refresh: relaunch > 0 ? true : undefined }),
     retry: false,
     placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
     enabled: options?.enabled ?? true,
   });
 }
