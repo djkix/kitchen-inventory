@@ -223,6 +223,13 @@ export interface SuggestionDto {
   provenance: 'web' | 'ai';
   sourceUrl: string | null;
   /**
+   * Page source lue avec succès à l'ingestion (décision D4 du 2026-10-15).
+   * Toujours `false` pour une composition du modèle, qui n'a pas de page : la
+   * carte le dit alors sans ambiguïté plutôt que de laisser croire à une
+   * recette trouvée quelque part.
+   */
+  verified: boolean;
+  /**
    * Étapes de préparation — jamais garanties fiables pour une recette `web` :
    * le modèle les propose sans avoir lu la page (B6, EF-25). Le tiroir
    * (tâche 6) n'en affiche donc le contenu que pour une composition `ai` ;
@@ -239,6 +246,7 @@ export interface SuggestionDto {
 export interface SuggestionBatchDto {
   batchId: string;
   generatedAt: string;
+  /** Servi sans aucun appel au modèle — depuis le réservoir permanent (D8, 2026-10-15). */
   fromCache: boolean;
   items: SuggestionDto[];
   /** Message affiché au-dessus du lot (ex. limite du fournisseur atteinte) ; `null` si rien à signaler. */

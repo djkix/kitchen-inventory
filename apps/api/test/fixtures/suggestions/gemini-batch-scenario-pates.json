@@ -37,7 +37,7 @@
       "totalMinutes": 20,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-2.test/riz-parmesan",
+      "sourceUrl": "https://203.0.113.20/riz-parmesan",
       "steps": [],
       "ingredients": [
         {
@@ -62,7 +62,7 @@
       "totalMinutes": 20,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-3.test/pates-huile-basilic",
+      "sourceUrl": "https://203.0.113.20/pates-huile-basilic",
       "steps": [],
       "ingredients": [
         {
@@ -92,7 +92,7 @@
       "totalMinutes": 20,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-4.test/gratin-creme-parmesan",
+      "sourceUrl": "https://203.0.113.20/gratin-creme-parmesan",
       "steps": [],
       "ingredients": [
         {
@@ -117,7 +117,7 @@
       "totalMinutes": 20,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-5.test/riz-pilaf",
+      "sourceUrl": "https://203.0.113.20/riz-pilaf",
       "steps": [],
       "ingredients": [
         {
@@ -147,7 +147,7 @@
       "totalMinutes": 20,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-6.test/tomates-farcies",
+      "sourceUrl": "https://203.0.113.20/tomates-farcies",
       "steps": [],
       "ingredients": [
         {
@@ -177,7 +177,7 @@
       "totalMinutes": 20,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-7.test/salade-exotique",
+      "sourceUrl": "https://203.0.113.20/salade-exotique",
       "steps": [],
       "ingredients": [
         {
@@ -202,7 +202,7 @@
       "totalMinutes": 20,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-8.test/huile-aromatisee",
+      "sourceUrl": "https://203.0.113.20/huile-aromatisee",
       "steps": [],
       "ingredients": [
         {

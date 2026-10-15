@@ -5,7 +5,7 @@ import { SuggestionCard } from './suggestion-card';
 const base = {
   id: 's1', title: 'Pâtes à la tomate', origin: 'italienne', region: 'mediterraneenne' as const,
   totalMinutes: 25, prepMinutes: 10, cookMinutes: 15, difficulty: 'EASY' as const, dishType: 'MAIN' as const, provenance: 'web' as const,
-  sourceUrl: 'https://exemple.test/pates', coverage: 1, group: 'ready' as const,
+  sourceUrl: 'https://exemple.test/pates', verified: true, coverage: 1, group: 'ready' as const,
   missingLabels: [], ingredients: [], steps: [],
 };
 
@@ -19,7 +19,7 @@ describe('SuggestionCard', () => {
     expect(screen.getByText(/exemple\.test/)).toBeTruthy();
   });
   it('annonce une composition par l’IA', () => {
-    render(<SuggestionCard suggestion={{ ...base, provenance: 'ai', sourceUrl: null }} />);
+    render(<SuggestionCard suggestion={{ ...base, provenance: 'ai', sourceUrl: null, verified: false }} />);
     expect(screen.getByText(/proposée par l’IA/i)).toBeTruthy();
   });
   it('n’affiche jamais d’étapes avant conservation (B7)', () => {

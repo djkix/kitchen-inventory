@@ -1,0 +1,228 @@
+{
+  "recipes": [
+    {
+      "title": "Gratin de tomates au four",
+      "origin": "Cuisine de famille",
+      "region": "europeenne",
+      "totalMinutes": 30,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Préparer les ingrédients.",
+        "Cuire."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Crème fraîche",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Soupe de tomates maison",
+      "origin": "Cuisine de famille",
+      "region": "europeenne",
+      "totalMinutes": 30,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Préparer les ingrédients.",
+        "Cuire."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Oignon",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Tomates à la provençale",
+      "origin": "Cuisine de famille",
+      "region": "europeenne",
+      "totalMinutes": 30,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Préparer les ingrédients.",
+        "Cuire."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Ail",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Salade de tomates au basilic",
+      "origin": "Cuisine de famille",
+      "region": "europeenne",
+      "totalMinutes": 30,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Préparer les ingrédients.",
+        "Cuire."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Basilic",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Tarte fine à la tomate",
+      "origin": "Cuisine de famille",
+      "region": "europeenne",
+      "totalMinutes": 30,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Préparer les ingrédients.",
+        "Cuire."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Pâte feuilletée",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Poêlée de tomates et courgettes",
+      "origin": "Cuisine de famille",
+      "region": "europeenne",
+      "totalMinutes": 30,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Préparer les ingrédients.",
+        "Cuire."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Courgette",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Tomates farcies au riz",
+      "origin": "Cuisine de famille",
+      "region": "europeenne",
+      "totalMinutes": 30,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Préparer les ingrédients.",
+        "Cuire."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Riz",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Clafoutis salé à la tomate",
+      "origin": "Cuisine de famille",
+      "region": "europeenne",
+      "totalMinutes": 30,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Préparer les ingrédients.",
+        "Cuire."
+      ],
+      "ingredients": [
+        {
+          "label": "Tomate",
+          "quantity": null,
+          "unit": null
+        },
+        {
+          "label": "Oeuf",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    }
+  ]
+}
