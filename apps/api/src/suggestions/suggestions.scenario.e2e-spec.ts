@@ -78,9 +78,13 @@ function htmlResponse(html: string, status = 200): Response {
  * passent d'abord par l'ingestion : les huit recettes web pointent toutes vers
  * l'hôte littéral ci-dessus, dont la page est rejouée depuis une fixture, et
  * sont donc vérifiées ; les quatre compositions entrent sans page. L'ordre
- * rendu n'est plus celui de la fournée mais celui de `comparePoolEntries` (D7),
- * vérifié comme tel ci-dessous — l'énumération recette par recette est donc
- * comparée en ensemble, et chaque recette cherchée par son titre.
+ * rendu n'est plus celui de la fournée mais celui de `comparePoolEntries`
+ * (D7) : web vérifiées d'abord, couverture décroissante, puis le titre — toute
+ * une fournée partageant son instant de découverte depuis la revue de la
+ * tâche 4. Il est donc reproductible, et l'énumération ci-dessous le fige tel
+ * quel. Les cas suivants cherchent néanmoins leur recette par son titre : ce
+ * qu'ils vérifient est un rapprochement d'ingrédient, pas une place dans la
+ * liste.
  *
  * Conserver la recette « Spaghetti à la tomate » (web) déclenche la
  * lecture de sa page puis sa réécriture par Gemini (fixtures déjà utilisées par
@@ -176,46 +180,35 @@ describe('scénario de réussite figé des suggestions', () => {
   it('rend la fournée attendue, recette par recette', async () => {
     const res = await agent.get('/api/v1/suggestions').expect(200);
 
+    // Dans l'ordre exact de `comparePoolEntries` (D7) : les huit recettes web
+    // vérifiées d'abord, les quatre compositions ensuite ; couverture
+    // décroissante dans chaque groupe ; à couverture égale, le titre — toute la
+    // fournée partageant son instant de découverte.
     const expected = [
-      { title: 'Spaghetti à la tomate', group: 'ready', coverage: 1, missingLabels: [] },
+      { title: "Huile d'olive aromatisée", group: 'ready', coverage: 1, missingLabels: [] },
       { title: 'Riz au parmesan râpé', group: 'ready', coverage: 1, missingLabels: [] },
+      { title: 'Spaghetti à la tomate', group: 'ready', coverage: 1, missingLabels: [] },
       { title: "Pâtes à l'huile et au basilic", group: 'almost', coverage: 0.67, missingLabels: ['Basilic frais'] },
-      { title: 'Gratin à la crème de parmesan', group: 'excluded', coverage: 0.5, missingLabels: ['crème'] },
       { title: 'Riz pilaf nature', group: 'almost', coverage: 0.67, missingLabels: ['Spaghettis complets de riz complet'] },
       { title: 'Tomates farcies au riz et à la viande', group: 'almost', coverage: 0.67, missingLabels: ['Viande hachée'] },
+      { title: 'Gratin à la crème de parmesan', group: 'excluded', coverage: 0.5, missingLabels: ['crème'] },
       { title: 'Salade exotique mangue avocat', group: 'excluded', coverage: 0, missingLabels: ['Mangue', 'Avocat'] },
-      { title: "Huile d'olive aromatisée", group: 'ready', coverage: 1, missingLabels: [] },
+      { title: 'Riz épicé à l\'huile et au paprika', group: 'ready', coverage: 1, missingLabels: [] },
       { title: 'Riz sauté maison', group: 'ready', coverage: 1, missingLabels: [] },
       { title: 'Pâtes au parmesan et au beurre', group: 'almost', coverage: 0.67, missingLabels: ['Beurre'] },
-      { title: 'Riz épicé à l\'huile et au paprika', group: 'ready', coverage: 1, missingLabels: [] },
       { title: 'Dessert improvisé au chocolat', group: 'excluded', coverage: 0, missingLabels: ['Chocolat'] },
     ];
 
-    // Comparé en ensemble, trié par titre : depuis le réservoir (2026-10-15),
-    // le rang d'une recette vient de `comparePoolEntries` — vérifié juste
-    // après — et deux recettes de même statut, même couverture et même instant
-    // de découverte ne sont pas départagées. Leur rang relatif n'est donc pas
-    // une promesse de l'application, et le figer rendrait ce scénario instable.
-    const byTitle = (rows: { title: string }[]): { title: string }[] => [...rows].sort((a, b) => a.title.localeCompare(b.title));
     expect(
-      byTitle(
-        res.body.items.map((item: Record<string, unknown>) => ({
-          title: item.title as string,
-          group: item.group,
-          coverage: item.coverage,
-          missingLabels: item.missingLabels,
-        })),
-      ),
-    ).toEqual(byTitle(expected));
+      res.body.items.map((item: Record<string, unknown>) => ({
+        title: item.title,
+        group: item.group,
+        coverage: item.coverage,
+        missingLabels: item.missingLabels,
+      })),
+    ).toEqual(expected);
 
-    // L'ordre du réservoir (D7) : les recettes web vérifiées d'abord, les
-    // compositions ensuite ; couverture décroissante à l'intérieur de chaque
-    // groupe.
-    const provenances = res.body.items.map((i: { provenance: string }) => i.provenance);
-    expect(provenances).toEqual([...Array(8).fill('web'), ...Array(4).fill('ai')]);
-    const coverages = res.body.items.map((i: { coverage: number }) => i.coverage);
-    expect(coverages.slice(0, 8)).toEqual([...coverages.slice(0, 8)].sort((a: number, b: number) => b - a));
-    expect(coverages.slice(8)).toEqual([...coverages.slice(8)].sort((a: number, b: number) => b - a));
+    // Une recette web est vérifiée, une composition ne l'est jamais (D4, D5).
     expect(res.body.items.every((i: { verified: boolean; provenance: string }) => i.verified === (i.provenance === 'web'))).toBe(true);
 
     // Cinq recettes prêtes, quatre presque, trois exclues (A8) : vérifié aussi en

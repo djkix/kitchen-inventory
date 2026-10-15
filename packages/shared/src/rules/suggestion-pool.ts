@@ -8,6 +8,14 @@
  * égale, la plus récemment découverte — sans quoi le réservoir, qui ne
  * s'efface jamais, figerait pour toujours le haut de la liste sur ses plus
  * vieilles entrées.
+ *
+ * Une fournée entière partageant son instant de découverte, les trois premiers
+ * critères laissent régulièrement des égalités : le titre puis l'identité les
+ * départagent, pour que l'ordre soit **total** et reproductible d'un affichage
+ * à l'autre (revue de la tâche 4, 2026-10-15). Le titre vient avant l'identité
+ * parce qu'un ordre de hachages FNV-1a ne se lit pas ; l'identité reste
+ * nécessaire derrière, deux recettes web pouvant porter le même titre sous des
+ * URL différentes.
  */
 export interface PoolEntryForSort {
   /** Page source lue avec succès à l'ingestion ; faux pour une composition du modèle. */
@@ -16,6 +24,10 @@ export interface PoolEntryForSort {
   coverage: number;
   /** Date ISO de première apparition dans le réservoir. */
   firstSeenAt: string;
+  /** Titre de la recette : départage lisible de deux entrées par ailleurs équivalentes. */
+  title: string;
+  /** Clé unique de la ligne du réservoir (`suggestionIdentity`) : dernier recours, toujours décisif. */
+  identity: string;
 }
 
 export function comparePoolEntries(a: PoolEntryForSort, b: PoolEntryForSort): number {
@@ -27,5 +39,9 @@ export function comparePoolEntries(a: PoolEntryForSort, b: PoolEntryForSort): nu
   // départagerait alors au hasard. Une date illisible rend `NaN` : le `|| 0`
   // la traite comme une égalité plutôt que de propager un `NaN` qui ferait
   // perdre à l'ordre sa transitivité, et donc à `Array.sort` tout sens.
-  return Date.parse(b.firstSeenAt) - Date.parse(a.firstSeenAt) || 0;
+  const byDate = Date.parse(b.firstSeenAt) - Date.parse(a.firstSeenAt) || 0;
+  if (byDate !== 0) return byDate;
+  const byTitle = a.title.localeCompare(b.title);
+  if (byTitle !== 0) return byTitle;
+  return a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0;
 }

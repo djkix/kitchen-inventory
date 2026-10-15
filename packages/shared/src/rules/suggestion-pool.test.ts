@@ -5,6 +5,8 @@ const entry = (over: Partial<PoolEntryForSort>): PoolEntryForSort => ({
   verified: false,
   coverage: 0,
   firstSeenAt: '2026-01-01T00:00:00.000Z',
+  title: 'Recette',
+  identity: 'aaaaaaaa',
   ...over,
 });
 
@@ -37,6 +39,22 @@ describe('comparePoolEntries (EF-26, D7)', () => {
     const bonne = entry({ firstSeenAt: '2026-06-01T10:00:00.000Z' });
     expect(comparePoolEntries(cassee, bonne)).toBe(0);
     expect(comparePoolEntries(bonne, cassee)).toBe(0);
+  });
+
+  it('départage par le titre deux entrées autrement équivalentes', () => {
+    expect(comparePoolEntries(entry({ title: 'Blanquette' }), entry({ title: 'Tarte' }))).toBeLessThan(0);
+    expect(comparePoolEntries(entry({ title: 'Tarte' }), entry({ title: 'Blanquette' }))).toBeGreaterThan(0);
+  });
+
+  it('départage par l’identité deux recettes de même titre : l’ordre est total', () => {
+    // Deux recettes web peuvent porter le même titre sous des URL différentes :
+    // sans ce dernier critère, leur rang relatif dépendrait de l'ordre de
+    // lecture en base, donc varierait d'un affichage à l'autre.
+    const a = entry({ title: 'Tarte aux pommes', identity: '0000000a' });
+    const b = entry({ title: 'Tarte aux pommes', identity: '0000000b' });
+    expect(comparePoolEntries(a, b)).toBeLessThan(0);
+    expect(comparePoolEntries(b, a)).toBeGreaterThan(0);
+    expect(comparePoolEntries(a, a)).toBe(0);
   });
 
   it('est transitif sur les trois critères', () => {
