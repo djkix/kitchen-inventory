@@ -268,14 +268,7 @@ export class SuggestionsService {
     });
     items.sort((a, b) => comparePoolEntries(key(a), key(b)));
 
-    // `SuggestionBatch` ne sert plus à servir (D8) : il ne reste de lui, dans
-    // la réponse, que la date de la dernière livraison du modèle. Son
-    // identifiant n'y figure plus — la conservation désigne la recette par son
-    // identité de contenu (D9), et plus aucun écran ne le lisait.
-    const latest = await this.prisma.suggestionBatch.findFirst({ orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
-
     return {
-      generatedAt: (latest?.createdAt ?? new Date()).toISOString(),
       fromCache,
       items,
       notice,

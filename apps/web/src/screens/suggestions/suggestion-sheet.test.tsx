@@ -111,9 +111,9 @@ describe('SuggestionSheet', () => {
   it('n’invente jamais les étapes d’une recette web et annonce qu’elles viendront avec la conservation (B7)', () => {
     renderSheet();
     // Pas de fausses étapes : seule l'annonce honnête de leur indisponibilité
-    // avant la conservation (la page n'est lue qu'à ce moment-là, B6), visible
+    // avant la conservation (la recette n'est réécrite qu'à ce moment-là, D10), visible
     // d'emblée, sans aucun dépliage.
-    expect(screen.getByText(/détail des étapes.*viendra avec la conservation/i)).toBeTruthy();
+    expect(screen.getByText(/étapes arriveront à la conservation/i)).toBeTruthy();
   });
 
   it('conserve la recette et annonce l’attente pendant l’extraction', async () => {

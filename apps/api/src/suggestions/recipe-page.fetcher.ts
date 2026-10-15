@@ -157,31 +157,19 @@ function isPrivateAddress(address: string): boolean {
 }
 
 /**
- * Récupérateur de page pour la conservation d'une suggestion web (tâche 9,
- * B6) : HTTPS seul, délai borné, hôtes privés ou locaux refusés, taille
- * plafonnée, redirections revalidées à chaque saut. Un échec de sécurité est
- * un refus explicite (`RecipePageRefusedError`) ; un échec réseau ou
- * l'absence de recette exploitable rend `null`, sans jamais faire échouer
- * l'appelant.
+ * Lecteur de page des recettes web, utilisé uniquement à l'ingestion dans le
+ * réservoir (D9, D10) : la page est lue une seule fois, son contenu recopié en
+ * base, et le site n'est plus jamais recontacté — pas même à la conservation.
+ * HTTPS seul, délai borné, hôtes privés ou locaux refusés, taille plafonnée,
+ * redirections revalidées à chaque saut. Un échec de sécurité est un refus
+ * explicite (`RecipePageRefusedError`) ; un échec réseau rend `null`, sans
+ * jamais faire échouer l'appelant.
  */
 export class RecipePageFetcher {
   constructor(
     private readonly http: HttpClient,
     private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS,
   ) {}
-
-  /** Lit `schema.org/Recipe` sur la page ; `null` si absent, non conforme, ou si la page ne répond pas à temps. */
-  async fetch(url: string): Promise<PageRecipe | null> {
-    const content = await this.fetchContent(url);
-    return content?.structured ?? null;
-  }
-
-  /** Texte nettoyé de la page, pour la réécriture quand aucune donnée structurée n'est exploitable. */
-  async fetchText(url: string): Promise<string | null> {
-    const content = await this.fetchContent(url);
-    if (!content || content.text.length === 0) return null;
-    return content.text;
-  }
 
   /**
    * Récupère la page une seule fois et en tire les deux lectures possibles

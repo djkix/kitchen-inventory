@@ -804,7 +804,7 @@ describe('SuggestionsService (EF-26)', () => {
       const keeper = await seedUser(db);
       await seedPool(db, [{ recipe: WEB_RECIPE, pageRecipe: null, pageText: null }]);
 
-      await expect(service.keep({ suggestionId: WEB_ID }, keeper)).rejects.toMatchObject({ status: 502 });
+      await expect(service.keep({ suggestionId: WEB_ID }, keeper)).rejects.toMatchObject({ status: 502, message: 'Le contenu de la page n’a pas été conservé ; aucune recette n’a été créée' });
       expect(http.calls).toHaveLength(0);
       expect(await db.recipe.count()).toBe(0);
     });
@@ -1036,9 +1036,9 @@ describe('SuggestionsService (EF-26)', () => {
       expect(batch.items[0]?.id).toBe(suggestionIdentity(RIZ_PREMIERE));
 
       const kept = await service.keep({ suggestionId: batch.items[0]!.id, clientOpId: 'op-keep-riz-doublon-01' }, keeper);
-      expect(kept.title).toBe('Riz sauté');
+      // La première composition survit : la seconde (25 min, huile d'olive) est écartée.
+      expect(kept.steps).toEqual(['Cuire le riz nature.']);
     });
-
   });
 });
 
@@ -1081,8 +1081,7 @@ describe('GET /suggestions (EF-26, tâche 7)', () => {
     // est servi par le réservoir, et la conservation désigne la recette par son
     // identité de contenu.
     expect(res.body.batchId).toBeUndefined();
-    expect(() => new Date(res.body.generatedAt).toISOString()).not.toThrow();
-    expect(res.body.items.length).toBeGreaterThan(0);
+        expect(res.body.items.length).toBeGreaterThan(0);
   });
 });
 

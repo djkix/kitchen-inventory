@@ -191,7 +191,7 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
           // l'application qu'à la conservation — ses étapes ne sont donc pas
           // encore là, et celles proposées par le modèle ne sont pas fiables (B7).
           <p className="rounded-card bg-raised px-4 py-3 text-[13px] text-muted">
-            Le détail des étapes n’est pas encore disponible : il viendra avec la conservation, qui récupère et réécrit la recette complète.
+            Les étapes arriveront à la conservation, quand la recette sera réécrite au format de l’application.
           </p>
         )}
 
