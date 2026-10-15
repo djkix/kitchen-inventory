@@ -35,6 +35,12 @@ import { RecipeTabSwitch } from '../recipes/recipe-tab-switch';
  * question envoie désormais le type au modèle, qui ne propose plus que ce
  * type-là) ne peut plus rendre un autre type à filtrer localement, ces
  * contrôles n'avaient donc plus d'objet.
+ *
+ * Un bouton de relance revient le 2026-10-15, mais **uniquement dans l'état
+ * vide** : depuis la décision D11, une orientation déjà cherchée ne repart pas
+ * d'elle-même avant 24 heures, et `refresh: true` en est la seule sortie — or
+ * plus aucun appelant ne le posait. Il n'apparaît que lorsqu'il sert, pour ne
+ * pas remanger l'espace d'écran que le lot du 2026-10-11 avait rendu.
  */
 
 
@@ -84,7 +90,17 @@ export function SuggestionsScreen() {
               est recherchée (`placeholderData: keepPreviousData`) : seul ce bandeau dit
               qu'un nouvel appel est en cours, la liste ne se vide jamais pour autant. */}
           {suggestions.isFetching && <RefetchingBanner />}
-          <SuggestionsResult batch={suggestions.data} onSelect={setSelected} />
+          <SuggestionsResult
+            batch={suggestions.data}
+            onSelect={setSelected}
+            // Seule sortie du verrou de 24 heures posé par la décision D11 du
+            // 2026-10-15 : sans `refresh`, une orientation que le modèle n'a
+            // jamais su satisfaire reste vide jusqu'au bout du délai. Le
+            // serveur accepte `refresh` depuis toujours, mais plus aucun
+            // appelant ne le posait depuis la disparition du bouton de relance
+            // au lot du 2026-10-11 — le recours existait sans être atteignable.
+            onRefresh={() => setOrientation((current) => ({ ...current, refresh: true }))}
+          />
         </>
       )}
 
@@ -181,9 +197,11 @@ export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRe
 function SuggestionsResult({
   batch,
   onSelect,
+  onRefresh,
 }: {
   batch: ReturnType<typeof useSuggestionsQuery>['data'];
   onSelect: (suggestion: SuggestionDto) => void;
+  onRefresh: () => void;
 }) {
   if (!batch) return null;
 
@@ -198,7 +216,21 @@ function SuggestionsResult({
       {batch.items.length === 0 ? (
         <EmptyState
           title="Aucune suggestion pour cette orientation"
-          description="Essayez une orientation différente, ou revenez plus tard : le stock aura peut-être changé."
+          // « Revenez plus tard, le stock aura peut-être changé » était devenu
+          // faux : depuis la décision D11 du 2026-10-15, la recherche ne dépend
+          // plus du contenu du placard — on invitait à faire la seule chose qui
+          // ne peut plus rien y changer. Les deux vraies sorties sont dites
+          // ici, et le bouton rend la seconde atteignable.
+          description="Changez d’orientation — une autre cuisine, une durée plus large — ou lancez vous-même une nouvelle recherche."
+          action={
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="min-h-touch rounded-xl bg-accent px-4 text-[15px] font-semibold text-ink"
+            >
+              Chercher de nouvelles recettes
+            </button>
+          }
         />
       ) : (
         <ul className="flex flex-col gap-2 px-4">

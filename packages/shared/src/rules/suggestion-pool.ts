@@ -41,7 +41,9 @@ export function comparePoolEntries(a: PoolEntryForSort, b: PoolEntryForSort): nu
   // perdre à l'ordre sa transitivité, et donc à `Array.sort` tout sens.
   const byDate = Date.parse(b.firstSeenAt) - Date.parse(a.firstSeenAt) || 0;
   if (byDate !== 0) return byDate;
-  const byTitle = a.title.localeCompare(b.title);
+  // Locale explicite : sans elle, l'ordre dépendrait de celle de l'hôte, et
+  // l'ordre figé d'un test cesserait d'être une propriété du code.
+  const byTitle = a.title.localeCompare(b.title, 'fr');
   if (byTitle !== 0) return byTitle;
   return a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0;
 }
