@@ -7,7 +7,7 @@
       "totalMinutes": 30,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-1.test/recette-1",
+      "sourceUrl": "https://203.0.113.20/recette-1",
       "steps": [
         "Préparer les ingrédients de la recette 1.",
         "Cuire et servir."
@@ -35,7 +35,7 @@
       "totalMinutes": 30,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-2.test/recette-2",
+      "sourceUrl": "https://203.0.113.20/recette-2",
       "steps": [
         "Préparer les ingrédients de la recette 2.",
         "Cuire et servir."
@@ -63,7 +63,7 @@
       "totalMinutes": 30,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-3.test/recette-3",
+      "sourceUrl": "https://203.0.113.20/recette-3",
       "steps": [
         "Préparer les ingrédients de la recette 3.",
         "Cuire et servir."
@@ -91,7 +91,7 @@
       "totalMinutes": 30,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-4.test/recette-4",
+      "sourceUrl": "https://203.0.113.20/recette-4",
       "steps": [
         "Préparer les ingrédients de la recette 4.",
         "Cuire et servir."
@@ -119,7 +119,7 @@
       "totalMinutes": 30,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-5.test/recette-5",
+      "sourceUrl": "https://203.0.113.20/recette-5",
       "steps": [
         "Préparer les ingrédients de la recette 5.",
         "Cuire et servir."
@@ -147,7 +147,7 @@
       "totalMinutes": 30,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-6.test/recette-6",
+      "sourceUrl": "https://203.0.113.20/recette-6",
       "steps": [
         "Préparer les ingrédients de la recette 6.",
         "Cuire et servir."
@@ -175,7 +175,7 @@
       "totalMinutes": 30,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-7.test/recette-7",
+      "sourceUrl": "https://203.0.113.20/recette-7",
       "steps": [
         "Préparer les ingrédients de la recette 7.",
         "Cuire et servir."
@@ -203,7 +203,7 @@
       "totalMinutes": 30,
       "difficulty": "EASY",
       "provenance": "web",
-      "sourceUrl": "https://exemple-cuisine-8.test/recette-8",
+      "sourceUrl": "https://203.0.113.20/recette-8",
       "steps": [
         "Préparer les ingrédients de la recette 8.",
         "Cuire et servir."

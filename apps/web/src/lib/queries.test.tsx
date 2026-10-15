@@ -23,7 +23,7 @@ function wrapper({ children }: { children: ReactNode }) {
 beforeEach(() => {
   client = new QueryClient();
   list.mockReset();
-  list.mockResolvedValue({ batchId: 'b1', generatedAt: '2026-10-15T08:00:00.000Z', fromCache: true, items: [], notice: null });
+  list.mockResolvedValue({ generatedAt: '2026-10-15T08:00:00.000Z', fromCache: true, items: [], notice: null });
 });
 
 afterEach(() => {

@@ -125,7 +125,7 @@ export function SuggestionsScreen() {
       )}
 
       {suggestions.data && (
-        <SuggestionSheet suggestion={selected} batchId={suggestions.data.batchId} open={selected !== null} onClose={() => setSelected(null)} />
+        <SuggestionSheet suggestion={selected} open={selected !== null} onClose={() => setSelected(null)} />
       )}
     </>
   );

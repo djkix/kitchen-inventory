@@ -462,7 +462,7 @@ describe('SuggestionsService (EF-26)', () => {
     const first = await service.list(QUERY, USER);
     const garde = first.items[0]!;
 
-    await service.keep({ batchId: first.batchId, suggestionId: garde.id, clientOpId: 'op-keep-reservoir-01' }, keeper);
+    await service.keep({ suggestionId: garde.id, clientOpId: 'op-keep-reservoir-01' }, keeper);
     const second = await service.list(QUERY, USER);
 
     expect(second.items.map((i) => i.title)).not.toContain(garde.title);
@@ -608,7 +608,9 @@ describe('SuggestionsService (EF-26)', () => {
     const first = await service.list({ refresh: false, maxMinutes: 30 }, USER);
     const second = await service.list({ refresh: false, maxMinutes: 60 }, USER);
 
-    expect(first.batchId).not.toBe(second.batchId);
+    // Deux orientations, donc deux lignes de journal : la réponse ne porte plus
+    // d'identifiant de lot, c'est la table qui dit que les deux appels ont eu lieu.
+    expect(await db.suggestionBatch.count()).toBe(2);
     expect(second.items.map((i) => i.id)).toEqual(first.items.map((i) => i.id));
     // Un identifiant de contenu, pas un rang.
     expect(first.items[0]?.id).not.toBe('0');
@@ -1033,7 +1035,7 @@ describe('SuggestionsService (EF-26)', () => {
       // Identité nue, jamais suffixée : c'est elle que la conservation cherche.
       expect(batch.items[0]?.id).toBe(suggestionIdentity(RIZ_PREMIERE));
 
-      const kept = await service.keep({ batchId: batch.batchId, suggestionId: batch.items[0]!.id, clientOpId: 'op-keep-riz-doublon-01' }, keeper);
+      const kept = await service.keep({ suggestionId: batch.items[0]!.id, clientOpId: 'op-keep-riz-doublon-01' }, keeper);
       expect(kept.title).toBe('Riz sauté');
     });
 
@@ -1067,7 +1069,7 @@ describe('GET /suggestions (EF-26, tâche 7)', () => {
     expect(res.body.error.code).toBe('validation_failed');
   });
 
-  it('rend une fournée avec son identifiant et son horodatage', async () => {
+  it('rend une fournée avec son horodatage', async () => {
     const productId = await createProduct(agent, { name: 'Tomate' });
     const placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
     await createStock(agent, { productId, locationId: placardId, quantity: 5, unit: 'PIECE' });
@@ -1075,8 +1077,10 @@ describe('GET /suggestions (EF-26, tâche 7)', () => {
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
     const res = await agent.get('/api/v1/suggestions').expect(200);
 
-    expect(typeof res.body.batchId).toBe('string');
-    expect(res.body.batchId.length).toBeGreaterThan(0);
+    // Plus d'identifiant de lot dans la réponse (lot du 2026-10-15) : l'écran
+    // est servi par le réservoir, et la conservation désigne la recette par son
+    // identité de contenu.
+    expect(res.body.batchId).toBeUndefined();
     expect(() => new Date(res.body.generatedAt).toISOString()).not.toThrow();
     expect(res.body.items.length).toBeGreaterThan(0);
   });

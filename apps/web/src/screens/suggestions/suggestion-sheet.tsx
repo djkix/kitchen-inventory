@@ -13,8 +13,6 @@ import { provenanceLabel } from './suggestion-card';
 
 interface SuggestionSheetProps {
   suggestion: SuggestionDto | null;
-  /** Identifiant du lot courant, requis par `keepSuggestionSchema` aux côtés de l'identifiant de la suggestion. */
-  batchId: string;
   open: boolean;
   onClose: () => void;
   /**
@@ -30,14 +28,16 @@ interface SuggestionSheetProps {
  * durées (y compris préparation/cuisson séparées), difficulté, provenance, et
  * les étapes quand elles sont disponibles (composition `ai`, déjà dans la
  * fournée). Pour une recette `web`, les étapes ne sont jamais devinées ici :
- * la page n'est lue qu'à la conservation (B6), et la fiche l'annonce
- * honnêtement plutôt que de laisser croire à un oubli (B7).
+ * sa page a bien été lue, mais une seule fois, à l'entrée au réservoir (D10,
+ * lot du 2026-10-15), et son contenu n'est mis en forme qu'à la conservation —
+ * la fiche l'annonce honnêtement plutôt que de laisser croire à un oubli (B7).
  *
  * Un seul geste : le bouton « Plus d'informations » (E2, round de correction
  * 1 — Franck a confirmé qu'il s'agissait d'un simple renommage de
- * « Conserver », pas d'un geste en deux temps) conserve la recette, déclenche
- * côté serveur la récupération de la page et sa réécriture par Gemini, d'où
- * l'attente explicite pendant l'appel.
+ * « Conserver », pas d'un geste en deux temps) conserve la recette et déclenche
+ * côté serveur sa réécriture par Gemini — depuis le contenu déjà recopié au
+ * réservoir, sans jamais rappeler le site —, d'où l'attente explicite pendant
+ * l'appel.
  *
  * `clientOpId` est **déterministe** (round 1 de revue) — dérivé de la seule
  * identité de la suggestion, jamais tiré au hasard : un identifiant aléatoire régénéré à
@@ -55,7 +55,7 @@ interface SuggestionSheetProps {
  * serveur ne retrouve aucune recette pour cet identifiant et en recrée une —
  * c'est le comportement voulu, pas un bug de déduplication.
  */
-export function SuggestionSheet({ suggestion, batchId, open, onClose, keep = suggestionsApi.keep }: SuggestionSheetProps) {
+export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsApi.keep }: SuggestionSheetProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -68,17 +68,16 @@ export function SuggestionSheet({ suggestion, batchId, open, onClose, keep = sug
   if (!suggestion) return null;
 
   // Dérivé de `suggestion.id` SEUL (identité de contenu, `suggestionIdentity`) :
-  // le `batchId` change à chaque appel au modèle, et la même recette servie du
-  // réservoir deux jours de suite portait alors deux identifiants d'opération
-  // différents — l'idempotence de la conservation, dont c'est le seul
-  // garde-fou côté serveur, ne tenait plus d'une visite à l'autre.
+  // la même recette servie du réservoir deux jours de suite doit porter le même
+  // identifiant d'opération, sans quoi l'idempotence de la conservation — dont
+  // c'est le seul garde-fou côté serveur — ne tiendrait pas d'une visite à l'autre.
   const clientOpId = `keep:${suggestion.id}`;
 
   const confirm = async () => {
     setBusy(true);
     setError(null);
     try {
-      const recipe = await keep({ batchId, suggestionId: suggestion.id, clientOpId });
+      const recipe = await keep({ suggestionId: suggestion.id, clientOpId });
       // Au succès : seule la liste des recettes change, la nouvelle venue y entre.
       // La fournée, elle, n'est pas invalidée : elle est mise en cache 24 heures
       // côté serveur et conserver une suggestion ne la modifie pas — la rejouer
@@ -89,9 +88,11 @@ export function SuggestionSheet({ suggestion, batchId, open, onClose, keep = sug
       // C'est là, et seulement là, que Franck lit enfin les étapes.
       navigate(`/recettes/${recipe.id}`);
     } catch (err) {
-      // Message de l'API relayé tel quel (page injoignable 502, refus de
-      // sécurité 422, réponse du modèle inexploitable 502, quota atteint 429) :
-      // jamais un code brut, jamais une reformulation.
+      // Message de l'API relayé tel quel (suggestion disparue du réservoir 404,
+      // réponse du modèle inexploitable 502, quota atteint 429) : jamais un code
+      // brut, jamais une reformulation. Plus de refus de sécurité ici — ils
+      // vivent à l'ingestion depuis le lot du 2026-10-15, la conservation ne
+      // va plus chercher aucune page.
       setError(errorMessage(err, 'La conservation a échoué'));
     } finally {
       setBusy(false);
@@ -185,9 +186,10 @@ export function SuggestionSheet({ suggestion, batchId, open, onClose, keep = sug
         )}
 
         {suggestion.provenance === 'web' && (
-          // Honnête, pas un aveu de manque : la page de cette recette n'est
-          // récupérée et réécrite qu'au moment de la conservation (B6), donc
-          // ses étapes ne sont tout simplement pas encore là.
+          // Honnête, pas un aveu de manque : le contenu de la page, lu une
+          // seule fois à l'entrée au réservoir (D10), n'est mis au format de
+          // l'application qu'à la conservation — ses étapes ne sont donc pas
+          // encore là, et celles proposées par le modèle ne sont pas fiables (B7).
           <p className="rounded-card bg-raised px-4 py-3 text-[13px] text-muted">
             Le détail des étapes n’est pas encore disponible : il viendra avec la conservation, qui récupère et réécrit la recette complète.
           </p>

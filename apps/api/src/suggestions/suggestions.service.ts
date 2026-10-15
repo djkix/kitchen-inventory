@@ -268,13 +268,13 @@ export class SuggestionsService {
     });
     items.sort((a, b) => comparePoolEntries(key(a), key(b)));
 
-    // `SuggestionBatch` ne sert plus à servir (D8), mais reste le journal de la
-    // dernière livraison : `batchId` désigne toujours celle-ci, et la
-    // conservation s'en sert encore jusqu'à la tâche 6 (D9).
-    const latest = await this.prisma.suggestionBatch.findFirst({ orderBy: { createdAt: 'desc' }, select: { id: true, createdAt: true } });
+    // `SuggestionBatch` ne sert plus à servir (D8) : il ne reste de lui, dans
+    // la réponse, que la date de la dernière livraison du modèle. Son
+    // identifiant n'y figure plus — la conservation désigne la recette par son
+    // identité de contenu (D9), et plus aucun écran ne le lisait.
+    const latest = await this.prisma.suggestionBatch.findFirst({ orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
 
     return {
-      batchId: latest?.id ?? '',
       generatedAt: (latest?.createdAt ?? new Date()).toISOString(),
       fromCache,
       items,

@@ -1,127 +1,123 @@
 import { expect, test, type Page } from '@playwright/test';
 import { useSharedAdminSession } from './support/auth.ts';
 import { restoreDatabase } from './support/database.ts';
+import { emptySuggestionPool, seedReadWebRecipes, suggestionCalls } from './support/suggestions.ts';
 
 /**
- * Parcours P5 — suggestions de recettes (section 3, tâche 7, EF-25, EF-26) :
- * la fonctionnalité la plus récente (livrée il y a trois jours) et la plus
- * fragile de la suite. « Que puis-je cuisiner ce soir avec ce que j'ai ? » —
- * un écran Suggestions en entrée du module Recettes, une fournée composée
- * depuis le stock réel, une orientation par région qui relance une vraie
- * recherche, et la conservation d'une suggestion qui la fait enfin rejoindre
- * « Mes recettes » avec ses étapes.
+ * Parcours P5 — suggestions de recettes (section 3, EF-25, EF-26), réécrit le
+ * 2026-10-15 pour le lot « réservoir permanent ». « Que puis-je cuisiner ce
+ * soir avec ce que j'ai ? » — un écran Suggestions en entrée du module
+ * Recettes, servi d'abord par le réservoir, et le modèle appelé seulement
+ * quand le réservoir ne suffit pas.
  *
- * [C15] Hors périmètre, à dessein : la conservation d'une recette **venant du
- * web** n'est jouée nulle part dans ce fichier. `RecipePageFetcher`
- * (apps/api/src/suggestions/recipe-page.fetcher.ts) refuse tout ce qui n'est
- * pas HTTPS public (pas d'adresse privée, pas de boucle locale) — « l'
- * application n'envoie jamais Franck vers le site », donc elle ne récupère
- * jamais une doublure locale non plus : une recette web de la fixture
- * n'entre donc même pas au réservoir. Relâcher ce garde-fou pour les
- * besoins d'un test reviendrait à tester l'application avec sa propre
- * protection désactivée. Seule une recette **composée par l'IA** (`provenance:
- * 'ai'`) est conservée ici : `SuggestionsService.buildCreateInput`
- * (apps/api/src/suggestions/suggestions.service.ts) ne fait alors AUCUN appel
- * réseau (B6) — les étapes et ingrédients de la fournée sont repris tels
- * quels. Depuis la tâche 6 (2026-10-15), la conservation d'une recette web ne
- * contacte plus le site : sa page a été lue une seule fois, à l'entrée au
- * réservoir (D10), et la réécriture part de ce contenu recopié.
+ * Ce que ce fichier prouve, et dans cet ordre (les tests d'un fichier
+ * s'exécutent en série sur une base restaurée une seule fois, `workers: 1` et
+ * `fullyParallel: false` — le réservoir se remplit donc au fil des tests,
+ * comme il le ferait au fil des visites de Franck) :
+ *  1. le réservoir vide fait appeler le modèle, et une recette `web` dont la
+ *     page est injoignable n'atteint jamais l'écran (décision D4) ;
+ *  2. le réservoir rempli sert deux visites successives SANS aucun appel au
+ *     modèle, les recettes toujours affichées (demande du propriétaire) ;
+ *  3. les deux provenances s'affichent comme elles doivent (B10, B7) ;
+ *  4. une orientation jamais cherchée relance une vraie recherche ;
+ *  5. l'état vide dit la cause, propose la relance, et le verrou de 24 heures
+ *     s'annonce au lieu de laisser un écran vide et muet (décision D11).
  *
- * Fournée vue par ces tests : la doublure (`e2e/fixtures/stub-server.ts`,
- * `SUGGESTIONS_FIXTURE`) sert toujours `apps/api/test/fixtures/suggestions/
- * gemini-batch.json`, quelle que soit l'orientation demandée (elle ne
- * distingue que « appel de suggestion » vs « appel de reconnaissance photo »,
- * jamais le contenu de la requête de suggestion elle-même — voir
- * `isSuggestionRequest`). Cette fixture contient très exactement
- * `SUGGESTION_BATCH_SIZE` (12, `apps/api/src/suggestions/suggestions.service.ts`)
- * recettes : huit « Recette web 1 » à « Recette web 8 » (`provenance: 'web'`,
- * région `mediterraneenne`, `sourceUrl` de la forme
- * `https://exemple-cuisine-N.test/recette-N`) et quatre « Recette composée 1 »
- * à « Recette composée 4 » (`provenance: 'ai'`, région `europeenne`, une
- * seule étape chacune, « Étape unique de composition pour la recette N. »).
- * Toutes les assertions de contenu ci-dessous citent ces chaînes telles
- * qu'elles sont dans la fixture, jamais un titre plausible deviné.
+ * **Preuve des appels** : le compteur de la doublure
+ * (`e2e/fixtures/stub-server.ts`, route `/__calls`, lu par
+ * `suggestionCalls()`), jamais le `fromCache` de la réponse — un drapeau que
+ * le serveur se pose à lui-même ne prouve pas qu'il s'est tu. L'ancienne
+ * preuve par `batchId` (« deux fournées distinctes, donc deux appels ») a
+ * disparu avec le champ lui-même : depuis le réservoir, l'écran n'est plus
+ * servi par une fournée, et plus personne ne lisait cet identifiant.
  *
- * Changer de région (B9, décision du 2026-10-04) relance une vraie recherche
- * côté serveur plutôt que de filtrer ce qui est déjà affiché :
- * `SuggestionsService.computeSignature` hache les graines de stock triées, la
- * région, la durée et la difficulté — une région différente change donc la
- * signature de cache (B12), ce qui force un nouvel appel au fournisseur et
- * l'écriture d'une nouvelle ligne `SuggestionBatch` (nouveau `batchId`). Comme
- * la doublure sert un contenu identique quelle que soit l'orientation (voir
- * plus haut), la preuve d'un second appel ne peut PAS porter sur le contenu
- * reçu — elle porte sur l'identité du lot (`batchId`), le marqueur que la
- * réponse porte déjà pour exactement cet usage (section 12, « conservation
- * d'une suggestion… identifiant de lot »).
+ * **Fournée vue par ces tests** : la doublure sert toujours
+ * `apps/api/test/fixtures/suggestions/gemini-batch.json`, quelle que soit
+ * l'orientation demandée (elle ne distingue que « appel de suggestion » de
+ * « appel de reconnaissance photo », jamais le contenu de la requête — voir
+ * `isSuggestionRequest`). Cette fixture contient exactement
+ * `SUGGESTION_BATCH_SIZE` (12) recettes : huit « Recette web 1 » à « Recette
+ * web 8 » (`provenance: 'web'`, région `mediterraneenne`, `sourceUrl` de la
+ * forme `https://203.0.113.20/recette-N`) et quatre « Recette composée 1 » à
+ * « Recette composée 4 » (`provenance: 'ai'`, région `europeenne`, une seule
+ * étape chacune, « Étape unique de composition pour la recette N. »). Toutes
+ * les assertions ci-dessous citent ces chaînes telles qu'elles sont dans la
+ * fixture, jamais un titre plausible deviné.
  *
- * Question bloquante à l'entrée (décision D2 du 2026-10-11,
- * `apps/web/src/screens/suggestions/dish-type-question.tsx`) : depuis cette
- * décision, aucun appel à `GET /suggestions` ne part tant qu'un type de plat
- * n'a pas été choisi, et ni liste, ni squelette, ni barre de filtres ne
- * s'affichent avant cette réponse. Tout parcours de ce fichier qui atterrit
- * sur `/recettes` répond donc d'abord par `answerDishTypeQuestion(page)`
- * (définie plus bas) avant de pouvoir observer une suggestion, une recherche
- * ou une erreur. La réponse donnée ne pèse pas sur le contenu servi : la
- * doublure renvoie toujours la même fixture quelle que soit l'orientation
- * (voir plus bas).
+ * **Les huit recettes web et leur page** (corrigé le 2026-10-15 — l'assertion
+ * « douze cartes » de ce fichier était fausse depuis que l'ingestion jette une
+ * recette web illisible) : `RecipePageFetcher` exige HTTPS vers un hôte
+ * public, donc aucune doublure locale ne peut lui servir une page sans
+ * désactiver la protection même que l'application se donne. Les URL de la
+ * fixture visent `203.0.113.20` (TEST-NET-3, RFC 5737) : un littéral IP, donc
+ * aucune résolution DNS — aucun test ne dépend du réseau — et injoignable,
+ * donc ces recettes sont jetées à l'ingestion. Les deux faces sont jouées :
+ * sans page lue, elles n'atteignent pas l'écran ; déposées au réservoir dans
+ * l'état que produit une lecture réussie (`seedReadWebRecipes`, décision
+ * D10), elles y figurent avec le nom de leur site et l'ingestion ne les relit
+ * plus. Ce qui n'est PAS joué bout en bout, faute de pouvoir l'être :
+ * la lecture d'une vraie page par le récupérateur. Elle est couverte par les
+ * tests d'intégration d'`apps/api` (`suggestions.e2e-spec.ts`,
+ * `recipe-page.fetcher.spec.ts`), où le client HTTP est injectable.
+ *
+ * **Question bloquante à l'entrée** (décision D2 du 2026-10-11,
+ * `apps/web/src/screens/suggestions/dish-type-question.tsx`) : aucun appel à
+ * `GET /suggestions` ne part tant qu'un type de plat n'a pas été choisi, et
+ * ni liste, ni squelette, ni barre de filtres ne s'affichent avant. Tout
+ * parcours qui atterrit sur `/recettes` répond donc d'abord par
+ * `answerDishTypeQuestion(page)`. La réponse est gardée dans une variable de
+ * module, effacée par tout rechargement complet : après `page.reload()`, la
+ * question est reposée — c'est ce qui fait d'un rechargement une vraie
+ * « seconde visite », avec son propre appel à `GET /suggestions`.
  *
  * Sélecteurs, avec leur source :
  * - `getByRole('link', { name: 'Recettes' })` — `apps/web/src/components/
- *   shell/bottom-nav.tsx` (`NavLink` vers `/recettes`, l'écran Suggestions —
- *   `apps/web/src/app.tsx`, route `/recettes` → `<SuggestionsScreen />`).
+ *   shell/bottom-nav.tsx` (`NavLink` vers `/recettes`, l'écran Suggestions).
  * - `getByRole('heading', { name: 'Suggestions', level: 1 })`, le sous-titre
  *   « À partir de votre stock », le lien « Mes recettes » —
- *   `apps/web/src/screens/suggestions/suggestions-screen.tsx`
- *   (`ScreenHeader`) : affichés dès l'arrivée sur l'écran, même avant la
- *   question bloquante (`ScreenHeader` et `RecipeTabSwitch` sont rendus dans
- *   les deux branches de `SuggestionsScreen`).
- * - `getByRole('group', { name: 'Type de plat' }).getByRole('button', { name:
- *   <libellé> })` — les sept boutons de la question bloquante elle-même
- *   (`DishTypeQuestion`, `DISH_TYPE_LABELS_FR`). À ne pas confondre avec le
- *   `<select aria-label="Type de plat">` de la barre de filtres, qui est un
- *   `combobox`, pas un `group` de boutons.
- * - `page.locator('article')` pour une carte de suggestion — même structure
- *   que les cartes de stock et de recettes (`<article>`), lue dans
+ *   `apps/web/src/screens/suggestions/suggestions-screen.tsx` (`ScreenHeader`),
+ *   affichés dès l'arrivée, même avant la question bloquante.
+ * - `getByRole('group', { name: 'Type de plat' }).getByRole('button', …)` —
+ *   les sept boutons de la question elle-même (`DishTypeQuestion`). À ne pas
+ *   confondre avec le `<select aria-label="Type de plat">` de la barre de
+ *   filtres, qui est un `combobox`.
+ * - `page.locator('article')` pour une carte de suggestion —
  *   `apps/web/src/screens/suggestions/suggestion-card.tsx`.
- * - Le nom du site (`exemple-cuisine-N.test`) et « Composée par l'IA, non vérifiée » —
+ * - Le nom du site (`203.0.113.20`) et « Composée par l'IA, non vérifiée » —
  *   `provenanceLabel`, même fichier (`siteName(sourceUrl)` retire le
- *   protocole et un éventuel `www.`, jamais affiché en entier — B10).
- * - `getByRole('dialog', { name: <titre> })`, le bouton « Plus d'informations »
- *   (round de correction finale du 2026-10-08 : renomme « Conserver », même
- *   geste, même effet — conserve directement, ce n'est pas une consultation
- *   suivie d'une conservation séparée) —
- *   `apps/web/src/screens/suggestions/suggestion-sheet.tsx` (titre du
- *   `Sheet`, rendu en `<h2>` par `apps/web/src/components/ui/sheet.tsx`,
- *   `aria-label` du tiroir = ce même titre).
+ *   protocole et un éventuel `www.`, jamais l'URL entière — B10).
+ * - `getByRole('dialog', { name: <titre> })` et le bouton « Plus
+ *   d'informations » (qui conserve directement, ce n'est pas une consultation
+ *   suivie d'une conservation séparée) — `suggestion-sheet.tsx`.
  * - `getByRole('combobox', { name: 'Cuisine' })` avec `selectOption` — barre
- *   de filtres (décision D5 du 2026-10-11,
- *   `apps/web/src/screens/suggestions/orientation-bar.tsx`) : les quatre
- *   rangées de pastilles de région/durée/difficulté ont été remplacées par
- *   quatre `<select>` natifs sur deux lignes de deux. L'ancien repère
- *   (`getByRole('group', { name: 'Région' })` avec des boutons de pastille)
- *   n'existe plus pour la cuisine, la durée ni la difficulté — seule la
- *   question d'entrée garde un `role="group"` de boutons, pour le type de
- *   plat (voir plus haut).
+ *   de filtres (décision D5 du 2026-10-11, `orientation-bar.tsx`) : quatre
+ *   `<select>` natifs, plus aucune pastille de région.
+ * - `getByRole('button', { name: 'Chercher de nouvelles recettes' })` —
+ *   action de l'`EmptyState` de `suggestions-screen.tsx`, présente
+ *   uniquement dans l'état vide (lot du 2026-10-15).
+ * - `getByRole('status')` pour le `notice` du verrou de 24 heures — même
+ *   fichier, paragraphe au-dessus de la liste.
  * - `getByRole('heading', { name: 'Étapes', level: 2 })`, le texte exact
  *   d'une étape — `apps/web/src/screens/recipe/recipe-screen.tsx`.
  * - `getByPlaceholder('Rechercher une recette')` —
  *   `apps/web/src/screens/recipes/recipes-screen.tsx`.
  *
  * Fermeture des tiroirs par `Escape` plutôt que par le bouton de fond
- * (`aria-label="Fermer"`) : ce bouton couvre tout l'écran, y compris
- * derrière le panneau lui-même (`apps/web/src/components/ui/sheet.tsx`) — un
- * clic au centre de sa zone accessible risquerait de tomber sur le panneau
- * au lieu du fond selon la hauteur du contenu. `Sheet` écoute `Escape`
- * explicitement (sauf `locked`), c'est le chemin fiable.
+ * (`aria-label="Fermer"`) : ce bouton couvre tout l'écran, y compris derrière
+ * le panneau — un clic au centre de sa zone accessible risquerait de tomber
+ * sur le panneau au lieu du fond. `Sheet` écoute `Escape` explicitement.
  */
 
-const SUGGESTION_BATCH_SIZE = 12;
 const WEB_RECIPE_COUNT = 8;
 const AI_RECIPE_COUNT = 4;
+const POOL_RECIPE_COUNT = WEB_RECIPE_COUNT + AI_RECIPE_COUNT;
+
+/** Nom de site affiché par les huit recettes web de la fixture (un littéral IP, pas un domaine). */
+const WEB_RECIPE_SITE = '203.0.113.20';
 
 interface SuggestionBatchResponse {
-  readonly batchId: string;
   readonly items: ReadonlyArray<{ readonly title: string }>;
+  readonly notice: string | null;
 }
 
 /** Attend la réponse de `GET /suggestions` déclenchée par `trigger`, et la retourne déjà décodée. */
@@ -136,9 +132,9 @@ async function waitForSuggestionsResponse(page: Page, trigger: () => Promise<unk
 /**
  * Répond à la question bloquante d'entrée (D2) : condition pour que
  * `SuggestionsScreen` affiche autre chose (liste, filtres, erreur) et pour
- * qu'un appel à `GET /suggestions` parte. Le type choisi n'a pas d'effet sur
- * le contenu servi par la doublure (voir l'en-tête du fichier) : « Plat »
- * convient à tous les tests qui n'ont pas de raison d'en choisir un autre.
+ * qu'un appel à `GET /suggestions` parte. « Plat » convient à tous les tests
+ * qui n'ont pas de raison d'en choisir un autre : c'est le type que porte
+ * chacune des douze recettes de la fixture.
  */
 async function answerDishTypeQuestion(page: Page, label = 'Plat') {
   await page.getByRole('group', { name: 'Type de plat' }).getByRole('button', { name: label, exact: true }).click();
@@ -155,6 +151,11 @@ async function openSuggestionSheet(page: Page, title: string) {
 
 test.beforeAll(async () => {
   await restoreDatabase();
+  // Le réservoir survit aux restaurations de données de la suite (ses lignes
+  // sont rechargées par l'instantané), mais pas à l'ordre des fichiers : on
+  // part explicitement d'un réservoir vide, puisque c'est l'état de départ
+  // que le premier test ci-dessous met à l'épreuve.
+  await emptySuggestionPool();
 });
 
 useSharedAdminSession();
@@ -165,32 +166,83 @@ test('Suggestions ouvre en entrée du module Recettes', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: 'Suggestions', level: 1 })).toBeVisible();
   // Le sous-titre du `ScreenHeader` (« À partir de votre stock ») porte cette
-  // même phrase qu'une autre phrase de l'écran, le temps du chargement (
-  // `WaitingState`, « … à partir de votre stock. ») : scopé au `<header>`
-  // (apps/web/src/components/shell/app-shell.tsx, `ScreenHeader`) pour ne
-  // prouver que CELUI-là, jamais le texte d'attente, qui décrit autre chose
-  // (comment la fournée est composée, pas que cet écran est l'entrée du module).
+  // même phrase qu'une autre phrase de l'écran, le temps du chargement
+  // (`WaitingState`, « … à partir de votre stock. ») : scopé au `<header>`
+  // pour ne prouver que CELUI-là, jamais le texte d'attente, qui décrit autre
+  // chose (comment la fournée est composée, pas que cet écran est l'entrée du
+  // module).
   await expect(page.locator('header').getByText('À partir de votre stock', { exact: true })).toBeVisible();
   // Preuve que c'est bien l'ENTRÉE du module, pas la bibliothèque elle-même :
   // le lien vers « Mes recettes » est une action de CET écran, pas l'écran courant.
   await expect(page.getByRole('link', { name: 'Mes recettes' })).toBeVisible();
 });
 
-test('affiche une fournée construite sur le stock, chaque carte avec sa provenance', async ({ page }) => {
+test('réservoir vide : le modèle est appelé, et une recette web illisible n’atteint pas l’écran (D4)', async ({ page }) => {
+  // Le seul test de ce fichier qui fait vraiment tenter la lecture des huit
+  // pages web : `203.0.113.20` n'est routable nulle part, chaque tentative va
+  // donc au bout du plafond de cinq secondes du récupérateur (en parallèle,
+  // mais ajoutées au temps de page). Les tests suivants ne le repaient pas —
+  // les pages y sont déjà au réservoir, et l'ingestion ne relit jamais une
+  // page déjà lue (D10).
+  test.slow();
+  const before = await suggestionCalls();
+
   await page.goto('/recettes');
   // Question bloquante (D2) : c'est la réponse, pas la navigation, qui déclenche l'appel initial.
   const batch = await waitForSuggestionsResponse(page, () => answerDishTypeQuestion(page));
-  expect(batch.items).toHaveLength(SUGGESTION_BATCH_SIZE);
 
-  const cards = page.locator('article');
-  await expect(cards).toHaveCount(SUGGESTION_BATCH_SIZE);
+  // Un appel, et un seul : le réservoir était vide, il n'y avait rien à servir.
+  expect(await suggestionCalls()).toBe(before + 1);
 
-  // Provenance « web » : le nom du site, jamais l'URL entière (B10).
-  for (let i = 1; i <= WEB_RECIPE_COUNT; i++) {
-    await expect(page.getByText(`exemple-cuisine-${i}.test`, { exact: true })).toBeVisible();
-  }
-  // Provenance « ai » : la même mention sur les quatre cartes composées.
+  // La doublure a bien rendu douze recettes, dont huit web — mais leurs pages
+  // (`https://203.0.113.20/…`, injoignable par construction) n'ont pas pu être
+  // lues : elles sont jetées à l'ingestion et ne sont PAS dans la réponse.
+  // C'est l'inverse exact de ce que ce fichier affirmait avant le lot.
+  expect(batch.items).toHaveLength(AI_RECIPE_COUNT);
+  await expect(page.locator('article')).toHaveCount(AI_RECIPE_COUNT);
   await expect(page.getByText('Composée par l’IA, non vérifiée')).toHaveCount(AI_RECIPE_COUNT);
+  // Aucune recette web n'a pu se faire passer pour une recette trouvée quelque part.
+  await expect(page.getByText(WEB_RECIPE_SITE)).toHaveCount(0);
+});
+
+test('réservoir rempli : deux visites de suite sans le moindre appel au modèle (EF-26)', async ({ page }) => {
+  // Les huit recettes web, déposées dans l'état que produit une lecture
+  // réussie de leur page (D10) — voir l'en-tête : leur page ne peut pas être
+  // servie par une doublure locale sans désactiver la protection du
+  // récupérateur. Les quatre compositions, elles, sont déjà au réservoir :
+  // c'est le test précédent qui les y a fait entrer, par un vrai appel.
+  expect(await seedReadWebRecipes()).toBe(WEB_RECIPE_COUNT);
+  const before = await suggestionCalls();
+
+  // Première visite.
+  await page.goto('/recettes');
+  const first = await waitForSuggestionsResponse(page, () => answerDishTypeQuestion(page));
+  expect(first.items).toHaveLength(POOL_RECIPE_COUNT);
+  await expect(page.locator('article')).toHaveCount(POOL_RECIPE_COUNT);
+
+  // Seconde visite : rechargement complet, donc question reposée, nouvelle
+  // requête au serveur — pas un simple retour sur un cache de navigateur.
+  await page.reload();
+  const second = await waitForSuggestionsResponse(page, () => answerDishTypeQuestion(page));
+  expect(second.items).toHaveLength(POOL_RECIPE_COUNT);
+  await expect(page.locator('article')).toHaveCount(POOL_RECIPE_COUNT);
+
+  // Le cœur de la demande : deux visites servies, zéro appel à la doublure.
+  expect(await suggestionCalls()).toBe(before);
+
+  // Les deux provenances se lisent telles qu'elles doivent : le nom du site
+  // pour une recette dont la page a été lue (B10, jamais l'URL entière), et
+  // l'aveu explicite pour une composition.
+  await expect(page.getByText(WEB_RECIPE_SITE, { exact: true })).toHaveCount(WEB_RECIPE_COUNT);
+  await expect(page.getByText('Composée par l’IA, non vérifiée')).toHaveCount(AI_RECIPE_COUNT);
+
+  // Retour sur l'onglet depuis « Mes recettes » : aucune requête automatique
+  // sur la route payante (`refetchOnWindowFocus: false`, `queries.ts`).
+  await page.getByRole('link', { name: 'Mes recettes' }).click();
+  await expect(page.getByPlaceholder('Rechercher une recette')).toBeVisible();
+  await page.getByRole('link', { name: 'Suggestions' }).click();
+  await expect(page.locator('article').first()).toBeVisible();
+  expect(await suggestionCalls()).toBe(before);
 });
 
 test('affiche les étapes d’une composition dès la fiche, mais jamais celles d’une recette web avant conservation (B7, amendé le 2026-10-08)', async ({ page }) => {
@@ -206,10 +258,9 @@ test('affiche les étapes d’une composition dès la fiche, mais jamais celles 
   await page.keyboard.press('Escape');
   await expect(aiDialog).toBeHidden();
 
-  // Recette web : ses étapes ne viennent pas de la fournée mais de sa page,
-  // lue à l'entrée au réservoir et recopiée là (D10) ; la fiche ne les montre
-  // qu'après conservation (B6) — aucune étape à deviner ici, copié tel quel
-  // depuis la fixture plutôt qu'un titre plausible.
+  // Recette web : ses étapes ont beau être au réservoir (page lue à
+  // l'ingestion, D10), la fiche ne les montre qu'après conservation (B6) —
+  // texte copié tel quel depuis la fixture, jamais un libellé plausible.
   const webDialog = await openSuggestionSheet(page, 'Recette web 1');
   await expect(webDialog.getByRole('heading', { name: 'Étapes' })).toHaveCount(0);
   await expect(page.getByText('Préparer les ingrédients de la recette 1.')).toHaveCount(0);
@@ -219,26 +270,69 @@ test('affiche les étapes d’une composition dès la fiche, mais jamais celles 
   await expect(webDialog).toBeHidden();
 });
 
-test('relance une recherche quand on choisit une région, plutôt que de filtrer ce qui est affiché', async ({ page }) => {
+test('une orientation que le réservoir ne couvre pas relance une vraie recherche', async ({ page }) => {
   await page.goto('/recettes');
   const first = await waitForSuggestionsResponse(page, () => answerDishTypeQuestion(page));
   expect(first.items.length).toBeGreaterThan(0);
+  const before = await suggestionCalls();
 
   // D5 (2026-10-11) : les pastilles de région ont fait place à un `<select>`
-  // natif — `getByRole('combobox', { name: 'Cuisine' })` avec `selectOption`,
-  // plus de `getByRole('group', { name: 'Région' })` ni de bouton de pastille.
+  // natif. « Européenne » ne couvre que les quatre compositions du réservoir,
+  // sous le plancher de `SUGGESTION_POOL_FLOOR` (6) et jamais demandée
+  // jusqu'ici : la recherche doit donc vraiment partir, plutôt que de filtrer
+  // ce qui est déjà affiché.
   const second = await waitForSuggestionsResponse(page, () =>
     page.getByRole('combobox', { name: 'Cuisine' }).selectOption({ label: 'Européenne' }),
   );
 
-  // La doublure sert un contenu identique quelle que soit l'orientation (voir
-  // l'en-tête de ce fichier) : la preuve d'une recherche ciblée ne peut donc
-  // porter que sur l'identité du lot renvoyé, pas sur son contenu. Un
-  // `batchId` distinct ne peut survenir que si la signature de cache a changé
-  // (`computeSignature`, région incluse) et qu'un nouvel appel a donc bien été
-  // fait au fournisseur — un simple filtrage côté écran de la même fournée
-  // aurait gardé le même `batchId`.
-  expect(second.batchId).not.toBe(first.batchId);
+  // La preuve porte sur l'appel réellement servi par la doublure — la fixture
+  // rend le même contenu quelle que soit l'orientation, le contenu reçu ne
+  // prouverait donc rien.
+  expect(await suggestionCalls()).toBe(before + 1);
+  expect(second.items.length).toBeGreaterThan(0);
+});
+
+test('état vide : la relance est atteignable, et le verrou de 24 heures s’annonce (D11)', async ({ page }) => {
+  // « Dessert » n'existe nulle part au réservoir (les douze recettes de la
+  // fixture sont des plats) : l'orientation reste vide même après un appel
+  // au modèle, ce qui est exactement la situation que la décision D11 rend
+  // possible — et qu'il ne faut pas laisser muette.
+  await page.goto('/recettes');
+  const before = await suggestionCalls();
+  const empty = await waitForSuggestionsResponse(page, () => answerDishTypeQuestion(page, 'Dessert'));
+  expect(empty.items).toHaveLength(0);
+  // Premier passage : la recherche part pour de vrai, il n'y a donc rien à
+  // annoncer — pas encore de verrou.
+  expect(await suggestionCalls()).toBe(before + 1);
+  expect(empty.notice).toBeNull();
+
+  // Le texte d'état vide n'invite plus à attendre un changement de stock (la
+  // recherche n'en dépend plus) mais à changer d'orientation ou à relancer.
+  await expect(page.getByRole('heading', { name: 'Aucune suggestion pour cette orientation', level: 2 })).toBeVisible();
+  await expect(page.getByText('Changez d’orientation — une autre cuisine, une durée plus large — ou lancez vous-même une nouvelle recherche.')).toBeVisible();
+
+  // Le bouton de relance : présent dans l'état vide, et actif autant de fois
+  // qu'on appuie (un compteur côté écran, pas un drapeau qui resterait posé).
+  const relaunch = page.getByRole('button', { name: 'Chercher de nouvelles recettes' });
+  await waitForSuggestionsResponse(page, () => relaunch.click());
+  expect(await suggestionCalls()).toBe(before + 2);
+  await waitForSuggestionsResponse(page, () => relaunch.click());
+  expect(await suggestionCalls()).toBe(before + 3);
+
+  // Nouvelle visite sur la même orientation : la recherche ne repart pas
+  // d'elle-même avant 24 heures (D11), et l'écran le dit au lieu de rester
+  // vide et muet. Aucun appel de plus.
+  await page.reload();
+  const locked = await waitForSuggestionsResponse(page, () => answerDishTypeQuestion(page, 'Dessert'));
+  expect(await suggestionCalls()).toBe(before + 3);
+  expect(locked.items).toHaveLength(0);
+  // Le message porte la cause, l'échéance et les deux sorties ; seule
+  // l'échéance (une date) varie, les deux autres sont citées telles quelles.
+  const notice = page.getByRole('status').filter({ hasText: 'déjà été cherchée récemment' });
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText('Changez d’orientation, ou relancez la recherche vous-même.');
+  // Et la sortie reste atteignable depuis cet écran-là aussi.
+  await expect(page.getByRole('button', { name: 'Chercher de nouvelles recettes' })).toBeVisible();
 });
 
 test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où ses étapes restent affichées', async ({ page }) => {
@@ -248,10 +342,10 @@ test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où
 
   await dialog.getByRole('button', { name: 'Plus d’informations' }).click();
 
-  // Composition IA (B6) : aucun appel supplémentaire, contrairement au chemin
-  // web, qui fait toujours réécrire la recette par Gemini — mais depuis le
-  // contenu déjà recopié au réservoir, sans rappeler le site ([C15]) : la
-  // navigation suit directement, sans attente prolongée à prévoir.
+  // Composition (B6) : aucun appel supplémentaire, contrairement au chemin
+  // web, qui fait réécrire la recette par Gemini — mais depuis le contenu
+  // recopié au réservoir, sans jamais rappeler le site (D10) : la navigation
+  // suit directement, sans attente prolongée à prévoir.
   await page.waitForURL(/\/recettes\/[^/]+$/);
   await expect(page.getByRole('heading', { name: 'Recette composée 1', level: 1 })).toBeVisible();
 
@@ -265,13 +359,11 @@ test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où
   await page.goto('/recettes/bibliotheque');
   await page.getByPlaceholder('Rechercher une recette').fill('Recette composée 1');
   // `getByRole('link', { name: … })`, pas `page.locator('article')` (EF-23) :
-  // le `<Link>` qui enveloppe une `RecipeCard`
-  // (`apps/web/src/screens/recipes/recipes-screen.tsx`) porte désormais un
-  // `aria-label` explicite (`recipeAccessibleName`, `recipe-card.tsx`) —
-  // Chromium ne remonte pas le contenu d'un rôle `article` dans le nom d'un
-  // lien ancêtre, le nom ne peut donc pas venir du contenu de la carte. Le nom
-  // commence par le titre ; la suite (état de couverture) varie avec le stock
-  // réel, d'où la correspondance partielle plutôt qu'un nom exact.
+  // le `<Link>` qui enveloppe une `RecipeCard` porte un `aria-label` explicite
+  // (`recipeAccessibleName`) — Chromium ne remonte pas le contenu d'un rôle
+  // `article` dans le nom d'un lien ancêtre. Le nom commence par le titre ; la
+  // suite (état de couverture) varie avec le stock réel, d'où la
+  // correspondance partielle plutôt qu'un nom exact.
   await expect(page.getByRole('link', { name: /^Recette composée 1,/ })).toBeVisible();
 });
 

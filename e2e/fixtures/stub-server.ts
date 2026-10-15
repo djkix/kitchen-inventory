@@ -43,6 +43,16 @@ const OFF_NOT_FOUND: OffMapping = { file: 'off-not-found.json', status: 404 };
 const VISION_FIXTURE = 'vision-gochujang.json';
 const SUGGESTIONS_FIXTURE = 'suggestions/gemini-batch.json';
 
+/**
+ * Appels réellement servis sur `generateContent`, par usage. Exposés sur
+ * `/__calls` (section 19, lot du 2026-10-15) : depuis le réservoir permanent,
+ * un parcours doit pouvoir prouver qu'une visite n'a RIEN demandé au modèle.
+ * Compter ici, au seul endroit qui voit passer les requêtes, plutôt que de se
+ * fier au `fromCache` que le serveur se pose à lui-même — c'est précisément
+ * ce drapeau que le parcours est censé mettre à l'épreuve.
+ */
+const callCounts = { suggestions: 0, vision: 0 };
+
 async function readFixture(file: string): Promise<string> {
   return readFile(resolve(FIXTURES_DIR, file), 'utf8');
 }
@@ -116,11 +126,13 @@ async function handleGenerateContent(req: IncomingMessage, res: ServerResponse):
     return;
   }
   if (isSuggestionRequest(body)) {
+    callCounts.suggestions += 1;
     const text = await readFixture(SUGGESTIONS_FIXTURE);
     sendRawJson(res, 200, JSON.stringify(wrapGeminiText(text)));
     return;
   }
   if (isVisionRequest(body)) {
+    callCounts.vision += 1;
     const text = await readFixture(VISION_FIXTURE);
     sendRawJson(res, 200, JSON.stringify(wrapGeminiText(text)));
     return;
@@ -149,6 +161,14 @@ export function createStubServer() {
 
         if (url.pathname === '/healthz' && req.method === 'GET') {
           sendJson(res, 200, { status: 'ok' });
+          return;
+        }
+
+        // Compteur d'appels servis (`callCounts`) : lu par les parcours depuis
+        // le runner, jamais par l'application. Deux soulignés en tête pour
+        // qu'aucune route doublée ne puisse le recouvrir.
+        if (url.pathname === '/__calls' && req.method === 'GET') {
+          sendJson(res, 200, callCounts);
           return;
         }
 

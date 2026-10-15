@@ -252,8 +252,15 @@ export interface SuggestionDto {
   missingLabels: string[];
 }
 
+/**
+ * Ce que l'écran Suggestions reçoit. Plus de `batchId` depuis le lot du
+ * 2026-10-15 : l'écran n'est plus servi par une fournée mais par le réservoir
+ * (D8), la conservation désigne la recette par son identité de contenu (D9),
+ * et plus personne ne lisait cet identifiant — l'écran se contentait de le
+ * renvoyer au serveur, qui l'ignorait.
+ */
 export interface SuggestionBatchDto {
-  batchId: string;
+  /** Instant de la dernière livraison du modèle, journal (`SuggestionBatch`) — jamais ce qui désigne les recettes. */
   generatedAt: string;
   /** Servi sans aucun appel au modèle — depuis le réservoir permanent (D8, 2026-10-15). */
   fromCache: boolean;

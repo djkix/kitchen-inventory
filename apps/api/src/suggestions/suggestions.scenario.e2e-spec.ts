@@ -297,7 +297,6 @@ describe('scénario de réussite figé des suggestions', () => {
 
   it('conserve la première recette en Recipe IMPORTED sans jamais rappeler le site, difficulté recalculée au barème du foyer', async () => {
     const list = await agent.get('/api/v1/suggestions').expect(200);
-    const batchId = list.body.batchId as string;
     // Identifiant rendu par la liste, dérivé du contenu de la recette : jamais
     // un rang — la recette est donc retrouvée par son titre, pas par sa place.
     const spaghetti = list.body.items.find((i: { title: string }) => i.title === 'Spaghetti à la tomate');
@@ -306,7 +305,7 @@ describe('scénario de réussite figé des suggestions', () => {
 
     const res = await agent
       .post('/api/v1/suggestions/keep')
-      .send({ batchId, suggestionId, clientOpId: 'op-scenario-pates-00001' })
+      .send({ suggestionId, clientOpId: 'op-scenario-pates-00001' })
       .expect(201);
 
     // Le site a été lu à l'ingestion, et plus jamais ensuite (D10).
