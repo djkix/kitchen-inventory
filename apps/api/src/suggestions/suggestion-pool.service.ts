@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { modelRecipeSchema, suggestionIdentity, type DishType, type ModelRecipe } from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
+import { Logger } from 'nestjs-pino';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { RecipePageRefusedError, type PageRecipe, type RecipePageFetcher } from './recipe-page.fetcher.js';
+import { type PageRecipe, type RecipePageFetcher } from './recipe-page.fetcher.js';
 import { RECIPE_PAGE_FETCHER } from './suggestion-provider.js';
 
 /** Recette du réservoir telle que relue : `payload` revalidé, jamais casté. */
@@ -30,6 +31,7 @@ export class SuggestionPoolService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(RECIPE_PAGE_FETCHER) private readonly pageFetcher: RecipePageFetcher,
+    private readonly logger: Logger,
   ) {}
 
   /** Rend le nombre de recettes retenues. Un échec sur une recette n'en fait jamais tomber une autre. */
@@ -68,7 +70,8 @@ export class SuggestionPoolService {
         content = recipe.sourceUrl ? await this.pageFetcher.fetchContent(recipe.sourceUrl) : null;
       } catch (error) {
         // Refus de sécurité ou panne quelconque : la recette est jetée, la fournée continue.
-        if (!(error instanceof RecipePageRefusedError)) content = null;
+        content = null;
+        this.logger.warn({ sourceUrl: recipe.sourceUrl, err: error }, 'Page de recette illisible');
       }
       if (content === null) return false;
     }
@@ -103,7 +106,8 @@ export class SuggestionPoolService {
         });
       }
       return true;
-    } catch {
+    } catch (error) {
+      this.logger.warn({ identity, err: error }, 'Recette non écrite au réservoir');
       return false; // une écriture en échec ne fait pas échouer la fournée
     }
   }

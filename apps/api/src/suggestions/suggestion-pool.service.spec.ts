@@ -1,6 +1,8 @@
 import { Module, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { suggestionIdentity, type ModelRecipe } from '@kitchen/shared';
+import type { Prisma } from '@prisma/client';
+import { Logger } from 'nestjs-pino';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ConfigModule } from '../common/config.module.js';
 import { loadConfig } from '../common/config.js';
@@ -58,7 +60,8 @@ describe('SuggestionPoolService.ingest (EF-26)', () => {
     });
     @Module({
       imports: [ConfigModule.forRoot(config), PrismaModule],
-      providers: [SuggestionPoolService, { provide: RECIPE_PAGE_FETCHER, useValue: fetcher }],
+      providers: [SuggestionPoolService, { provide: RECIPE_PAGE_FETCHER, useValue: fetcher },
+        { provide: Logger, useValue: { warn: () => undefined } }],
     })
     class TestModule {}
     ctx = await NestFactory.createApplicationContext(TestModule, { logger: false, abortOnError: false });
@@ -147,15 +150,47 @@ describe('SuggestionPoolService.ingest (EF-26)', () => {
     expect(rows[0]!.model).toBe('m2');
   });
 
-  it('ne réécrit pas une page déjà lue (D10)', async () => {
+  it('ne contacte le site qu’une fois pour une même recette (D10)', async () => {
+    let calls = 0;
     let content: Content = PAGE;
-    const { service, db } = await setup({ fetchContent: async () => content });
+    const { service, db } = await setup({
+      fetchContent: async () => {
+        calls += 1;
+        return content;
+      },
+    });
     await service.ingest([WEB], 'm');
     content = { structured: null, text: 'autre' };
     await service.ingest([WEB], 'm');
+    expect(calls).toBe(1);
     const row = await db.suggestionPoolRecipe.findFirstOrThrow();
     expect(row.pageRecipe).toEqual(PAGE?.structured);
     expect(row.pageText).toBe('texte');
+  });
+
+  it('vérifie une ligne existante non vérifiée dès que sa page devient lisible, une seule fois', async () => {
+    let calls = 0;
+    let content: Content = PAGE;
+    const { service, db } = await setup({
+      fetchContent: async () => {
+        calls += 1;
+        return content;
+      },
+    });
+    // Ligne web non vérifiée (identité de WEB), par exemple écrite avant la vérification.
+    await db.suggestionPoolRecipe.create({
+      data: { identity: suggestionIdentity(WEB), payload: WEB as unknown as Prisma.InputJsonValue, provenance: 'web', dishType: 'MAIN', sourceUrl: WEB.sourceUrl, model: 'm0' },
+    });
+    expect(await service.ingest([WEB], 'm')).toBe(1);
+    const first = await db.suggestionPoolRecipe.findFirstOrThrow();
+    expect(first.verifiedAt).not.toBeNull();
+    expect(first.pageText).toBe('texte');
+    content = { structured: null, text: 'autre' };
+    await service.ingest([WEB], 'm');
+    const third = await db.suggestionPoolRecipe.findFirstOrThrow();
+    expect(calls).toBe(1);
+    expect(third.verifiedAt).toEqual(first.verifiedAt);
+    expect(third.pageText).toBe('texte');
   });
 
   it('read traite une ligne non conforme comme absente', async () => {
