@@ -192,10 +192,12 @@ recours) — le stock n'intervient pas dans ce tri par défaut. La recherche par
 titre est tolérante aux accents et à la casse, comme la recherche produits
 (« crepes » trouve « Crêpes »). Trois autres tris au choix, mémorisés avec les
 filtres par utilisateur : réalisables avec le stock (couverture), les plus
-faites, les moins récentes. Filtres par difficulté, cuisine, type de plat,
-régime, temps (préparation + cuisson, repos exclu) et note minimale, plus des
-pastilles rapides (valeurs sûres, jamais faites, déjà faites, **favoris**, pas
-faites depuis longtemps, réalisables maintenant). Chaque carte affiche son
+faites, les moins récentes. Filtres par type de plat, cuisine, durée, facilité,
+régime et note minimale, présentés comme sur Suggestions : six sélecteurs
+natifs par paires, une seule valeur active par facette, qui tiennent sur trois
+lignes au lieu des six rangées de pastilles défilantes d'avant. Les bascules
+restent des pastilles sur une rangée (valeurs sûres, réalisables maintenant,
+déjà faites, **favoris**, archivées). Chaque carte affiche son
 **taux de couverture et son groupe** (prête, presque, incomplète) calculés
 depuis le stock réel, même si ce groupe ne change plus l'ordre ni la visibilité
 de la liste. Chaque carte affiche aussi la note retenue par la règle de
@@ -591,6 +593,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.17.0 | 2026-10-15 | Les filtres de « Mes recettes » adoptent la présentation de Suggestions (EF-21) : les six rangées de pastilles défilantes (difficulté, cuisine, type de plat, régime, temps, note) deviennent six sélecteurs natifs par paires, dans le même ordre que l'écran Suggestions — type de plat d'abord, puis cuisine, puis durée, facilité, régime et note minimale. Une seule valeur active par facette, comme sur Suggestions ; les cinq bascules rapides restent des pastilles sur une rangée |
 | 0.16.0 | 2026-10-11 | Parcours dirigé des suggestions sur mobile (EF-25). L'onglet Recettes ouvre toujours Suggestions ; la mémorisation du dernier volet consulté est retirée. À l'arrivée, une question bloquante demande le type de plat avant d'afficher quoi que ce soit d'autre, et oriente la recherche initiale — le modèle ne proposant alors plus que ce type. Les quatre rangées de pastilles d'orientation (type de plat, cuisine, durée, facilité) font place à quatre sélecteurs natifs sur deux lignes de deux, qui ne prennent plus la moitié d'un écran de téléphone ; les quatre relancent désormais une recherche à chaque changement, y compris le type de plat, qui ne pouvait plus se contenter de filtrer une fournée déjà réduite à ce même type. Le titre d'une recette tient désormais sur deux lignes au plus, sans jamais être tronqué sur une seule, aussi bien sur une carte de suggestion que sur « Mes recettes » |
 | 0.15.0 | 2026-10-08 | Favoris et note directe sur une recette (EF-21). Une étoile à cocher marque une recette comme favorite — liste unique partagée par le foyer — depuis sa fiche et chaque carte de « Mes recettes », indépendamment de la note. La fiche gagne cinq étoiles de note directe, posables sans aucune réalisation enregistrée. Partout où une note s'affiche (carte, fiche, tri), la note directe prime désormais sur la moyenne des réalisations, qui prend le relais en son absence ; la note par réalisation reste par ailleurs inchangée, pour l'historique. Pastille « Favoris » dans les filtres rapides de « Mes recettes ». La fiche d'une recette jamais cuisinée explique désormais l'absence d'historique au lieu de l'afficher vide |
 | 0.14.0 | 2026-10-08 | Lot recettes « complétude et usage ». Gemini rend une durée de préparation et une durée de cuisson séparées (`null` quand la recette n'en a pas, jamais un zéro qui se lirait « cuisson : 0 minute »), affichées sur la fiche recette et sur une suggestion ; chaque étape de cuisson doit préciser température du four, intensité du feu et durée, sous peine d'être jugée inexploitable. Chaque ingrédient affiche la photo du produit rapproché et une pastille colorée de l'emplacement de son lot le plus proche de péremption. « Déjà faites » rejoint les pastilles de filtre rapide de Mes recettes, dont chaque carte affiche déjà note et réalisations. Une réalisation passée se note depuis l'historique de la fiche, sans repasser par une cuisson. « Plus d'informations » remplace « Conserver » sur une suggestion (même geste, même effet). Le nombre de parts affiché sur la fiche recette est désormais ajustable : les quantités par ligne et l'état de chaque ingrédient suivent, et ce même nombre préremplit le tiroir de cuisson — un seul champ du début à la fin. L'onglet Recettes de la barre du bas ouvre désormais un écran à deux volets, Suggestions et Mes recettes, avec une bascule en tête visible sans défilement ; l'application se souvient du dernier volet ouvert (ou retombe sur Suggestions si le stockage est indisponible) |
