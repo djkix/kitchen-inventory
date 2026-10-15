@@ -26,6 +26,28 @@ describe('comparePoolEntries (EF-26, D7)', () => {
     expect(comparePoolEntries(neuve, vieille)).toBeLessThan(0);
   });
 
+  it('départage deux écritures ISO du même instant comme une égalité', () => {
+    const avecZ = entry({ firstSeenAt: '2026-06-01T10:00:00.000Z' });
+    const avecOffset = entry({ firstSeenAt: '2026-06-01T12:00:00+02:00' });
+    expect(comparePoolEntries(avecZ, avecOffset)).toBe(0);
+  });
+
+  it('reste un ordre total quand une date est illisible', () => {
+    const cassee = entry({ firstSeenAt: 'pas une date' });
+    const bonne = entry({ firstSeenAt: '2026-06-01T10:00:00.000Z' });
+    expect(comparePoolEntries(cassee, bonne)).toBe(0);
+    expect(comparePoolEntries(bonne, cassee)).toBe(0);
+  });
+
+  it('est transitif sur les trois critères', () => {
+    const a = entry({ verified: true, coverage: 0.9 });
+    const b = entry({ verified: true, coverage: 0.5 });
+    const c = entry({ verified: false, coverage: 1 });
+    expect(comparePoolEntries(a, b)).toBeLessThan(0);
+    expect(comparePoolEntries(b, c)).toBeLessThan(0);
+    expect(comparePoolEntries(a, c)).toBeLessThan(0);
+  });
+
   it('est un ordre total stable : comparer une entrée à elle-même rend zéro', () => {
     const e = entry({ verified: true, coverage: 0.5 });
     expect(comparePoolEntries(e, e)).toBe(0);
