@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   classifyMatch,
+  comparePoolEntries,
   createRecipeSchema,
   modelBatchSchema,
   pickSeedIngredients,
@@ -21,7 +22,7 @@ import {
   type SuggestionQuery,
   type Unit,
 } from '@kitchen/shared';
-import { Prisma, type SuggestionBatch } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { ApiError, assertProviderEnabled } from '../common/api-error.js';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import type { RequestUser } from '../auth/request-user.js';
@@ -34,6 +35,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import { InvalidRewriteError, type GeminiRecipeRewriter, type RecipeRewriteInput } from './gemini-recipe-rewriter.js';
 import { RecipePageRefusedError, type PageRecipe, type RecipePageFetcher } from './recipe-page.fetcher.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
+import { SuggestionPoolService, type PoolRecipe } from './suggestion-pool.service.js';
 import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER, SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionRequest } from './suggestion-provider.js';
 
 /** Taille visée d'une fournée (section 5.1, B8) : douze recettes, huit web pour quatre composées. */
@@ -53,8 +55,19 @@ const SUGGESTION_WEB_TARGET = SUGGESTION_BATCH_SIZE - SUGGESTION_AI_TARGET;
 export const SUGGESTION_REQUEST_BUFFER = 4;
 
 /**
- * Signature de cache (B12) : identifiants de départ triés + orientation + version
- * du prompt. Passée à `v2` le 2026-10-08 avec l'arrivée du type de plat, puis à
+ * Plancher sous lequel le réservoir ne suffit plus pour l'orientation demandée
+ * et justifie un appel au modèle (décision D6, 2026-10-15) : la moitié d'une
+ * fournée. Au-dessus, rien n'est demandé à Gemini — c'est tout l'objet du
+ * réservoir.
+ */
+const SUGGESTION_POOL_FLOOR = 6;
+
+/**
+ * Signature d'écriture du journal brut `SuggestionBatch` (D2, 2026-10-15) :
+ * identifiants de départ triés + orientation + version du prompt. Depuis le
+ * réservoir permanent elle ne sert plus à *servir* une réponse — plus personne
+ * ne lit `SuggestionBatch` pour cela (D8) — seulement à garder une ligne par
+ * requête distincte plutôt qu'une par appel. Passée à `v2` le 2026-10-08 avec l'arrivée du type de plat, puis à
  * `v3` le même jour avec les durées de préparation et de cuisson séparées : les
  * fournées stockées avant ne les portent pas et ne passent plus `modelBatchSchema`.
  * Elles seraient ignorées de toute façon — le schéma entre aussi dans la
@@ -62,8 +75,6 @@ export const SUGGESTION_REQUEST_BUFFER = 4;
  * déduire.
  */
 const SUGGESTION_SIGNATURE_VERSION = 'v3';
-/** Une fournée en cache de plus de 24 heures est ignorée (section 9, B12). */
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /** Score minimal pour qu'un candidat pg_trgm soit retenu dans la liste envoyée à `classifyMatch`. */
 const MATCH_CANDIDATE_FLOOR = 0.15;
@@ -81,17 +92,6 @@ const MATCH_CANDIDATES_PER_LABEL = 5;
  * d'une recette du foyer, qui n'a jamais prétendu viser un produit.
  */
 const ABSENT_MATCH_SENTINEL = '__suggestion_absent_match__';
-
-interface StoredBatchPayload {
-  recipes: ModelRecipe[];
-}
-
-/** Fournée validée, prête à être rendue : signature de stockage nettoyée de la ligne Prisma brute. */
-interface ParsedBatch {
-  id: string;
-  generatedAt: string;
-  recipes: ModelRecipe[];
-}
 
 /**
  * Répartit la fournée reçue entre web et composé plutôt que de garder l'ordre
@@ -161,6 +161,7 @@ export class SuggestionsService {
     private readonly coverage: RecipesCoverageService,
     private readonly recipes: RecipesService,
     private readonly provider: GeminiSuggestionProvider,
+    private readonly pool: SuggestionPoolService,
     @Inject(RECIPE_PAGE_FETCHER) private readonly pageFetcher: RecipePageFetcher,
     @Inject(RECIPE_REWRITER) private readonly rewriter: GeminiRecipeRewriter,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
@@ -188,34 +189,55 @@ export class SuggestionsService {
       throw ApiError.insufficientStock('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
     }
 
-    const signature = computeSignature(
-      seeds.map((s) => s.productId),
-      query,
-    );
-
-    let batch: ParsedBatch | null = query.refresh ? null : await this.readFreshBatch(signature);
-    let fromCache = batch !== null;
+    // Le réservoir d'abord, toujours (D6) : le modèle n'est appelé que s'il ne
+    // rend pas de quoi remplir l'écran pour l'orientation demandée, ou si la
+    // relance explicite le réclame.
+    let entries = await this.readPool(query);
+    let fromCache = true;
     let notice: string | null = null;
 
-    if (!batch) {
+    if (query.refresh || entries.length < SUGGESTION_POOL_FLOOR) {
       const breach = await this.quotaBreach();
       if (breach) {
-        const stale = await this.readLatestBatch();
-        if (!stale) throw ApiError.rateLimited(this.quotaMessage(breach, false));
-        batch = stale;
-        fromCache = true;
+        // Repli : le réservoir entier, sans filtre d'orientation (D8) — mieux
+        // vaut des recettes hors orientation qu'un écran vide.
+        const fallback = await this.readPool({ refresh: false });
+        if (fallback.length === 0) throw ApiError.rateLimited(this.quotaMessage(breach, false));
+        entries = fallback;
         notice = this.quotaMessage(breach, true);
       } else {
-        batch = await this.fetchAndStore(signature, seeds, query);
+        const signature = computeSignature(
+          seeds.map((s) => s.productId),
+          query,
+        );
+        const fetched = await this.fetchAndStore(signature, seeds, query);
+        await this.pool.ingest(fetched.recipes, fetched.model);
+        // Relecture obligatoire, jamais la réponse brute du modèle : une recette
+        // web dont la page n'existe pas a été jetée à l'ingestion (D4) et ne
+        // doit à aucun moment atteindre l'écran.
+        entries = await this.readPool(query);
         fromCache = false;
       }
     }
 
-    const items = await this.toSuggestionDtos(batch.recipes, snapshot);
+    const items = await this.toSuggestionDtos(entries, snapshot);
+    // Ordre du réservoir (D7), par la règle pure partagée : jamais réécrit ici.
+    const firstSeenById = new Map(entries.map((entry) => [entry.identity, entry.firstSeenAt]));
+    items.sort((a, b) =>
+      comparePoolEntries(
+        { verified: a.verified, coverage: a.coverage, firstSeenAt: firstSeenById.get(a.id) ?? '' },
+        { verified: b.verified, coverage: b.coverage, firstSeenAt: firstSeenById.get(b.id) ?? '' },
+      ),
+    );
+
+    // `SuggestionBatch` ne sert plus à servir (D8), mais reste le journal de la
+    // dernière livraison : `batchId` désigne toujours celle-ci, et la
+    // conservation s'en sert encore jusqu'à la tâche 6 (D9).
+    const latest = await this.prisma.suggestionBatch.findFirst({ orderBy: { createdAt: 'desc' }, select: { id: true, createdAt: true } });
 
     return {
-      batchId: batch.id,
-      generatedAt: batch.generatedAt,
+      batchId: latest?.id ?? '',
+      generatedAt: (latest?.createdAt ?? new Date()).toISOString(),
       fromCache,
       items,
       notice,
@@ -223,28 +245,30 @@ export class SuggestionsService {
   }
 
   /**
-   * Charge une fournée et la valide contre le schéma partagé avant de la faire
-   * confiance : une donnée dérivée du modèle, passée par le stockage, se revalide
-   * comme n'importe quelle entrée (revue de tâche 6). Une ligne qui ne valide
-   * plus (schéma changé entre-temps, donnée corrompue) est traitée comme absente,
-   * jamais castée telle quelle.
+   * Réservoir filtré sur l'orientation demandée, moins les recettes déjà
+   * conservées dans « Mes recettes » (D7) : ce que le foyer a gardé n'a pas à
+   * lui être reproposé.
+   *
+   * Le rapprochement se fait par URL source pour une recette web — son titre
+   * change à la conservation, réécrit par Gemini, mais pas son lien — et par
+   * identité de contenu pour une composition, qui n'a pas de lien et garde son
+   * titre. Limite connue : une composition dont le titre serait modifié à la
+   * main dans « Mes recettes » pourrait réapparaître une fois.
    */
-  private parseRow(row: SuggestionBatch): ParsedBatch | null {
-    const result = modelBatchSchema.safeParse(row.payload);
-    if (!result.success) return null;
-    return { id: row.id, generatedAt: row.createdAt.toISOString(), recipes: result.data.recipes };
-  }
-
-  private async readFreshBatch(signature: string): Promise<ParsedBatch | null> {
-    const row = await this.prisma.suggestionBatch.findUnique({ where: { signature } });
-    if (!row) return null;
-    if (Date.now() - row.createdAt.getTime() > CACHE_TTL_MS) return null;
-    return this.parseRow(row);
-  }
-
-  private async readLatestBatch(): Promise<ParsedBatch | null> {
-    const row = await this.prisma.suggestionBatch.findFirst({ orderBy: { createdAt: 'desc' } });
-    return row ? this.parseRow(row) : null;
+  private async readPool(query: SuggestionQuery): Promise<PoolRecipe[]> {
+    const [entries, kept] = await Promise.all([
+      this.pool.read({ dishType: query.dishType, region: query.region, maxMinutes: query.maxMinutes, difficulty: query.difficulty }),
+      this.prisma.recipe.findMany({ where: { source: { in: ['IMPORTED', 'GENERATED'] } }, select: { title: true, sourceUrl: true } }),
+    ]);
+    const keptUrls = new Set<string>();
+    const keptIdentities = new Set<string>();
+    for (const row of kept) {
+      if (row.sourceUrl) keptUrls.add(row.sourceUrl.trim().toLowerCase());
+      else keptIdentities.add(suggestionIdentity({ title: row.title, sourceUrl: null }));
+    }
+    return entries.filter((entry) =>
+      entry.recipe.sourceUrl ? !keptUrls.has(entry.recipe.sourceUrl.trim().toLowerCase()) : !keptIdentities.has(entry.identity),
+    );
   }
 
   /** `null` si l'appel est permis ; sinon la nature du dépassement (quota journalier ou plafond mensuel). */
@@ -267,29 +291,35 @@ export class SuggestionsService {
   }
 
   /**
-   * Un seul dépassement, deux vérités possibles : avec une fournée de repli
-   * (`hasStaleBatch`), le message peut annoncer qu'elle est affichée ; sans
-   * repli, il ne doit jamais le promettre — rien n'est montré (revue, round 1
-   * de la tâche 10 : la phrase « la dernière fournée connue est affichée »
-   * s'affichait aussi dans le cas où aucune fournée n'existait).
+   * Un seul dépassement, deux vérités possibles : quand le réservoir porte
+   * encore quelque chose (`hasPoolEntries`), le message peut annoncer que ces
+   * recettes sont affichées ; sinon il ne doit jamais le promettre — rien n'est
+   * montré (revue, round 1 de la tâche 10 : la phrase annonçant un repli
+   * s'affichait aussi dans le cas où il n'y en avait aucun).
    */
-  private quotaMessage(breach: { kind: 'daily' | 'monthly' }, hasStaleBatch: boolean): string {
+  private quotaMessage(breach: { kind: 'daily' | 'monthly' }, hasPoolEntries: boolean): string {
     if (breach.kind === 'daily') {
       const dailyQuota = this.config.RECIPE_SUGGESTION_DAILY_QUOTA;
-      return hasStaleBatch
-        ? `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; la dernière fournée connue est affichée.`
+      return hasPoolEntries
+        ? `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; les recettes déjà connues sont affichées.`
         : `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; réessayez demain, ou augmentez-le dans la configuration du serveur.`;
     }
-    return hasStaleBatch
-      ? 'Plafond de dépense mensuel atteint ; la dernière fournée connue est affichée.'
+    return hasPoolEntries
+      ? 'Plafond de dépense mensuel atteint ; les recettes déjà connues sont affichées.'
       : 'Plafond de dépense mensuel atteint ; réessayez le mois prochain, ou augmentez-le dans la configuration du serveur.';
   }
 
+  /**
+   * Appelle le modèle et journalise la fournée brute dans `SuggestionBatch`
+   * (D2). Personne ne relit cette ligne pour servir une réponse depuis le
+   * réservoir permanent (D8) : elle garde la trace de ce que le modèle a rendu,
+   * avec son coût. Les recettes rendues partent ensuite à l'ingestion.
+   */
   private async fetchAndStore(
     signature: string,
     seeds: readonly { productId: string; name: string }[],
     query: SuggestionQuery,
-  ): Promise<ParsedBatch> {
+  ): Promise<{ recipes: ModelRecipe[]; model: string }> {
     const request: SuggestionRequest = {
       seeds: seeds.map((s) => s.name),
       region: query.region,
@@ -324,15 +354,12 @@ export class SuggestionsService {
 
     const recipes = rebalance(output.recipes);
     const costCents = totalCostCents(output.attempts);
-    const payload: StoredBatchPayload = { recipes };
-    const row = await this.prisma.suggestionBatch.upsert({
+    await this.prisma.suggestionBatch.upsert({
       where: { signature },
-      create: { signature, payload: toJson(payload), model: output.model, costCents },
-      update: { payload: toJson(payload), model: output.model, costCents, createdAt: new Date() },
+      create: { signature, payload: toJson({ recipes }), model: output.model, costCents },
+      update: { payload: toJson({ recipes }), model: output.model, costCents, createdAt: new Date() },
     });
-    // Construit directement depuis les recettes qu'on vient d'écrire : pas besoin de
-    // relire et revalider ce qu'on a soi-même produit dans le même appel.
-    return { id: row.id, generatedAt: row.createdAt.toISOString(), recipes };
+    return { recipes, model: output.model };
   }
 
   /**
@@ -379,15 +406,11 @@ export class SuggestionsService {
    * une douzaine de recettes à dix ingrédients chacune ferait cent vingt
    * requêtes si ce n'était pas le cas.
    */
-  private async toSuggestionDtos(recipes: readonly ModelRecipe[], snapshot: StockSnapshot): Promise<SuggestionDto[]> {
-    const labels = recipes.flatMap((recipe) => recipe.ingredients.map((ingredient) => ingredient.label));
+  private async toSuggestionDtos(entries: readonly PoolRecipe[], snapshot: StockSnapshot): Promise<SuggestionDto[]> {
+    const labels = entries.flatMap((entry) => entry.recipe.ingredients.map((ingredient) => ingredient.label));
     const matchesByLabel = await this.matchLabels(labels);
-    // Un seul passage sur la fournée entière (règle partagée `suggestionIdentities`) :
-    // la désambiguïsation d'un titre dupliqué par le modèle dépend des recettes
-    // qui précèdent dans ce même tableau, pas de la recette isolée.
-    const identities = suggestionIdentities(recipes);
 
-    const perRecipe = recipes.map((recipe, recipeIndex) => {
+    const perRecipe = entries.map(({ recipe, identity, verified }, recipeIndex) => {
       const rows = recipe.ingredients.map((ingredient, ingredientIndex) => {
         const match = classifyMatch(ingredient.label, matchesByLabel.get(ingredient.label.trim()) ?? []);
         return { id: `${recipeIndex}:${ingredientIndex}`, ingredient, match };
@@ -421,7 +444,7 @@ export class SuggestionsService {
       const labelById = new Map(rows.map(({ id, ingredient }) => [id, ingredient.label]));
       const missingLabels = coverage.missingIds.map((id) => labelById.get(id) ?? id);
 
-      return { recipe, recipeIndex, rows, coverage, outcomeById, missingLabels };
+      return { recipe, identity, verified, rows, coverage, outcomeById, missingLabels };
     });
 
     // Photo du produit rapproché (EF-23) : une seule requête pour toute la
@@ -432,7 +455,7 @@ export class SuggestionsService {
     ];
     const imagePathByProduct = await this.productImagePaths(matchedProductIds);
 
-    return perRecipe.map(({ recipe, recipeIndex, rows, coverage, outcomeById, missingLabels }) => {
+    return perRecipe.map(({ recipe, identity, verified, rows, coverage, outcomeById, missingLabels }) => {
       const ingredientDtos: SuggestionIngredientDto[] = rows.map(({ id, ingredient, match }) => {
         // Emplacement du lot qui sera consommé en premier (C4) : lu sur
         // l'instantané déjà chargé, jamais recalculé ici. `null` pour un
@@ -453,13 +476,13 @@ export class SuggestionsService {
       });
 
       const dto: SuggestionDto = {
-        // Identité dérivée du contenu, jamais le rang dans le tableau (règle
-        // partagée `suggestionIdentities`) : un rang ne désigne pas la même
-        // recette d'une fournée à l'autre, et le tiroir resté ouvert pendant un
-        // rafraîchissement en arrière-plan pouvait conserver une autre recette
-        // que celle affichée. `suggestionIdentities` désambiguïse en plus deux
-        // recettes composées par le modèle qui partagent le même titre (EF-26).
-        id: identities[recipeIndex] ?? suggestionIdentity(recipe),
+        // Identité dérivée du contenu, jamais le rang dans le tableau : un rang
+        // ne désigne pas la même recette d'une liste à l'autre, et le tiroir
+        // resté ouvert pendant un rafraîchissement en arrière-plan pouvait
+        // conserver une autre recette que celle affichée. C'est désormais la
+        // clé unique de la ligne du réservoir (D3), déjà dédoublonnée : plus
+        // aucune désambiguïsation de titre n'est nécessaire ici.
+        id: identity,
         title: recipe.title,
         origin: recipe.origin,
         region: recipe.region,
@@ -470,6 +493,9 @@ export class SuggestionsService {
         dishType: recipe.dishType,
         provenance: recipe.provenance,
         sourceUrl: recipe.sourceUrl,
+        // Page lue avec succès à l'ingestion (D4) : toujours faux pour une
+        // composition, qui n'a pas de page à vérifier.
+        verified,
         // Jamais les étapes d'une recette `web` : le modèle les propose sans
         // avoir lu la page, seule la conservation (réécriture Gemini de la
         // page réelle, B6) en garantit le contenu. Une composition `ai` n'a
@@ -514,8 +540,7 @@ export class SuggestionsService {
     const row = await this.prisma.suggestionBatch.findUnique({ where: { id: input.batchId } });
     if (!row) throw ApiError.notFound('Fournée de suggestions introuvable');
 
-    const payload = row.payload as unknown as StoredBatchPayload;
-    const validated = modelBatchSchema.safeParse(payload);
+    const validated = modelBatchSchema.safeParse(row.payload);
     if (!validated.success) throw ApiError.notFound('Fournée de suggestions introuvable');
     const recipes = validated.data.recipes;
 

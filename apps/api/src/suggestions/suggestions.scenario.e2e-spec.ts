@@ -74,7 +74,15 @@ function htmlResponse(html: string, status = 200): Response {
  * - Recette 12 « Dessert improvisé au chocolat » (ai) : chocolat seul, absent →
  *   couverture 0, exclue.
  *
- * Conserver la première recette (web, « Spaghetti à la tomate ») déclenche la
+ * Depuis le réservoir permanent (spec du 2026-10-15), les douze recettes
+ * passent d'abord par l'ingestion : les huit recettes web pointent toutes vers
+ * l'hôte littéral ci-dessus, dont la page est rejouée depuis une fixture, et
+ * sont donc vérifiées ; les quatre compositions entrent sans page. L'ordre
+ * rendu n'est plus celui de la fournée mais celui de `comparePoolEntries` (D7),
+ * vérifié comme tel ci-dessous — l'énumération recette par recette est donc
+ * comparée en ensemble, et chaque recette cherchée par son titre.
+ *
+ * Conserver la recette « Spaghetti à la tomate » (web) déclenche la
  * lecture de sa page puis sa réécriture par Gemini (fixtures déjà utilisées par
  * `suggestions.e2e-spec.ts` : `page-schema-simple.html`, `gemini-rewrite-tarte.json`,
  * huit étapes, aucune technique détectée) : la recette créée est `IMPORTED`, avec
@@ -183,14 +191,32 @@ describe('scénario de réussite figé des suggestions', () => {
       { title: 'Dessert improvisé au chocolat', group: 'excluded', coverage: 0, missingLabels: ['Chocolat'] },
     ];
 
+    // Comparé en ensemble, trié par titre : depuis le réservoir (2026-10-15),
+    // le rang d'une recette vient de `comparePoolEntries` — vérifié juste
+    // après — et deux recettes de même statut, même couverture et même instant
+    // de découverte ne sont pas départagées. Leur rang relatif n'est donc pas
+    // une promesse de l'application, et le figer rendrait ce scénario instable.
+    const byTitle = (rows: { title: string }[]): { title: string }[] => [...rows].sort((a, b) => a.title.localeCompare(b.title));
     expect(
-      res.body.items.map((item: Record<string, unknown>) => ({
-        title: item.title,
-        group: item.group,
-        coverage: item.coverage,
-        missingLabels: item.missingLabels,
-      })),
-    ).toEqual(expected);
+      byTitle(
+        res.body.items.map((item: Record<string, unknown>) => ({
+          title: item.title as string,
+          group: item.group,
+          coverage: item.coverage,
+          missingLabels: item.missingLabels,
+        })),
+      ),
+    ).toEqual(byTitle(expected));
+
+    // L'ordre du réservoir (D7) : les recettes web vérifiées d'abord, les
+    // compositions ensuite ; couverture décroissante à l'intérieur de chaque
+    // groupe.
+    const provenances = res.body.items.map((i: { provenance: string }) => i.provenance);
+    expect(provenances).toEqual([...Array(8).fill('web'), ...Array(4).fill('ai')]);
+    const coverages = res.body.items.map((i: { coverage: number }) => i.coverage);
+    expect(coverages.slice(0, 8)).toEqual([...coverages.slice(0, 8)].sort((a: number, b: number) => b - a));
+    expect(coverages.slice(8)).toEqual([...coverages.slice(8)].sort((a: number, b: number) => b - a));
+    expect(res.body.items.every((i: { verified: boolean; provenance: string }) => i.verified === (i.provenance === 'web'))).toBe(true);
 
     // Cinq recettes prêtes, quatre presque, trois exclues (A8) : vérifié aussi en
     // bloc, pour que l'énumération ci-dessus et le compte global ne divergent jamais.
@@ -202,14 +228,15 @@ describe('scénario de réussite figé des suggestions', () => {
   it('rapproche « crème » en absent et « parmesan râpé » en probable', async () => {
     const res = await agent.get('/api/v1/suggestions').expect(200);
 
-    const gratin = res.body.items[3];
-    expect(gratin.title).toBe('Gratin à la crème de parmesan');
+    // Cherchée par son titre, jamais par un rang : l'ordre vient du réservoir.
+    const gratin = res.body.items.find((i: { title: string }) => i.title === 'Gratin à la crème de parmesan');
+    expect(gratin).toBeDefined();
     const creme = gratin.ingredients.find((i: { label: string }) => i.label === 'crème');
     expect(creme?.match).toBe('absent');
     expect(creme?.productId).toBeNull();
 
-    const rizParmesan = res.body.items[1];
-    expect(rizParmesan.title).toBe('Riz au parmesan râpé');
+    const rizParmesan = res.body.items.find((i: { title: string }) => i.title === 'Riz au parmesan râpé');
+    expect(rizParmesan).toBeDefined();
     const parmesanRape = rizParmesan.ingredients.find((i: { label: string }) => i.label === 'parmesan râpé');
     expect(parmesanRape?.match).toBe('probable');
     expect(parmesanRape?.productName).toBe('Parmesan');
@@ -256,8 +283,8 @@ describe('scénario de réussite figé des suggestions', () => {
   it('encadre le seuil de similarité : juste au-dessus résout probable, juste en dessous résout absent', async () => {
     const res = await agent.get('/api/v1/suggestions').expect(200);
 
-    const rizPilaf = res.body.items[4];
-    expect(rizPilaf.title).toBe('Riz pilaf nature');
+    const rizPilaf = res.body.items.find((i: { title: string }) => i.title === 'Riz pilaf nature');
+    expect(rizPilaf).toBeDefined();
 
     const justeAuDessus = rizPilaf.ingredients.find((i: { label: string }) => i.label === 'Spaghettis complets au blé');
     expect(justeAuDessus?.match).toBe('probable');
@@ -271,8 +298,10 @@ describe('scénario de réussite figé des suggestions', () => {
   it('conserve la première recette en Recipe IMPORTED, difficulté recalculée au barème du foyer', async () => {
     const list = await agent.get('/api/v1/suggestions').expect(200);
     const batchId = list.body.batchId as string;
-    // Identifiant rendu par la fournée, dérivé du contenu de la recette : jamais un rang.
-    const suggestionId = list.body.items[0].id as string;
+    // Identifiant rendu par la liste, dérivé du contenu de la recette : jamais
+    // un rang — la recette est donc retrouvée par son titre, pas par sa place.
+    const spaghetti = list.body.items.find((i: { title: string }) => i.title === 'Spaghetti à la tomate');
+    const suggestionId = spaghetti.id as string;
 
     const res = await agent
       .post('/api/v1/suggestions/keep')

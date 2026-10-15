@@ -17,6 +17,7 @@ const suggestion: SuggestionDto = {
   difficulty: 'EASY', dishType: 'MAIN' as const,
   provenance: 'web',
   sourceUrl: 'https://exemple.test/tarte',
+  verified: true,
   coverage: 0.8,
   group: 'almost',
   missingLabels: ['Farine'],

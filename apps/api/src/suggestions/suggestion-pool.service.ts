@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { modelRecipeSchema, suggestionIdentity, type DishType, type ModelRecipe } from '@kitchen/shared';
+import { modelRecipeSchema, suggestionIdentity, type Difficulty, type DishType, type ModelRecipe, type SuggestionRegion } from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
 import { Logger } from 'nestjs-pino';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -14,6 +14,20 @@ export interface PoolRecipe {
   firstSeenAt: string;
   pageRecipe: PageRecipe | null;
   pageText: string | null;
+}
+
+/**
+ * Orientation demandée à l'écran (D6). Seul `dishType` est une colonne de la
+ * table : les trois autres vivent dans le `payload` JSON et se filtrent donc
+ * après revalidation, en mémoire. Le volume du réservoir (quelques centaines de
+ * lignes au pire, D1) rend une colonne indexée par critère inutile.
+ */
+export interface PoolFilter {
+  dishType?: DishType;
+  region?: SuggestionRegion;
+  /** Durée totale maximale acceptée, en minutes. */
+  maxMinutes?: number;
+  difficulty?: Difficulty;
 }
 
 interface PageContent {
@@ -45,15 +59,20 @@ export class SuggestionPoolService {
     return kept.filter(Boolean).length;
   }
 
-  async read(filter: { dishType?: DishType } = {}): Promise<PoolRecipe[]> {
+  async read(filter: PoolFilter = {}): Promise<PoolRecipe[]> {
     const rows = await this.prisma.suggestionPoolRecipe.findMany({ where: filter.dishType ? { dishType: filter.dishType } : {}, orderBy: { firstSeenAt: 'desc' } });
     const result: PoolRecipe[] = [];
     for (const row of rows) {
       const parsed = modelRecipeSchema.safeParse(row.payload);
       if (!parsed.success) continue; // ligne non conforme : traitée comme absente
+      const recipe = parsed.data;
+      // Filtres portés par le `payload`, appliqués sur la recette revalidée.
+      if (filter.region && recipe.region !== filter.region) continue;
+      if (filter.maxMinutes !== undefined && recipe.totalMinutes > filter.maxMinutes) continue;
+      if (filter.difficulty && recipe.difficulty !== filter.difficulty) continue;
       result.push({
         identity: row.identity,
-        recipe: parsed.data,
+        recipe,
         verified: row.verifiedAt !== null,
         firstSeenAt: row.firstSeenAt.toISOString(),
         pageRecipe: row.pageRecipe as PageRecipe | null,
