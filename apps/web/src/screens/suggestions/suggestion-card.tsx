@@ -22,14 +22,27 @@ function siteName(sourceUrl: string): string {
 }
 
 /**
- * Mention de provenance : le nom du site pour une recette trouvée sur le web,
- * « proposée par l'IA » pour une composition du modèle (B6). Jamais d'étapes
- * ici, quelle que soit la provenance — les deux doivent se ressembler avant
- * conservation (B7, décision du 2026-10-04).
+ * Mention de provenance : le nom du site pour une recette dont la page a été
+ * lue, l'aveu explicite qu'il s'agit d'une invention du modèle sinon (B6,
+ * décision D5 du 2026-10-15).
+ *
+ * La mention dit désormais ce que la recette EST, pas seulement d'où elle
+ * vient. « Proposée par l'IA » laissait croire à une recette trouvée quelque
+ * part et simplement relayée ; une composition n'existe nulle part ailleurs
+ * que dans la réponse du modèle, et le propriétaire a demandé que rien ne
+ * puisse se faire passer pour une recette qui existe.
+ *
+ * Le nom du site tient à `verified`, pas à la seule provenance : une recette
+ * `web` dont la page n'a pas été lue n'a pas le droit de s'abriter derrière un
+ * nom de domaine. Dans le réservoir, une telle ligne est jetée à l'ingestion —
+ * cette garde couvre le cas où elle arriverait par un autre chemin.
+ *
+ * Jamais d'étapes ici, quelle que soit la provenance — les deux doivent se
+ * ressembler avant conservation (B7, décision du 2026-10-04).
  */
 export function provenanceLabel(suggestion: SuggestionDto): string {
-  if (suggestion.provenance === 'web' && suggestion.sourceUrl) return siteName(suggestion.sourceUrl);
-  return 'Proposée par l’IA';
+  if (suggestion.provenance === 'web' && suggestion.verified && suggestion.sourceUrl) return siteName(suggestion.sourceUrl);
+  return 'Composée par l’IA, non vérifiée';
 }
 
 /** Carte d'une suggestion (section 12, EF-25, EF-26) : même facture que `RecipeCard`, sans péremption ni étapes. */
