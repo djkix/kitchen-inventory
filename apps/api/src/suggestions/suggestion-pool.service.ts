@@ -55,7 +55,14 @@ export class SuggestionPoolService {
     const alreadyRead = new Set(
       (await this.prisma.suggestionPoolRecipe.findMany({ where: { identity: { in: identities }, verifiedAt: { not: null } }, select: { identity: true } })).map((row) => row.identity),
     );
-    const kept = await Promise.all(recipes.map((recipe, index) => this.ingestOne(recipe, identities[index] as string, model, alreadyRead)));
+    // Un seul instant pour toute la fournée (revue de la tâche 4) : pris dans
+    // `ingestOne`, il tombait APRÈS l'`await` de lecture de page, si bien que
+    // les recettes web héritaient d'un `firstSeenAt` dicté par l'ordre d'arrivée
+    // des réponses HTTP — donc d'un ordre d'affichage instable d'une exécution
+    // à l'autre. Une fournée est découverte d'un bloc, et l'ordre se départage
+    // ensuite sur le titre et l'identité (`comparePoolEntries`).
+    const now = new Date();
+    const kept = await Promise.all(recipes.map((recipe, index) => this.ingestOne(recipe, identities[index] as string, model, alreadyRead, now)));
     return kept.filter(Boolean).length;
   }
 
@@ -82,7 +89,7 @@ export class SuggestionPoolService {
     return result;
   }
 
-  private async ingestOne(recipe: ModelRecipe, identity: string, model: string, alreadyRead: ReadonlySet<string>): Promise<boolean> {
+  private async ingestOne(recipe: ModelRecipe, identity: string, model: string, alreadyRead: ReadonlySet<string>, now: Date): Promise<boolean> {
     let content: PageContent | null = null;
     if (recipe.provenance === 'web' && !alreadyRead.has(identity)) {
       try {
@@ -101,7 +108,6 @@ export class SuggestionPoolService {
         return false;
       }
     }
-    const now = new Date();
     try {
       await this.prisma.suggestionPoolRecipe.upsert({
         where: { identity },
@@ -128,7 +134,6 @@ export class SuggestionPoolService {
         // recopié par la première — une seconde lecture du site, contraire à D10.
         // Aucun test ne couvre cette course : il faudrait deux `ingest` concurrents
         // à latence contrôlée. Le filet reste, il ne coûte qu'une clause.
-        
         await this.prisma.suggestionPoolRecipe.updateMany({
           where: { identity, verifiedAt: null },
           data: {

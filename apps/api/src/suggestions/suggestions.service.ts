@@ -63,18 +63,29 @@ export const SUGGESTION_REQUEST_BUFFER = 4;
 const SUGGESTION_POOL_FLOOR = 6;
 
 /**
- * Signature d'écriture du journal brut `SuggestionBatch` (D2, 2026-10-15) :
- * identifiants de départ triés + orientation + version du prompt. Depuis le
- * réservoir permanent elle ne sert plus à *servir* une réponse — plus personne
- * ne lit `SuggestionBatch` pour cela (D8) — seulement à garder une ligne par
- * requête distincte plutôt qu'une par appel. Passée à `v2` le 2026-10-08 avec l'arrivée du type de plat, puis à
- * `v3` le même jour avec les durées de préparation et de cuisson séparées : les
- * fournées stockées avant ne les portent pas et ne passent plus `modelBatchSchema`.
- * Elles seraient ignorées de toute façon — le schéma entre aussi dans la
- * signature — mais la version le dit explicitement plutôt que de le laisser
- * déduire.
+ * Clé d'orientation d'une `SuggestionBatch` (D11, 2026-10-15) : la question
+ * posée au modèle, et elle seule — région, durée, facilité, type de plat,
+ * version. **Plus les graines** : elles portent le stock, donc exactement la
+ * volatilité que le réservoir supprime (un article consommé changeait la
+ * pioche, donc la signature, donc rappelait le modèle). La ligne ne sert plus
+ * à servir une réponse (D8) mais à répondre à « cette orientation a-t-elle
+ * déjà été demandée, et quand ? » — ce qui n'a de sens que si elle ne dépend
+ * pas du contenu du placard.
+ *
+ * Passée à `v2` le 2026-10-08 avec l'arrivée du type de plat, à `v3` le même
+ * jour avec les durées de préparation et de cuisson séparées, et à `v4` le
+ * 2026-10-15 avec le retrait des graines : sans ce changement de version, les
+ * lignes écrites avant seraient relues comme des orientations qu'elles ne
+ * désignent pas.
  */
-const SUGGESTION_SIGNATURE_VERSION = 'v3';
+const SUGGESTION_SIGNATURE_VERSION = 'v4';
+
+/**
+ * Au-delà de ce délai, une orientation déjà demandée peut l'être à nouveau
+ * (D11) : le réservoir a pu se vider de son intérêt, et une journée est la
+ * granularité du quota journalier.
+ */
+const SAME_ORIENTATION_TTL_MS = 24 * 60 * 60 * 1000;
 
 /** Score minimal pour qu'un candidat pg_trgm soit retenu dans la liste envoyée à `classifyMatch`. */
 const MATCH_CANDIDATE_FLOOR = 0.15;
@@ -117,9 +128,8 @@ export function rebalance(recipes: readonly ModelRecipe[]): ModelRecipe[] {
   return combined.slice(0, SUGGESTION_BATCH_SIZE);
 }
 
-function computeSignature(seedProductIds: readonly string[], query: SuggestionQuery): string {
+function computeSignature(query: SuggestionQuery): string {
   const payload = JSON.stringify({
-    seeds: [...seedProductIds].sort(),
     region: query.region ?? null,
     maxMinutes: query.maxMinutes ?? null,
     difficulty: query.difficulty ?? null,
@@ -189,27 +199,32 @@ export class SuggestionsService {
       throw ApiError.insufficientStock('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
     }
 
+    const signature = computeSignature(query);
     // Le réservoir d'abord, toujours (D6) : le modèle n'est appelé que s'il ne
     // rend pas de quoi remplir l'écran pour l'orientation demandée, ou si la
-    // relance explicite le réclame.
-    let entries = await this.readPool(query);
+    // relance explicite le réclame. Sur relance, cette lecture serait jetée
+    // telle quelle : elle n'est pas faite (revue de la tâche 4).
+    let entries = query.refresh ? [] : await this.readPool(query);
     let fromCache = true;
     let notice: string | null = null;
 
-    if (query.refresh || entries.length < SUGGESTION_POOL_FLOOR) {
+    // Sous le plancher mais déjà demandée aujourd'hui : on sert ce que le
+    // réservoir a, même maigre (D11). Un palier étroit — « ≤ 15 min » — laisse
+    // sinon le réservoir sous le plancher à chaque visite et rappelle le modèle
+    // à chaque fois, jusqu'à manger le plafond mensuel partagé avec le scan.
+    const mustAsk = query.refresh || (entries.length < SUGGESTION_POOL_FLOOR && !(await this.askedRecently(signature)));
+
+    if (mustAsk) {
       const breach = await this.quotaBreach();
       if (breach) {
         // Repli : le réservoir entier, sans filtre d'orientation (D8) — mieux
-        // vaut des recettes hors orientation qu'un écran vide.
+        // vaut des recettes hors orientation qu'un écran vide, à condition de
+        // le dire (`quotaMessage`).
         const fallback = await this.readPool({ refresh: false });
         if (fallback.length === 0) throw ApiError.rateLimited(this.quotaMessage(breach, false));
         entries = fallback;
         notice = this.quotaMessage(breach, true);
       } else {
-        const signature = computeSignature(
-          seeds.map((s) => s.productId),
-          query,
-        );
         const fetched = await this.fetchAndStore(signature, seeds, query);
         await this.pool.ingest(fetched.recipes, fetched.model);
         // Relecture obligatoire, jamais la réponse brute du modèle : une recette
@@ -223,12 +238,14 @@ export class SuggestionsService {
     const items = await this.toSuggestionDtos(entries, snapshot);
     // Ordre du réservoir (D7), par la règle pure partagée : jamais réécrit ici.
     const firstSeenById = new Map(entries.map((entry) => [entry.identity, entry.firstSeenAt]));
-    items.sort((a, b) =>
-      comparePoolEntries(
-        { verified: a.verified, coverage: a.coverage, firstSeenAt: firstSeenById.get(a.id) ?? '' },
-        { verified: b.verified, coverage: b.coverage, firstSeenAt: firstSeenById.get(b.id) ?? '' },
-      ),
-    );
+    const key = (dto: SuggestionDto): Parameters<typeof comparePoolEntries>[0] => ({
+      verified: dto.verified,
+      coverage: dto.coverage,
+      firstSeenAt: firstSeenById.get(dto.id) ?? '',
+      title: dto.title,
+      identity: dto.id,
+    });
+    items.sort((a, b) => comparePoolEntries(key(a), key(b)));
 
     // `SuggestionBatch` ne sert plus à servir (D8), mais reste le journal de la
     // dernière livraison : `batchId` désigne toujours celle-ci, et la
@@ -271,6 +288,17 @@ export class SuggestionsService {
     );
   }
 
+  /**
+   * Cette orientation a-t-elle déjà été posée au modèle depuis moins de
+   * `SAME_ORIENTATION_TTL_MS` (D11) ? Lu sur la `SuggestionBatch` de même
+   * signature, dont l'`upsert` rafraîchit déjà `createdAt` : ni colonne ni
+   * migration pour une question à laquelle la table répondait déjà.
+   */
+  private async askedRecently(signature: string): Promise<boolean> {
+    const row = await this.prisma.suggestionBatch.findUnique({ where: { signature }, select: { createdAt: true } });
+    return row !== null && Date.now() - row.createdAt.getTime() < SAME_ORIENTATION_TTL_MS;
+  }
+
   /** `null` si l'appel est permis ; sinon la nature du dépassement (quota journalier ou plafond mensuel). */
   private async quotaBreach(): Promise<{ kind: 'daily' | 'monthly' } | null> {
     const dailyQuota = this.config.RECIPE_SUGGESTION_DAILY_QUOTA;
@@ -296,24 +324,30 @@ export class SuggestionsService {
    * recettes sont affichées ; sinon il ne doit jamais le promettre — rien n'est
    * montré (revue, round 1 de la tâche 10 : la phrase annonçant un repli
    * s'affichait aussi dans le cas où il n'y en avait aucun).
+   *
+   * Le repli lit le réservoir **sans filtre d'orientation** (D8) : le message
+   * le dit, faute de quoi l'écran afficherait des desserts sous un filtre
+   * « Plat » sans que rien ne l'explique (revue de la tâche 4).
    */
   private quotaMessage(breach: { kind: 'daily' | 'monthly' }, hasPoolEntries: boolean): string {
     if (breach.kind === 'daily') {
       const dailyQuota = this.config.RECIPE_SUGGESTION_DAILY_QUOTA;
       return hasPoolEntries
-        ? `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; les recettes déjà connues sont affichées.`
+        ? `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; les recettes déjà connues sont affichées, toutes orientations confondues.`
         : `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; réessayez demain, ou augmentez-le dans la configuration du serveur.`;
     }
     return hasPoolEntries
-      ? 'Plafond de dépense mensuel atteint ; les recettes déjà connues sont affichées.'
+      ? 'Plafond de dépense mensuel atteint ; les recettes déjà connues sont affichées, toutes orientations confondues.'
       : 'Plafond de dépense mensuel atteint ; réessayez le mois prochain, ou augmentez-le dans la configuration du serveur.';
   }
 
   /**
-   * Appelle le modèle et journalise la fournée brute dans `SuggestionBatch`
-   * (D2). Personne ne relit cette ligne pour servir une réponse depuis le
-   * réservoir permanent (D8) : elle garde la trace de ce que le modèle a rendu,
-   * avec son coût. Les recettes rendues partent ensuite à l'ingestion.
+   * Appelle le modèle et marque l'orientation comme demandée dans
+   * `SuggestionBatch` (D2 amendée par D11). Personne ne relit cette ligne pour
+   * servir une réponse (D8) : elle dit « cette question a été posée, à telle
+   * date, pour tel coût ». Le journal brut par appel, c'est
+   * `RecognitionLog.rawResult` qui le tient. Les recettes rendues partent
+   * ensuite à l'ingestion.
    */
   private async fetchAndStore(
     signature: string,

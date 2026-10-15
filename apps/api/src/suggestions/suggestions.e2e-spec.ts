@@ -382,6 +382,30 @@ describe('SuggestionsService (EF-26)', () => {
     expect(await db.suggestionBatch.count()).toBe(1);
   });
 
+  it('ne redemande pas la même orientation dans les 24 heures, même sous le plancher (D11)', async () => {
+    // Un palier étroit laisse le réservoir sous `SUGGESTION_POOL_FLOOR` à
+    // chaque visite : sans ce garde, chaque ouverture de l'écran repayait un
+    // appel, et le plafond mensuel — partagé avec le scan photo — y passait.
+    // La signature de fournée ne porte plus les graines (D11) : elle ne dépend
+    // donc plus du stock, ce que la consommation ci-dessous vérifie.
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+    await seedProduct(db, locationId, { name: 'Courgette', quantity: 3, unit: 'PIECE' });
+
+    // La fixture rend une recette de 25 minutes : sous « ≤ 15 min » le
+    // réservoir ne rend jamais rien, donc reste toujours sous le plancher.
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
+    await service.list({ refresh: false, maxMinutes: 15 }, USER);
+
+    await db.stockItem.deleteMany({ where: { product: { name: 'Courgette' } } });
+    const second = await service.list({ refresh: false, maxMinutes: 15 }, USER);
+
+    expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(1);
+    expect(await db.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION' } })).toBe(1);
+    expect(second.fromCache).toBe(true);
+  });
+
   it('ne montre jamais une recette web dont la page n’existe pas, même fraîchement rendue', async () => {
     // La réponse du modèle n'est jamais rendue telle quelle : elle passe par
     // l'ingestion, qui jette une recette web injoignable (D4), puis par une

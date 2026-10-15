@@ -38,8 +38,9 @@ entre au réservoir et y reste. Le volume est négligeable : douze recettes par
 fournée, quelques fournées par jour au pire, du JSON de quelques kilo-octets.
 
 **D2 — Une recette par ligne, pas une fournée.** Nouvelle table
-`SuggestionPoolRecipe`. `SuggestionBatch` est conservée telle quelle, comme
-journal brut de ce que le modèle a rendu (coût, modèle, charge utile) ; le
+`SuggestionPoolRecipe`. `SuggestionBatch` est conservée, non plus comme cache
+mais comme trace des orientations déjà demandées (voir D11, qui amende ce rôle :
+le journal brut par appel, c'est `RecognitionLog.rawResult` qui le tient) ; le
 réservoir est la vue dédoublonnée et exploitable par-dessus. Dédoublonner à
 l'intérieur de charges utiles de fournées serait impossible sans la table.
 
@@ -127,6 +128,32 @@ Confirmé par Franck : « pas la peine de la recontacter plus tard, c'est un
 one-shot et ensuite tu la gardes en mémoire dans l'application/serveur. » Aucune
 revérification périodique n'est prévue, ni maintenant ni plus tard : une fois
 la ligne écrite, le site n'est plus jamais sollicité.
+
+**D11 — La signature de fournée perd ses graines (amendement du 2026-10-15,
+après revue de la tâche 4).** Un filtre étroit — « ≤ 15 min » — laisse presque
+toujours le réservoir sous le plancher de D6, donc rappelle le modèle à chaque
+visite : exactement la dépense que ce lot supprime, réintroduite par une autre
+porte. La parade retenue d'abord, « ne pas rappeler si une fournée de même
+signature date de moins de 24 h », ne tenait pas : `computeSignature` contient
+les identifiants des graines, donc le stock, donc précisément la volatilité que
+cette spec dénonce. Un foyer qui scanne puis ouvre Suggestions repaierait quand
+même.
+
+`computeSignature` ne prend donc plus les graines : la signature devient une clé
+d'orientation pure, et « cette question a-t-elle déjà été posée dans les 24 h ? »
+se lit sur la `SuggestionBatch` de même signature, sans migration ni colonne
+nouvelle. `SUGGESTION_SIGNATURE_VERSION` passe à `v4`.
+
+Rien n'est perdu au journal : `RecognitionLog.rawResult` garde déjà la réponse
+complète **par appel**, ce que `SuggestionBatch` ne faisait pas — son `payload`
+était de toute façon écrasé à chaque réécriture de la même signature. D2 est
+amendée en conséquence : `SuggestionBatch` n'est plus le journal brut, c'est la
+trace « cette orientation a déjà été demandée, et quand ».
+
+La dépense était déjà bornée deux fois (`RECIPE_SUGGESTION_DAILY_QUOTA` à 20 par
+jour, `VISION_MONTHLY_CAP_CENTS` à 5 €). Le dommage réel n'était donc pas une
+dépense illimitée, mais un filtre étroit qui mange le plafond mensuel **partagé
+avec le scan photo** et finit par affamer celui-ci.
 
 ## Limites assumées
 
