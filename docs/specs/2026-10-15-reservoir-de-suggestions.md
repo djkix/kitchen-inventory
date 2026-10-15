@@ -118,9 +118,23 @@ requête HTTP **et** un appel Gemini de réécriture :
 
 | Ce que porte la ligne | Conserver la recette coûte |
 | --- | --- |
-| Données structurées | rien du tout : ni réseau, ni modèle |
+| Données structurées | un appel de réécriture, sans requête réseau |
 | Texte seul | un appel de réécriture, sans requête réseau |
 | Composition `ai` | rien, inchangé |
+
+**Amendement du 2026-10-15, après la tâche 6.** La première rédaction annonçait
+« rien du tout » pour une page portant des données structurées. C'était une
+promesse que la qualité ne permet pas de tenir : `schema.org/Recipe` rend les
+ingrédients en lignes de texte (« 2 cuillères de sucre »), sans quantité ni
+unité séparées, alors que le rapprochement au stock, la couverture et le
+« 3 ingrédients sur 4 » — la raison d'être de l'application — travaillent sur
+`quantity` et `unit`. Conserver sans réécrire produirait des recettes plus
+pauvres que celles déjà en bibliothèque et mal rapprochées du stock, pour
+économiser un appel sur un geste rare et délibéré : on conserve une recette une
+fois, pas à chaque affichage, et elle coûtait déjà cet appel avant ce lot.
+
+Ce que la demande exige vraiment reste tenu : **le site n'est plus jamais
+contacté.** La réécriture part du contenu déjà recopié en base.
 
 Le lecteur de page n'est donc plus appelé qu'une seule fois par recette, à
 l'entrée du réservoir — **jamais à la conservation, et jamais plus ensuite**.

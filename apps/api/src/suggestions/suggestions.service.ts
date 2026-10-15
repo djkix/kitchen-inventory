@@ -101,11 +101,6 @@ const MATCH_CANDIDATES_PER_LABEL = 5;
  */
 const ABSENT_MATCH_SENTINEL = '__suggestion_absent_match__';
 
-/** Borne une chaîne à la longueur acceptée par `createRecipeSchema`, plutôt que d'échouer sur une ligne de page bavarde. */
-function truncate(value: string, max: number): string {
-  return value.length > max ? value.slice(0, max) : value;
-}
-
 /**
  * Répartit la fournée reçue entre web et composé plutôt que de garder l'ordre
  * brut du modèle (voir le commentaire de `SUGGESTION_REQUEST_BUFFER`) : prend
@@ -619,15 +614,25 @@ export class SuggestionsService {
   /**
    * Matière de la recette à créer, prise dans la ligne du réservoir [B6, D10].
    *
-   * - `ai` : la composition est déjà au bon format, aucun appel.
-   * - `web` avec `schema.org/Recipe` recopié : construite directement depuis
-   *   ces données, **sans requête réseau ni appel au modèle** — conserver une
-   *   recette web devient alors gratuit et instantané.
-   * - `web` sans données structurées : réécriture par le modèle à partir du
-   *   **texte déjà gardé**, toujours sans requête réseau.
+   * - `ai` : la composition est déjà au bon format, aucun appel — ses étapes
+   *   SONT la recette.
+   * - `web` : réécriture par le modèle, **toujours**, à partir du contenu déjà
+   *   recopié en base — les données structurées quand la page en portait
+   *   (meilleure matière), le texte nettoyé sinon.
    *
-   * Le lecteur de page n'est plus appelé nulle part ici : la page a été lue
-   * une seule fois, à l'ingestion au réservoir.
+   * Le lecteur de page n'est appelé nulle part ici : la page a été lue une
+   * seule fois, à l'ingestion au réservoir, et le site n'est plus jamais
+   * contacté (D10) — c'est cela que D10 exige, pas l'économie d'un appel.
+   *
+   * La réécriture n'a volontairement pas été court-circuitée quand la page
+   * portait `schema.org/Recipe` (tour de correction 1 du 2026-10-15) :
+   * `PageRecipe.ingredients` est un `string[]` (« 2 cuillères de sucre »),
+   * sans `quantity` ni `unit` séparés. Or le rapprochement au stock, la
+   * couverture et le « 3 ingrédients sur 4 » — la raison d'être de
+   * l'application — travaillent sur ces deux champs. Échanger la qualité du
+   * rapprochement contre une économie d'appel sur un geste rare et délibéré
+   * (on conserve une recette une fois, pas à chaque affichage) serait un
+   * mauvais marché.
    */
   private async buildCreateInput(entry: PoolRecipe): Promise<CreateRecipeInput> {
     const suggestion = entry.recipe;
@@ -635,27 +640,16 @@ export class SuggestionsService {
     let steps: string[];
     let rawIngredients: { label: string; quantity: number | null; unit: Unit | null }[];
 
-    // Des données structurées sans la moindre étape ne feraient pas une
-    // recette (`createRecipeSchema` en exige au moins une) : le texte gardé
-    // reste alors la seule matière exploitable.
-    const structured = entry.pageRecipe && entry.pageRecipe.steps.length > 0 ? entry.pageRecipe : null;
-
     if (suggestion.provenance === 'ai') {
       steps = suggestion.steps;
       rawIngredients = suggestion.ingredients;
-    } else if (structured) {
-      // Le titre de la page prime sur celui annoncé par le modèle, qui n'a pas
-      // lu la page ; les ingrédients restent des lignes brutes (« 200 g de
-      // farine »), rapprochées des produits par leur libellé comme les autres.
-      title = truncate(structured.title ?? suggestion.title, 160);
-      steps = structured.steps.slice(0, 60);
-      rawIngredients = structured.ingredients.slice(0, 60).map((label) => ({ label: truncate(label, 160), quantity: null, unit: null }));
     } else {
+      const structured = entry.pageRecipe;
       const pageText = entry.pageText;
-      // Une ligne web sans page recopiée ne peut pas exister : l'ingestion
-      // rejette une recette web dont la page n'a pas été lue (D4). Dit tout
-      // de même, plutôt que de laisser passer une recette vide.
-      if (!pageText) throw ApiError.providerUnavailable('Le contenu de la page n’a pas été conservé ; aucune recette n’a été créée');
+      // Une ligne web sans contenu recopié ne peut pas exister : l'ingestion
+      // rejette une recette web dont la page n'a pas été lue (D4). Refusé tout
+      // de même, plutôt que de créer une recette vide.
+      if (!structured && !pageText) throw ApiError.providerUnavailable('Le contenu de la page n’a pas été conservé ; aucune recette n’a été créée');
 
       assertProviderEnabled(this.rewriter, 'suggestions');
       // La réécriture est un appel au même modèle que la recherche de fournée
@@ -666,7 +660,12 @@ export class SuggestionsService {
       const breach = await this.quotaBreach();
       if (breach) throw ApiError.rateLimited(this.quotaMessage(breach, false));
 
-      const rewriteInput: RecipeRewriteInput = { title: suggestion.title, origin: suggestion.origin, ingredients: [], steps: [], pageText };
+      // Matière prise au réservoir, jamais au site : données structurées quand
+      // la page en portait, texte nettoyé sinon — exactement les deux formes
+      // que `RecipeRewriteInput` distingue déjà.
+      const rewriteInput: RecipeRewriteInput = structured
+        ? { title: suggestion.title, origin: suggestion.origin, ingredients: structured.ingredients, steps: structured.steps, pageText: null }
+        : { title: suggestion.title, origin: suggestion.origin, ingredients: [], steps: [], pageText };
 
       const started = Date.now();
       let rewritten: RecipeRewrite;

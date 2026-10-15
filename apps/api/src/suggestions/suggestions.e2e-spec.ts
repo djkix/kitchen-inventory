@@ -741,25 +741,35 @@ describe('SuggestionsService (EF-26)', () => {
       steps: ['Étaler la pâte.', 'Garnir de pommes.', 'Cuire trente minutes.'],
     };
 
-    it('conserve une recette web structurée sans réseau ni réécriture (vigilance 5)', async () => {
+    it('conserve une recette web structurée sans aucune requête réseau, avec réécriture (vigilance 5)', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
       await seedPool(db, [{ recipe: WEB_RECIPE, pageRecipe: PAGE_RECIPE, pageText: PAGE_TEXT }]);
-      // Aucune route n'est déclarée : la moindre requête — page ou modèle —
-      // ferait échouer `FakeHttp` (« Aucune fixture pour … »), en plus du
-      // compte vérifié ci-dessous.
+      // Route déclarée pour le site : si la conservation le rappelait, l'appel
+      // serait compté ici au lieu d'échouer faute de fixture.
+      http.on(WEB_RECIPE_HOST, () => htmlResponse('<html></html>'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
 
       const recipe = await service.keep({ batchId: '', suggestionId: WEB_ID, clientOpId: 'op-keep-structure-01' }, keeper);
 
-      expect(http.calls).toHaveLength(0);
+      // Le site n'est jamais contacté (D10) : c'est tout ce que D10 exige.
+      expect(http.calls.filter((c) => c.url.includes(WEB_RECIPE_HOST))).toHaveLength(0);
+      // La réécriture, elle, a bien lieu — même quand la page était structurée
+      // (tour de correction 1) : seule elle rend des ingrédients avec quantité
+      // et unité, dont vivent le rapprochement au stock et la couverture.
+      const rewriteCalls = http.calls.filter((c) => c.url.includes('generateContent'));
+      expect(rewriteCalls).toHaveLength(1);
+      // Et la matière envoyée est celle du réservoir, pas le texte brut.
+      const body = String(rewriteCalls[0]?.init?.body);
+      expect(body).toContain('1 pâte brisée');
+      expect(body).not.toContain(PAGE_TEXT);
+
       expect(recipe.source).toBe('IMPORTED');
       expect(recipe.sourceUrl).toBe(WEB_RECIPE.sourceUrl);
-      // Le contenu vient de la page gardée, pas du titre annoncé par le modèle.
-      expect(recipe.title).toBe(PAGE_RECIPE.title);
-      expect(recipe.steps).toEqual(PAGE_RECIPE.steps);
-      expect(recipe.ingredients.map((i) => i.label)).toEqual(PAGE_RECIPE.ingredients);
-      // Gratuite : rien n'est porté au registre des appels au modèle.
-      expect(await db.recognitionLog.count()).toBe(0);
+      expect(recipe.title).toBe('Tarte aux pommes (réécrite)');
+      // Ce que la construction directe ne savait pas rendre : des ingrédients
+      // chiffrés, rapprochables du stock.
+      expect(recipe.ingredients.some((i) => i.quantity !== null && i.unit !== null)).toBe(true);
     });
 
     it('réécrit depuis le texte gardé sans rappeler le site quand la page n’était pas structurée (vigilance 5)', async () => {
@@ -781,6 +791,20 @@ describe('SuggestionsService (EF-26)', () => {
       expect(recipe.source).toBe('IMPORTED');
       expect(recipe.title).toBe('Tarte aux pommes (réécrite)');
       expect(recipe.steps.length).toBeGreaterThan(0);
+    });
+
+    it('refuse une ligne web dont aucun contenu de page n’a été gardé, sans créer de recette', async () => {
+      // L'ingestion ne produit pas une telle ligne (une recette web dont la
+      // page n'a pas été lue est jetée, D4) : le refus est un filet, pas un
+      // chemin — mais il vaut mieux qu'une recette vide, et sans lui ce code
+      // partirait réécrire du vide.
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      await seedPool(db, [{ recipe: WEB_RECIPE, pageRecipe: null, pageText: null }]);
+
+      await expect(service.keep({ suggestionId: WEB_ID }, keeper)).rejects.toMatchObject({ status: 502 });
+      expect(http.calls).toHaveLength(0);
+      expect(await db.recipe.count()).toBe(0);
     });
 
     it('journalise la réécriture dans le même registre que les fournées, avec son coût (Important 2)', async () => {
