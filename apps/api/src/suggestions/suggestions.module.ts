@@ -7,6 +7,7 @@ import { GeminiRecipeRewriter } from './gemini-recipe-rewriter.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
 import { RecipePageFetcher } from './recipe-page.fetcher.js';
 import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER } from './suggestion-provider.js';
+import { SuggestionPoolService } from './suggestion-pool.service.js';
 import { SuggestionsController } from './suggestions.controller.js';
 import { SuggestionsService } from './suggestions.service.js';
 
@@ -27,6 +28,7 @@ import { SuggestionsService } from './suggestions.service.js';
   controllers: [SuggestionsController],
   providers: [
     SuggestionsService,
+    SuggestionPoolService,
     {
       provide: GeminiSuggestionProvider,
       inject: [APP_CONFIG, HTTP_CLIENT],
@@ -53,6 +55,6 @@ import { SuggestionsService } from './suggestions.service.js';
         }),
     },
   ],
-  exports: [SuggestionsService],
+  exports: [SuggestionsService, SuggestionPoolService],
 })
 export class SuggestionsModule {}
