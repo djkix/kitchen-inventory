@@ -21,5 +21,11 @@ export interface PoolEntryForSort {
 export function comparePoolEntries(a: PoolEntryForSort, b: PoolEntryForSort): number {
   if (a.verified !== b.verified) return a.verified ? -1 : 1;
   if (a.coverage !== b.coverage) return b.coverage - a.coverage;
-  return b.firstSeenAt.localeCompare(a.firstSeenAt);
+  // Comparaison sur l'instant, pas sur la chaîne (revue du 2026-10-15) : deux
+  // dates ISO du même instant peuvent s'écrire différemment (« +02:00 » contre
+  // « Z », millisecondes présentes ou non), et un tri lexicographique les
+  // départagerait alors au hasard. Une date illisible rend `NaN` : le `|| 0`
+  // la traite comme une égalité plutôt que de propager un `NaN` qui ferait
+  // perdre à l'ordre sa transitivité, et donc à `Array.sort` tout sens.
+  return Date.parse(b.firstSeenAt) - Date.parse(a.firstSeenAt) || 0;
 }
