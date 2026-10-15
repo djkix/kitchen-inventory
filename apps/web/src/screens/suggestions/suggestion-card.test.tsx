@@ -18,9 +18,18 @@ describe('SuggestionCard', () => {
     render(<SuggestionCard suggestion={base} />);
     expect(screen.getByText(/exemple\.test/)).toBeTruthy();
   });
-  it('annonce une composition par l’IA', () => {
+  it('annonce une composition par l’IA comme non vérifiée (D5)', () => {
     render(<SuggestionCard suggestion={{ ...base, provenance: 'ai', sourceUrl: null, verified: false }} />);
-    expect(screen.getByText(/proposée par l’IA/i)).toBeTruthy();
+    expect(screen.getByText('Composée par l’IA, non vérifiée')).toBeTruthy();
+  });
+
+  // Une recette `web` non vérifiée n'a pas le droit de s'abriter derrière un
+  // nom de domaine : le réservoir jette ces lignes à l'ingestion, cette garde
+  // couvre le cas où elle arriverait par un autre chemin.
+  it('refuse de nommer le site d’une recette web non vérifiée', () => {
+    render(<SuggestionCard suggestion={{ ...base, provenance: 'web', verified: false }} />);
+    expect(screen.queryByText(/exemple\.test/)).toBeNull();
+    expect(screen.getByText('Composée par l’IA, non vérifiée')).toBeTruthy();
   });
   it('n’affiche jamais d’étapes avant conservation (B7)', () => {
     // Corrigé : queryByText(/étape/i) passerait même si des étapes étaient

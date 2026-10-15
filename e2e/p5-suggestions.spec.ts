@@ -80,7 +80,7 @@ import { restoreDatabase } from './support/database.ts';
  * - `page.locator('article')` pour une carte de suggestion — même structure
  *   que les cartes de stock et de recettes (`<article>`), lue dans
  *   `apps/web/src/screens/suggestions/suggestion-card.tsx`.
- * - Le nom du site (`exemple-cuisine-N.test`) et « Proposée par l'IA » —
+ * - Le nom du site (`exemple-cuisine-N.test`) et « Composée par l'IA, non vérifiée » —
  *   `provenanceLabel`, même fichier (`siteName(sourceUrl)` retire le
  *   protocole et un éventuel `www.`, jamais affiché en entier — B10).
  * - `getByRole('dialog', { name: <titre> })`, le bouton « Plus d'informations »
@@ -187,7 +187,7 @@ test('affiche une fournée construite sur le stock, chaque carte avec sa provena
     await expect(page.getByText(`exemple-cuisine-${i}.test`, { exact: true })).toBeVisible();
   }
   // Provenance « ai » : la même mention sur les quatre cartes composées.
-  await expect(page.getByText('Proposée par l’IA')).toHaveCount(AI_RECIPE_COUNT);
+  await expect(page.getByText('Composée par l’IA, non vérifiée')).toHaveCount(AI_RECIPE_COUNT);
 });
 
 test('affiche les étapes d’une composition dès la fiche, mais jamais celles d’une recette web avant conservation (B7, amendé le 2026-10-08)', async ({ page }) => {
