@@ -113,8 +113,11 @@ stock réel (huit ingrédients au plus, les plus structurants, trois places
 tournant d'un jour à l'autre pour renouveler les idées), interroge Google
 Gemini en lui demandant de ne proposer que ce type de plat, et affiche une
 fournée d'une douzaine de recettes — certaines trouvées sur de vrais sites,
-d'autres composées par le modèle, chaque carte disant laquelle (nom du site,
-ou « proposée par l'IA »).
+d'autres composées par le modèle, chaque carte disant laquelle : le nom du
+site pour une recette dont **la page a réellement été lue**, « composée par
+l'IA, non vérifiée » sinon. Une recette annoncée comme trouvée sur le web
+dont la page ne répond pas est écartée avant d'atteindre l'écran : le modèle
+ne peut pas faire passer un lien inventé pour une recette qui existe.
 
 Une fois la fournée affichée, quatre sélecteurs natifs tiennent sur deux
 lignes de deux (type de plat et cuisine, puis durée et facilité) — plus
@@ -127,7 +130,26 @@ demandée au modèle ne contenant déjà qu'un seul type, un simple filtre
 local sur ce même type n'aurait plus rien eu à faire. Le sélecteur de type
 reflète dès l'arrivée celui répondu à la question, et repartir d'un autre
 type se fait directement depuis la barre, sans repasser par la question.
-Une fournée est mise en cache 24 heures par point de départ et orientation.
+**Les recettes trouvées ne s'effacent plus.** Chaque recette rapportée par le
+modèle entre dans un réservoir permanent, dédoublonnée par son titre et son
+lien : elle y reste sans limite d'âge. À chaque visite, l'application lit ce
+réservoir, recalcule la couverture de chaque recette contre le stock du
+moment (« 3 ingrédients sur 4 ») et classe les recettes web vérifiées avant
+les compositions. Le modèle n'est rappelé que dans deux cas : le réservoir
+rend moins de six recettes pour l'orientation demandée, ou vous appuyez
+vous-même sur « Chercher de nouvelles recettes ». Consommer un article du
+stock ne déclenche plus de nouvelle recherche payante.
+
+Quand une page est lue, son contenu est recopié en base **une fois pour
+toutes** : le site n'est jamais recontacté, ni pour revérifier, ni au moment
+où vous conservez la recette. En contrepartie, une recette dont la page
+disparaît ensuite reste utilisable, mais son lien meurt — et une recette
+corrigée par son auteur après coup ne sera pas suivie.
+
+Une même orientation n'est pas redemandée au modèle plus d'une fois par
+24 heures. Si elle ne rend rien, l'écran le dit, annonce à partir de quand
+une nouvelle recherche partira d'elle-même, et propose le bouton de relance :
+jamais un écran vide et muet.
 Les épices, le sel et le poivre ne sont jamais retenus comme point de départ
 (l'huile et le vinaigre le restent) ; les dates de péremption n'interviennent
 à aucun titre dans les suggestions.
@@ -593,7 +615,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.17.0 | 2026-10-15 | Les filtres de « Mes recettes » adoptent la présentation de Suggestions (EF-21) : les six rangées de pastilles défilantes (difficulté, cuisine, type de plat, régime, temps, note) deviennent six sélecteurs natifs par paires, dans le même ordre que l'écran Suggestions — type de plat d'abord, puis cuisine, puis durée, facilité, régime et note minimale. Une seule valeur active par facette, comme sur Suggestions ; les cinq bascules rapides restent des pastilles sur une rangée |
+| 0.17.0 | 2026-10-15 | Réservoir permanent de suggestions (EF-25, EF-26) : les recettes rapportées par Gemini ne s'effacent plus, elles entrent dans une table dédiée, dédoublonnées, sans limite d'âge. À chaque visite l'application lit ce réservoir, recalcule la couverture contre le stock du moment et n'appelle le modèle que si moins de six recettes correspondent à l'orientation, ou sur relance explicite — consommer un article ne déclenche plus de recherche payante, la signature de recherche ne dépendant plus du stock. Une recette annoncée comme trouvée sur le web n'est retenue que si sa page répond : le contenu est recopié en base une fois pour toutes, le site n'est plus jamais recontacté, pas même au moment de conserver la recette. Les compositions du modèle restent, affichées « composée par l'IA, non vérifiée » et classées après les recettes vérifiées. Une orientation déjà cherchée dans les 24 h n'est pas redemandée : l'écran annonce la cause, l'échéance, et offre un bouton « Chercher de nouvelles recettes ». Le cache de fournée de 24 h disparaît. Migration `0009_suggestion_pool`. Les filtres de « Mes recettes » adoptent par ailleurs la présentation de Suggestions : les six rangées de pastilles défilantes deviennent six sélecteurs natifs par paires, type de plat d'abord, une seule valeur active par facette ; les cinq bascules rapides restent des pastilles sur une rangée |
 | 0.16.0 | 2026-10-11 | Parcours dirigé des suggestions sur mobile (EF-25). L'onglet Recettes ouvre toujours Suggestions ; la mémorisation du dernier volet consulté est retirée. À l'arrivée, une question bloquante demande le type de plat avant d'afficher quoi que ce soit d'autre, et oriente la recherche initiale — le modèle ne proposant alors plus que ce type. Les quatre rangées de pastilles d'orientation (type de plat, cuisine, durée, facilité) font place à quatre sélecteurs natifs sur deux lignes de deux, qui ne prennent plus la moitié d'un écran de téléphone ; les quatre relancent désormais une recherche à chaque changement, y compris le type de plat, qui ne pouvait plus se contenter de filtrer une fournée déjà réduite à ce même type. Le titre d'une recette tient désormais sur deux lignes au plus, sans jamais être tronqué sur une seule, aussi bien sur une carte de suggestion que sur « Mes recettes » |
 | 0.15.0 | 2026-10-08 | Favoris et note directe sur une recette (EF-21). Une étoile à cocher marque une recette comme favorite — liste unique partagée par le foyer — depuis sa fiche et chaque carte de « Mes recettes », indépendamment de la note. La fiche gagne cinq étoiles de note directe, posables sans aucune réalisation enregistrée. Partout où une note s'affiche (carte, fiche, tri), la note directe prime désormais sur la moyenne des réalisations, qui prend le relais en son absence ; la note par réalisation reste par ailleurs inchangée, pour l'historique. Pastille « Favoris » dans les filtres rapides de « Mes recettes ». La fiche d'une recette jamais cuisinée explique désormais l'absence d'historique au lieu de l'afficher vide |
 | 0.14.0 | 2026-10-08 | Lot recettes « complétude et usage ». Gemini rend une durée de préparation et une durée de cuisson séparées (`null` quand la recette n'en a pas, jamais un zéro qui se lirait « cuisson : 0 minute »), affichées sur la fiche recette et sur une suggestion ; chaque étape de cuisson doit préciser température du four, intensité du feu et durée, sous peine d'être jugée inexploitable. Chaque ingrédient affiche la photo du produit rapproché et une pastille colorée de l'emplacement de son lot le plus proche de péremption. « Déjà faites » rejoint les pastilles de filtre rapide de Mes recettes, dont chaque carte affiche déjà note et réalisations. Une réalisation passée se note depuis l'historique de la fiche, sans repasser par une cuisson. « Plus d'informations » remplace « Conserver » sur une suggestion (même geste, même effet). Le nombre de parts affiché sur la fiche recette est désormais ajustable : les quantités par ligne et l'état de chaque ingrédient suivent, et ce même nombre préremplit le tiroir de cuisson — un seul champ du début à la fin. L'onglet Recettes de la barre du bas ouvre désormais un écran à deux volets, Suggestions et Mes recettes, avec une bascule en tête visible sans défilement ; l'application se souvient du dernier volet ouvert (ou retombe sur Suggestions si le stockage est indisponible) |

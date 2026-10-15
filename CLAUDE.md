@@ -108,6 +108,19 @@ tools/             utilitaires hors application
   `docs/specs/2026-10-04-recettes-suggerees.md` ; cahier des charges amendé le
   2026-10-04 (section 26). EF-24 (ajout aux courses, qui suppose une liste de
   courses qui n'existe pas encore) en reste hors, remonté au lot 2.
+- Réservoir permanent de suggestions livré (EF-25, EF-26) : le cache de fournée
+  de 24 h n'existe plus. Les recettes rapportées par le modèle entrent dans
+  `SuggestionPoolRecipe` (migration `0009_suggestion_pool`), dédoublonnées par
+  `suggestionIdentity`, sans limite d'âge ; la couverture est recalculée contre
+  le stock à chaque visite. Le modèle n'est appelé que sous un plancher de six
+  recettes pour l'orientation demandée ou sur relance explicite, et la signature
+  de recherche ne contient plus les graines — elle ne dépend donc plus du stock.
+  Une recette `web` n'est retenue que si `RecipePageFetcher` a pu lire sa page ;
+  le contenu est recopié dans la ligne et **le site n'est plus jamais
+  recontacté**, pas même à la conservation, qui réécrit à partir de ce contenu.
+  Spécification et onze décisions dans
+  `docs/specs/2026-10-15-reservoir-de-suggestions.md` ; cahier des charges
+  amendé le 2026-10-15 (section 26).
 - Les choix laissés au jugement par le cahier des charges sont consignés dans
   `docs/decisions/`. Le plan d'exécution du lot 1 est dans `docs/plans/`.
 - Tests bout en bout Playwright livrés (section 19) : les parcours P1 à P4 du
