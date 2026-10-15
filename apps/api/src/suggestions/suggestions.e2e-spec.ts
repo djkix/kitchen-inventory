@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { DynamicModule, Global, Module, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { DISH_TYPES, suggestionIdentities, suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
-import type { Prisma } from '@prisma/client';
+import { DISH_TYPES, suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
+import { Prisma } from '@prisma/client';
 import { LoggerModule } from 'nestjs-pino';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -19,6 +19,7 @@ import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { createProduct, createStock } from '../../test/recipes.test-helpers.js';
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
 import { truncateAll } from '../../test/db.js';
+import type { PageRecipe } from './recipe-page.fetcher.js';
 import { SuggestionsModule } from './suggestions.module.js';
 import { SuggestionsService } from './suggestions.service.js';
 
@@ -60,10 +61,6 @@ function buildConfig(overrides: Partial<NodeJS.ProcessEnv> = {}): AppConfig {
 
 async function fixtureText(file: string): Promise<string> {
   return readFile(resolve(import.meta.dirname, '../../test/fixtures', file), 'utf8');
-}
-
-async function fixtureHtml(file: string): Promise<string> {
-  return readFile(resolve(import.meta.dirname, '../../test/fixtures/suggestions', file), 'utf8');
 }
 
 function htmlResponse(html: string, status = 200): Response {
@@ -139,17 +136,28 @@ describe('SuggestionsService (EF-26)', () => {
     return product.id;
   }
 
-  /** Dépose directement une fournée en base (tâche 9) : la conservation lit un lot déjà rendu, pas besoin de rejouer `list`. */
-  async function seedBatch(db: PrismaService, recipes: ModelRecipe[]): Promise<string> {
-    const row = await db.suggestionBatch.create({
-      data: {
-        signature: `test-keep-${Math.random().toString(36).slice(2)}`,
-        payload: { recipes } as unknown as Prisma.InputJsonValue,
-        model: 'test-model',
-        costCents: null,
-      },
-    });
-    return row.id;
+  /**
+   * Dépose directement des recettes au réservoir (tâche 6) : la conservation
+   * y lit par identité, plus dans une fournée. Le contenu de page est déjà
+   * recopié (D10) — c'est précisément ce qui permet à `keep` de ne jamais
+   * rappeler le site.
+   */
+  async function seedPool(db: PrismaService, entries: { recipe: ModelRecipe; pageRecipe?: PageRecipe | null; pageText?: string | null }[]): Promise<void> {
+    for (const { recipe, pageRecipe = null, pageText = null } of entries) {
+      await db.suggestionPoolRecipe.create({
+        data: {
+          identity: suggestionIdentity(recipe),
+          payload: recipe as unknown as Prisma.InputJsonValue,
+          provenance: recipe.provenance,
+          dishType: recipe.dishType,
+          sourceUrl: recipe.sourceUrl,
+          verifiedAt: pageRecipe || pageText ? new Date() : null,
+          pageRecipe: pageRecipe ? (pageRecipe as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
+          pageText,
+          model: 'test-model',
+        },
+      });
+    }
   }
 
   const QUERY: SuggestionQuery = { refresh: false };
@@ -723,32 +731,65 @@ describe('SuggestionsService (EF-26)', () => {
     const WEB_ID = suggestionIdentity(WEB_RECIPE);
     const AI_ID = suggestionIdentity(AI_RECIPE);
 
-    it('conserve une recette web : page lue, contenu réécrit par Gemini, source IMPORTED', async () => {
+    /** Texte nettoyé de la page, recopié une fois pour toutes à l'ingestion (D10) : seule matière d'une page sans `schema.org/Recipe`. */
+    const PAGE_TEXT = 'Tarte aux pommes : une pâte, quatre pommes, du sucre. Étaler, garnir, cuire trente minutes.';
+
+    /** `schema.org/Recipe` lu sur la page et recopié à l'ingestion (D10). */
+    const PAGE_RECIPE: PageRecipe = {
+      title: 'Tarte aux pommes de la ferme',
+      ingredients: ['1 pâte brisée', '4 pommes', '2 cuillères de sucre'],
+      steps: ['Étaler la pâte.', 'Garnir de pommes.', 'Cuire trente minutes.'],
+    };
+
+    it('conserve une recette web structurée sans réseau ni réécriture (vigilance 5)', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      const batchId = await seedBatch(db, [WEB_RECIPE]);
-      const html = await fixtureHtml('page-schema-simple.html');
-      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
+      await seedPool(db, [{ recipe: WEB_RECIPE, pageRecipe: PAGE_RECIPE, pageText: PAGE_TEXT }]);
+      // Aucune route n'est déclarée : la moindre requête — page ou modèle —
+      // ferait échouer `FakeHttp` (« Aucune fixture pour … »), en plus du
+      // compte vérifié ci-dessous.
 
-      const recipe = await service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-web-000001' }, keeper);
+      const recipe = await service.keep({ batchId: '', suggestionId: WEB_ID, clientOpId: 'op-keep-structure-01' }, keeper);
 
+      expect(http.calls).toHaveLength(0);
       expect(recipe.source).toBe('IMPORTED');
       expect(recipe.sourceUrl).toBe(WEB_RECIPE.sourceUrl);
+      // Le contenu vient de la page gardée, pas du titre annoncé par le modèle.
+      expect(recipe.title).toBe(PAGE_RECIPE.title);
+      expect(recipe.steps).toEqual(PAGE_RECIPE.steps);
+      expect(recipe.ingredients.map((i) => i.label)).toEqual(PAGE_RECIPE.ingredients);
+      // Gratuite : rien n'est porté au registre des appels au modèle.
+      expect(await db.recognitionLog.count()).toBe(0);
+    });
+
+    it('réécrit depuis le texte gardé sans rappeler le site quand la page n’était pas structurée (vigilance 5)', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      await seedPool(db, [{ recipe: WEB_RECIPE, pageRecipe: null, pageText: PAGE_TEXT }]);
+      // Route déclarée pour le site : si la conservation le rappelait, l'appel
+      // serait compté ici au lieu d'échouer faute de fixture.
+      http.on(WEB_RECIPE_HOST, () => htmlResponse('<html></html>'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
+
+      const recipe = await service.keep({ batchId: '', suggestionId: WEB_ID, clientOpId: 'op-keep-texte-0001' }, keeper);
+
+      expect(http.calls.filter((c) => c.url.includes(WEB_RECIPE_HOST))).toHaveLength(0);
+      const rewriteCalls = http.calls.filter((c) => c.url.includes('generateContent'));
+      expect(rewriteCalls).toHaveLength(1);
+      // La matière envoyée au modèle est bien le texte du réservoir.
+      expect(String(rewriteCalls[0]?.init?.body)).toContain('Étaler, garnir, cuire trente minutes.');
+      expect(recipe.source).toBe('IMPORTED');
       expect(recipe.title).toBe('Tarte aux pommes (réécrite)');
       expect(recipe.steps.length).toBeGreaterThan(0);
-      expect(http.calls.some((c) => c.url.includes('generateContent'))).toBe(true);
     });
 
     it('journalise la réécriture dans le même registre que les fournées, avec son coût (Important 2)', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      const batchId = await seedBatch(db, [WEB_RECIPE]);
-      const html = await fixtureHtml('page-schema-simple.html');
-      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
+      await seedPool(db, [{ recipe: WEB_RECIPE, pageText: PAGE_TEXT }]);
       http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
 
-      await service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-ledger-00001' }, keeper);
+      await service.keep({ batchId: '', suggestionId: WEB_ID, clientOpId: 'op-keep-ledger-00001' }, keeper);
 
       const logs = await db.recognitionLog.findMany({ where: { purpose: 'RECIPE_SUGGESTION' }, orderBy: { createdAt: 'asc' } });
       const rewriteLog = logs.find((l) => l.succeeded && l.provider === 'gemini');
@@ -760,12 +801,10 @@ describe('SuggestionsService (EF-26)', () => {
     it('garde provider_unavailable pour un échec de transport ou de statut du réécriveur (round 2)', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      const batchId = await seedBatch(db, [WEB_RECIPE]);
-      const html = await fixtureHtml('page-schema-simple.html');
-      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
+      await seedPool(db, [{ recipe: WEB_RECIPE, pageText: PAGE_TEXT }]);
       http.on('generateContent', () => json({ error: 'en panne' }, 500));
 
-      await expect(service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-transport-01' }, keeper)).rejects.toMatchObject({
+      await expect(service.keep({ batchId: '', suggestionId: WEB_ID, clientOpId: 'op-keep-transport-01' }, keeper)).rejects.toMatchObject({
         status: 502,
         code: 'provider_unavailable',
       });
@@ -774,12 +813,10 @@ describe('SuggestionsService (EF-26)', () => {
     it('donne provider_invalid_response quand Gemini répond mais hors schéma (round 2)', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      const batchId = await seedBatch(db, [WEB_RECIPE]);
-      const html = await fixtureHtml('page-schema-simple.html');
-      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
+      await seedPool(db, [{ recipe: WEB_RECIPE, pageText: PAGE_TEXT }]);
       http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-invalide.json'));
 
-      await expect(service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-invalide-01' }, keeper)).rejects.toMatchObject({
+      await expect(service.keep({ batchId: '', suggestionId: WEB_ID, clientOpId: 'op-keep-invalide-01' }, keeper)).rejects.toMatchObject({
         status: 502,
         code: 'provider_invalid_response',
       });
@@ -788,15 +825,13 @@ describe('SuggestionsService (EF-26)', () => {
     it('un rejeu conserve sans aucun appel réseau ni nouvelle ligne de registre (round 2)', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      const batchId = await seedBatch(db, [WEB_RECIPE]);
-      const html = await fixtureHtml('page-schema-simple.html');
-      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
+      await seedPool(db, [{ recipe: WEB_RECIPE, pageText: PAGE_TEXT }]);
       http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
 
-      const first = await service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-rejeu-00001' }, keeper);
+      const first = await service.keep({ batchId: '', suggestionId: WEB_ID, clientOpId: 'op-keep-rejeu-00001' }, keeper);
       http.reset();
 
-      const second = await service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-rejeu-00001' }, keeper);
+      const second = await service.keep({ batchId: '', suggestionId: WEB_ID, clientOpId: 'op-keep-rejeu-00001' }, keeper);
 
       expect(second.id).toBe(first.id);
       expect(http.calls).toHaveLength(0);
@@ -808,9 +843,9 @@ describe('SuggestionsService (EF-26)', () => {
     it('refuse la réécriture au-delà du quota journalier, sans créer de recette', async () => {
       const { service, db } = await createService({ RECIPE_SUGGESTION_DAILY_QUOTA: '0' });
       const keeper = await seedUser(db);
-      const batchId = await seedBatch(db, [WEB_RECIPE]);
+      await seedPool(db, [{ recipe: WEB_RECIPE, pageText: PAGE_TEXT }]);
 
-      await expect(service.keep({ batchId, suggestionId: WEB_ID }, keeper)).rejects.toMatchObject({ status: 429 });
+      await expect(service.keep({ batchId: '', suggestionId: WEB_ID }, keeper)).rejects.toMatchObject({ status: 429 });
       expect(http.calls).toHaveLength(0);
       expect(await db.recipe.count()).toBe(0);
     });
@@ -818,9 +853,9 @@ describe('SuggestionsService (EF-26)', () => {
     it('conserve une composition sans appeler le réseau, source GENERATED', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      const batchId = await seedBatch(db, [WEB_RECIPE, AI_RECIPE]);
+      await seedPool(db, [{ recipe: WEB_RECIPE, pageText: PAGE_TEXT }, { recipe: AI_RECIPE }]);
 
-      const recipe = await service.keep({ batchId, suggestionId: AI_ID, clientOpId: 'op-keep-ai-0000001' }, keeper);
+      const recipe = await service.keep({ batchId: '', suggestionId: AI_ID, clientOpId: 'op-keep-ai-0000001' }, keeper);
 
       expect(recipe.source).toBe('GENERATED');
       expect(recipe.sourceUrl).toBeNull();
@@ -845,12 +880,11 @@ describe('SuggestionsService (EF-26)', () => {
         prepMinutes: null,
         cookMinutes: null,
       };
-      const sansDureeId = suggestionIdentity(SANS_DUREE_DETAILLEE);
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      const batchId = await seedBatch(db, [SANS_DUREE_DETAILLEE]);
+      await seedPool(db, [{ recipe: SANS_DUREE_DETAILLEE }]);
 
-      const recipe = await service.keep({ batchId, suggestionId: sansDureeId, clientOpId: 'op-keep-sans-duree-01' }, keeper);
+      const recipe = await service.keep({ batchId: '', suggestionId: suggestionIdentity(SANS_DUREE_DETAILLEE), clientOpId: 'op-keep-sans-duree-01' }, keeper);
 
       expect(recipe.prepMinutes).toBe(35);
       expect(recipe.cookMinutes).toBeNull();
@@ -861,12 +895,10 @@ describe('SuggestionsService (EF-26)', () => {
       // la suggestion annonçait HARD, les étapes conservées donnent INTERMEDIATE
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      const batchId = await seedBatch(db, [WEB_RECIPE]);
-      const html = await fixtureHtml('page-schema-simple.html');
-      http.on(WEB_RECIPE_HOST, () => htmlResponse(html));
+      await seedPool(db, [{ recipe: WEB_RECIPE, pageText: PAGE_TEXT }]);
       http.on('generateContent', () => geminiFixture('suggestions/gemini-rewrite-tarte.json'));
 
-      const recipe = await service.keep({ batchId, suggestionId: WEB_ID, clientOpId: 'op-keep-diff-0000001' }, keeper);
+      const recipe = await service.keep({ batchId: '', suggestionId: WEB_ID, clientOpId: 'op-keep-diff-0000001' }, keeper);
 
       expect(recipe.difficulty).toBe('INTERMEDIATE');
       expect(recipe.difficultyOverride).toBe(false);
@@ -877,9 +909,9 @@ describe('SuggestionsService (EF-26)', () => {
       const keeper = await seedUser(db);
       const locationId = await seedLocation(db);
       await seedProduct(db, locationId, { name: 'Riz', quantity: 500, unit: 'GRAM' });
-      const batchId = await seedBatch(db, [WEB_RECIPE, AI_RECIPE]);
+      await seedPool(db, [{ recipe: AI_RECIPE }]);
 
-      const recipe = await service.keep({ batchId, suggestionId: AI_ID, clientOpId: 'op-keep-match-0000001' }, keeper);
+      const recipe = await service.keep({ batchId: '', suggestionId: AI_ID, clientOpId: 'op-keep-match-0000001' }, keeper);
 
       const riz = recipe.ingredients.find((i) => i.label === 'Riz');
       const mystere = recipe.ingredients.find((i) => i.label === 'Épice mystère introuvable');
@@ -888,53 +920,56 @@ describe('SuggestionsService (EF-26)', () => {
       expect(mystere?.productId).toBeNull();
     });
 
-    it('échoue en français quand la page ne répond pas, sans créer de recette', async () => {
+    it('désigne la suggestion par son identité au réservoir, jamais par un rang ni par une fournée (D9)', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      const unreachable: ModelRecipe = { ...WEB_RECIPE, sourceUrl: `https://${UNREACHABLE_HOST}/injoignable` };
-      const batchId = await seedBatch(db, [unreachable]);
-      http.fail(UNREACHABLE_HOST);
+      // Une fournée existe et contient les deux recettes ; seule la
+      // composition est au réservoir. C'est le réservoir qui fait foi.
+      await db.suggestionBatch.create({
+        data: { signature: 'test-keep-fournee', payload: { recipes: [WEB_RECIPE, AI_RECIPE] } as unknown as Prisma.InputJsonValue, model: 'test-model', costCents: null },
+      });
+      await seedPool(db, [{ recipe: AI_RECIPE }]);
 
-      await expect(service.keep({ batchId, suggestionId: suggestionIdentity(unreachable) }, keeper)).rejects.toMatchObject({ status: 502 });
-      try {
-        await service.keep({ batchId, suggestionId: suggestionIdentity(unreachable) }, keeper);
-      } catch (error) {
-        expect(String((error as Error).message)).toMatch(/page/i);
-      }
-      expect(await db.recipe.count()).toBe(0);
+      await expect(service.keep({ batchId: '', suggestionId: '0' }, keeper)).rejects.toMatchObject({ status: 404 });
+      // Présente dans la fournée, absente du réservoir : introuvable.
+      await expect(service.keep({ batchId: '', suggestionId: WEB_ID }, keeper)).rejects.toMatchObject({ status: 404 });
+
+      const kept = await service.keep({ batchId: '', suggestionId: AI_ID, clientOpId: 'op-keep-identite-001' }, keeper);
+      expect(kept.title).toBe('Riz sauté maison');
     });
 
-    it('désigne la suggestion par son contenu, jamais par son rang dans la fournée', async () => {
+    it('conserve sans fournée du tout : le réservoir suffit (D9)', async () => {
+      // Le chemin normal depuis la tâche 4 : l'écran sert du réservoir, et la
+      // dernière `SuggestionBatch` ne contient plus ce qu'il affiche — ou
+      // n'existe pas.
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      const batchId = await seedBatch(db, [AI_RECIPE]);
+      await seedPool(db, [{ recipe: AI_RECIPE }]);
+      expect(await db.suggestionBatch.count()).toBe(0);
 
-      // Le rang « 0 » ne désigne plus rien : un tiroir resté ouvert sur une
-      // fournée précédente ne peut plus conserver la recette d'une autre.
-      await expect(service.keep({ batchId, suggestionId: '0' }, keeper)).rejects.toMatchObject({ status: 404 });
-      await expect(service.keep({ batchId, suggestionId: WEB_ID }, keeper)).rejects.toMatchObject({ status: 404 });
-
-      const kept = await service.keep({ batchId, suggestionId: AI_ID, clientOpId: 'op-keep-identite-001' }, keeper);
+      const kept = await service.keep({ suggestionId: AI_ID, clientOpId: 'op-keep-sans-fournee' }, keeper);
       expect(kept.title).toBe('Riz sauté maison');
     });
 
     it('est idempotente : deux conservations du même clientOpId ne créent qu’une recette', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      const batchId = await seedBatch(db, [AI_RECIPE]);
+      await seedPool(db, [{ recipe: AI_RECIPE }]);
 
-      const first = await service.keep({ batchId, suggestionId: AI_ID, clientOpId: 'op-keep-idempotent-01' }, keeper);
-      const second = await service.keep({ batchId, suggestionId: AI_ID, clientOpId: 'op-keep-idempotent-01' }, keeper);
+      const first = await service.keep({ batchId: '', suggestionId: AI_ID, clientOpId: 'op-keep-idempotent-01' }, keeper);
+      const second = await service.keep({ batchId: '', suggestionId: AI_ID, clientOpId: 'op-keep-idempotent-01' }, keeper);
 
       expect(second.id).toBe(first.id);
       expect(await db.recipe.count()).toBe(1);
     });
 
-    it('conserve la bonne recette quand deux compositions IA partagent le même titre (EF-26)', async () => {
-      // Le modèle compose souvent à partir des mêmes quelques ingrédients du
-      // stock : deux « Riz sauté » distinctes dans la même fournée sont
-      // plausibles. Leurs étapes et ingrédients diffèrent ici pour que la
-      // recette effectivement créée soit identifiable sans ambiguïté.
+    it('conserve l’identité que la fournée a publiée, même quand deux compositions partagent le même titre (EF-26)', async () => {
+      // L'identité publiée et l'identité cherchée doivent être la même.
+      // `list` publie `suggestionIdentity` nu ; tant que `keep` cherchait par
+      // `suggestionIdentities`, qui suffixe les doublons (`-2`), une seconde
+      // composition de même titre n'était jamais conservable — et c'était la
+      // première qui était conservée à sa place, en silence. Au réservoir,
+      // deux recettes de même identité sont une seule ligne par construction.
       const RIZ_PREMIERE: ModelRecipe = {
         title: 'Riz sauté',
         origin: 'Composition',
@@ -948,44 +983,36 @@ describe('SuggestionsService (EF-26)', () => {
         ingredients: [{ label: 'Riz', quantity: 200, unit: 'GRAM' }],
       };
       const RIZ_SECONDE: ModelRecipe = {
-        title: 'Riz sauté',
-        origin: 'Composition',
-        region: 'asiatique',
+        ...RIZ_PREMIERE,
         totalMinutes: 25,
-        prepMinutes: 8, cookMinutes: 12,
-        difficulty: 'EASY', dishType: 'MAIN',
-        provenance: 'ai',
-        sourceUrl: null,
         steps: ["Faire revenir le riz à l'huile d'olive avec les légumes."],
         ingredients: [
           { label: 'Riz', quantity: 200, unit: 'GRAM' },
           { label: "Huile d'olive", quantity: 1, unit: 'MILLILITER' },
         ],
       };
-      const batch = [RIZ_PREMIERE, RIZ_SECONDE];
-      const [firstId, secondId] = suggestionIdentities(batch);
-      expect(firstId).not.toBe(secondId);
 
-      // Conserver la seconde occurrence : la recette créée doit être la seconde,
-      // identifiable à ses étapes et à son huile d'olive, jamais la première.
-      const { service: serviceA, db: dbA } = await createService();
-      const keeperA = await seedUser(dbA);
-      const batchIdA = await seedBatch(dbA, batch);
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Riz', quantity: 500, unit: 'GRAM' });
+      http.on('generateContent', () =>
+        json({
+          candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify({ recipes: [RIZ_PREMIERE, RIZ_SECONDE] }) }] }, finishReason: 'STOP' }],
+          usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10 },
+        }),
+      );
 
-      const keptSecond = await serviceA.keep({ batchId: batchIdA, suggestionId: secondId!, clientOpId: 'op-keep-riz-doublon-second' }, keeperA);
-      expect(keptSecond.steps).toEqual(RIZ_SECONDE.steps);
-      expect(keptSecond.ingredients.some((i) => i.label === "Huile d'olive")).toBe(true);
+      const batch = await service.list(QUERY, USER);
 
-      // Dans une autre fournée identique, conserver la première occurrence : le
-      // test ne doit pas pouvoir passer en choisissant toujours la même extrémité.
-      const { service: serviceB, db: dbB } = await createService();
-      const keeperB = await seedUser(dbB);
-      const batchIdB = await seedBatch(dbB, batch);
+      expect(batch.items).toHaveLength(1);
+      // Identité nue, jamais suffixée : c'est elle que la conservation cherche.
+      expect(batch.items[0]?.id).toBe(suggestionIdentity(RIZ_PREMIERE));
 
-      const keptFirst = await serviceB.keep({ batchId: batchIdB, suggestionId: firstId!, clientOpId: 'op-keep-riz-doublon-first' }, keeperB);
-      expect(keptFirst.steps).toEqual(RIZ_PREMIERE.steps);
-      expect(keptFirst.ingredients.some((i) => i.label === "Huile d'olive")).toBe(false);
+      const kept = await service.keep({ batchId: batch.batchId, suggestionId: batch.items[0]!.id, clientOpId: 'op-keep-riz-doublon-01' }, keeper);
+      expect(kept.title).toBe('Riz sauté');
     });
+
   });
 });
 
@@ -1065,75 +1092,65 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
   });
   afterAll(() => t.close());
 
-  async function seedBatchHttp(recipes: ModelRecipe[]): Promise<string> {
-    const row = await t.prisma.suggestionBatch.create({
-      data: { signature: `wire-${Math.random().toString(36).slice(2)}`, payload: { recipes } as unknown as Prisma.InputJsonValue, model: 'test-model', costCents: null },
+  /** Même dépôt au réservoir que plus haut, vu depuis le fil : la conservation n'y lit plus aucune fournée (D9). */
+  async function seedPoolHttp(recipe: ModelRecipe): Promise<string> {
+    const identity = suggestionIdentity(recipe);
+    await t.prisma.suggestionPoolRecipe.create({
+      data: {
+        identity,
+        payload: recipe as unknown as Prisma.InputJsonValue,
+        provenance: recipe.provenance,
+        dishType: recipe.dishType,
+        sourceUrl: recipe.sourceUrl,
+        verifiedAt: null,
+        pageRecipe: Prisma.DbNull,
+        pageText: null,
+        model: 'test-model',
+      },
     });
-    return row.id;
+    return identity;
   }
 
-  /**
-   * Le 422/502 vu depuis le fil (revue de tâche 9) : un refus de sécurité
-   * (lien non-https ou adresse privée) et une page qui ne répond pas ne
-   * doivent pas se confondre dans la même réponse — vérifié ici sur le
-   * contrôleur entier, pas seulement sur l'erreur levée par le service.
-   */
-  it('refuse 422 quand le lien de la recette vise une adresse privée', async () => {
-    const recipe: ModelRecipe = {
-        title: 'Recette suspecte',
-        origin: 'Cuisine Test',
-        region: 'europeenne',
-        totalMinutes: 20,
-        prepMinutes: 10, cookMinutes: 8,
-        difficulty: 'EASY', dishType: 'MAIN',
-        provenance: 'web',
-        sourceUrl: 'https://192.168.1.50/recette',
-        steps: [],
-        ingredients: [{ label: 'Mystère', quantity: null, unit: null }],
-    };
-    const batchId = await seedBatchHttp([recipe]);
-
-    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: suggestionIdentity(recipe) }).expect(422);
-    expect(res.body.error.code).toBe('business_rule');
-  });
-
-  it('refuse 502 quand la page de la recette ne répond pas', async () => {
-    const recipe: ModelRecipe = {
-        title: 'Recette injoignable',
-        origin: 'Cuisine Test',
-        region: 'europeenne',
-        totalMinutes: 20,
-        prepMinutes: 10, cookMinutes: 8,
-        difficulty: 'EASY', dishType: 'MAIN',
-        provenance: 'web',
-        sourceUrl: `https://${UNREACHABLE_HOST}/injoignable`,
-        steps: [],
-        ingredients: [{ label: 'Mystère', quantity: null, unit: null }],
-    };
-    const batchId = await seedBatchHttp([recipe]);
-    http.fail(UNREACHABLE_HOST);
-
-    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: suggestionIdentity(recipe) }).expect(502);
-    expect(res.body.error.code).toBe('provider_unavailable');
-  });
+  const COMPOSITION: ModelRecipe = {
+    title: 'Riz sauté express',
+    origin: 'Composition',
+    region: 'asiatique',
+    totalMinutes: 15,
+    prepMinutes: 5, cookMinutes: 8,
+    difficulty: 'EASY', dishType: 'MAIN',
+    provenance: 'ai',
+    sourceUrl: null,
+    steps: ['Cuire le riz.', 'Mélanger le tout.'],
+    ingredients: [{ label: 'Riz', quantity: 200, unit: 'GRAM' }],
+  };
 
   it('conserve une composition sans réseau et rend la recette créée (201)', async () => {
-    const recipe: ModelRecipe = {
-        title: 'Riz sauté express',
-        origin: 'Composition',
-        region: 'asiatique',
-        totalMinutes: 15,
-        prepMinutes: 5, cookMinutes: 8,
-        difficulty: 'EASY', dishType: 'MAIN',
-        provenance: 'ai',
-        sourceUrl: null,
-        steps: ['Cuire le riz.', 'Mélanger le tout.'],
-        ingredients: [{ label: 'Riz', quantity: 200, unit: 'GRAM' }],
-    };
-    const batchId = await seedBatchHttp([recipe]);
+    const suggestionId = await seedPoolHttp(COMPOSITION);
 
-    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId, suggestionId: suggestionIdentity(recipe) }).expect(201);
+    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId: 'fournee-quelconque', suggestionId }).expect(201);
     expect(res.body.source).toBe('GENERATED');
     expect(res.body.title).toBe('Riz sauté express');
+  });
+
+  /**
+   * Le `batchId` relâché, vu depuis le fil : l'écran servi par le réservoir
+   * n'a pas toujours de fournée à citer et envoie une chaîne vide. Tant que
+   * le schéma partagé exigeait un `idSchema` (`min(1)`), la conservation
+   * mourait en 400 au contrôleur, avant même d'atteindre le service — plus
+   * rien ne se conservait dans « Mes recettes ».
+   */
+  it('accepte un batchId vide, et même absent : il n’est plus qu’un reliquat ignoré', async () => {
+    const vide = await seedPoolHttp(COMPOSITION);
+    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId: '', suggestionId: vide, clientOpId: 'op-wire-vide-00001' }).expect(201);
+    expect(res.body.title).toBe('Riz sauté express');
+
+    const absent = await seedPoolHttp({ ...COMPOSITION, title: 'Riz sauté sans fournée' });
+    const res2 = await agent.post('/api/v1/suggestions/keep').send({ suggestionId: absent, clientOpId: 'op-wire-absent-0001' }).expect(201);
+    expect(res2.body.title).toBe('Riz sauté sans fournée');
+  });
+
+  it('rend 404 quand l’identité n’est pas au réservoir', async () => {
+    const res = await agent.post('/api/v1/suggestions/keep').send({ batchId: '', suggestionId: 'deadbeef' }).expect(404);
+    expect(res.body.error.message).toBe('Suggestion introuvable');
   });
 });

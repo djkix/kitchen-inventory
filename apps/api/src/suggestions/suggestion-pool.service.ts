@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { modelRecipeSchema, suggestionIdentity, type Difficulty, type DishType, type ModelRecipe, type SuggestionRegion } from '@kitchen/shared';
-import { Prisma } from '@prisma/client';
+import { Prisma, type SuggestionPoolRecipe as SuggestionPoolRecipeRow } from '@prisma/client';
 import { Logger } from 'nestjs-pino';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { type PageRecipe, type RecipePageFetcher } from './recipe-page.fetcher.js';
@@ -28,6 +28,20 @@ export interface PoolFilter {
   /** Durée totale maximale acceptée, en minutes. */
   maxMinutes?: number;
   difficulty?: Difficulty;
+}
+
+/** Ligne du réservoir revalidée, ou `null` si son `payload` n'est plus conforme au schéma. */
+function toPoolRecipe(row: SuggestionPoolRecipeRow): PoolRecipe | null {
+  const parsed = modelRecipeSchema.safeParse(row.payload);
+  if (!parsed.success) return null;
+  return {
+    identity: row.identity,
+    recipe: parsed.data,
+    verified: row.verifiedAt !== null,
+    firstSeenAt: row.firstSeenAt.toISOString(),
+    pageRecipe: row.pageRecipe as PageRecipe | null,
+    pageText: row.pageText,
+  };
 }
 
 interface PageContent {
@@ -70,23 +84,25 @@ export class SuggestionPoolService {
     const rows = await this.prisma.suggestionPoolRecipe.findMany({ where: filter.dishType ? { dishType: filter.dishType } : {}, orderBy: { firstSeenAt: 'desc' } });
     const result: PoolRecipe[] = [];
     for (const row of rows) {
-      const parsed = modelRecipeSchema.safeParse(row.payload);
-      if (!parsed.success) continue; // ligne non conforme : traitée comme absente
-      const recipe = parsed.data;
+      const entry = toPoolRecipe(row);
+      if (!entry) continue; // ligne non conforme : traitée comme absente
       // Filtres portés par le `payload`, appliqués sur la recette revalidée.
-      if (filter.region && recipe.region !== filter.region) continue;
-      if (filter.maxMinutes !== undefined && recipe.totalMinutes > filter.maxMinutes) continue;
-      if (filter.difficulty && recipe.difficulty !== filter.difficulty) continue;
-      result.push({
-        identity: row.identity,
-        recipe,
-        verified: row.verifiedAt !== null,
-        firstSeenAt: row.firstSeenAt.toISOString(),
-        pageRecipe: row.pageRecipe as PageRecipe | null,
-        pageText: row.pageText,
-      });
+      if (filter.region && entry.recipe.region !== filter.region) continue;
+      if (filter.maxMinutes !== undefined && entry.recipe.totalMinutes > filter.maxMinutes) continue;
+      if (filter.difficulty && entry.recipe.difficulty !== filter.difficulty) continue;
+      result.push(entry);
     }
     return result;
+  }
+
+  /**
+   * Une recette du réservoir par son identité (D9), ou `null`. `identity` est
+   * unique : la conservation est une lecture directe, sans fournée à
+   * revalider ni rang à retrouver.
+   */
+  async findByIdentity(identity: string): Promise<PoolRecipe | null> {
+    const row = await this.prisma.suggestionPoolRecipe.findUnique({ where: { identity } });
+    return row ? toPoolRecipe(row) : null;
   }
 
   private async ingestOne(recipe: ModelRecipe, identity: string, model: string, alreadyRead: ReadonlySet<string>, now: Date): Promise<boolean> {

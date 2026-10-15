@@ -4,11 +4,9 @@ import {
   classifyMatch,
   comparePoolEntries,
   createRecipeSchema,
-  modelBatchSchema,
   pickSeedIngredients,
   recipeCoverage,
   suggestionIdentity,
-  suggestionIdentities,
   type CoverageIngredient,
   type CreateRecipeInput,
   type KeepSuggestionInput,
@@ -33,10 +31,9 @@ import { ProviderError } from '../recognition/providers/recognition-provider.js'
 import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { InvalidRewriteError, type GeminiRecipeRewriter, type RecipeRewriteInput } from './gemini-recipe-rewriter.js';
-import { RecipePageRefusedError, type PageRecipe, type RecipePageFetcher } from './recipe-page.fetcher.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
 import { SuggestionPoolService, type PoolRecipe } from './suggestion-pool.service.js';
-import { RECIPE_PAGE_FETCHER, RECIPE_REWRITER, SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionRequest } from './suggestion-provider.js';
+import { RECIPE_REWRITER, SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionRequest } from './suggestion-provider.js';
 
 /** Taille visée d'une fournée (section 5.1, B8) : douze recettes, huit web pour quatre composées. */
 export const SUGGESTION_BATCH_SIZE = 12;
@@ -103,6 +100,11 @@ const MATCH_CANDIDATES_PER_LABEL = 5;
  * d'une recette du foyer, qui n'a jamais prétendu viser un produit.
  */
 const ABSENT_MATCH_SENTINEL = '__suggestion_absent_match__';
+
+/** Borne une chaîne à la longueur acceptée par `createRecipeSchema`, plutôt que d'échouer sur une ligne de page bavarde. */
+function truncate(value: string, max: number): string {
+  return value.length > max ? value.slice(0, max) : value;
+}
 
 /**
  * Répartit la fournée reçue entre web et composé plutôt que de garder l'ordre
@@ -183,7 +185,6 @@ export class SuggestionsService {
     private readonly recipes: RecipesService,
     private readonly provider: GeminiSuggestionProvider,
     private readonly pool: SuggestionPoolService,
-    @Inject(RECIPE_PAGE_FETCHER) private readonly pageFetcher: RecipePageFetcher,
     @Inject(RECIPE_REWRITER) private readonly rewriter: GeminiRecipeRewriter,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly settings: SettingsService,
@@ -580,18 +581,24 @@ export class SuggestionsService {
   }
 
   /**
-   * Conservation d'une suggestion (EF-25, EF-26, tâche 9) : « l'application
-   * n'envoie jamais Franck vers le site » — pour `web`, la page est récupérée
-   * en sécurité, lue si elle porte `schema.org/Recipe` [B14], sinon soumise en
-   * texte nettoyé, puis réécrite par Gemini au format de l'application. Pour
-   * `ai`, la composition est déjà au bon format : aucun appel réseau [B6].
+   * Conservation d'une suggestion (EF-25, EF-26, D9, D10) : « l'application
+   * n'envoie jamais Franck vers le site » — et depuis le réservoir, elle ne
+   * rappelle plus le site elle-même. La recette est cherchée **par son
+   * identité au réservoir** (`SuggestionPoolRecipe.identity`, unique), jamais
+   * dans une fournée : l'écran sert du réservoir depuis la tâche 4, la
+   * dernière `SuggestionBatch` ne contient donc plus forcément ce qu'il
+   * affiche. `batchId` reste accepté dans l'entrée, et ignoré.
+   *
+   * Le contenu de la page a été recopié une fois pour toutes à l'ingestion
+   * (D10) : la conservation d'une recette web ne fait aucune requête réseau,
+   * et aucun appel au modèle quand la page portait `schema.org/Recipe`.
+   *
    * Idempotente par `clientOpId` (section 8, migration 0006) sur
-   * `Recipe.clientOpId` : vérifié ici en tout premier, avant toute dépense
-   * (page récupérée, modèle appelé, quota entamé) — un rejeu ne doit payer
-   * pour rien (revue de tâche 9, round 2). `RecipesService.createFromSuggestion`
-   * garde son propre contrôle juste avant l'écriture, pour la course
-   * concurrente que cette vérification préalable laisse passer ; ce n'est
-   * qu'un filet, pas le chemin normal.
+   * `Recipe.clientOpId` : vérifié ici en tout premier, avant toute dépense —
+   * un rejeu ne doit payer pour rien (revue de tâche 9, round 2).
+   * `RecipesService.createFromSuggestion` garde son propre contrôle juste
+   * avant l'écriture, pour la course concurrente que cette vérification
+   * préalable laisse passer ; ce n'est qu'un filet, pas le chemin normal.
    */
   async keep(input: KeepSuggestionInput, user: RequestUser): Promise<RecipeDto> {
     if (input.clientOpId) {
@@ -599,63 +606,67 @@ export class SuggestionsService {
       if (existing) return existing;
     }
 
-    const row = await this.prisma.suggestionBatch.findUnique({ where: { id: input.batchId } });
-    if (!row) throw ApiError.notFound('Fournée de suggestions introuvable');
+    const entry = await this.pool.findByIdentity(input.suggestionId);
+    if (!entry) throw ApiError.notFound('Suggestion introuvable');
+    const suggestion = entry.recipe;
 
-    const validated = modelBatchSchema.safeParse(row.payload);
-    if (!validated.success) throw ApiError.notFound('Fournée de suggestions introuvable');
-    const recipes = validated.data.recipes;
-
-    // Recherchée par son identité de contenu, pas par un rang : une fournée dont
-    // une entrée a été écartée à la validation décale tous les rangs suivants.
-    // Mêmes identités qu'à la construction des DTO (`suggestionIdentities` sur
-    // ce même tableau validé) : un titre dupliqué par le modèle y est
-    // désambiguïsé de la même façon, donc la bonne recette est conservée.
-    const identities = suggestionIdentities(recipes);
-    const suggestionIndex = identities.indexOf(input.suggestionId);
-    const suggestion = suggestionIndex === -1 ? undefined : recipes[suggestionIndex];
-    if (!suggestion) throw ApiError.notFound('Suggestion introuvable dans cette fournée');
-
-    const createInput = await this.buildCreateInput(suggestion);
+    const createInput = await this.buildCreateInput(entry);
     const source = suggestion.provenance === 'web' ? 'IMPORTED' : 'GENERATED';
     const sourceUrl = suggestion.provenance === 'web' ? suggestion.sourceUrl : null;
     return this.recipes.createFromSuggestion(createInput, source, sourceUrl, input.clientOpId ?? null, user.id);
   }
 
   /**
-   * Matière de la recette à créer, selon la provenance [B6]. `ai` reprend les
-   * étapes déjà rendues sans aucun appel ; `web` récupère la page puis la fait
-   * réécrire par Gemini au format de l'application.
+   * Matière de la recette à créer, prise dans la ligne du réservoir [B6, D10].
+   *
+   * - `ai` : la composition est déjà au bon format, aucun appel.
+   * - `web` avec `schema.org/Recipe` recopié : construite directement depuis
+   *   ces données, **sans requête réseau ni appel au modèle** — conserver une
+   *   recette web devient alors gratuit et instantané.
+   * - `web` sans données structurées : réécriture par le modèle à partir du
+   *   **texte déjà gardé**, toujours sans requête réseau.
+   *
+   * Le lecteur de page n'est plus appelé nulle part ici : la page a été lue
+   * une seule fois, à l'ingestion au réservoir.
    */
-  private async buildCreateInput(suggestion: ModelRecipe): Promise<CreateRecipeInput> {
+  private async buildCreateInput(entry: PoolRecipe): Promise<CreateRecipeInput> {
+    const suggestion = entry.recipe;
     let title = suggestion.title;
     let steps: string[];
     let rawIngredients: { label: string; quantity: number | null; unit: Unit | null }[];
 
+    // Des données structurées sans la moindre étape ne feraient pas une
+    // recette (`createRecipeSchema` en exige au moins une) : le texte gardé
+    // reste alors la seule matière exploitable.
+    const structured = entry.pageRecipe && entry.pageRecipe.steps.length > 0 ? entry.pageRecipe : null;
+
     if (suggestion.provenance === 'ai') {
       steps = suggestion.steps;
       rawIngredients = suggestion.ingredients;
+    } else if (structured) {
+      // Le titre de la page prime sur celui annoncé par le modèle, qui n'a pas
+      // lu la page ; les ingrédients restent des lignes brutes (« 200 g de
+      // farine »), rapprochées des produits par leur libellé comme les autres.
+      title = truncate(structured.title ?? suggestion.title, 160);
+      steps = structured.steps.slice(0, 60);
+      rawIngredients = structured.ingredients.slice(0, 60).map((label) => ({ label: truncate(label, 160), quantity: null, unit: null }));
     } else {
-      // `modelRecipeSchema` exige déjà une URL https pour `web` (vigilance 2) : une
-      // absence ici serait une donnée corrompue, jamais un cas normal à deviner.
-      const sourceUrl = suggestion.sourceUrl;
-      if (!sourceUrl) throw ApiError.notFound('Suggestion introuvable dans cette fournée');
+      const pageText = entry.pageText;
+      // Une ligne web sans page recopiée ne peut pas exister : l'ingestion
+      // rejette une recette web dont la page n'a pas été lue (D4). Dit tout
+      // de même, plutôt que de laisser passer une recette vide.
+      if (!pageText) throw ApiError.providerUnavailable('Le contenu de la page n’a pas été conservé ; aucune recette n’a été créée');
 
       assertProviderEnabled(this.rewriter, 'suggestions');
       // La réécriture est un appel au même modèle que la recherche de fournée
       // (revue de tâche 9) : comptée dans le même quota journalier et le même
-      // plafond mensuel, vérifié avant de dépenser quoi que ce soit — y
-      // compris la récupération de la page, pour ne pas la payer en vain.
+      // plafond mensuel, vérifié avant de dépenser quoi que ce soit.
       // Pas de fournée de repli ici : une réécriture n'en sert jamais une, le
       // message ne doit donc jamais prétendre en afficher une.
       const breach = await this.quotaBreach();
       if (breach) throw ApiError.rateLimited(this.quotaMessage(breach, false));
 
-      const material = await this.fetchWebRecipeMaterial(sourceUrl);
-      const rewriteInput: RecipeRewriteInput =
-        material.structured !== null
-          ? { title: suggestion.title, origin: suggestion.origin, ingredients: material.structured.ingredients, steps: material.structured.steps, pageText: null }
-          : { title: suggestion.title, origin: suggestion.origin, ingredients: [], steps: [], pageText: material.text };
+      const rewriteInput: RecipeRewriteInput = { title: suggestion.title, origin: suggestion.origin, ingredients: [], steps: [], pageText };
 
       const started = Date.now();
       let rewritten: RecipeRewrite;
@@ -711,31 +722,6 @@ export class SuggestionsService {
     const parsed = createRecipeSchema.safeParse(draft);
     if (!parsed.success) throw ApiError.providerInvalidResponse('Réponse de réécriture non exploitable pour créer la recette', parsed.error.issues);
     return parsed.data;
-  }
-
-  /**
-   * Récupère la page de la recette en sécurité (vigilance « the application
-   * never sends him to the website ») : lue structurée si `schema.org/Recipe`
-   * est présent, sinon son texte nettoyé — un seul GET pour les deux lectures
-   * (revue de tâche 9). Un refus de sécurité (HTTPS, adresse privée) arrête
-   * tout de suite, sans jamais tenter la suite. Une page qui ne répond pas
-   * échoue en français, sans créer de recette.
-   */
-  private async fetchWebRecipeMaterial(url: string): Promise<{ structured: PageRecipe | null; text: string }> {
-    let content: { structured: PageRecipe | null; text: string } | null;
-    try {
-      content = await this.pageFetcher.fetchContent(url);
-    } catch (error) {
-      if (error instanceof RecipePageRefusedError) {
-        throw ApiError.businessRule(`La page de la recette ne peut pas être récupérée : ${error.message}`);
-      }
-      throw error;
-    }
-    if (!content) throw ApiError.providerUnavailable('La page de la recette n’a pas répondu ; aucune recette n’a été créée');
-    if (!content.structured && content.text.length === 0) {
-      throw ApiError.providerUnavailable('La page de la recette n’a pas répondu ; aucune recette n’a été créée');
-    }
-    return content;
   }
 
   /** Rattache chaque ingrédient à un produit rapproché (sûr ou probable, A11) ; les autres restent en texte libre. */
