@@ -222,6 +222,77 @@ describe('SuggestionsScreen', () => {
     expect(screen.queryByRole('button', { name: /Chercher des/i })).toBeNull();
   });
 
+  /**
+   * Revue de la tâche 4, tour 2 (2026-10-15) : depuis D11, une orientation déjà
+   * cherchée ne repart pas d'elle-même avant 24 heures, et `refresh: true` en
+   * est la seule sortie — or plus aucun appelant ne le posait depuis la
+   * disparition du bouton de relance. Le recours existait sans être
+   * atteignable : l'écran vide était un cul-de-sac.
+   */
+  it('offre une relance explicite depuis l’état vide, et seulement là', () => {
+    const batch = (items: unknown[]) => ({
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      data: { batchId: 'batch-1', notice: null, items },
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    vi.mocked(useSuggestionsQuery).mockReturnValue(batch([]));
+
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chercher de nouvelles recettes' }));
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN', refresh: true });
+
+    // Le texte d'état vide n'invite plus à attendre un changement de stock :
+    // depuis D11 la recherche n'en dépend plus (revue, tour 2).
+    expect(screen.queryByText(/le stock aura peut-être changé/i)).toBeNull();
+  });
+
+  /**
+   * Le `refresh: true` ne doit valoir que pour LA recherche qui l'a demandé :
+   * collé à l'orientation, chaque geste suivant contournerait le verrou de
+   * 24 heures et consommerait quota et euros. `OrientationBar` le remet à
+   * `undefined` à chaque geste — vérifié ici depuis le bouton de relance, le
+   * seul endroit qui le pose désormais.
+   */
+  it('ne laisse pas refresh collé à l’orientation après la relance', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      data: { batchId: 'batch-1', notice: null, items: [] },
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Chercher de nouvelles recettes' }));
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN', refresh: true });
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'asiatique' } });
+
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN', region: 'asiatique', refresh: undefined });
+  });
+
   /** Revue finale du 2026-10-11 : le type de plat compte comme orientation active, la barre ne doit pas dire « Aucune orientation ». */
   it('affiche le type de plat répondu comme une orientation active dans la barre', () => {
     vi.mocked(useSuggestionsQuery).mockReturnValue({

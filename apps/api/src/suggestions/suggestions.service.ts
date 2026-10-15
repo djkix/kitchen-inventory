@@ -139,6 +139,17 @@ function computeSignature(query: SuggestionQuery): string {
   return createHash('sha256').update(payload).digest('hex');
 }
 
+/**
+ * « 16/10 à 08:15 », en heure locale du serveur. Formaté à la main plutôt que
+ * par `toLocaleString` : le message doit être le même quelle que soit la locale
+ * de l'hôte, et une dépendance à ICU n'a pas sa place dans une phrase de six
+ * mots.
+ */
+function formatDeadline(date: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} à ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -212,7 +223,21 @@ export class SuggestionsService {
     // réservoir a, même maigre (D11). Un palier étroit — « ≤ 15 min » — laisse
     // sinon le réservoir sous le plancher à chaque visite et rappelle le modèle
     // à chaque fois, jusqu'à manger le plafond mensuel partagé avec le scan.
-    const mustAsk = query.refresh || (entries.length < SUGGESTION_POOL_FLOOR && !(await this.askedRecently(signature)));
+    // Lecture évitée quand le réservoir suffit ou que la relance est explicite :
+    // il n'y a alors rien à verrouiller.
+    const askedAt = query.refresh || entries.length >= SUGGESTION_POOL_FLOOR ? null : await this.lastAskedAt(signature);
+    const mustAsk = query.refresh || (entries.length < SUGGESTION_POOL_FLOOR && askedAt === null);
+
+    // Le prix de D11, dit à l'écran : une orientation que le modèle n'a jamais
+    // su satisfaire reste vide jusqu'au bout des 24 heures. Sans ce message,
+    // l'utilisateur voyait un écran vide sans la moindre cause (revue de la
+    // tâche 4, tour 2) — et la seule sortie, la relance explicite, ne se
+    // devine pas.
+    if (!mustAsk && askedAt !== null && entries.length === 0) {
+      notice =
+        `Aucune recette pour cette orientation ; elle a déjà été cherchée récemment, et une nouvelle recherche ne partira pas d’elle-même avant le ${formatDeadline(new Date(askedAt.getTime() + SAME_ORIENTATION_TTL_MS))}. ` +
+        'Changez d’orientation, ou relancez la recherche vous-même.';
+    }
 
     if (mustAsk) {
       const breach = await this.quotaBreach();
@@ -289,14 +314,17 @@ export class SuggestionsService {
   }
 
   /**
-   * Cette orientation a-t-elle déjà été posée au modèle depuis moins de
-   * `SAME_ORIENTATION_TTL_MS` (D11) ? Lu sur la `SuggestionBatch` de même
-   * signature, dont l'`upsert` rafraîchit déjà `createdAt` : ni colonne ni
-   * migration pour une question à laquelle la table répondait déjà.
+   * Quand cette orientation a-t-elle été posée au modèle, si c'était il y a
+   * moins de `SAME_ORIENTATION_TTL_MS` (D11) ? `null` sinon. Lu sur la
+   * `SuggestionBatch` de même signature, dont l'`upsert` rafraîchit déjà
+   * `createdAt` : ni colonne ni migration pour une question à laquelle la
+   * table répondait déjà. La date est rendue, et pas seulement un booléen,
+   * pour que le message d'écran puisse dire jusqu'à quand le verrou tient.
    */
-  private async askedRecently(signature: string): Promise<boolean> {
+  private async lastAskedAt(signature: string): Promise<Date | null> {
     const row = await this.prisma.suggestionBatch.findUnique({ where: { signature }, select: { createdAt: true } });
-    return row !== null && Date.now() - row.createdAt.getTime() < SAME_ORIENTATION_TTL_MS;
+    if (!row) return null;
+    return Date.now() - row.createdAt.getTime() < SAME_ORIENTATION_TTL_MS ? row.createdAt : null;
   }
 
   /** `null` si l'appel est permis ; sinon la nature du dépassement (quota journalier ou plafond mensuel). */

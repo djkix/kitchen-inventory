@@ -404,6 +404,12 @@ describe('SuggestionsService (EF-26)', () => {
     expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(1);
     expect(await db.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION' } })).toBe(1);
     expect(second.fromCache).toBe(true);
+    // Le prix du verrou, visible dans le test lui-même : l'écran est vide. Il
+    // ne doit donc pas l'être en silence — la notice dit la cause, l'échéance,
+    // et les deux sorties (changer d'orientation, relancer soi-même).
+    expect(second.items).toHaveLength(0);
+    expect(second.notice).toMatch(/déjà été cherchée récemment/);
+    expect(second.notice).toMatch(/relancez la recherche vous-même/);
   });
 
   it('ne montre jamais une recette web dont la page n’existe pas, même fraîchement rendue', async () => {

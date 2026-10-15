@@ -157,6 +157,22 @@ avec le scan photo** et finit par affamer celui-ci.
 
 ## Limites assumées
 
+- **Le prix de D11 : une orientation jamais satisfaite reste vide 24 heures.**
+  La ligne `SuggestionBatch` est écrite dès que la question est posée, pas
+  seulement quand elle rapporte quelque chose. Une orientation à laquelle le
+  modèle n'a rien su répondre — ou dont toutes les recettes ont été jetées à
+  l'ingestion faute de page — se verrouille donc sur zéro recette jusqu'au bout
+  du délai. Écrire la ligne seulement en cas de succès rouvrirait la porte que
+  D11 ferme : une orientation stérile repaierait à chaque visite, ce qui est
+  exactement le cas le plus coûteux.
+  Deux contreparties, toutes deux obligatoires : la réponse porte alors une
+  `notice` qui dit la cause et l'échéance (« une nouvelle recherche ne partira
+  pas d'elle-même avant le 16/10 à 08:15 »), et l'écran Suggestions offre, dans
+  son état vide seulement, un bouton « Chercher de nouvelles recettes » qui pose
+  `refresh: true`. Sans ce bouton, le recours prévu par D6 existe côté serveur
+  sans être atteignable depuis l'application — ce qui fut le cas entre le lot du
+  2026-10-11 et la revue du 2026-10-15.
+
 - Une page qui existe aujourd'hui peut disparaître demain, et rien ne le
   détectera (D10 : un seul contact, définitif). Le coût réel est faible : le
   contenu utile est déjà recopié dans le réservoir, donc un lien mort ne fait
