@@ -472,3 +472,28 @@ model SuggestionBatch {
 
   @@index([createdAt])
 }
+
+model SuggestionPoolRecipe {
+  id         String     @id @default(cuid())
+  identity   String     @unique
+  /// La `ModelRecipe` validée, telle qu'elle sera revalidée à la lecture.
+  payload    Json
+  provenance String
+  dishType   DishType
+  sourceUrl  String?
+  /// Date de lecture réussie de la page source ; `null` pour une composition
+  /// du modèle, qui n'a rien à vérifier (décision D5).
+  verifiedAt DateTime?
+  /// `schema.org/Recipe` lu sur la page, gardé pour que la conservation ne
+  /// rappelle jamais le site (décision D10).
+  pageRecipe Json?
+  /// Texte nettoyé de la page (plafonné à 8 000 caractères par le lecteur),
+  /// repli quand la page ne porte pas de données structurées.
+  pageText    String?
+  model       String
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@index([dishType])
+  @@index([firstSeenAt])
+}
