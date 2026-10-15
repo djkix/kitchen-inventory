@@ -93,9 +93,17 @@ describe('AvailableModelsService', () => {
 });
 
 describe('isMainstreamGeminiModel', () => {
-  it('garde les modèles de la ligne courante, quelle que soit la génération', () => {
-    for (const id of ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-pro', 'gemini-3.8-flash', 'gemini-4-pro']) {
+  it('garde les modèles Flash de la ligne courante, quelle que soit la génération', () => {
+    for (const id of ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-4-flash']) {
       expect(isMainstreamGeminiModel(id)).toBe(true);
+    }
+  });
+
+  // Choix de djkix du 2026-10-15 : l'API continuerait de servir un Pro sur sa
+  // clé, facturé à l'usage — c'est bien pour cela qu'on l'écarte ici.
+  it('écarte les modèles Pro, que l’API servirait pourtant', () => {
+    for (const id of ['gemini-3.5-pro', 'gemini-4-pro', 'gemini-2.5-pro']) {
+      expect(isMainstreamGeminiModel(id)).toBe(false);
     }
   });
 

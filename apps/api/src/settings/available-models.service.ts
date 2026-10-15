@@ -42,15 +42,32 @@ const SPECIALISED = /embedding|aqa|transcribe|live|tts|audio|image|imagen|veo|le
 const PINNED_SNAPSHOT = /-\d{3}$|-\d{4}-\d{2}-\d{2}$|-\d{2}-\d{2}$/;
 
 /**
- * Un modèle de la ligne courante : `gemini-…`, ni aperçu, ni expérimental, ni
- * instantané daté, ni famille spécialisée. Volontairement permissif sur le
- * numéro de version, pour qu'une nouvelle génération apparaisse d'elle-même
- * sans modification du code.
+ * Famille Flash seule (choix de djkix, 2026-10-15).
+ *
+ * Son abonnement Google AI Plus réserve les modèles Pro aux forfaits
+ * supérieurs à compter du 13 novembre 2026 — pour l'appli Gemini et le Mode IA
+ * de la recherche, pas pour l'API, qui est un produit distinct facturé sur la
+ * clé et continuerait de servir un Pro sans rien demander. C'est précisément
+ * ce qui justifie de restreindre ici : rien côté Google n'empêcherait de
+ * choisir par curiosité un modèle plusieurs fois plus cher pour lire une
+ * étiquette ou composer une recette, deux tâches que Flash fait très bien.
+ *
+ * Le filtre porte sur le nom, pas sur une liste figée : une future
+ * `gemini-4-flash` apparaîtra d'elle-même, sans modification du code.
+ */
+const FLASH_FAMILY = /flash/;
+
+/**
+ * Un modèle de la ligne courante : `gemini-…` de la famille Flash, ni aperçu,
+ * ni expérimental, ni instantané daté, ni famille spécialisée. Volontairement
+ * permissif sur le numéro de version, pour qu'une nouvelle génération
+ * apparaisse d'elle-même sans modification du code.
  */
 export function isMainstreamGeminiModel(id: string): boolean {
   if (!id.startsWith('gemini-')) return false;
   if (id.includes('preview') || id.includes('-exp')) return false;
   if (SPECIALISED.test(id)) return false;
+  if (!FLASH_FAMILY.test(id)) return false;
   return !PINNED_SNAPSHOT.test(id);
 }
 
