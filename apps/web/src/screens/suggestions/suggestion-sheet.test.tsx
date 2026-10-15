@@ -59,18 +59,18 @@ function renderSheet(props: Partial<ComponentProps<typeof SuggestionSheet>> = {}
   const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <SuggestionSheet suggestion={suggestion} batchId="b1" open onClose={onClose} keep={keep} {...props} />
+        <SuggestionSheet suggestion={suggestion} open onClose={onClose} keep={keep} {...props} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
   // Permet de rouvrir le même tiroir (`open: false → true`) sans démonter le
   // composant, exactement comme `suggestions-screen.tsx` le monte une seule
   // fois et fait varier `open`.
-  const setOpen = (open: boolean, batchId = 'b1') =>
+  const setOpen = (open: boolean) =>
     view.rerender(
       <QueryClientProvider client={client}>
         <MemoryRouter>
-          <SuggestionSheet suggestion={suggestion} batchId={batchId} open={open} onClose={onClose} keep={keep} {...props} />
+          <SuggestionSheet suggestion={suggestion} open={open} onClose={onClose} keep={keep} {...props} />
         </MemoryRouter>
       </QueryClientProvider>,
     );
@@ -128,7 +128,7 @@ describe('SuggestionSheet', () => {
 
     resolveKeep(recipe);
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(keep).toHaveBeenCalledWith({ batchId: 'b1', suggestionId: 's1', clientOpId: expect.any(String) });
+    expect(keep).toHaveBeenCalledWith({ suggestionId: 's1', clientOpId: expect.any(String) });
   });
 
   it('affiche le message français de l’API quand la conservation échoue', async () => {
@@ -188,10 +188,10 @@ describe('SuggestionSheet', () => {
     expect(secondOpId).toBe(firstOpId);
   });
 
-  it('porte le même clientOpId à travers deux fournées différentes (réservoir, 2026-10-15)', async () => {
-    // Le `batchId` change à chaque appel au modèle, la recette servie du
-    // réservoir ne change pas. Tant que le `clientOpId` en dérivait, deux
-    // visites successives portaient deux identifiants : l'idempotence de la
+  it('porte le même clientOpId d’une visite à l’autre (réservoir, 2026-10-15)', async () => {
+    // La recette servie du réservoir ne change pas d'une visite à l'autre.
+    // Tant que le `clientOpId` dérivait de la fournée, deux visites
+    // successives portaient deux identifiants : l'idempotence de la
     // conservation, dont c'est le seul garde-fou côté serveur, ne tenait plus.
     const message = 'La page de la recette n’a pas répondu à temps';
     const keep = vi.fn().mockRejectedValueOnce(new ApiClientError(502, 'provider_unavailable', message)).mockResolvedValueOnce(recipe);
@@ -200,17 +200,15 @@ describe('SuggestionSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
     await waitFor(() => expect(screen.getByText(message)).toBeTruthy());
 
-    // Nouvelle fournée (nouvelle recherche, nouveau `batchId`), même suggestion.
-    setOpen(false, 'b1');
-    setOpen(true, 'b2');
+    // Tiroir refermé puis rouvert après une nouvelle recherche, même suggestion.
+    setOpen(false);
+    setOpen(true);
 
     fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
     await waitFor(() => expect(keep).toHaveBeenCalledTimes(2));
 
-    expect(keep.mock.calls[0]![0].batchId).toBe('b1');
-    expect(keep.mock.calls[1]![0].batchId).toBe('b2');
     expect(keep.mock.calls[1]![0].clientOpId).toBe(keep.mock.calls[0]![0].clientOpId);
-    // Dérivé de la seule identité de la suggestion : rien du lot n'y entre.
-    expect(keep.mock.calls[0]![0].clientOpId).not.toContain('b1');
+    // Dérivé de la seule identité de la suggestion, et de rien d'autre.
+    expect(keep.mock.calls[0]![0].clientOpId).toBe(`keep:${suggestion.id}`);
   });
 });

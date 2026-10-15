@@ -123,7 +123,6 @@ describe('SuggestionsScreen', () => {
       isError: false,
       isFetching: false,
       data: {
-        batchId: 'batch-1',
         notice: null,
         items: [
           {
@@ -193,7 +192,6 @@ describe('SuggestionsScreen', () => {
       isError: false,
       isFetching: false,
       data: {
-        batchId: 'batch-1',
         notice: null,
         items: [{ ...base, id: 's1', title: 'Pâtes à la tomate', dishType: 'MAIN' }],
       },
@@ -234,7 +232,7 @@ describe('SuggestionsScreen', () => {
       isPending: false,
       isError: false,
       isFetching: false,
-      data: { batchId: 'batch-1', notice: null, items },
+      data: { notice: null, items },
       error: null,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
@@ -279,7 +277,7 @@ describe('SuggestionsScreen', () => {
       isPending: false,
       isError: false,
       isFetching: false,
-      data: { batchId: 'batch-1', notice: null, items: [] },
+      data: { notice: null, items: [] },
       error: null,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
@@ -389,7 +387,6 @@ describe('SuggestionsScreen', () => {
       provenance: 'web', sourceUrl: 'https://exemple.test/x', coverage: 1, group: 'ready', missingLabels: [], ingredients: [],
     };
     const batch = {
-      batchId: 'batch-1',
       notice: null,
       items: [{ ...base, id: 's1', title: 'Pâtes à la tomate', dishType: 'MAIN' }],
     };

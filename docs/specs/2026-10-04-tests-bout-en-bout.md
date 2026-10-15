@@ -94,10 +94,12 @@ du modèle qui diverge entre les tests d'intégration et les tests bout en bout 
 `apps/api/src/suggestions/recipe-page.fetcher.ts`) suit une URL choisie par le modèle : il n'a aucune
 URL de base à faire pointer vers la doublure, donc rien ne l'empêcherait structurellement de sortir.
 Si aucun appel ne quitte le montage, c'est parce que les fixtures de suggestions n'emploient que des
-adresses du domaine réservé `.test` (`https://exemple-cuisine-N.test/…`), qui ne résout nulle part —
-et parce qu'aucun parcours ne conserve une recette venant du web **[C15]**. Une fixture qui
-introduirait une adresse réelle ouvrirait un appel sortant sans qu'aucun garde-fou ne s'y oppose :
-c'est la seule chose à vérifier en ajoutant une fixture de suggestion.
+littéraux IP de `203.0.113.0/24` (TEST-NET-3, RFC 5737 — `https://203.0.113.20/…`), **corrigé le
+2026-10-15** : les adresses du domaine réservé `.test` employées jusque-là ne résolvaient nulle part,
+mais partaient bel et bien en résolution DNS, donc sur le réseau. Un littéral IP n'est pas résolu du
+tout, et TEST-NET-3 n'est routable nulle part. Une fixture qui introduirait une adresse réelle
+ouvrirait un appel sortant sans qu'aucun garde-fou ne s'y oppose : c'est la seule chose à vérifier en
+ajoutant une fixture de suggestion.
 
 **La conservation d'une recette venant du web n'est pas jouée ici [C15].** Le récupérateur de pages
 refuse délibérément le HTTP et toute adresse privée ou de bouclage — c'est un garde-fou, puisqu'il
@@ -107,6 +109,15 @@ garde-fou est désarmé, c'est-à-dire à ne pas le tester du tout. Le parcours 
 donc une recette **composée par l'IA**, qui ne déclenche aucune récupération ; l'extraction d'une
 page reste couverte par les tests d'intégration, qui la jouent sur cinq formes de pages réelles
 depuis des fixtures.
+
+**Mise à jour du 2026-10-15 (réservoir permanent).** Une recette web dont la page n'a pas pu être lue
+est désormais jetée à l'ingestion : avec des adresses injoignables par construction, aucune des huit
+recettes web de la fixture n'atteint plus l'écran par le chemin du modèle — l'assertion « douze
+cartes » de P5 était fausse depuis. Les parcours jouent maintenant les deux faces : sans page lue,
+la recette n'arrive pas à l'écran (ce que le réservoir doit garantir) ; déposée directement au
+réservoir dans l'état que produit une lecture réussie (`e2e/support/suggestions.ts`), elle s'y
+affiche avec le nom de son site et n'est jamais relue. Le garde-fou reste armé : rien n'est
+assoupli, c'est le dépôt qui se place après la lecture, pas à la place de la protection.
 
 ## 7. La caméra
 
