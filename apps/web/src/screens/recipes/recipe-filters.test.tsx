@@ -8,8 +8,32 @@ describe('RecipeFiltersBar', () => {
   it('ajoute une difficulté sans toucher aux autres filtres', () => {
     const onChange = vi.fn();
     render(<RecipeFiltersBar value={empty} cuisines={[]} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Facile' }));
+    fireEvent.change(screen.getByLabelText('Facilité'), { target: { value: 'EASY' } });
     expect(onChange).toHaveBeenCalledWith({ ...empty, difficulty: ['EASY'] });
+  });
+
+  // Même présentation que l'orientation des suggestions (2026-10-15) : les six
+  // facettes à choix sont des `<select>` par paires, type de plat en premier.
+  it('présente les facettes comme des sélecteurs, type de plat en premier', () => {
+    render(<RecipeFiltersBar value={empty} cuisines={[]} onChange={vi.fn()} />);
+    const labels = screen.getAllByRole('combobox').map((node) => node.getAttribute('aria-label'));
+    expect(labels.slice(0, 6)).toEqual(['Type de plat', 'Cuisine', 'Durée', 'Facilité', 'Régime', 'Note minimale']);
+  });
+
+  it('ne garde qu’une valeur par facette, la précédente est remplacée', () => {
+    const onChange = vi.fn();
+    render(<RecipeFiltersBar value={{ ...empty, dishType: ['STARTER'] }} cuisines={[]} onChange={onChange} />);
+    const select = screen.getByLabelText('Type de plat');
+    expect((select as HTMLSelectElement).value).toBe('STARTER');
+    fireEvent.change(select, { target: { value: 'DESSERT' } });
+    expect(onChange).toHaveBeenCalledWith({ ...empty, dishType: ['DESSERT'] });
+  });
+
+  it('vide une facette quand on revient sur l’option neutre', () => {
+    const onChange = vi.fn();
+    render(<RecipeFiltersBar value={{ ...empty, maxTime: 30 }} cuisines={[]} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText('Durée'), { target: { value: '' } });
+    expect(onChange).toHaveBeenCalledWith({ ...empty, maxTime: undefined });
   });
   it('change le tri', () => {
     const onChange = vi.fn();
