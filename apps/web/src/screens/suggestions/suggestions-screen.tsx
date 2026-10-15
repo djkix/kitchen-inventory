@@ -56,6 +56,12 @@ export function SuggestionsScreen() {
    * `refresh: true` y restait collé jusqu'au geste suivant sur un filtre, et
    * tout retour sur l'onglet repayait un appel. Remis à zéro à chaque
    * changement d'orientation, qui est déjà une nouvelle recherche en soi.
+   *
+   * Il est local à cet écran, donc perdu au démontage et remis à zéro ici :
+   * ce n'est pas lui qui entre dans la clé de requête — `useSuggestionsQuery`
+   * le traduit en un jeton qui ne redescend jamais, sans quoi un appui après
+   * un aller-retour par « Mes recettes » retomberait sur une clé déjà en
+   * cache et ne partirait pas (revue finale du 2026-10-15).
    */
   const [relaunch, setRelaunch] = useState(0);
   // Pas d'appel tant que la question n'a pas de réponse (voir `useSuggestionsQuery`).

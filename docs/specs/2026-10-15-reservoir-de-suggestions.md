@@ -169,6 +169,28 @@ jour, `VISION_MONTHLY_CAP_CENTS` à 5 €). Le dommage réel n'était donc pas u
 dépense illimitée, mais un filtre étroit qui mange le plafond mensuel **partagé
 avec le scan photo** et finit par affamer celui-ci.
 
+**Amendements de la revue finale (2026-10-15).** Quatre décisions complètent
+celles ci-dessus, sans en rouvrir aucune :
+
+- **La page rendue est bornée à douze recettes (D1, D7).** Le plafond venait de
+  la fournée, que D8 a supprimée ; rien ne l'avait remplacé, si bien qu'une
+  visite rendait tout le réservoir. La borne est posée **après** le tri de D7 —
+  les mieux classées — et la couverture n'est calculée que sur une fenêtre de
+  présélection (trois fois la page, ordonnée sur la part de D7 indépendante du
+  stock), jamais sur tout le réservoir. Plafond assumé : une recette plus
+  ancienne que cette fenêtre ne peut plus remonter sur sa seule couverture.
+- **Tout ce qui est payé entre au réservoir (D1).** Les seize recettes
+  demandées au modèle y entrent ; la répartition web/composé qui en jetait
+  quatre datait du temps où la fournée était l'écran, et l'ordre d'affichage
+  vient désormais de D7.
+- **Un stock sans graines ne masque plus le réservoir (D6, D11).** Les graines
+  ne servent qu'à l'appel au modèle : elles ne sont composées que lorsqu'un
+  appel part, et `insufficient_stock` n'est levée que si le réservoir ne rend
+  rien non plus.
+- **`SuggestionBatch.payload` est retirée (D2 amendée par D11).** Plus aucun
+  lecteur depuis D8 ; la ligne ne date plus qu'une orientation déjà demandée.
+  Migration `0010_suggestion_batch_sans_payload`.
+
 ## Limites assumées
 
 - **Le prix de D11 : une orientation jamais satisfaite reste vide 24 heures.**

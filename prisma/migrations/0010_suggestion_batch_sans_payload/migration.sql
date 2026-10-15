@@ -1,0 +1,11 @@
+-- Retrait de `SuggestionBatch.payload` (revue finale du 2026-10-15).
+--
+-- La colonne portait la fournée complète, sérialisée à chaque appel payant.
+-- Plus personne ne la lit depuis que le réservoir sert l'écran (D8) et que le
+-- journal brut par appel est tenu par `RecognitionLog.rawResult` (D11) : la
+-- ligne ne sert plus qu'à dater une orientation déjà demandée.
+--
+-- Perte assumée : les fournées déjà écrites ne sont pas récupérables. Leur
+-- contenu est de toute façon dans `SuggestionPoolRecipe` (le réservoir) et
+-- dans `RecognitionLog`.
+ALTER TABLE "SuggestionBatch" DROP COLUMN "payload";

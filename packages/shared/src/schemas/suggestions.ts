@@ -45,13 +45,15 @@ export const suggestionQuerySchema = z.object({
     .optional(),
   difficulty: difficultySchema.optional(),
   /**
-   * Type de plat demandé au modèle. Le filtre de l'écran s'applique d'abord sur
-   * la fournée déjà chargée, sans rien coûter ; cette orientation ne sert qu'au
-   * bouton de relance proposé quand le filtre ne laisse aucune recette.
+   * Type de plat demandé au modèle, et filtre du réservoir à la lecture. C'est
+   * une orientation serveur à part entière depuis le 2026-10-11 : il n'y a
+   * plus de filtre d'écran local, la recherche est mono-type.
    */
   dishType: dishTypeSchema.optional(),
   /**
-   * Redemande un lot plutôt que de resservir le dernier (notice de B-cache).
+   * Relance explicite : demande une nouvelle recherche au modèle au lieu de
+   * servir le réservoir (D6, D11) — la seule sortie du verrou de 24 heures
+   * posé sur une orientation déjà demandée.
    * Jamais `z.coerce.boolean()` : il rend `true` pour la chaîne `"false"`, si
    * bien qu'un `refresh=false` posé par défaut dans l'orientation ferait payer
    * un appel à chaque chargement. Seule la chaîne `"true"` vaut vrai.

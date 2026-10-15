@@ -459,13 +459,15 @@ model RecognitionLog {
   @@index([purpose, createdAt])
 }
 
-// Cache des fournées retournées par le modèle pour une même situation de
-// départ (B12) : évite de repayer un appel identique au fournisseur.
+// Trace des orientations déjà demandées au modèle (D2 amendée par D11, spec
+// du 2026-10-15) : plus un cache — le réservoir l'a remplacé (D8) — et plus un
+// journal des réponses, que `RecognitionLog.rawResult` tient par appel. Une
+// ligne par orientation, relue pour la seule question « cette question a-t-elle
+// déjà été posée, et quand ? ».
 model SuggestionBatch {
   id        String   @id @default(cuid())
-  /** Signature du point de départ et de l'orientation : clé de cache (B12). */
+  /** Orientation seule (région, durée, facilité, type de plat, version) : sans les graines depuis D11, donc sans le stock. */
   signature String   @unique
-  payload   Json
   model     String
   costCents Decimal? @db.Decimal(10, 4)
   createdAt DateTime @default(now())
@@ -475,7 +477,8 @@ model SuggestionBatch {
 
 // Réservoir permanent des recettes rapportées par le modèle (EF-26, spec du
 // 2026-10-15) : une ligne par recette, jamais effacée. Remplace le TTL de 24 h
-// de `SuggestionBatch`, qui ne sert plus que de journal brut.
+// de `SuggestionBatch`, qui ne porte plus que la trace des orientations
+// demandées.
 model SuggestionPoolRecipe {
   id          String    @id @default(cuid())
   /** `suggestionIdentity` (titre normalisé + URL source) : clé de dédoublonnage du réservoir (D3). */

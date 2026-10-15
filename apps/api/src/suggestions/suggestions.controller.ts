@@ -16,8 +16,8 @@ export class SuggestionsController {
   constructor(private readonly suggestions: SuggestionsService) {}
 
   @Get()
-  list(@ZodQuery(suggestionQuerySchema) query: SuggestionQuery, @CurrentUser() user: RequestUser): Promise<SuggestionBatchDto> {
-    return this.suggestions.list(query, user);
+  list(@ZodQuery(suggestionQuerySchema) query: SuggestionQuery): Promise<SuggestionBatchDto> {
+    return this.suggestions.list(query);
   }
 
   @Post('keep')

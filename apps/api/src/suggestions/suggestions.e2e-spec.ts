@@ -25,8 +25,6 @@ import { SuggestionsService } from './suggestions.service.js';
 
 const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-de-passe-long' };
 
-const USER: RequestUser = { id: 'u1', email: 'franck@example.org', name: 'Franck', role: 'ADMIN', via: 'session', sessionId: 's1' };
-
 /**
  * Contexte Nest minimal (sans HTTP) pour tester `SuggestionsService` seule, sans
  * repasser par tout `AppModule` à chaque cas. Les routes HTTP (`SuggestionsController`,
@@ -177,7 +175,7 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Sel fin', quantity: 1, unit: 'PACK' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
-    await service.list(QUERY, USER);
+    await service.list(QUERY);
 
     const body = JSON.parse(String(http.calls[0]?.init?.body));
     const prompt = body.contents[0].parts[0].text as string;
@@ -192,9 +190,9 @@ describe('SuggestionsService (EF-26)', () => {
     // Exclu par le nom du produit (sel/poivre, B5) : aucune catégorie nécessaire.
     await seedProduct(db, locationId, { name: 'Poivre', quantity: 1, unit: 'SACHET' });
 
-    await expect(service.list(QUERY, USER)).rejects.toMatchObject({ status: 409, code: 'insufficient_stock' });
+    await expect(service.list(QUERY)).rejects.toMatchObject({ status: 409, code: 'insufficient_stock' });
     try {
-      await service.list(QUERY, USER);
+      await service.list(QUERY);
     } catch (error) {
       expect(String((error as Error).message)).toMatch(/ingrédient/);
     }
@@ -208,7 +206,7 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Crème fraîche épaisse 30%', quantity: 500, unit: 'MILLILITER' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
-    const result = await service.list(QUERY, USER);
+    const result = await service.list(QUERY);
 
     const ingredient = result.items[0]?.ingredients[0];
     expect(ingredient?.match).toBe('probable');
@@ -221,7 +219,7 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE', imagePath: 'scans/tomate.jpg' });
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
 
-    const result = await service.list(QUERY, USER);
+    const result = await service.list(QUERY);
     const tomate = result.items.flatMap((i) => i.ingredients).find((i) => i.productName === 'Tomate');
     expect(tomate?.productImagePath).toBe('scans/tomate.jpg');
     expect(tomate?.locationName).toBeTruthy();
@@ -235,7 +233,7 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
 
-    const result = await service.list(QUERY, USER);
+    const result = await service.list(QUERY);
     const absent = result.items.flatMap((i) => i.ingredients).find((i) => i.productId === null);
     expect(absent?.productImagePath).toBeNull();
     expect(absent?.locationName).toBeNull();
@@ -250,12 +248,12 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
 
-    const base = await service.list(QUERY, USER);
+    const base = await service.list(QUERY);
     expect(base.items.every((item) => DISH_TYPES.includes(item.dishType))).toBe(true);
     expect(String(http.calls[0]?.init?.body)).not.toContain('Ne propose que des recettes de type');
 
     // Relance ciblée : le type part au modèle, qui ne doit plus rendre que celui-là.
-    await service.list({ ...QUERY, dishType: 'DESSERT' }, USER);
+    await service.list({ ...QUERY, dishType: 'DESSERT' });
     expect(String(http.calls[1]?.init?.body)).toContain('Ne propose que des recettes de type « Dessert »');
   });
 
@@ -269,7 +267,7 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
 
-    await service.list(QUERY, USER);
+    await service.list(QUERY);
     expect(http.calls[0]?.url).toContain('modele-de-l-environnement');
 
     await db.setting.upsert({
@@ -278,7 +276,7 @@ describe('SuggestionsService (EF-26)', () => {
       update: { value: 'modele-choisi-a-l-ecran' },
     });
     // `refresh` force une nouvelle fournée : sans lui le cache servirait la précédente.
-    await service.list({ ...QUERY, refresh: true }, USER);
+    await service.list({ ...QUERY, refresh: true });
     expect(http.calls[1]?.url).toContain('modele-choisi-a-l-ecran');
   });
 
@@ -305,14 +303,14 @@ describe('SuggestionsService (EF-26)', () => {
       }),
     );
 
-    const first = await service.list({ refresh: false, maxMinutes: 30 }, USER);
+    const first = await service.list({ refresh: false, maxMinutes: 30 });
     expect(first.fromCache).toBe(false);
     const log = await db.recognitionLog.findFirstOrThrow({ where: { purpose: 'RECIPE_SUGGESTION' } });
     // 17,5 centimes de recherche, plus un demi-millième de centime de jetons :
     // les recherches dominent largement le coût d'une fournée.
     expect(log.costCents?.toNumber()).toBeCloseTo(17.5, 2);
 
-    const second = await service.list({ refresh: false, maxMinutes: 60 }, USER);
+    const second = await service.list({ refresh: false, maxMinutes: 60 });
     expect(second.fromCache).toBe(true);
     expect(second.notice).toMatch(/plafond/i);
     expect(http.calls).toHaveLength(1);
@@ -327,7 +325,7 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
 
-    await service.list(QUERY, USER);
+    await service.list(QUERY);
     expect(String(http.calls[0]?.init?.body)).toContain('google_search');
 
     await db.setting.upsert({
@@ -335,7 +333,7 @@ describe('SuggestionsService (EF-26)', () => {
       create: { key: 'suggestionWebSearch', value: false },
       update: { value: false },
     });
-    await service.list({ ...QUERY, refresh: true }, USER);
+    await service.list({ ...QUERY, refresh: true });
     const body = String(http.calls[1]?.init?.body);
     expect(body).not.toContain('google_search');
     // Le prompt doit changer avec l'outil : sans recherche, un modèle invente
@@ -350,7 +348,7 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Crème fraîche épaisse 30%', quantity: 500, unit: 'MILLILITER' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
-    const result = await service.list(QUERY, USER);
+    const result = await service.list(QUERY);
 
     expect(result.items[0]?.ingredients[0]?.state).toBe('available');
     expect(result.items[0]?.group).toBe('ready');
@@ -373,14 +371,14 @@ describe('SuggestionsService (EF-26)', () => {
     // réservoir se suffit dès la seconde visite. Aucune n'est de provenance
     // `web` : rien à vérifier, donc aucune requête de page dans ce décompte.
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-reservoir.json'));
-    const first = await service.list(QUERY, USER);
+    const first = await service.list(QUERY);
     expect(first.items.length).toBeGreaterThanOrEqual(6);
 
     // Le lot de courgettes est consommé jusqu'au bout : la pioche de départ
     // change, et avec elle l'ancienne signature de fournée.
     await db.stockItem.deleteMany({ where: { product: { name: 'Courgette' } } });
 
-    const second = await service.list(QUERY, USER);
+    const second = await service.list(QUERY);
 
     expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(1);
     expect(second.items.length).toBeGreaterThanOrEqual(6);
@@ -404,10 +402,10 @@ describe('SuggestionsService (EF-26)', () => {
     // La fixture rend une recette de 25 minutes : sous « ≤ 15 min » le
     // réservoir ne rend jamais rien, donc reste toujours sous le plancher.
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
-    await service.list({ refresh: false, maxMinutes: 15 }, USER);
+    await service.list({ refresh: false, maxMinutes: 15 });
 
     await db.stockItem.deleteMany({ where: { product: { name: 'Courgette' } } });
-    const second = await service.list({ refresh: false, maxMinutes: 15 }, USER);
+    const second = await service.list({ refresh: false, maxMinutes: 15 });
 
     expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(1);
     expect(await db.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION' } })).toBe(1);
@@ -418,6 +416,89 @@ describe('SuggestionsService (EF-26)', () => {
     expect(second.items).toHaveLength(0);
     expect(second.notice).toMatch(/déjà été cherchée récemment/);
     expect(second.notice).toMatch(/relancez la recherche vous-même/);
+  });
+
+  /** Composition `ai` minimale : aucune page à lire, donc aucun réseau à doubler. */
+  function composition(index: number): ModelRecipe {
+    return {
+      title: `Composition ${index}`,
+      origin: 'Composée par l’IA',
+      region: 'europeenne',
+      totalMinutes: 20,
+      prepMinutes: 10,
+      cookMinutes: 10,
+      difficulty: 'EASY',
+      dishType: 'MAIN',
+      provenance: 'ai',
+      sourceUrl: null,
+      steps: ['Mélanger', 'Servir'],
+      ingredients: [{ label: `Ingrédient ${index}`, quantity: 1, unit: 'PIECE' }],
+    };
+  }
+
+  it('ne rend jamais plus d’une page de recettes, si gros soit le réservoir', async () => {
+    // Le plafond de douze venait de la fournée, que D8 a supprimée. Sans
+    // borne, une visite rendait tout le réservoir — et payait un
+    // rapprochement `pg_trgm` par libellé d'ingrédient de chacune de ces
+    // recettes, sur un mini-PC, pour un téléphone (revue finale du
+    // 2026-10-15). La borne est posée APRÈS le tri : les meilleures en tête.
+    const { service, db } = await createService();
+    await seedPool(
+      db,
+      Array.from({ length: 40 }, (_, index) => ({ recipe: composition(index) })),
+    );
+
+    const result = await service.list(QUERY);
+
+    expect(await db.suggestionPoolRecipe.count()).toBe(40);
+    expect(result.items).toHaveLength(12);
+    // Le réservoir suffit largement : rien n'a été demandé au modèle.
+    expect(http.calls).toHaveLength(0);
+  });
+
+  it('sert le réservoir même quand le stock ne donne aucune graine', async () => {
+    // « Stock insuffisant pour suggérer » était levé AVANT toute lecture du
+    // réservoir : un placard momentanément vide masquait des dizaines de
+    // recettes gardées pour toujours, alors que le lot promet exactement
+    // l'inverse. Leur couverture nulle est justement l'information utile.
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    // Exclu des graines par son nom (sel/poivre, B5) : le stock ne compose rien.
+    await seedProduct(db, locationId, { name: 'Poivre', quantity: 1, unit: 'SACHET' });
+    await seedPool(
+      db,
+      Array.from({ length: 3 }, (_, index) => ({ recipe: composition(index) })),
+    );
+
+    const result = await service.list(QUERY);
+
+    expect(result.items).toHaveLength(3);
+    expect(result.items.every((item) => item.coverage === 0)).toBe(true);
+    // Sous le plancher de six, mais sans graine il n'y a rien à demander.
+    expect(http.calls).toHaveLength(0);
+  });
+
+  it('fait entrer au réservoir tout ce que le modèle a rendu, pas seulement de quoi remplir l’écran', async () => {
+    // Seize recettes sont demandées et facturées ; `rebalance` en gardait
+    // douze et les quatre autres étaient perdues. « Pas d'âge max, tu logges
+    // tout » : rien de payé et de valide ne doit être jeté.
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+
+    const rendues = Array.from({ length: 16 }, (_, index) => composition(index));
+    http.on('generateContent', () =>
+      json({
+        candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify({ recipes: rendues }) }] }, finishReason: 'STOP' }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10 },
+      }),
+    );
+
+    const result = await service.list(QUERY);
+
+    expect(await db.suggestionPoolRecipe.count()).toBe(16);
+    // L'écran, lui, reste borné à une page.
+    expect(result.items).toHaveLength(12);
   });
 
   it('ne montre jamais une recette web dont la page n’existe pas, même fraîchement rendue', async () => {
@@ -444,11 +525,11 @@ describe('SuggestionsService (EF-26)', () => {
     http.on('generateContent', () => json({ candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify({ recipes: [inventee] }) }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10 } }));
     http.fail(UNREACHABLE_HOST);
 
-    const result = await service.list(QUERY, USER);
+    const result = await service.list(QUERY);
 
     expect(result.items).toHaveLength(0);
     expect(await db.suggestionPoolRecipe.count()).toBe(0);
-    // La fournée brute, elle, garde trace de ce que le modèle a rendu (D2).
+    // L'orientation, elle, garde trace d'avoir été demandée (D2 amendée par D11).
     expect(await db.suggestionBatch.count()).toBe(1);
   });
 
@@ -459,11 +540,11 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-reservoir.json'));
-    const first = await service.list(QUERY, USER);
+    const first = await service.list(QUERY);
     const garde = first.items[0]!;
 
     await service.keep({ suggestionId: garde.id, clientOpId: 'op-keep-reservoir-01' }, keeper);
-    const second = await service.list(QUERY, USER);
+    const second = await service.list(QUERY);
 
     expect(second.items.map((i) => i.title)).not.toContain(garde.title);
     expect(second.items).toHaveLength(first.items.length - 1);
@@ -475,10 +556,10 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-orientation-a.json'));
-    const first = await service.list(QUERY, USER);
+    const first = await service.list(QUERY);
     http.reset();
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-orientation-b.json'));
-    const second = await service.list({ refresh: false, region: 'asiatique' }, USER);
+    const second = await service.list({ refresh: false, region: 'asiatique' });
 
     expect(first.items[0]?.title).toBe('Recette orientation A');
     expect(second.items[0]?.title).toBe('Recette orientation B');
@@ -491,8 +572,8 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
-    await service.list(QUERY, USER);
-    const second = await service.list({ refresh: true }, USER);
+    await service.list(QUERY);
+    const second = await service.list({ refresh: true });
 
     expect(second.fromCache).toBe(false);
     expect(http.calls).toHaveLength(2);
@@ -516,9 +597,9 @@ describe('SuggestionsService (EF-26)', () => {
       return geminiFixture(file);
     });
 
-    const first = await service.list({ refresh: false, region: 'europeenne' }, USER);
-    await service.list({ refresh: false, region: 'asiatique' }, USER);
-    const third = await service.list({ refresh: false, region: 'europeenne' }, USER);
+    const first = await service.list({ refresh: false, region: 'europeenne' });
+    await service.list({ refresh: false, region: 'asiatique' });
+    const third = await service.list({ refresh: false, region: 'europeenne' });
 
     expect(first.fromCache).toBe(false);
     expect(third.fromCache).toBe(true);
@@ -536,8 +617,8 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
-    const first = await service.list({ refresh: false, maxMinutes: 30 }, USER);
-    const second = await service.list({ refresh: false, maxMinutes: 60 }, USER);
+    const first = await service.list({ refresh: false, maxMinutes: 30 });
+    const second = await service.list({ refresh: false, maxMinutes: 60 });
 
     expect(first.fromCache).toBe(false);
     expect(second.fromCache).toBe(true);
@@ -553,8 +634,8 @@ describe('SuggestionsService (EF-26)', () => {
     // 30 000 jetons de sortie en gemini-3.5-flash-lite (0,4 $/Mtok) dépassent le
     // centime du plafond ; 5 000 suffisaient avec l'ancien modèle, vingt fois plus cher.
     http.on('generateContent', () => costlyFixture('suggestions/gemini-batch-creme.json', 30_000));
-    const first = await service.list({ refresh: false, maxMinutes: 30 }, USER);
-    const second = await service.list({ refresh: false, maxMinutes: 60 }, USER);
+    const first = await service.list({ refresh: false, maxMinutes: 30 });
+    const second = await service.list({ refresh: false, maxMinutes: 60 });
 
     expect(first.fromCache).toBe(false);
     expect(second.fromCache).toBe(true);
@@ -570,9 +651,9 @@ describe('SuggestionsService (EF-26)', () => {
     const locationId = await seedLocation(db);
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
 
-    await expect(service.list(QUERY, USER)).rejects.toMatchObject({ status: 429 });
+    await expect(service.list(QUERY)).rejects.toMatchObject({ status: 429 });
     try {
-      await service.list(QUERY, USER);
+      await service.list(QUERY);
       expect.unreachable('devait rejeter');
     } catch (error) {
       const message = String((error as Error).message);
@@ -588,7 +669,7 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
-    await service.list(QUERY, USER);
+    await service.list(QUERY);
 
     const logs = await db.recognitionLog.findMany({ where: { purpose: 'RECIPE_SUGGESTION' } });
     expect(logs).toHaveLength(1);
@@ -605,8 +686,8 @@ describe('SuggestionsService (EF-26)', () => {
     // rendues. Les deux paliers de durée laissent passer la recette de la
     // fixture (25 minutes) : le filtre d'orientation du réservoir ne doit pas
     // vider la seconde lecture, ce n'est pas ce que ce cas vérifie.
-    const first = await service.list({ refresh: false, maxMinutes: 30 }, USER);
-    const second = await service.list({ refresh: false, maxMinutes: 60 }, USER);
+    const first = await service.list({ refresh: false, maxMinutes: 30 });
+    const second = await service.list({ refresh: false, maxMinutes: 60 });
 
     // Deux orientations, donc deux lignes de journal : la réponse ne porte plus
     // d'identifiant de lot, c'est la table qui dit que les deux appels ont eu lieu.
@@ -629,7 +710,7 @@ describe('SuggestionsService (EF-26)', () => {
         ? costlyFixture('suggestions/gemini-batch-invalide.json', 300)
         : costlyFixture('suggestions/gemini-batch-creme.json', 700);
     });
-    await service.list(QUERY, USER);
+    await service.list(QUERY);
 
     expect(http.calls).toHaveLength(2);
     const logs = await db.recognitionLog.findMany({ where: { purpose: 'RECIPE_SUGGESTION' }, orderBy: { createdAt: 'asc' } });
@@ -653,7 +734,7 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
 
     http.on('generateContent', () => costlyFixture('suggestions/gemini-batch-invalide.json', 300));
-    await expect(service.list(QUERY, USER)).rejects.toMatchObject({ status: 502 });
+    await expect(service.list(QUERY)).rejects.toMatchObject({ status: 502 });
 
     const logs = await db.recognitionLog.findMany({ where: { purpose: 'RECIPE_SUGGESTION' } });
     expect(logs).toHaveLength(2);
@@ -669,7 +750,7 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-absent.json'));
-    const result = await service.list(QUERY, USER);
+    const result = await service.list(QUERY);
 
     const item = result.items[0]!;
     expect(item.group).toBe('excluded');
@@ -687,7 +768,7 @@ describe('SuggestionsService (EF-26)', () => {
     await seedProduct(db, locationId, { name: "Huile d'olive", quantity: 1, unit: 'LITER' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-presque.json'));
-    const result = await service.list(QUERY, USER);
+    const result = await service.list(QUERY);
 
     const item = result.items[0]!;
     expect(item.group).toBe('almost');
@@ -949,15 +1030,14 @@ describe('SuggestionsService (EF-26)', () => {
     it('désigne la suggestion par son identité au réservoir, jamais par un rang ni par une fournée (D9)', async () => {
       const { service, db } = await createService();
       const keeper = await seedUser(db);
-      // Une fournée existe et contient les deux recettes ; seule la
-      // composition est au réservoir. C'est le réservoir qui fait foi.
-      await db.suggestionBatch.create({
-        data: { signature: 'test-keep-fournee', payload: { recipes: [WEB_RECIPE, AI_RECIPE] } as unknown as Prisma.InputJsonValue, model: 'test-model', costCents: null },
-      });
+      // Une orientation a déjà été demandée ; seule la composition est au
+      // réservoir. C'est le réservoir qui fait foi — la ligne de fournée ne
+      // porte plus aucune recette depuis la migration 0010.
+      await db.suggestionBatch.create({ data: { signature: 'test-keep-fournee', model: 'test-model', costCents: null } });
       await seedPool(db, [{ recipe: AI_RECIPE }]);
 
       await expect(service.keep({ batchId: '', suggestionId: '0' }, keeper)).rejects.toMatchObject({ status: 404 });
-      // Présente dans la fournée, absente du réservoir : introuvable.
+      // Rendue par le modèle, absente du réservoir : introuvable.
       await expect(service.keep({ batchId: '', suggestionId: WEB_ID }, keeper)).rejects.toMatchObject({ status: 404 });
 
       const kept = await service.keep({ batchId: '', suggestionId: AI_ID, clientOpId: 'op-keep-identite-001' }, keeper);
@@ -1029,7 +1109,7 @@ describe('SuggestionsService (EF-26)', () => {
         }),
       );
 
-      const batch = await service.list(QUERY, USER);
+      const batch = await service.list(QUERY);
 
       expect(batch.items).toHaveLength(1);
       // Identité nue, jamais suffixée : c'est elle que la conservation cherche.

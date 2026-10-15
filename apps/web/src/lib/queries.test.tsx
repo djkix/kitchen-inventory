@@ -62,6 +62,35 @@ describe('useSuggestionsQuery (EF-25)', () => {
     expect(list.mock.calls[2]?.[0]).toEqual({ dishType: 'MAIN', refresh: true });
   });
 
+  it('relance encore après un compteur redescendu à zéro (démontage de l’écran, changement d’orientation)', async () => {
+    // Le défaut qu'il attrape (revue finale du 2026-10-15) : `relaunch` est un
+    // état local de l'écran Suggestions, remis à zéro au changement
+    // d'orientation et reparti de zéro au remontage — aller voir « Mes
+    // recettes » puis revenir. Le cache de requêtes, lui, survit. Un compteur
+    // qui repasse par 1 reformait donc une clé déjà en cache et, sous
+    // `staleTime: Infinity`, n'envoyait rien : pas d'appel, pas même un
+    // indicateur de chargement, sur le seul bouton qui sorte du verrou de 24 h.
+    const { rerender } = renderHook(({ relaunch }) => useSuggestionsQuery({ dishType: 'MAIN' }, { relaunch }), {
+      initialProps: { relaunch: 0 },
+      wrapper,
+    });
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+
+    rerender({ relaunch: 1 });
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+
+    // Le compteur redescend…
+    rerender({ relaunch: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    // …sans rien coûter : revenir sur l'écran n'est pas une relance.
+    expect(list).toHaveBeenCalledTimes(2);
+
+    // …et le même appui, de nouveau, doit repartir.
+    rerender({ relaunch: 1 });
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(3));
+    expect(list.mock.calls[2]?.[0]).toEqual({ dishType: 'MAIN', refresh: true });
+  });
+
   it('ne rappelle jamais le modèle sur un simple retour sur l’onglet, même après une relance', async () => {
     const { rerender } = renderHook(({ relaunch }) => useSuggestionsQuery({ dishType: 'MAIN' }, { relaunch }), {
       initialProps: { relaunch: 0 },
