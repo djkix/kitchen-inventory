@@ -28,46 +28,17 @@ function fnv1a(input: string): string {
  * Identifiant stable d'une suggestion, dérivé de son titre et de son URL source.
  * Deux suggestions au même titre et à la même source portent le même identifiant :
  * c'est voulu, ce sont la même recette.
+ *
+ * Il n'existe plus de variante qui désambiguïse les doublons d'une fournée par
+ * un suffixe de rang (`suggestionIdentities`, retirée le 2026-10-15) : depuis
+ * le réservoir, deux recettes de même identité sont une seule ligne par
+ * construction, et l'identité publiée par la fournée doit rester exactement
+ * celle que la conservation cherche — un suffixe rendait la seconde
+ * occurrence inconservable, en silence.
  */
 export function suggestionIdentity(recipe: { title: string; sourceUrl: string | null }): string {
   // Deux champs séparés par un caractère qui n'apparaît dans aucun des deux,
   // pour qu'un titre finissant par l'URL d'une autre ne puisse pas collisionner.
   const material = `${recipe.title.trim().toLowerCase()}\u0000${recipe.sourceUrl?.trim().toLowerCase() ?? ''}`;
   return fnv1a(material);
-}
-
-/**
- * Identités de toute une fournée, dans l'ordre (EF-26).
- *
- * Une recette composée par le modèle n'a pas d'URL source : `suggestionIdentity`
- * ne dépend alors que du titre, et le modèle compose souvent à partir des mêmes
- * quelques ingrédients du stock — deux « Riz sauté » distinctes dans la même
- * fournée sont plausibles. La collision ne peut pas se résoudre recette par
- * recette : il faut connaître les identités déjà attribuées aux recettes
- * précédentes de la *même* fournée pour savoir qu'il y a doublon. C'est
- * pourquoi la désambiguïsation est une propriété du lot (cette fonction),
- * jamais de `suggestionIdentity` (qui reste le hachage d'une recette isolée,
- * inchangé, pour ne pas faire dériver les identités — et donc les
- * `clientOpId` qui en découlent — déjà calculées avant ce correctif).
- *
- * La première recette à produire une identité donnée la garde telle quelle ;
- * chaque occurrence suivante reçoit un suffixe déterministe selon son rang
- * d'apparition dans le tableau. Le parcours se fait dans l'ordre du tableau
- * fourni : appeler cette fonction sur le même tableau de recettes *validées*
- * (après le filtrage du schéma Zod) aux deux points d'usage — construction
- * des DTO et recherche de la suggestion conservée — garantit qu'ils
- * s'accordent toujours, y compris quand une entrée a été écartée à la
- * validation (elle n'apparaît alors dans aucun des deux parcours, et ne peut
- * donc pas léguer son identifiant à une recette qui lui succède).
- */
-export function suggestionIdentities(
-  recipes: readonly { title: string; sourceUrl: string | null }[],
-): string[] {
-  const occurrences = new Map<string, number>();
-  return recipes.map((recipe) => {
-    const base = suggestionIdentity(recipe);
-    const rank = occurrences.get(base) ?? 0;
-    occurrences.set(base, rank + 1);
-    return rank === 0 ? base : `${base}-${rank + 1}`;
-  });
 }

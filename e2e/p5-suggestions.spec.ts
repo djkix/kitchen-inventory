@@ -16,13 +16,16 @@ import { restoreDatabase } from './support/database.ts';
  * (apps/api/src/suggestions/recipe-page.fetcher.ts) refuse tout ce qui n'est
  * pas HTTPS public (pas d'adresse privée, pas de boucle locale) — « l'
  * application n'envoie jamais djkix vers le site », donc elle ne récupère
- * jamais une doublure locale non plus. Relâcher ce garde-fou pour les
+ * jamais une doublure locale non plus : une recette web de la fixture
+ * n'entre donc même pas au réservoir. Relâcher ce garde-fou pour les
  * besoins d'un test reviendrait à tester l'application avec sa propre
  * protection désactivée. Seule une recette **composée par l'IA** (`provenance:
  * 'ai'`) est conservée ici : `SuggestionsService.buildCreateInput`
  * (apps/api/src/suggestions/suggestions.service.ts) ne fait alors AUCUN appel
  * réseau (B6) — les étapes et ingrédients de la fournée sont repris tels
- * quels.
+ * quels. Depuis la tâche 6 (2026-10-15), la conservation ne fait plus AUCUNE
+ * requête réseau non plus pour une recette web : la page a été lue une seule
+ * fois, à l'entrée au réservoir (D10).
  *
  * Fournée vue par ces tests : la doublure (`e2e/fixtures/stub-server.ts`,
  * `SUGGESTIONS_FIXTURE`) sert toujours `apps/api/test/fixtures/suggestions/
@@ -203,9 +206,10 @@ test('affiche les étapes d’une composition dès la fiche, mais jamais celles 
   await page.keyboard.press('Escape');
   await expect(aiDialog).toBeHidden();
 
-  // Recette web : sa page n'est récupérée et réécrite qu'à la conservation
-  // (B6) — aucune étape à deviner ici, copié tel quel depuis la fixture
-  // plutôt qu'un titre plausible.
+  // Recette web : ses étapes ne viennent pas de la fournée mais de sa page,
+  // lue à l'entrée au réservoir et recopiée là (D10) ; la fiche ne les montre
+  // qu'après conservation (B6) — aucune étape à deviner ici, copié tel quel
+  // depuis la fixture plutôt qu'un titre plausible.
   const webDialog = await openSuggestionSheet(page, 'Recette web 1');
   await expect(webDialog.getByRole('heading', { name: 'Étapes' })).toHaveCount(0);
   await expect(page.getByText('Préparer les ingrédients de la recette 1.')).toHaveCount(0);
@@ -244,9 +248,9 @@ test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où
 
   await dialog.getByRole('button', { name: 'Plus d’informations' }).click();
 
-  // Composition IA (B6) : aucun appel réseau supplémentaire, contrairement au
-  // chemin web (récupération de page + réécriture Gemini, hors périmètre ici
-  // — [C15]) : la navigation suit directement, sans attente prolongée à prévoir.
+  // Composition IA (B6) : aucun appel réseau supplémentaire — et depuis la
+  // tâche 6, le chemin web n'en fait plus non plus (page déjà recopiée au
+  // réservoir, [C15]) : la navigation suit directement, sans attente prolongée.
   await page.waitForURL(/\/recettes\/[^/]+$/);
   await expect(page.getByRole('heading', { name: 'Recette composée 1', level: 1 })).toBeVisible();
 

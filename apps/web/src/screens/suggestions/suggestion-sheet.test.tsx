@@ -66,11 +66,11 @@ function renderSheet(props: Partial<ComponentProps<typeof SuggestionSheet>> = {}
   // Permet de rouvrir le même tiroir (`open: false → true`) sans démonter le
   // composant, exactement comme `suggestions-screen.tsx` le monte une seule
   // fois et fait varier `open`.
-  const setOpen = (open: boolean) =>
+  const setOpen = (open: boolean, batchId = 'b1') =>
     view.rerender(
       <QueryClientProvider client={client}>
         <MemoryRouter>
-          <SuggestionSheet suggestion={suggestion} batchId="b1" open={open} onClose={onClose} keep={keep} {...props} />
+          <SuggestionSheet suggestion={suggestion} batchId={batchId} open={open} onClose={onClose} keep={keep} {...props} />
         </MemoryRouter>
       </QueryClientProvider>,
     );
@@ -186,5 +186,31 @@ describe('SuggestionSheet', () => {
     const firstOpId = keep.mock.calls[0]![0].clientOpId;
     const secondOpId = keep.mock.calls[1]![0].clientOpId;
     expect(secondOpId).toBe(firstOpId);
+  });
+
+  it('porte le même clientOpId à travers deux fournées différentes (réservoir, 2026-10-15)', async () => {
+    // Le `batchId` change à chaque appel au modèle, la recette servie du
+    // réservoir ne change pas. Tant que le `clientOpId` en dérivait, deux
+    // visites successives portaient deux identifiants : l'idempotence de la
+    // conservation, dont c'est le seul garde-fou côté serveur, ne tenait plus.
+    const message = 'La page de la recette n’a pas répondu à temps';
+    const keep = vi.fn().mockRejectedValueOnce(new ApiClientError(502, 'provider_unavailable', message)).mockResolvedValueOnce(recipe);
+    const { setOpen } = renderSheet({ keep });
+
+    fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
+    await waitFor(() => expect(screen.getByText(message)).toBeTruthy());
+
+    // Nouvelle fournée (nouvelle recherche, nouveau `batchId`), même suggestion.
+    setOpen(false, 'b1');
+    setOpen(true, 'b2');
+
+    fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
+    await waitFor(() => expect(keep).toHaveBeenCalledTimes(2));
+
+    expect(keep.mock.calls[0]![0].batchId).toBe('b1');
+    expect(keep.mock.calls[1]![0].batchId).toBe('b2');
+    expect(keep.mock.calls[1]![0].clientOpId).toBe(keep.mock.calls[0]![0].clientOpId);
+    // Dérivé de la seule identité de la suggestion : rien du lot n'y entre.
+    expect(keep.mock.calls[0]![0].clientOpId).not.toContain('b1');
   });
 });

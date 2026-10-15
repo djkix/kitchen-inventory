@@ -168,9 +168,18 @@ export const modelBatchSchema = z
   });
 export type ModelBatch = z.infer<typeof modelBatchSchema>;
 
-/** Conserve une suggestion d'un lot déjà généré, pour en faire une recette du foyer. */
+/**
+ * Conserve une suggestion, pour en faire une recette du foyer.
+ *
+ * `suggestionId` est l'identité de contenu publiée par la fournée
+ * (`suggestionIdentity`) : depuis le réservoir (D9), c'est elle seule qui
+ * désigne la recette. `batchId` n'est plus qu'un reliquat du client, accepté
+ * et ignoré : il doit donc rester libre, y compris vide — l'écran ne reçoit
+ * plus de fournée quand le réservoir sert seul, et un `idSchema` (`min(1)`)
+ * refusait alors la conservation en 400, avant même le service.
+ */
 export const keepSuggestionSchema = z.object({
-  batchId: idSchema,
+  batchId: z.string().optional(),
   suggestionId: idSchema,
   clientOpId: clientOpIdSchema.optional(),
 });

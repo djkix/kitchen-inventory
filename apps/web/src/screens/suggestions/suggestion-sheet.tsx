@@ -39,8 +39,8 @@ interface SuggestionSheetProps {
  * côté serveur la récupération de la page et sa réécriture par Gemini, d'où
  * l'attente explicite pendant l'appel.
  *
- * `clientOpId` est **déterministe** (round 1 de revue) — dérivé du lot et de
- * la suggestion, jamais tiré au hasard : un identifiant aléatoire régénéré à
+ * `clientOpId` est **déterministe** (round 1 de revue) — dérivé de la seule
+ * identité de la suggestion, jamais tiré au hasard : un identifiant aléatoire régénéré à
  * chaque ouverture du tiroir se faisait oublier dès que djkix fermait la
  * fiche après un échec et la rouvrait pour réessayer, ce qui rejouait un
  * second appel payant si le premier avait en fait atteint Gemini (réponse
@@ -67,7 +67,12 @@ export function SuggestionSheet({ suggestion, batchId, open, onClose, keep = sug
 
   if (!suggestion) return null;
 
-  const clientOpId = `keep:${batchId}:${suggestion.id}`;
+  // Dérivé de `suggestion.id` SEUL (identité de contenu, `suggestionIdentity`) :
+  // le `batchId` change à chaque appel au modèle, et la même recette servie du
+  // réservoir deux jours de suite portait alors deux identifiants d'opération
+  // différents — l'idempotence de la conservation, dont c'est le seul
+  // garde-fou côté serveur, ne tenait plus d'une visite à l'autre.
+  const clientOpId = `keep:${suggestion.id}`;
 
   const confirm = async () => {
     setBusy(true);
