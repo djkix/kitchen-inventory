@@ -79,10 +79,11 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
     try {
       const recipe = await keep({ suggestionId: suggestion.id, clientOpId });
       // Au succès : seule la liste des recettes change, la nouvelle venue y entre.
-      // La fournée, elle, n'est pas invalidée : elle est mise en cache 24 heures
-      // côté serveur et conserver une suggestion ne la modifie pas — la rejouer
-      // ne ferait que redemander la même chose, sur la seule route payante du
-      // module.
+      // La liste de suggestions, elle, n'est pas invalidée. Le serveur en
+      // exclura bien cette recette au prochain passage (`readPool` écarte ce
+      // qui est déjà dans « Mes recettes »), mais la rejouer maintenant
+      // coûterait un appel sur la seule route payante du module pour retirer
+      // une carte dont on vient de quitter l'écran.
       await queryClient.invalidateQueries({ queryKey: queryKeys.recipesAll });
       onClose();
       // C'est là, et seulement là, que djkix lit enfin les étapes.
@@ -197,7 +198,13 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
 
         {busy && (
           <p role="status" aria-live="polite" className="text-[13px] text-muted">
-            Extraction de la recette en cours… cela peut prendre plusieurs secondes.
+            {/* Message selon la provenance : une recette web est réécrite au
+                format de l'application par le modèle, ce qui prend plusieurs
+                secondes ; une composition est déjà au bon format et ne coûte
+                aucun appel, annoncer une attente y serait faux. */}
+            {suggestion.provenance === 'web'
+              ? 'Réécriture de la recette en cours… cela peut prendre plusieurs secondes.'
+              : 'Enregistrement de la recette…'}
           </p>
         )}
 

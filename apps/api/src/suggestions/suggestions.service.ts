@@ -35,21 +35,49 @@ import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
 import { SuggestionPoolService, type PoolRecipe } from './suggestion-pool.service.js';
 import { RECIPE_REWRITER, SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionRequest } from './suggestion-provider.js';
 
-/** Taille visée d'une fournée (section 5.1, B8) : douze recettes, huit web pour quatre composées. */
-export const SUGGESTION_BATCH_SIZE = 12;
-const SUGGESTION_AI_TARGET = 4;
-const SUGGESTION_WEB_TARGET = SUGGESTION_BATCH_SIZE - SUGGESTION_AI_TARGET;
 /**
- * Marge demandée au fournisseur au-delà du total voulu (voir « Vigilance 2 » du
- * rapport de tâche 5) : `GeminiSuggestionProvider.suggest()` tronque déjà à `count`
- * dans l'ordre brut du modèle, avant que ce service ne voie le résultat — si le
- * modèle plaçait toutes ses recettes web avant les composées, une troncature
- * stricte à `SUGGESTION_BATCH_SIZE` effacerait la part composée en entier. Demander
- * quelques recettes de plus borne ce risque (la répartition finale se fait ensuite
- * ici, dans `rebalance`), sans pouvoir l'exclure complètement : une vraie garantie
- * demanderait de ne plus tronquer du tout côté fournisseur, hors périmètre ici.
+ * Nombre de recettes rendues à l'écran en une fois (section 5.1, B8), et base
+ * du nombre demandé au modèle.
+ *
+ * C'était la taille de la fournée, et la fournée était l'écran. Depuis que
+ * l'écran est servi par un réservoir permanent (D8), plus rien ne bornait la
+ * réponse : au bout de quelques semaines, une visite rendait tout le réservoir
+ * — et payait un rapprochement `pg_trgm` par libellé d'ingrédient de chaque
+ * recette (revue finale du 2026-10-15). C'est désormais la borne de la page
+ * rendue, appliquée APRÈS le tri de `comparePoolEntries` : les meilleures en
+ * tête, c'est tout l'objet de ce tri.
+ */
+export const SUGGESTION_BATCH_SIZE = 12;
+/**
+ * Marge demandée au fournisseur au-delà de la page rendue (voir « Vigilance 2 »
+ * du rapport de tâche 5) : `GeminiSuggestionProvider.suggest()` tronque à
+ * `count` dans l'ordre brut du modèle, et si celui-ci plaçait toutes ses
+ * recettes web avant les composées, une demande strictement égale à la page
+ * rendue effacerait la part composée. En demander quelques-unes de plus borne
+ * ce risque. Tout ce qui revient entre au réservoir : ce lot ne jette plus
+ * rien de ce qui a été payé (« pas d'âge max, tu logges tout »).
  */
 export const SUGGESTION_REQUEST_BUFFER = 4;
+
+/**
+ * Nombre de lignes du réservoir sur lesquelles la couverture est réellement
+ * calculée avant tri (revue finale du 2026-10-15).
+ *
+ * Dépendance à résoudre : `comparePoolEntries` trie entre autres sur la
+ * couverture, qui n'est connue qu'après `toSuggestionDtos` — c'est-à-dire
+ * après la requête `word_similarity` sur tout le catalogue `Product` pour
+ * chaque libellé d'ingrédient. La calculer sur un réservoir de plusieurs
+ * centaines de recettes à chaque visite est exactement le défaut relevé. Elle
+ * se résout en deux temps : d'abord une présélection sur la part de l'ordre
+ * qui **ne dépend pas du stock** (recettes vérifiées d'abord, puis les plus
+ * récemment découvertes — l'ordre que `pool.read` rend déjà), puis couverture
+ * et tri complet sur cette seule fenêtre.
+ *
+ * Plafond assumé : une recette plus ancienne que la fenêtre ne peut plus
+ * remonter sur sa seule couverture. Trois fois la page rendue laisse de quoi
+ * départager ; aller plus loin demanderait de porter la couverture en base.
+ */
+const SUGGESTION_RANKING_WINDOW = 3 * SUGGESTION_BATCH_SIZE;
 
 /**
  * Plancher sous lequel le réservoir ne suffit plus pour l'orientation demandée
@@ -102,27 +130,14 @@ const MATCH_CANDIDATES_PER_LABEL = 5;
 const ABSENT_MATCH_SENTINEL = '__suggestion_absent_match__';
 
 /**
- * Répartit la fournée reçue entre web et composé plutôt que de garder l'ordre
- * brut du modèle (voir le commentaire de `SUGGESTION_REQUEST_BUFFER`) : prend
- * jusqu'à `SUGGESTION_WEB_TARGET` recettes web et `SUGGESTION_AI_TARGET`
- * composées, puis complète avec le reste si l'une des deux sources est en
- * déficit, jusqu'à `SUGGESTION_BATCH_SIZE`.
- *
- * Exportée pour être couverte au nombre réellement demandé en production
- * (`SUGGESTION_BATCH_SIZE + SUGGESTION_REQUEST_BUFFER`, soit seize), et pas
- * seulement à la taille de la fournée rendue.
+ * Présélection avant calcul de la couverture (voir `SUGGESTION_RANKING_WINDOW`) :
+ * la part de l'ordre de `comparePoolEntries` qui ne dépend pas du stock —
+ * vérifiées d'abord (D5), chaque groupe gardant l'ordre de première apparition
+ * décroissant rendu par `pool.read`.
  */
-export function rebalance(recipes: readonly ModelRecipe[]): ModelRecipe[] {
-  const web = recipes.filter((r) => r.provenance === 'web');
-  const ai = recipes.filter((r) => r.provenance === 'ai');
-  const webTaken = web.slice(0, SUGGESTION_WEB_TARGET);
-  const aiTaken = ai.slice(0, SUGGESTION_AI_TARGET);
-  let combined = [...webTaken, ...aiTaken];
-  if (combined.length < SUGGESTION_BATCH_SIZE) {
-    const leftovers = [...web.slice(webTaken.length), ...ai.slice(aiTaken.length)];
-    combined = [...combined, ...leftovers.slice(0, SUGGESTION_BATCH_SIZE - combined.length)];
-  }
-  return combined.slice(0, SUGGESTION_BATCH_SIZE);
+function rankingWindow(entries: readonly PoolRecipe[]): PoolRecipe[] {
+  if (entries.length <= SUGGESTION_RANKING_WINDOW) return [...entries];
+  return [...entries.filter((entry) => entry.verified), ...entries.filter((entry) => !entry.verified)].slice(0, SUGGESTION_RANKING_WINDOW);
 }
 
 function computeSignature(query: SuggestionQuery): string {
@@ -186,11 +201,11 @@ export class SuggestionsService {
   ) {}
 
   /**
-   * `user` n'est pas encore consommé par cette tâche (fournée partagée par le
-   * foyer, pas personnalisée) : il est conservé dans la signature pour les
-   * tâches suivantes (conservation d'une suggestion, tâche 9).
+   * Suggestions servies du réservoir, couverture recalculée contre le stock du
+   * moment (EF-25, EF-26). La liste ne porte rien au nom de l'utilisateur : la
+   * recherche est celle du foyer, pas une personnalisation.
    */
-  async list(query: SuggestionQuery, _user: RequestUser): Promise<SuggestionBatchDto> {
+  async list(query: SuggestionQuery): Promise<SuggestionBatchDto> {
     // Vérifié avant toute lecture du stock : inutile de composer une requête
     // si le fournisseur ne pourra de toute façon pas répondre. Garde partagée
     // avec `RecognitionService.recognizeImage` (`assertProviderEnabled`).
@@ -200,11 +215,6 @@ export class SuggestionsService {
     // `loadSeedCandidates` interrogeaient chacun la table `Category`).
     const categories = await loadCategoryRows(this.prisma);
     const snapshot = await this.coverage.snapshot(new Date(), categories);
-    const candidates = await loadSeedCandidates(this.prisma, snapshot, categories);
-    const seeds = pickSeedIngredients(candidates, new Date());
-    if (seeds.length === 0) {
-      throw ApiError.insufficientStock('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
-    }
 
     const signature = computeSignature(query);
     // Le réservoir d'abord, toujours (D6) : le modèle n'est appelé que s'il ne
@@ -236,6 +246,23 @@ export class SuggestionsService {
     }
 
     if (mustAsk) {
+      // Les graines ne servent plus qu'à composer la question posée au modèle
+      // (D11) : elles ne sont donc calculées que lorsqu'une question part, et
+      // non plus à chaque visite.
+      const seeds = pickSeedIngredients(await loadSeedCandidates(this.prisma, snapshot, categories), new Date());
+      if (seeds.length === 0) {
+        // Un placard momentanément vide ne doit plus masquer le réservoir
+        // (revue finale du 2026-10-15) : le lot promet que les recettes
+        // trouvées restent disponibles, et leur couverture nulle est
+        // justement l'information utile. L'erreur n'est levée que si le
+        // réservoir ne rend rien non plus — sur relance explicite, il n'a
+        // pas encore été lu.
+        if (query.refresh) entries = await this.readPool(query);
+        if (entries.length === 0) {
+          throw ApiError.insufficientStock('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
+        }
+        return this.render(entries, snapshot, true, notice);
+      }
       const breach = await this.quotaBreach();
       if (breach) {
         // Repli : le réservoir entier, sans filtre d'orientation (D8) — mieux
@@ -256,9 +283,26 @@ export class SuggestionsService {
       }
     }
 
-    const items = await this.toSuggestionDtos(entries, snapshot);
-    // Ordre du réservoir (D7), par la règle pure partagée : jamais réécrit ici.
-    const firstSeenById = new Map(entries.map((entry) => [entry.identity, entry.firstSeenAt]));
+    return this.render(entries, snapshot, fromCache, notice);
+  }
+
+  /**
+   * Couverture, ordre (D7) et borne de la page rendue, dans cet ordre
+   * d'opérations — qui est tout le sujet (revue finale du 2026-10-15) :
+   *
+   * 1. `rankingWindow` présélectionne sur la part de l'ordre indépendante du
+   *    stock, pour que l'étape suivante ne travaille jamais sur tout le
+   *    réservoir ;
+   * 2. `toSuggestionDtos` calcule le rapprochement et la couverture **de cette
+   *    fenêtre seule** — le tri en a besoin, il ne peut donc pas venir avant ;
+   * 3. `comparePoolEntries`, la règle pure partagée, ordonne ; jamais réécrite
+   *    ici ;
+   * 4. la page est bornée après le tri, donc aux meilleures.
+   */
+  private async render(entries: readonly PoolRecipe[], snapshot: StockSnapshot, fromCache: boolean, notice: string | null): Promise<SuggestionBatchDto> {
+    const window = rankingWindow(entries);
+    const items = await this.toSuggestionDtos(window, snapshot);
+    const firstSeenById = new Map(window.map((entry) => [entry.identity, entry.firstSeenAt]));
     const key = (dto: SuggestionDto): Parameters<typeof comparePoolEntries>[0] => ({
       verified: dto.verified,
       coverage: dto.coverage,
@@ -270,7 +314,7 @@ export class SuggestionsService {
 
     return {
       fromCache,
-      items,
+      items: items.slice(0, SUGGESTION_BATCH_SIZE),
       notice,
     };
   }
@@ -361,10 +405,11 @@ export class SuggestionsService {
   /**
    * Appelle le modèle et marque l'orientation comme demandée dans
    * `SuggestionBatch` (D2 amendée par D11). Personne ne relit cette ligne pour
-   * servir une réponse (D8) : elle dit « cette question a été posée, à telle
-   * date, pour tel coût ». Le journal brut par appel, c'est
-   * `RecognitionLog.rawResult` qui le tient. Les recettes rendues partent
-   * ensuite à l'ingestion.
+   * servir une réponse (D8) : elle ne dit plus que « cette question a été
+   * posée, à telle date, pour tel coût » — d'où la disparition de sa colonne
+   * `payload` (migration 0010). Le journal brut par appel, c'est
+   * `RecognitionLog.rawResult` qui le tient ; les recettes, c'est le
+   * réservoir. Les recettes rendues partent ensuite à l'ingestion.
    */
   private async fetchAndStore(
     signature: string,
@@ -403,12 +448,18 @@ export class SuggestionsService {
     // fois au quota journalier et au plafond mensuel.
     await this.logAttempts(output.attempts, true);
 
-    const recipes = rebalance(output.recipes);
+    // Tout ce que le modèle a rendu, et pas seulement de quoi remplir un
+    // écran : seize recettes sont demandées et facturées, les seize entrent au
+    // réservoir. Le `rebalance` qui en jetait quatre datait du temps où la
+    // fournée ÉTAIT l'écran ; l'ordre d'affichage vient désormais de
+    // `comparePoolEntries` à la lecture, et « pas d'âge max, tu logges tout »
+    // interdit de jeter du contenu payé (revue finale du 2026-10-15).
+    const recipes = output.recipes;
     const costCents = totalCostCents(output.attempts);
     await this.prisma.suggestionBatch.upsert({
       where: { signature },
-      create: { signature, payload: toJson({ recipes }), model: output.model, costCents },
-      update: { payload: toJson({ recipes }), model: output.model, costCents, createdAt: new Date() },
+      create: { signature, model: output.model, costCents },
+      update: { model: output.model, costCents, createdAt: new Date() },
     });
     return { recipes, model: output.model };
   }

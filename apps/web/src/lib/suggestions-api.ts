@@ -18,20 +18,26 @@ export interface SuggestionOrientation {
    * seul type déjà présent n'aurait donc plus d'objet.
    */
   dishType?: DishType;
-  /** Redemande une fournée plutôt que de resservir la dernière en cache (tâche 12). */
+  /**
+   * Relance explicite : demande une nouvelle recherche au modèle au lieu de
+   * servir le réservoir (D6, D11, 2026-10-15). Seule sortie du verrou de 24
+   * heures posé sur une orientation déjà demandée.
+   */
   refresh?: boolean;
 }
 
 export const suggestionsApi = {
-  /** Fournée de suggestions (EF-25, EF-26) : stock réel, cache et quotas sont décidés par le serveur. */
+  /** Suggestions (EF-25, EF-26) : réservoir, appel au modèle et quotas sont décidés par le serveur, la couverture est recalculée contre le stock du moment. */
   list(orientation: SuggestionOrientation): Promise<SuggestionBatchDto> {
     return api.get<SuggestionBatchDto>('/suggestions', { query: { ...orientation } });
   },
 
   /**
-   * Conserve une suggestion du lot en recette du foyer (EF-25, EF-26, B6) :
-   * côté serveur, une page web est récupérée et réécrite par Gemini, ce qui
-   * prend plusieurs secondes et consomme du quota — `clientOpId` rend un
+   * Conserve une suggestion en recette du foyer (EF-25, EF-26, B6). Le site
+   * n'est **jamais** recontacté : sa page a été lue une seule fois, à l'entrée
+   * au réservoir, et son contenu y est gardé (D10, 2026-10-15). Côté serveur,
+   * une recette web est réécrite par Gemini à partir de ce contenu — plusieurs
+   * secondes et du quota ; une composition ne coûte rien. `clientOpId` rend un
    * rejeu (double appui, réseau lent) sans effet, la recette déjà créée est
    * alors rendue au lieu d'en recréer une.
    */

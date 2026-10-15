@@ -116,19 +116,34 @@ describe('SuggestionSheet', () => {
     expect(screen.getByText(/étapes arriveront à la conservation/i)).toBeTruthy();
   });
 
-  it('conserve la recette et annonce l’attente pendant l’extraction', async () => {
+  it('conserve la recette et annonce l’attente pendant la réécriture', async () => {
     let resolveKeep: (recipe: RecipeDto) => void = () => {};
     const keep = vi.fn().mockImplementation(() => new Promise<RecipeDto>((resolve) => (resolveKeep = resolve)));
     const { onClose } = renderSheet({ keep });
 
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
 
-    await waitFor(() => expect(screen.getByText(/extraction de la recette en cours/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/réécriture de la recette en cours/i)).toBeTruthy());
     expect((screen.getByRole('button', { name: /Plus d’informations/i }) as HTMLButtonElement).disabled).toBe(true);
 
     resolveKeep(recipe);
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(keep).toHaveBeenCalledWith({ suggestionId: 's1', clientOpId: expect.any(String) });
+  });
+
+  it('n’annonce aucune attente de plusieurs secondes pour une composition de l’IA', () => {
+    // Une composition est déjà au format de l'application : rien n'est
+    // réécrit, aucun appel ne part, la réponse est immédiate. Annoncer
+    // « plusieurs secondes » y était simplement faux (revue finale du
+    // 2026-10-15).
+    const keep = vi.fn().mockImplementation(() => new Promise<RecipeDto>(() => {}));
+    renderSheet({ suggestion: aiSuggestion, keep });
+
+    fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
+
+    expect(screen.queryByText(/plusieurs secondes/i)).toBeNull();
+    expect(screen.getByText(/enregistrement de la recette/i)).toBeTruthy();
   });
 
   it('affiche le message français de l’API quand la conservation échoue', async () => {

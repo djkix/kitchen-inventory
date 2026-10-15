@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import type {
   AuthStatus,
@@ -280,6 +281,21 @@ export function usePendingRatingQuery() {
 }
 
 /**
+ * Jeton de relance, strictement croissant et partagé par tout le module.
+ *
+ * `relaunch` est un compteur local à l'écran Suggestions : il est remis à zéro
+ * au changement d'orientation et perdu au démontage de l'écran (aller voir
+ * « Mes recettes » puis revenir), alors que le cache de requêtes, lui, survit.
+ * Un compteur qui repasse par une valeur déjà utilisée reforme une clé déjà en
+ * cache et, sous `staleTime: Infinity`, **ne déclenche aucun appel** : le
+ * bouton « Chercher de nouvelles recettes » redevenait muet, pas même un
+ * indicateur de chargement, exactement là où il sert — l'écran vide, seule
+ * sortie du verrou de 24 heures de D11 (revue finale du 2026-10-15). Le jeton,
+ * lui, ne redescend jamais.
+ */
+let nextRelaunchToken = 0;
+
+/**
  * Fournée de suggestions (EF-25, EF-26) : jamais rejouée automatiquement en cas
  * d'échec, l'appel interroge un fournisseur payant et soumis à quota — une
  * nouvelle tentative est un choix de l'utilisateur (bouton « Réessayer »),
@@ -306,18 +322,27 @@ export function usePendingRatingQuery() {
  * que lorsqu'on demande explicitement une nouvelle recherche, et c'est
  * `relaunch` qui le dit. Rien ne doit partir vers Gemini sans un geste.
  *
- * `relaunch` (tour 3) : compteur de relances explicites. Il entre dans la clé
- * de requête — deux appuis font donc deux recherches, là où un `refresh: true`
- * posé dans l'orientation laissait la clé inchangée et rendait le bouton muet
- * au second appui — mais ne repart pas tel quel au serveur : seul le booléen
- * `refresh` y va, pour la recherche que ce compteur déclenche et elle seule.
- * Posé hors de l'orientation, il ne peut pas y rester collé.
+ * `relaunch` (tour 3) : compteur de relances explicites. Chaque appui doit
+ * former une clé de requête neuve — un `refresh: true` posé dans l'orientation
+ * laissait la clé inchangée et rendait le bouton muet au second appui — mais
+ * il ne repart pas tel quel au serveur : seul le booléen `refresh` y va, pour
+ * la recherche qu'il déclenche et elle seule. Ce n'est pas le compteur reçu
+ * qui entre dans la clé mais un jeton qui ne redescend jamais
+ * (`nextRelaunchToken`), voir ci-dessous.
  */
 export function useSuggestionsQuery(orientation: SuggestionOrientation, options?: { enabled?: boolean; relaunch?: number }) {
   const relaunch = options?.relaunch ?? 0;
+  const previousRelaunch = useRef(relaunch);
+  const token = useRef(0);
+  if (previousRelaunch.current !== relaunch) {
+    previousRelaunch.current = relaunch;
+    // Retour à zéro : c'est un changement d'orientation, pas une relance — la
+    // clé redevient celle de la lecture normale du réservoir.
+    token.current = relaunch === 0 ? 0 : (nextRelaunchToken += 1);
+  }
   return useQuery({
-    queryKey: [...queryKeys.suggestions(orientation), relaunch] as const,
-    queryFn: () => suggestionsApi.list({ ...orientation, refresh: relaunch > 0 ? true : undefined }),
+    queryKey: [...queryKeys.suggestions(orientation), token.current] as const,
+    queryFn: () => suggestionsApi.list({ ...orientation, refresh: token.current > 0 ? true : undefined }),
     retry: false,
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
