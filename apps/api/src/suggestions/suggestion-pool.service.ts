@@ -73,7 +73,14 @@ export class SuggestionPoolService {
         content = null;
         this.logger.warn({ sourceUrl: recipe.sourceUrl, err: error }, 'Page de recette illisible');
       }
-      if (content === null) return false;
+      // Jetée sans exception : `fetchContent` rend `null` pour une page qui ne
+      // répond pas, et ne lève que pour un refus de sécurité. Sans cette ligne,
+      // une recette disparaissait du réservoir sans laisser la moindre trace —
+      // exactement le silence que le reste de ce service cherche à éviter.
+      if (content === null) {
+        this.logger.warn({ sourceUrl: recipe.sourceUrl }, 'Recette web écartée : page injoignable');
+        return false;
+      }
     }
     const now = new Date();
     try {
@@ -95,7 +102,14 @@ export class SuggestionPoolService {
         update: { lastSeenAt: now, model },
       });
       if (content) {
-        // Atomique : ne remplit que si la ligne n'a encore aucun contenu de page.
+        // Atomique, et pas redondant avec le garde `alreadyRead` (contre-revue du
+        // 2026-10-15) : ce garde est calculé AVANT les lectures de pages, donc deux
+        // fournées simultanées portant la même recette peuvent toutes deux lire la
+        // page. Sans `verifiedAt: null`, la seconde écraserait le contenu déjà
+        // recopié par la première — une seconde lecture du site, contraire à D10.
+        // Aucun test ne couvre cette course : il faudrait deux `ingest` concurrents
+        // à latence contrôlée. Le filet reste, il ne coûte qu'une clause.
+        
         await this.prisma.suggestionPoolRecipe.updateMany({
           where: { identity, verifiedAt: null },
           data: {
