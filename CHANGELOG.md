@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.17.0](https://github.com/djkix/kitchen-inventory/compare/v0.16.0...v0.17.0) (2026-10-15)
+
+
+### Features
+
+* **recipes:** filtres de « Mes recettes » en sélecteurs, comme Suggestions (EF-21) ([2b3b48b](https://github.com/djkix/kitchen-inventory/commit/2b3b48b5153487635c5975834d8247805f38aee1))
+* **settings:** limiter le choix des modèles à la famille Flash ([f42ea6c](https://github.com/djkix/kitchen-inventory/commit/f42ea6c5629de3cd2abd872cc3633fa8ffb2270e))
+* **shared:** règle de tri du réservoir de suggestions (EF-26) ([7c19e72](https://github.com/djkix/kitchen-inventory/commit/7c19e72090475d40fea5455167bb84a7c38a3a20))
+* **suggestions:** conserver depuis le réservoir, sans rappeler le site (EF-25, EF-26) ([5116a6f](https://github.com/djkix/kitchen-inventory/commit/5116a6fbc2f6f8b73fe1c8752b0c9a98b5a590c4))
+* **suggestions:** ingestion au réservoir, page vérifiée et recopiée (EF-26) ([8644a19](https://github.com/djkix/kitchen-inventory/commit/8644a1984f2c48635ae364a83d85fea3b4bb7da9))
+* **suggestions:** servir depuis le réservoir, Gemini seulement sous le plancher (EF-25, EF-26) ([27222f4](https://github.com/djkix/kitchen-inventory/commit/27222f43639d617125afa30d29367f1c9b6cd234))
+* **suggestions:** table du réservoir permanent de recettes (EF-26) ([449021e](https://github.com/djkix/kitchen-inventory/commit/449021e75f243837ff0e073f52c5df34ed50c0b1))
+* **suggestions:** une composition s'annonce non vérifiée sur sa carte (EF-26) ([d5c2f6c](https://github.com/djkix/kitchen-inventory/commit/d5c2f6cac7d2d0495cf9489f4b796529d6aad34f))
+
+
+### Bug Fixes
+
+* **shared:** ordre total du réservoir, quelle que soit l'écriture de la date (EF-26) ([9e7ca47](https://github.com/djkix/kitchen-inventory/commit/9e7ca474f0a20cf3f0ba6c00a83e78c01dd98915))
+* **suggestions:** aucun appel au modèle sans un geste, et une relance répétable (EF-25) ([2820774](https://github.com/djkix/kitchen-inventory/commit/282077443df38aa3f46cfa50a96434ad91e4e615))
+* **suggestions:** borner la page, libérer le réservoir et cesser de jeter du payé (EF-25, EF-26) ([76040fd](https://github.com/djkix/kitchen-inventory/commit/76040fd36473c19d0536b59b07eef2b4d24bf6e0))
+* **suggestions:** dire le verrou de 24 h et rendre la relance atteignable (EF-25, EF-26) ([4334adf](https://github.com/djkix/kitchen-inventory/commit/4334adfe0f6ae3274ecc10cbea809cb2bc347bd5))
+* **suggestions:** journaliser les échecs du réservoir et prouver la lecture unique de la page (EF-26) ([42160d3](https://github.com/djkix/kitchen-inventory/commit/42160d34796de4a7c1f6f86dce244078d237bc2f))
+* **suggestions:** journaliser une recette web écartée faute de page (EF-26) ([3b386d4](https://github.com/djkix/kitchen-inventory/commit/3b386d4544e589b2e8fcb3ca2c48d01f56c1cb4f))
+* **suggestions:** signature d'orientation sans graines et ordre total du réservoir (EF-25, EF-26) ([d954204](https://github.com/djkix/kitchen-inventory/commit/d9542049f7ea2742a4b7b9b2545c78d22fc0259a))
+* **suggestions:** toujours réécrire une recette web, sans jamais rappeler le site (EF-25) ([44d7acd](https://github.com/djkix/kitchen-inventory/commit/44d7acd88d9a8b1fe8d2249d0d78e6592fcf5e5b))
+
 ## [0.16.0](https://github.com/djkix/kitchen-inventory/compare/v0.15.0...v0.16.0) (2026-10-11)
 
 
