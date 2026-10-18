@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.18.0](https://github.com/djkix/kitchen-inventory/compare/v0.17.0...v0.18.0) (2026-10-18)
+
+
+### Features
+
+* **accounts:** validation et révocation des comptes par un administrateur (section 10) ([53d64c4](https://github.com/djkix/kitchen-inventory/commit/53d64c42738109eecc9bd5ae20441855da277192))
+* **auth:** accès de secours en ligne de commande (section 10) ([6c0f03a](https://github.com/djkix/kitchen-inventory/commit/6c0f03a07cbe5b2491e58265440f079cb575ce04))
+* **auth:** connexion par jeton Google, validation requise (section 10) ([81eadd9](https://github.com/djkix/kitchen-inventory/commit/81eadd9f7ad448a53e5f1c730d1754a4d55de750))
+* **auth:** états de compte et identifiant Google sur User (section 10) ([b154f8f](https://github.com/djkix/kitchen-inventory/commit/b154f8f62b48a7121a98f60614733418a0baab6d))
+* **shared:** états de compte et schéma de connexion Google (section 10) ([ec3587e](https://github.com/djkix/kitchen-inventory/commit/ec3587e0b0e3cb34b519b2d53e50705ce729dbdc))
+* **web:** connexion par bouton Google, mot de passe retiré (section 10) ([e186535](https://github.com/djkix/kitchen-inventory/commit/e186535c3ace29a9dfde2f07ed8386b0b3bf8881))
+* **web:** gestion des comptes dans les réglages (section 10) ([6a7d128](https://github.com/djkix/kitchen-inventory/commit/6a7d12805bcd75856732fc3152a2fcac0cd95ab4))
+
+
+### Bug Fixes
+
+* **auth:** discordance de `sub`, statut vérifié à chaque requête, compte non créé à la main (section 10) ([7c60b9f](https://github.com/djkix/kitchen-inventory/commit/7c60b9fe63ec294c9a7328ba8445413eea57f307))
+* **auth:** partage de l'administration et constats de la revue finale (section 10) ([f1dee4a](https://github.com/djkix/kitchen-inventory/commit/f1dee4a6d948adf0a6931373522e70f9895e8668))
+* **deps:** régénérer le fichier de verrouillage, et retirer l'épinglage de npm ([9482f18](https://github.com/djkix/kitchen-inventory/commit/9482f1804d0b1226f0f76c93d306eceaf64c71d0))
+* **docker:** épingler npm sur la version du fichier de verrouillage ([2299fc7](https://github.com/djkix/kitchen-inventory/commit/2299fc7a7aa61783007d60f79f3a838cffca8d30))
+* **suggestions:** dédoublonner la fournée avant de l'écrire au réservoir (EF-26) ([4db3a6f](https://github.com/djkix/kitchen-inventory/commit/4db3a6f9c1a25993af049e242f950de2eda43cb9))
+* **web:** comptes refusés rétablissables, section Comptes testée dans Réglages (section 10) ([0a14c7a](https://github.com/djkix/kitchen-inventory/commit/0a14c7a0ce2e90290132d1962efdc44759c30918))
+
 ## [0.17.0](https://github.com/djkix/kitchen-inventory/compare/v0.16.0...v0.17.0) (2026-10-15)
 
 
