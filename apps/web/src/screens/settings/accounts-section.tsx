@@ -44,6 +44,7 @@ function AccountsList({ meId }: { meId: string | undefined }) {
 
   const approve = (a: AccountDto) => act(a.id, () => api.post(`/accounts/${a.id}/approve`), `${a.name} peut se connecter`);
   const refuse = (a: AccountDto) => act(a.id, () => api.post(`/accounts/${a.id}/revoke`), `Demande de ${a.name} refusée`);
+  const reinstate = (a: AccountDto) => act(a.id, () => api.post(`/accounts/${a.id}/approve`), `${a.name} peut de nouveau se connecter`);
   const revoke = (a: AccountDto) => {
     if (!window.confirm(`Révoquer l’accès de ${a.name} ? Ses sessions seront coupées.`)) return Promise.resolve();
     return act(a.id, () => api.post(`/accounts/${a.id}/revoke`), `Accès de ${a.name} révoqué`);
@@ -62,6 +63,7 @@ function AccountsList({ meId }: { meId: string | undefined }) {
 
   const pending = accounts.data.filter((a) => a.status === 'PENDING');
   const active = accounts.data.filter((a) => a.status === 'ACTIVE');
+  const refused = accounts.data.filter((a) => a.status === 'REVOKED');
 
   return (
     <>
@@ -90,6 +92,19 @@ function AccountsList({ meId }: { meId: string | undefined }) {
           </Row>
         ))}
         <p className="px-1 text-[13px] text-faint">« Déconnecter » coupe toutes les sessions d’un compte (téléphone perdu) ; il pourra se reconnecter. « Révoquer » retire l’accès.</p>
+      </Group>
+      {/* Une personne refusée qui se reconnecte reçoit le même message d'attente
+          qu'une demande ordinaire : sans cette liste, rien ne la ferait réapparaître. */}
+      <Group title="Refusés">
+        {refused.length === 0 ? (
+          <p className="px-1 text-[13px] text-muted">Aucun compte refusé</p>
+        ) : (
+          refused.map((a) => (
+            <Row key={a.id} account={a}>
+              <Button variant="outline" size="sm" className="flex-1" loading={busyId === a.id} onClick={() => void reinstate(a)}>Rétablir</Button>
+            </Row>
+          ))
+        )}
       </Group>
     </>
   );
