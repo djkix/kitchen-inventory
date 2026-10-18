@@ -21,7 +21,6 @@ import { SuggestionsScreen } from './screens/suggestions/suggestions-screen';
 const ScanScreen = lazy(() => import('./screens/scan/scan-screen').then((m) => ({ default: m.ScanScreen })));
 const ProductFormScreen = lazy(() => import('./screens/products/product-form-screen').then((m) => ({ default: m.ProductFormScreen })));
 const LocationsScreen = lazy(() => import('./screens/settings/locations-screen').then((m) => ({ default: m.LocationsScreen })));
-const UsersScreen = lazy(() => import('./screens/settings/users-screen').then((m) => ({ default: m.UsersScreen })));
 const ServiceTokensScreen = lazy(() => import('./screens/settings/service-tokens-screen').then((m) => ({ default: m.ServiceTokensScreen })));
 const RecipeFormScreen = lazy(() => import('./screens/recipe-form/recipe-form-screen').then((m) => ({ default: m.RecipeFormScreen })));
 
@@ -60,7 +59,6 @@ export function App() {
                 <Route path="/courses" element={<ComingSoonScreen title="Courses" />} />
                 <Route path="/reglages" element={<SettingsScreen />} />
                 <Route path="/reglages/emplacements" element={<LocationsScreen />} />
-                <Route path="/reglages/utilisateurs" element={<UsersScreen />} />
                 <Route path="/reglages/jetons" element={<ServiceTokensScreen />} />
                 <Route path="/produits/nouveau" element={<ProductFormScreen />} />
               </Route>

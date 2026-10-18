@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import type {
+  AccountDto,
   AuthStatus,
   AvailableModels,
   CategoryDto,
@@ -20,7 +21,7 @@ import type {
 import { api } from './api';
 import { recipesApi } from './recipes-api';
 import { suggestionsApi, type SuggestionOrientation } from './suggestions-api';
-import type { CuisineDto, HealthReport, ServiceTokenDto, UserDto } from './types';
+import type { CuisineDto, HealthReport, ServiceTokenDto } from './types';
 
 export const PAGE_SIZE = 50;
 
@@ -43,7 +44,7 @@ export const queryKeys = {
   categories: ['categories'] as const,
   settings: ['settings'] as const,
   availableModels: ['settings', 'models'] as const,
-  users: ['users'] as const,
+  accounts: ['accounts'] as const,
   serviceTokens: ['service-tokens'] as const,
   recognitionStats: ['recognition', 'stats'] as const,
   products: (q: string) => ['products', q] as const,
@@ -164,8 +165,8 @@ export function useAvailableModelsQuery(enabled: boolean) {
   });
 }
 
-export function useUsersQuery() {
-  return useQuery({ queryKey: queryKeys.users, queryFn: () => api.get<UserDto[]>('/users') });
+export function useAccountsQuery() {
+  return useQuery({ queryKey: queryKeys.accounts, queryFn: () => api.get<AccountDto[]>('/accounts') });
 }
 
 export function useServiceTokensQuery(enabled: boolean) {
