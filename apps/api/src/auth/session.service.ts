@@ -65,6 +65,10 @@ export class SessionService {
       });
     }
     const { user } = session;
+    // La validation du compte se vérifie à chaque requête, pas seulement à la
+    // connexion : une révocation coupe l'accès même si le chemin qui l'a posée
+    // a oublié d'appeler `revokeAll` (revue de la tâche 3, D3).
+    if (user.status !== 'ACTIVE') return null;
     return { id: user.id, email: user.email, name: user.name, role: user.role, via: 'session', sessionId: session.id };
   }
 

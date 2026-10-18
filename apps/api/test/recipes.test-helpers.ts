@@ -1,7 +1,6 @@
 import type { CookResult, RecipeDto, RecipeLogDto } from '@kitchen/shared';
 import type TestAgent from 'supertest/lib/agent.js';
 import type { TestApp } from './app.factory.js';
-import type { UserDto } from '../src/users/users.service.js';
 
 /**
  * Fonctions d'aide communes aux specs d'intégration du module recettes
@@ -66,26 +65,19 @@ export async function cookRecipe(agent: TestAgent, recipeId: string, body: Recor
   return res.body as CookResult;
 }
 
-/** Crée un membre du foyer (droits identiques à l'admin sur les recettes, section 22). */
-export async function createMember(agent: TestAgent, body: Record<string, unknown> = {}): Promise<UserDto> {
-  const res = await agent
-    .post('/api/v1/users')
-    .send({ email: `membre-${Date.now()}-${Math.random().toString(36).slice(2)}@example.org`, name: 'Membre', ...body })
-    .expect(201);
-  return res.body as UserDto;
-}
-
 /**
- * Crée un second membre et renvoie un agent déjà connecté sous son identité
- * (`createMember` ne connecte personne). Utilisé partout où un test a besoin
- * d'un deuxième avis distinct de celui de l'administrateur (tâches 9, 10, 12).
+ * Ajoute un second membre du foyer par le seul chemin qui existe (demande
+ * d'accès par connexion Google, puis validation par l'administrateur) et
+ * renvoie un agent déjà connecté sous son identité. Utilisé partout où un test
+ * a besoin d'un deuxième avis distinct de celui de l'administrateur.
  */
 export async function createLoggedInMember(
-  t: Pick<TestApp, 'agent' | 'signIn'>,
+  t: Pick<TestApp, 'agent' | 'signIn' | 'addMember'>,
   adminAgent: TestAgent,
   body: Record<string, unknown> = {},
 ): Promise<TestAgent> {
   const email = (body.email as string | undefined) ?? `membre-${Date.now()}-${Math.random().toString(36).slice(2)}@example.org`;
-  await createMember(adminAgent, { name: 'Membre', ...body, email });
-  return t.signIn(t.agent(), { email, name: 'Membre' });
+  const identity = { email, name: (body.name as string | undefined) ?? 'Membre' };
+  await t.addMember(adminAgent, identity);
+  return t.signIn(t.agent(), identity);
 }

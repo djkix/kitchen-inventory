@@ -314,7 +314,7 @@ describe('recettes (EF-17, EF-21)', () => {
       const log = await logCooked(agent, recipe.id);
       await agent.put(`/api/v1/recipe-logs/${log.id}/rating`).send({ stars: 5, comment: 'Parfait' }).expect(200);
 
-      await agent.post('/api/v1/users').send({ email: 'marie@example.org', name: 'Marie' }).expect(201);
+      await t.addMember(agent, { email: 'marie@example.org', name: 'Marie' });
       const marie = t.agent();
       await t.signIn(marie, { email: 'marie@example.org', name: 'Marie' });
       await marie.put(`/api/v1/recipe-logs/${log.id}/rating`).send({ stars: 3 }).expect(200);
@@ -356,9 +356,7 @@ describe('recettes (EF-17, EF-21)', () => {
       const recipe = await createRecipe(agent, 'Dahl', []);
       const log = await logCooked(agent, recipe.id);
       await agent.put(`/api/v1/recipe-logs/${log.id}/rating`).send({ stars: 5 }).expect(200);
-      const marieId = (
-        await agent.post('/api/v1/users').send({ email: 'marie@example.org', name: 'Marie' }).expect(201)
-      ).body.id;
+      const { id: marieId } = await t.addMember(agent, { email: 'marie@example.org', name: 'Marie' });
       await t.prisma.recipeRating.create({ data: { recipeLogId: log.id, userId: marieId, stars: 1 } });
       expect((await agent.get(`/api/v1/recipes/${recipe.id}`).expect(200)).body.stats.averageRating).toBe(3);
 

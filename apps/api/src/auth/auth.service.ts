@@ -9,8 +9,13 @@ import { GOOGLE_TOKEN_VERIFIER, type GoogleIdentity, type GoogleTokenVerifier } 
 import type { RequestUser } from './request-user.js';
 import { SessionService } from './session.service.js';
 
+/**
+ * Un seul message pour tout ce qui n'ouvre pas de session. Distinguer
+ * « en attente » de « refusé » apprendrait à un appelant non authentifié
+ * qu'une adresse appartient au foyer et qu'elle en a été écartée (revue de la
+ * tâche 3, amendement de la spec).
+ */
 const PENDING_MESSAGE = 'Votre demande attend la validation d’un administrateur.';
-const REVOKED_MESSAGE = 'Cet accès a été refusé.';
 
 interface Account {
   id: string;
@@ -48,9 +53,9 @@ export class AuthService {
     if (first) this.logger.log({ userId: account.id }, 'Premier administrateur créé par connexion Google');
     else if (created) this.logger.log({ userId: account.id }, 'Demande d’accès créée, en attente de validation');
 
-    // Un compte neuf répond exactement comme un compte déjà en attente : la page
-    // de connexion ne doit pas servir à énumérer les adresses connues du foyer.
-    if (account.status === 'REVOKED') throw ApiError.forbidden(REVOKED_MESSAGE);
+    // Un compte neuf, un compte en attente et un compte refusé répondent à
+    // l'identique : la page de connexion ne doit pas servir à énumérer les
+    // adresses connues du foyer.
     if (account.status !== 'ACTIVE') throw ApiError.forbidden(PENDING_MESSAGE);
 
     await this.sessions.open(account.id, res);
@@ -70,13 +75,17 @@ export class AuthService {
       if (raced) return { account: raced, created: false, first: false };
 
       const first = (await tx.user.count()) === 0;
+      // Le `sub` n'est stocké que pour mémoire : jamais deux comptes dessus,
+      // sinon une adresse Google changée ne pourrait plus faire de demande.
+      const subDejaPris = (await tx.user.findUnique({ where: { googleSub: identity.sub } })) !== null;
+      if (subDejaPris) {
+        this.logger.warn({ email: identity.email }, 'Identité Google déjà rattachée à un autre compte : demande créée sans `sub`');
+      }
       const account = await tx.user.create({
         data: {
           email: identity.email,
           name: identity.name ?? identity.email,
-          // `sub` n'est stocké que pour mémoire : jamais deux comptes dessus,
-          // sinon une adresse Google changée ne pourrait plus faire de demande.
-          googleSub: (await tx.user.findUnique({ where: { googleSub: identity.sub } })) ? null : identity.sub,
+          googleSub: subDejaPris ? null : identity.sub,
           passwordHash: null,
           role: first ? 'ADMIN' : 'MEMBER',
           status: first ? 'ACTIVE' : 'PENDING',
@@ -87,8 +96,20 @@ export class AuthService {
     });
   }
 
-  /** Mémorise le `sub` sur un compte retrouvé par son adresse, s'il est libre. */
+  /**
+   * Mémorise le `sub` sur un compte retrouvé par son adresse, s'il est libre.
+   *
+   * Une **discordance** de `sub` sur une adresse connue n'est pas un détail :
+   * sur un domaine Workspace, une adresse supprimée puis recréée, ou
+   * réattribuée, revient avec un `sub` neuf. Laisser passer donnerait le compte
+   * existant — et son rôle — à quelqu'un d'autre. Le compte est alors traité
+   * comme non validé, et c'est à un administrateur de trancher.
+   */
   private async attachGoogleSub(user: Account & { googleSub: string | null }, identity: GoogleIdentity): Promise<Account> {
+    if (user.googleSub && user.googleSub !== identity.sub) {
+      this.logger.warn({ userId: user.id }, 'Identité Google différente de celle enregistrée pour cette adresse : connexion refusée');
+      throw ApiError.forbidden(PENDING_MESSAGE);
+    }
     if (user.googleSub) return user;
     const taken = await this.prisma.user.findUnique({ where: { googleSub: identity.sub } });
     if (taken) return user;

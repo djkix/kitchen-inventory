@@ -74,14 +74,14 @@ describe('réglages : choix du modèle', () => {
     const res = await agent.get('/api/v1/settings/models').expect(200);
     expect(res.body.models.map((m: { id: string }) => m.id)).toEqual(['gemini-3.5-flash', 'gemini-3.5-flash-lite']);
 
-    await agent.post('/api/v1/users').send(MEMBRE).expect(201);
+    await t.addMember(agent, MEMBRE);
     const membre = t.agent();
     await t.signIn(membre, MEMBRE);
     await membre.get('/api/v1/settings/models').expect(403);
   });
 
   it('refuse à un membre de changer le modèle', async () => {
-    await agent.post('/api/v1/users').send(MEMBRE).expect(201);
+    await t.addMember(agent, MEMBRE);
     const membre = t.agent();
     await t.signIn(membre, MEMBRE);
     await membre.patch('/api/v1/settings').send({ suggestionModel: 'gemini-3.5-flash' }).expect(403);

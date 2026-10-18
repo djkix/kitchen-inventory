@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
+import { AccountsService } from './accounts.service.js';
 
 const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
 const MARIE = { email: 'marie@example.org', name: 'Marie' };
@@ -35,10 +36,12 @@ describe('administration des comptes', () => {
     return (await t.prisma.user.findUniqueOrThrow({ where: { email } })).id;
   }
 
+  /** Un second administrateur : demande d'accès, validation, puis promotion (aucune route ne promeut). */
   async function secondAdmin(): Promise<{ id: string; agent: TestAgent }> {
-    await admin.post('/api/v1/users').send({ email: 'deuxieme@example.org', name: 'Deuxième', role: 'ADMIN' }).expect(201);
-    const agent = await t.signIn(t.agent(), { email: 'deuxieme@example.org', name: 'Deuxième' });
-    return { id: await idOf('deuxieme@example.org'), agent };
+    const identity = { email: 'deuxieme@example.org', name: 'Deuxième' };
+    const { id } = await t.addMember(admin, identity);
+    await t.prisma.user.update({ where: { id }, data: { role: 'ADMIN' } });
+    return { id, agent: await t.signIn(t.agent(), identity) };
   }
 
   describe('réservé aux administrateurs', () => {
@@ -67,7 +70,7 @@ describe('administration des comptes', () => {
   describe('liste', () => {
     it('met les demandes en attente d’abord, puis trie par date décroissante', async () => {
       const old = await requestAccess({ email: 'ancienne@example.org', name: 'Ancienne' });
-      await admin.post('/api/v1/users').send({ email: 'actif@example.org', name: 'Actif' }).expect(201);
+      await t.addMember(admin, { email: 'actif@example.org', name: 'Actif' });
       const recent = await requestAccess({ email: 'recente@example.org', name: 'Récente' });
       await t.prisma.user.update({ where: { id: old }, data: { createdAt: new Date('2026-01-01') } });
       await t.prisma.user.update({ where: { email: ADMIN.email }, data: { createdAt: new Date('2026-02-01') } });
@@ -103,7 +106,7 @@ describe('administration des comptes', () => {
 
   describe('révocation', () => {
     it('coupe les sessions en cours et ferme la porte à la reconnexion', async () => {
-      await admin.post('/api/v1/users').send({ email: MARIE.email, name: MARIE.name }).expect(201);
+      await t.addMember(admin, MARIE);
       const marie = await t.signIn(t.agent(), MARIE);
       await marie.get('/api/v1/accounts').expect(403); // authentifiée : 403 et non 401
       const id = await idOf(MARIE.email);
@@ -130,11 +133,13 @@ describe('administration des comptes', () => {
 
     it('refuse de révoquer le dernier administrateur actif', async () => {
       const { id, agent } = await secondAdmin();
-      // Situation de course ou de session résiduelle : l'appelant a perdu son statut actif
-      // alors que sa session tient encore. Révoquer l'autre laisserait zéro administrateur.
+      // L'appelant a perdu son statut actif. Depuis que la garde de session lit
+      // `status`, sa session meurt aussitôt : la règle ne s'atteint plus par HTTP,
+      // on l'éprouve donc sur le service, qui reste la dernière ligne.
       await t.prisma.user.update({ where: { email: ADMIN.email }, data: { status: 'REVOKED' } });
-      const res = await admin.post(`/api/v1/accounts/${id}/revoke`).expect(403);
-      expect(res.body.error.message).toMatch(/dernier administrateur/);
+      await admin.get('/api/v1/accounts').expect(401);
+      const actorId = await idOf(ADMIN.email);
+      await expect(t.app.get(AccountsService).revoke(id, actorId)).rejects.toMatchObject({ status: 403, message: expect.stringMatching(/dernier administrateur/) });
       expect((await t.prisma.user.findUniqueOrThrow({ where: { id } })).status).toBe('ACTIVE');
       await agent.get('/api/v1/accounts').expect(200);
     });
@@ -154,10 +159,12 @@ describe('administration des comptes', () => {
     });
   });
 
-  describe('POST /users : pré-approbation', () => {
-    it('crée un compte ACTIVE sans mot de passe, qui entre par Google', async () => {
-      const res = await admin.post('/api/v1/users').send({ email: MARIE.email, name: MARIE.name, password: 'ignoré-de-toute-façon' }).expect(201);
-      expect(res.body.passwordHash).toBeUndefined();
+  describe('un compte ne se crée pas à la main', () => {
+    it('`POST /users` n’existe plus : la validation passe par /accounts', async () => {
+      await admin.post('/api/v1/users').send({ email: MARIE.email, name: MARIE.name }).expect(404);
+      expect(await t.prisma.user.findUnique({ where: { email: MARIE.email } })).toBeNull();
+      // Le chemin qui reste : la personne demande, l'administrateur valide.
+      await t.addMember(admin, MARIE);
       const user = await t.prisma.user.findUniqueOrThrow({ where: { email: MARIE.email } });
       expect(user).toMatchObject({ status: 'ACTIVE', passwordHash: null });
       await t.signIn(t.agent(), MARIE);

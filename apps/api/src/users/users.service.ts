@@ -1,6 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import type { CreateUserInput } from '@kitchen/shared';
-import { ApiError } from '../common/api-error.js';
 import { SessionService } from '../auth/session.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -22,18 +20,6 @@ export class UsersService {
   async list(): Promise<UserDto[]> {
     const users = await this.prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
     return users.map(toDto);
-  }
-
-  async create(input: CreateUserInput): Promise<UserDto> {
-    if (await this.prisma.user.findUnique({ where: { email: input.email } })) {
-      throw ApiError.conflict('Un compte existe déjà avec cette adresse');
-    }
-    const user = await this.prisma.user.create({
-      // Un compte créé par un administrateur est validé par ce geste même : il
-      // entre `ACTIVE`, sans repasser par la file d'attente (D1). Sans mot de passe : son titulaire entre par Google.
-      data: { email: input.email, name: input.name, role: input.role, status: 'ACTIVE' },
-    });
-    return toDto(user);
   }
 
   async revokeSessions(userId: string): Promise<void> {

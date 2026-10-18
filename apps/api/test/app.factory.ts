@@ -22,6 +22,8 @@ export interface TestApp {
   agent: () => TestAgent;
   /** Connecte un agent par jeton Google doublé ; la première connexion crée l'administrateur. */
   signIn: (agent: TestAgent, identity: FakeIdentity) => Promise<TestAgent>;
+  /** Ajoute un membre par le seul chemin qui existe : il demande l'accès, un administrateur valide. */
+  addMember: (adminAgent: TestAgent, identity: FakeIdentity) => Promise<{ id: string; email: string }>;
   reset: () => Promise<void>;
   close: () => Promise<void>;
 }
@@ -52,6 +54,13 @@ export async function createTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}, 
     signIn: async (agent, identity) => {
       await agent.post('/api/v1/auth/google').send({ credential: fakeGoogleCredential(identity) }).expect(200);
       return agent;
+    },
+    addMember: async (adminAgent, identity) => {
+      await request(server).post('/api/v1/auth/google').send({ credential: fakeGoogleCredential(identity) }).expect(403);
+      const email = identity.email.trim().toLowerCase();
+      const account = await prisma.user.findUniqueOrThrow({ where: { email } });
+      await adminAgent.post(`/api/v1/accounts/${account.id}/approve`).expect(200);
+      return { id: account.id, email };
     },
     // Vide les données puis recrée les référentiels de la section 22, comme au démarrage.
     reset: async () => {
