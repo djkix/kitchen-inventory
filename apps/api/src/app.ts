@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import type { GoogleTokenVerifier } from './auth/google-token.verifier.js';
-import type { AppConfig } from './common/config.js';
+import { googleCertsOverrideWarning, type AppConfig } from './common/config.js';
 import type { HttpClient } from './common/http-client.js';
 import { noindexMiddleware } from './common/noindex.middleware.js';
 import { unpricedModelWarning } from './recognition/providers/gemini.provider.js';
@@ -24,6 +24,7 @@ export async function createApp(config: AppConfig, httpClient?: HttpClient, goog
   for (const warning of [
     unpricedModelWarning(config.VISION_PROVIDER, config.VISION_MODEL),
     unpricedModelWarning(config.VISION_PROVIDER, config.SUGGESTION_MODEL, 'SUGGESTION_MODEL'),
+    googleCertsOverrideWarning(config),
   ]) {
     if (warning) logger.warn(warning);
   }

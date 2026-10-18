@@ -21,12 +21,6 @@ export type CreateServiceTokenInput = z.infer<typeof createServiceTokenSchema>;
 export const ACCOUNT_STATUSES = ['PENDING', 'ACTIVE', 'REVOKED'] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
-export const ACCOUNT_STATUS_LABELS_FR: Record<AccountStatus, string> = {
-  PENDING: 'En attente',
-  ACTIVE: 'Actif',
-  REVOKED: 'Refusé',
-};
-
 /** Corps de `POST /auth/google`. Le nom `credential` est imposé par le callback GSI. */
 export const googleLoginSchema = z.object({
   // Borné comme toutes les entrées du projet : un jeton Google fait 1 à 2 ko.
@@ -44,6 +38,13 @@ export const recoveryLoginSchema = z.object({
   password: z.string().min(1, { message: 'Mot de passe requis' }).max(256),
 });
 export type RecoveryLoginInput = z.infer<typeof recoveryLoginSchema>;
+
+/**
+ * Corps de `POST /accounts/:id/role` : partage de l'administration (section 10).
+ * Sans cette route, seul le tout premier compte serait administrateur, à jamais.
+ */
+export const updateAccountRoleSchema = z.object({ role: userRoleSchema });
+export type UpdateAccountRoleInput = z.infer<typeof updateAccountRoleSchema>;
 
 /** Une ligne de Réglages › Comptes. */
 export interface AccountDto {

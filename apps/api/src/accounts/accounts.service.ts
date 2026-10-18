@@ -26,6 +26,35 @@ export class AccountsService {
     return toDto(await this.prisma.user.update({ where: { id }, data: { status: 'ACTIVE' } }));
   }
 
+  /**
+   * Partage de l'administration (section 10). Sans cette route, le tout
+   * premier compte connecté serait administrateur à jamais et la commande de
+   * secours resterait le seul outil de promotion du projet.
+   *
+   * Mêmes garde-fous que la révocation, et pour les mêmes raisons : on ne
+   * change pas son propre rôle (sinon un administrateur se verrouille dehors
+   * d'un geste), on ne rétrograde pas le dernier administrateur actif (sinon
+   * plus personne n'administre), et un compte non actif ne change pas de rôle
+   * — promouvoir une demande en attente la validerait sans le dire.
+   */
+  async setRole(id: string, role: 'ADMIN' | 'MEMBER', actorId: string): Promise<AccountDto> {
+    if (id === actorId) throw ApiError.forbidden('Vous ne pouvez pas changer votre propre rôle');
+
+    return this.prisma.$transaction(async (tx) => {
+      // Même verrou que la révocation : deux rétrogradations simultanées ne
+      // doivent pas chacune voir « un autre administrateur reste actif ».
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('accounts-admin-guard'))`;
+      const target = await tx.user.findUnique({ where: { id } });
+      if (!target) throw ApiError.notFound('Compte introuvable');
+      if (target.status !== 'ACTIVE') throw ApiError.forbidden('Seul un compte actif peut changer de rôle');
+      if (role === 'MEMBER' && target.role === 'ADMIN') {
+        const others = await tx.user.count({ where: { role: 'ADMIN', status: 'ACTIVE', id: { not: id } } });
+        if (others === 0) throw ApiError.forbidden('Impossible de rétrograder le dernier administrateur actif');
+      }
+      return toDto(await tx.user.update({ where: { id }, data: { role } }));
+    });
+  }
+
   async revoke(id: string, actorId: string): Promise<AccountDto> {
     if (id === actorId) throw ApiError.forbidden('Vous ne pouvez pas révoquer votre propre compte');
 

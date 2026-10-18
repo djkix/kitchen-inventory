@@ -32,6 +32,9 @@ export class HealthService {
     if (media === 'error') degraded.push('media');
     if (migrations !== 'ok') degraded.push('migrations');
     if (this.config.VISION_PROVIDER === 'none') degraded.push('vision_disabled');
+    // Racine de confiance de l'authentification déplacée : visible depuis la
+    // page Réglages, pas seulement dans le journal de démarrage.
+    if (this.config.GOOGLE_CERTS_URL) degraded.push('google_certs_url');
 
     const status: HealthReport['status'] = database === 'error' ? 'error' : degraded.length > 0 ? 'degraded' : 'ok';
     return {

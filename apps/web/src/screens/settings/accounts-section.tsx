@@ -49,7 +49,27 @@ function AccountsList({ meId }: { meId: string | undefined }) {
     if (!window.confirm(`Révoquer l’accès de ${a.name} ? Ses sessions seront coupées.`)) return Promise.resolve();
     return act(a.id, () => api.post(`/accounts/${a.id}/revoke`), `Accès de ${a.name} révoqué`);
   };
-  const signOut = (a: AccountDto) => act(a.id, () => api.delete<void>(`/users/${a.id}/sessions`), `Sessions de ${a.name} coupées`);
+  const signOut = (a: AccountDto) => {
+    // Sur un téléphone, la ligne du dessous porte « Révoquer » : un doigt mal
+    // placé ne doit pas couper toutes ses propres sessions, celle-ci comprise.
+    const question = a.id === meId ? 'Couper toutes vos sessions, y compris celle-ci ?' : `Couper toutes les sessions de ${a.name} ?`;
+    if (!window.confirm(question)) return Promise.resolve();
+    return act(a.id, () => api.delete<void>(`/users/${a.id}/sessions`), `Sessions de ${a.name} coupées`);
+  };
+  /**
+   * Partage de l'administration (section 10) : sans ce geste, seul le tout
+   * premier compte connecté serait administrateur, à jamais.
+   */
+  const setRole = (a: AccountDto) => {
+    const role = a.role === 'ADMIN' ? 'MEMBER' : 'ADMIN';
+    const question =
+      role === 'ADMIN'
+        ? `Faire de ${a.name} un administrateur ? Il pourra valider et révoquer des comptes.`
+        : `Retirer les droits d’administrateur à ${a.name} ?`;
+    if (!window.confirm(question)) return Promise.resolve();
+    const done = role === 'ADMIN' ? `${a.name} est administrateur` : `${a.name} est redevenu membre`;
+    return act(a.id, () => api.post(`/accounts/${a.id}/role`, { role }), done);
+  };
 
   if (accounts.isPending) return <Group title="Comptes"><p className="px-1 text-[14px] text-muted">Chargement…</p></Group>;
   if (accounts.isError) {
@@ -87,11 +107,16 @@ function AccountsList({ meId }: { meId: string | undefined }) {
           <Row key={a.id} account={a} me={a.id === meId}>
             <Button variant="outline" size="sm" className="flex-1" loading={busyId === a.id} onClick={() => void signOut(a)}>Déconnecter</Button>
             {a.id !== meId && (
-              <Button variant="danger" size="sm" className="flex-1" disabled={busyId === a.id} onClick={() => void revoke(a)}>Révoquer</Button>
+              <>
+                <Button variant="outline" size="sm" className="flex-1" disabled={busyId === a.id} onClick={() => void setRole(a)}>
+                  {a.role === 'ADMIN' ? 'Retirer admin' : 'Promouvoir'}
+                </Button>
+                <Button variant="danger" size="sm" className="flex-1" disabled={busyId === a.id} onClick={() => void revoke(a)}>Révoquer</Button>
+              </>
             )}
           </Row>
         ))}
-        <p className="px-1 text-[13px] text-faint">« Déconnecter » coupe toutes les sessions d’un compte (téléphone perdu) ; il pourra se reconnecter. « Révoquer » retire l’accès.</p>
+        <p className="px-1 text-[13px] text-faint">« Déconnecter » coupe toutes les sessions d’un compte (téléphone perdu) ; il pourra se reconnecter. « Promouvoir » donne les droits d’administrateur. « Révoquer » retire l’accès.</p>
       </Group>
       {/* Une personne refusée qui se reconnecte reçoit le même message d'attente
           qu'une demande ordinaire : sans cette liste, rien ne la ferait réapparaître. */}

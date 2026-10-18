@@ -79,6 +79,6 @@ export function LoginScreen() {
 
 function safeNext(value: string | null): string {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
-  if (value.startsWith('/connexion') || value.startsWith('/installation')) return '/';
+  if (value.startsWith('/connexion')) return '/';
   return value;
 }
