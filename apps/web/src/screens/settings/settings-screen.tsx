@@ -8,12 +8,13 @@ import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../hooks/use-auth';
 import { API_BASE, api, errorMessage } from '../../lib/api';
 import { queryKeys, useSettingsQuery } from '../../lib/queries';
+import { AccountsSection, SignOutEverywhereRow } from './accounts-section';
 import { ModelRow } from './model-row';
 import { WebSearchRow } from './web-search-row';
 import { VersionBadge } from '../../components/shell/version-badge';
 import { StatsPanel } from './stats-panel';
 
-/** Écran Réglages (section 14) : emplacements, utilisateurs, seuil d'alerte, reconnaissance, export, compte. */
+/** Écran Réglages (section 14) : emplacements, comptes, seuil d'alerte, reconnaissance, export, compte. */
 export function SettingsScreen() {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -56,10 +57,12 @@ export function SettingsScreen() {
           <WebSearchRow isAdmin={auth.isAdmin} />
         </Section>
 
-        <Section title="Foyer">
-          <NavRow to="/reglages/utilisateurs" label="Utilisateurs" hint={auth.isAdmin ? 'Inviter, révoquer les sessions' : 'Membres du foyer'} />
-          {auth.isAdmin && <NavRow to="/reglages/jetons" label="Jetons de service" hint="Accès lecture pour Home Assistant, scripts…" />}
-        </Section>
+        {auth.isAdmin && (
+          <Section title="Foyer">
+            <NavRow to="/reglages/jetons" label="Jetons de service" hint="Accès lecture pour Home Assistant, scripts…" />
+          </Section>
+        )}
+        <AccountsSection />
 
         <Section title="Export">
           <div className="grid grid-cols-2 gap-2">
@@ -76,6 +79,7 @@ export function SettingsScreen() {
           <Button block variant="outline" loading={loggingOut} onClick={() => void logout()}>
             Se déconnecter
           </Button>
+          <SignOutEverywhereRow />
           <p className="pt-1 text-center text-[13px] text-faint">Connecté en tant que {auth.user?.email}</p>
         </Section>
 
