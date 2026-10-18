@@ -39,6 +39,12 @@ export const currentUserSchema = z.object({
 });
 export type CurrentUser = z.infer<typeof currentUserSchema>;
 
+/**
+ * @deprecated Un compte ne se crée plus à la main (revue de la tâche 3) : la
+ * personne demande l'accès en se connectant avec Google et un administrateur
+ * valide depuis `/accounts`. Schéma conservé le temps que la tâche 5 retire
+ * l'écran qui s'en sert.
+ */
 export const createUserSchema = z.object({
   email: emailSchema,
   name: z.string().trim().min(1, { message: 'Nom requis' }).max(80),
@@ -73,7 +79,8 @@ export const ACCOUNT_STATUS_LABELS_FR: Record<AccountStatus, string> = {
 
 /** Corps de `POST /auth/google`. Le nom `credential` est imposé par le callback GSI. */
 export const googleLoginSchema = z.object({
-  credential: z.string().trim().min(1, { message: 'Jeton Google requis' }),
+  // Borné comme toutes les entrées du projet : un jeton Google fait 1 à 2 ko.
+  credential: z.string().trim().min(1, { message: 'Jeton Google requis' }).max(4096, { message: 'Jeton Google invalide' }),
 });
 export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;
 

@@ -41,8 +41,17 @@ describe('GoogleIdTokenVerifier', () => {
     expect((await verifier.verify('jeton-signe')).emailVerified).toBe(false);
   });
 
-  it('refuse quand aucun Client ID n’est configuré', async () => {
-    await expect(new GoogleIdTokenVerifier('', clientFor(PAYLOAD)).verify('jeton-signe')).rejects.toMatchObject({ status: 401 });
+  it('refuse quand aucun Client ID n’est configuré, sans même appeler la bibliothèque', async () => {
+    // Doublure permissive : elle accepterait tout. Seule la garde peut refuser.
+    let appels = 0;
+    const permissif: IdTokenClient = {
+      verifyIdToken: async () => {
+        appels += 1;
+        return { getPayload: () => PAYLOAD as TokenPayload };
+      },
+    };
+    await expect(new GoogleIdTokenVerifier('', permissif).verify('jeton-signe')).rejects.toMatchObject({ status: 401 });
+    expect(appels).toBe(0);
   });
 
   it('refuse un jeton sans adresse e-mail', async () => {

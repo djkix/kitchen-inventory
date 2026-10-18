@@ -5,6 +5,8 @@ import { fakeGoogleCredential, type FakeIdentity } from '../../test/google-verif
 const ADMIN: FakeIdentity = { email: 'franck@example.org', name: 'Franck', sub: 'google-franck' };
 const INCONNU: FakeIdentity = { email: 'inconnu@example.org', name: 'Inconnu', sub: 'google-inconnu' };
 
+const ATTENTE = 'Votre demande attend la validation d’un administrateur.';
+
 const google = (t: TestApp, identity: FakeIdentity) =>
   t.api.post('/api/v1/auth/google').send({ credential: fakeGoogleCredential(identity) });
 
@@ -58,7 +60,7 @@ describe('connexion par compte Google', () => {
     const premiere = await agent.post('/api/v1/auth/google').send({ credential: fakeGoogleCredential(INCONNU) }).expect(403);
     expect(premiere.headers['set-cookie']).toBeUndefined();
     expect(premiere.body.error.code).toBe('forbidden');
-    expect(premiere.body.error.message).toBe('Votre demande attend la validation d’un administrateur.');
+    expect(premiere.body.error.message).toBe(ATTENTE);
     await agent.get('/api/v1/me').expect(401);
 
     const demande = await t.prisma.user.findUniqueOrThrow({ where: { email: INCONNU.email } });
@@ -87,13 +89,68 @@ describe('connexion par compte Google', () => {
     expect(await t.prisma.user.count()).toBe(0);
   });
 
-  it('refuse un compte révoqué (vigilance 3)', async () => {
+  it('refuse un compte révoqué, et sans le dire (vigilance 3)', async () => {
     await t.signIn(t.agent(), ADMIN);
-    await google(t, INCONNU).expect(403);
+    const attente = await google(t, INCONNU).expect(403);
     await t.prisma.user.update({ where: { email: INCONNU.email }, data: { status: 'REVOKED' } });
-    const res = await google(t, INCONNU).expect(403);
-    expect(res.body.error.message).toBe('Cet accès a été refusé.');
+    const revoque = await google(t, INCONNU).expect(403);
+    // Un refus ne se distingue pas d'une attente : sinon la page de connexion
+    // confirme qu'une adresse appartient au foyer et en a été écartée.
+    expect(revoque.body).toEqual(attente.body);
+    expect(revoque.body.error.message).toBe(ATTENTE);
     expect(await t.prisma.session.count()).toBe(1);
+  });
+
+  it('refuse un jeton dont le `sub` ne correspond pas à celui enregistré', async () => {
+    await t.signIn(t.agent(), ADMIN);
+    const agent = t.agent();
+    // Même adresse, identité Google différente : adresse supprimée puis recréée,
+    // ou réattribuée sur un domaine Workspace. Le compte — et son rôle — ne suit pas.
+    const res = await agent
+      .post('/api/v1/auth/google')
+      .send({ credential: fakeGoogleCredential({ ...ADMIN, sub: 'google-quelquun-dautre' }) })
+      .expect(403);
+    expect(res.body.error.message).toBe(ATTENTE);
+    expect(res.headers['set-cookie']).toBeUndefined();
+    await agent.get('/api/v1/me').expect(401);
+    const user = await t.prisma.user.findUniqueOrThrow({ where: { email: ADMIN.email } });
+    expect(user).toMatchObject({ googleSub: 'google-franck', role: 'ADMIN', status: 'ACTIVE' });
+  });
+
+  it('une session cesse de valoir dès que le compte n’est plus actif', async () => {
+    const agent = await t.signIn(t.agent(), ADMIN);
+    await agent.get('/api/v1/me').expect(200);
+    await t.prisma.user.update({ where: { email: ADMIN.email }, data: { status: 'REVOKED' } });
+    await agent.get('/api/v1/me').expect(401);
+    // La ligne de session est intacte : c'est la garde qui refuse, pas une révocation.
+    expect(await t.prisma.session.count({ where: { revokedAt: null } })).toBe(1);
+  });
+
+  it('la création du premier compte tient le verrou d’exclusion (vigilance 4)', async () => {
+    let relache: () => void = () => {};
+    const tenu = new Promise<void>((resolve) => {
+      relache = resolve;
+    });
+    // Le test tient un `ROW EXCLUSIVE` : c'est le seul mode qui conflit avec le
+    // `SHARE ROW EXCLUSIVE` pris par la connexion sans conflire avec le
+    // `ROW EXCLUSIVE` d'un simple INSERT. Sans le verrou dans le service, la
+    // connexion insérerait sans attendre et répondrait tout de suite.
+    const bloquant = t.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`LOCK TABLE "User" IN ROW EXCLUSIVE MODE`;
+        await tenu;
+      },
+      { timeout: 20_000, maxWait: 10_000 },
+    );
+    await new Promise((r) => setTimeout(r, 150));
+
+    const connexion = google(t, ADMIN).then((r) => r.status);
+    const course = await Promise.race([connexion, new Promise((r) => setTimeout(() => r('bloquée'), 600))]);
+    expect(course).toBe('bloquée');
+
+    relache();
+    await bloquant;
+    expect(await connexion).toBe(200);
   });
 
   it('refuse un jeton illisible', async () => {
@@ -177,26 +234,18 @@ describe('utilisateurs et jetons de service', () => {
   beforeEach(() => t.reset());
   afterAll(() => t.close());
 
-  it('un administrateur crée un membre, un membre ne peut pas', async () => {
+  it('liste le foyer, mais aucune route n’y crée de compte', async () => {
     const admin = await t.signIn(t.agent(), ADMIN);
-    const created = await admin
-      .post('/api/v1/users')
-      .send({ email: 'marie@example.org', name: 'Marie', password: 'encore-un-mot-de-passe' })
-      .expect(201);
-    expect(created.body).toMatchObject({ email: 'marie@example.org', role: 'MEMBER' });
-    expect(created.body.passwordHash).toBeUndefined();
+    const marie = { email: 'marie@example.org', name: 'Marie' };
+    await admin.post('/api/v1/users').send(marie).expect(404);
 
-    const member = await t.signIn(t.agent(), { email: 'marie@example.org', name: 'Marie' });
-    const forbidden = await member.post('/api/v1/users').send({ email: 'x@example.org', name: 'X', password: 'encore-un-mot-de-passe' }).expect(403);
-    expect(forbidden.body.error.code).toBe('forbidden');
+    await t.addMember(admin, marie);
+    const member = await t.signIn(t.agent(), marie);
     const list = await member.get('/api/v1/users').expect(200);
     expect(list.body).toHaveLength(2);
-  });
-
-  it('refuse un e-mail déjà utilisé', async () => {
-    const admin = await t.signIn(t.agent(), ADMIN);
-    const res = await admin.post('/api/v1/users').send({ email: ADMIN.email, name: 'Doublon', password: 'encore-un-mot-de-passe' }).expect(409);
-    expect(res.body.error.code).toBe('conflict');
+    expect(list.body[0].passwordHash).toBeUndefined();
+    // Un membre ne valide pas les demandes.
+    await member.get('/api/v1/accounts').expect(403);
   });
 
   it('un jeton de service lit mais n’écrit pas', async () => {
