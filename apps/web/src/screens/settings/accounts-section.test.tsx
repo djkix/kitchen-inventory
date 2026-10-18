@@ -38,6 +38,7 @@ const account = (over: Partial<AccountDto>): AccountDto => ({
 
 const PENDING = account({ id: 'p1', email: 'nouveau@example.com', name: 'Nina', status: 'PENDING' });
 const ME = account({ id: 'me', email: 'moi@example.com', name: 'Moi', role: 'ADMIN' });
+const REFUSED = account({ id: 'r1', email: 'refuse@example.com', name: 'Rita', status: 'REVOKED' });
 const OTHER = account({ id: 'o1', email: 'autre@example.com', name: 'Olivier' });
 
 function setAuth(isAdmin: boolean, clear = vi.fn()) {
@@ -110,7 +111,31 @@ describe('AccountsSection', () => {
     const pending = await screen.findByRole('region', { name: 'Demandes en attente' });
     fireEvent.click(within(pending).getByRole('button', { name: 'Refuser' }));
     await waitFor(() => expect(post).toHaveBeenCalledWith('/accounts/p1/revoke'));
-    await waitFor(() => expect(screen.queryByText('Nina')).toBeNull());
+    await waitFor(() => expect(show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Demande de Nina refusée', tone: 'success' })));
+    const refused = await screen.findByRole('region', { name: 'Refusés' });
+    await waitFor(() => expect(within(refused).getByText('Nina')).toBeTruthy());
+  });
+
+  it('liste les comptes refusés ou révoqués, et Rétablir appelle approve', async () => {
+    setAuth(true);
+    get.mockResolvedValueOnce([ME, REFUSED]).mockResolvedValue([ME, { ...REFUSED, status: 'ACTIVE' }]);
+    renderUi(<AccountsSection />);
+    const refused = await screen.findByRole('region', { name: 'Refusés' });
+    expect(within(refused).getByText('Rita')).toBeTruthy();
+    expect(within(refused).getByText(/refuse@example\.com/)).toBeTruthy();
+    fireEvent.click(within(refused).getByRole('button', { name: 'Rétablir' }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/accounts/r1/approve'));
+    const active = screen.getByRole('region', { name: 'Comptes actifs' });
+    await waitFor(() => expect(within(active).getByText('Rita')).toBeTruthy());
+    expect(within(screen.getByRole('region', { name: 'Refusés' })).queryByText('Rita')).toBeNull();
+  });
+
+  it('affiche un état vide explicite quand personne n’est refusé', async () => {
+    setAuth(true);
+    get.mockResolvedValue([ME]);
+    renderUi(<AccountsSection />);
+    const refused = await screen.findByRole('region', { name: 'Refusés' });
+    expect(within(refused).getByText('Aucun compte refusé')).toBeTruthy();
   });
 
   it('Révoquer demande confirmation puis appelle revoke ; refus de confirmer = aucun appel', async () => {
