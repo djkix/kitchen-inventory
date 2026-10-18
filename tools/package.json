@@ -1,0 +1,6 @@
+{
+  "//": "Pas un espace de travail npm (la racine ne globe que packages/* et apps/*) : ce fichier existe pour que Node lise les scripts de tools/ comme des modules ES, ici comme dans l'image Docker.",
+  "name": "@kitchen/tools",
+  "private": true,
+  "type": "module"
+}

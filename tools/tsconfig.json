@@ -1,0 +1,15 @@
+{
+  // Les scripts de `tools/` ne sont pas un espace de travail npm : ce projet
+  // existe pour que l'image Docker puisse les compiler. La racine est le dépôt,
+  // pour que l'import de `apps/api/src/auth/password.ts` — le hachage Argon2id,
+  // jamais recopié — garde son chemin relatif dans la sortie.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "dist",
+    "declaration": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["acces-secours.ts"]
+}

@@ -1,11 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { CurrentUser, GoogleLoginInput } from '@kitchen/shared';
+import type { CurrentUser, GoogleLoginInput, RecoveryLoginInput } from '@kitchen/shared';
 import type { Response } from 'express';
 import { Logger } from 'nestjs-pino';
 import { ApiError } from '../common/api-error.js';
 import { createDefaultLocations } from '../locations/default-locations.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GOOGLE_TOKEN_VERIFIER, type GoogleIdentity, type GoogleTokenVerifier } from './google-token.verifier.js';
+import { verifyPassword } from './password.js';
 import type { RequestUser } from './request-user.js';
 import { SessionService } from './session.service.js';
 
@@ -16,6 +17,13 @@ import { SessionService } from './session.service.js';
  * tâche 3, amendement de la spec).
  */
 const PENDING_MESSAGE = 'Votre demande attend la validation d’un administrateur.';
+
+/**
+ * Un seul message pour tous les refus de la porte de secours : adresse
+ * inconnue, aucun mot de passe de secours posé, expiration passée, mauvais mot
+ * de passe, compte non actif. La route n'apprend rien à qui la découvre.
+ */
+const RECOVERY_MESSAGE = 'Accès de secours indisponible';
 
 interface Account {
   id: string;
@@ -114,6 +122,42 @@ export class AuthService {
     const taken = await this.prisma.user.findUnique({ where: { googleSub: identity.sub } });
     if (taken) return user;
     return this.prisma.user.update({ where: { id: user.id }, data: { googleSub: identity.sub } });
+  }
+
+  /**
+   * Porte de secours (D6) : la seule façon d'entrer si Google devient
+   * inutilisable. Elle n'ouvre **rien** tant que `tools/acces-secours.ts` n'a
+   * pas posé un mot de passe à usage unique en base — pas de secret dormant,
+   * pas de valeur par défaut, pas de variable d'environnement qui en tiendrait
+   * lieu. Le mot de passe meurt au bout d'une heure et ne sert qu'une fois :
+   * le succès efface le hachage et l'expiration dans la transaction qui ouvre
+   * la session.
+   */
+  async loginWithRecovery(input: RecoveryLoginInput, res: Response): Promise<CurrentUser> {
+    const user = await this.prisma.user.findUnique({ where: { email: input.email } });
+    // Le statut est vérifié ici aussi : la session d'un compte révoqué serait
+    // de toute façon rejetée à la requête suivante (D10).
+    if (!user?.passwordHash || !user.recoveryExpiresAt || user.status !== 'ACTIVE') {
+      throw ApiError.unauthenticated(RECOVERY_MESSAGE);
+    }
+    if (user.recoveryExpiresAt.getTime() <= Date.now()) throw ApiError.unauthenticated(RECOVERY_MESSAGE);
+    // Un mot de passe faux **n'efface rien** : sinon n'importe qui, en tapant
+    // au hasard pendant l'heure ouverte, condamnerait la porte du propriétaire.
+    if (!(await verifyPassword(user.passwordHash, input.password))) throw ApiError.unauthenticated(RECOVERY_MESSAGE);
+
+    await this.prisma.$transaction(async (tx) => {
+      // La condition est rejouée dans l'écriture : deux appels concurrents avec
+      // le même mot de passe n'ouvrent qu'une session, la seconde ne trouve
+      // plus rien à effacer.
+      const consumed = await tx.user.updateMany({
+        where: { id: user.id, passwordHash: user.passwordHash, recoveryExpiresAt: { gt: new Date() } },
+        data: { passwordHash: null, recoveryExpiresAt: null },
+      });
+      if (consumed.count !== 1) throw ApiError.unauthenticated(RECOVERY_MESSAGE);
+      await this.sessions.open(user.id, res, tx);
+    });
+    this.logger.warn({ userId: user.id }, 'Connexion par la porte de secours : mot de passe à usage unique consommé');
+    return toCurrentUser(user);
   }
 
   async logout(user: RequestUser, res: Response): Promise<void> {

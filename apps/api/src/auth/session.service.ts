@@ -8,6 +8,9 @@ import { hashToken, newSessionToken } from './tokens.js';
 export const SESSION_COOKIE = 'sid';
 const DAY_MS = 86_400_000;
 
+/** Ce qu'`open` utilise du client Prisma : le service, ou un client de transaction. */
+type SessionWriter = Pick<PrismaService, 'session'>;
+
 @Injectable()
 export class SessionService {
   constructor(
@@ -15,11 +18,15 @@ export class SessionService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
-  /** Ouvre une session et pose le cookie. */
-  async open(userId: string, res: Response): Promise<void> {
+  /**
+   * Ouvre une session et pose le cookie. `tx` permet d'inscrire la session
+   * dans une transaction en cours : la porte de secours (D6) efface le mot de
+   * passe à usage unique et ouvre la session d'un seul tenant.
+   */
+  async open(userId: string, res: Response, tx: SessionWriter = this.prisma): Promise<void> {
     const token = newSessionToken();
     const expiresAt = new Date(Date.now() + this.config.SESSION_TTL_DAYS * DAY_MS);
-    await this.prisma.session.create({ data: { userId, tokenHash: hashToken(token), expiresAt } });
+    await tx.session.create({ data: { userId, tokenHash: hashToken(token), expiresAt } });
     res.cookie(SESSION_COOKIE, token, {
       httpOnly: true,
       sameSite: 'lax',

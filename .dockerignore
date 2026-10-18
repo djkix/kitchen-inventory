@@ -5,6 +5,9 @@ node_modules
 .github
 docs
 tools
+!tools/acces-secours.ts
+!tools/tsconfig.json
+!tools/package.json
 media
 pgdata
 backups

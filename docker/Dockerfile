@@ -24,10 +24,16 @@ COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api
 COPY apps/web ./apps/web
+COPY tools ./tools
+# `tools/` est compilé à part (son propre tsconfig, racine = dépôt) : la porte
+# de secours doit être exécutable dans l'image, où tsx n'existe pas. Sa sortie
+# conserve l'arborescence, donc son import du hachage Argon2id de l'API garde
+# son chemin relatif — le paramétrage Argon2 n'est jamais recopié.
 RUN npx prisma generate --schema prisma/schema.prisma \
   && npm run build -w @kitchen/shared \
   && npm run build -w @kitchen/api \
-  && npm run build -w @kitchen/web
+  && npm run build -w @kitchen/web \
+  && npx tsc -p tools/tsconfig.json
 
 # ---------------------------------------------------------------- exécution
 FROM node:22-alpine AS runtime
@@ -56,6 +62,10 @@ RUN npm ci --omit=dev --workspace @kitchen/shared --workspace @kitchen/api \
 COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/web/dist ./web
+# `tools/acces-secours.js` et le module de hachage qu'il importe (D6) :
+#   docker compose exec app node tools/acces-secours.js adresse@example.org
+COPY --from=build /app/tools/dist/ ./
+COPY tools/package.json ./tools/package.json
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 RUN chmod +x /usr/local/bin/entrypoint.sh \
