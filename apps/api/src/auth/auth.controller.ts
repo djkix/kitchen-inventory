@@ -1,6 +1,6 @@
 import { Controller, Get, HttpCode, Inject, Post, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { googleLoginSchema, type AuthStatus, type CurrentUser, type GoogleLoginInput } from '@kitchen/shared';
+import { googleLoginSchema, recoveryLoginSchema, type AuthStatus, type CurrentUser, type GoogleLoginInput, type RecoveryLoginInput } from '@kitchen/shared';
 import type { Response } from 'express';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { ZodBody } from '../common/zod-validation.pipe.js';
@@ -38,6 +38,20 @@ export class AuthController {
   @HttpCode(200)
   loginWithGoogle(@ZodBody(googleLoginSchema) body: GoogleLoginInput, @Res({ passthrough: true }) res: Response): Promise<CurrentUser> {
     return this.auth.loginWithGoogle(body, res);
+  }
+
+  /**
+   * Porte de secours (D6). Volontairement absente de l'interface : aucun
+   * formulaire ne la présente, et elle n'ouvre rien tant que
+   * `tools/acces-secours.ts` n'a pas posé de mot de passe à usage unique.
+   * Même limitation de débit que `POST /auth/google`.
+   */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('auth/recovery')
+  @HttpCode(200)
+  loginWithRecovery(@ZodBody(recoveryLoginSchema) body: RecoveryLoginInput, @Res({ passthrough: true }) res: Response): Promise<CurrentUser> {
+    return this.auth.loginWithRecovery(body, res);
   }
 
   @Post('auth/logout')

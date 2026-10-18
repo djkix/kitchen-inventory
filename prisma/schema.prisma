@@ -33,15 +33,18 @@ enum AccountStatus {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
+  id                String        @id @default(cuid())
+  email             String        @unique
+  name              String
   // Nullable (D5) : les comptes créés par Google n'ont pas de mot de passe.
-  passwordHash String?
-  googleSub    String?       @unique
-  role         UserRole      @default(MEMBER)
-  status       AccountStatus @default(PENDING)
-  createdAt    DateTime      @default(now())
+  passwordHash      String?
+  googleSub         String?       @unique
+  // Porte de secours (D6) : fin de validité du mot de passe à usage unique
+  // posé par `tools/acces-secours.ts`. NULL = aucune porte ouverte.
+  recoveryExpiresAt DateTime?
+  role              UserRole      @default(MEMBER)
+  status            AccountStatus @default(PENDING)
+  createdAt         DateTime      @default(now())
 
   movements     StockMovement[]
   shoppingItems ShoppingListItem[]

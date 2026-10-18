@@ -34,6 +34,17 @@ export const googleLoginSchema = z.object({
 });
 export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;
 
+/**
+ * Corps de `POST /auth/recovery` : la porte de secours (D6). Aucun écran ne
+ * l'utilise — la route existe, elle n'est pas affichée — mais le schéma vit
+ * ici comme tous les autres, défini une seule fois.
+ */
+export const recoveryLoginSchema = z.object({
+  email: z.string().trim().toLowerCase().min(1, { message: 'Adresse requise' }).max(320),
+  password: z.string().min(1, { message: 'Mot de passe requis' }).max(256),
+});
+export type RecoveryLoginInput = z.infer<typeof recoveryLoginSchema>;
+
 /** Une ligne de Réglages › Comptes. */
 export interface AccountDto {
   id: string;
