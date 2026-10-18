@@ -70,7 +70,7 @@ export async function cookRecipe(agent: TestAgent, recipeId: string, body: Recor
 export async function createMember(agent: TestAgent, body: Record<string, unknown> = {}): Promise<UserDto> {
   const res = await agent
     .post('/api/v1/users')
-    .send({ email: `membre-${Date.now()}-${Math.random().toString(36).slice(2)}@example.org`, name: 'Membre', password: 'un-mot-de-passe-long', ...body })
+    .send({ email: `membre-${Date.now()}-${Math.random().toString(36).slice(2)}@example.org`, name: 'Membre', ...body })
     .expect(201);
   return res.body as UserDto;
 }
@@ -86,7 +86,6 @@ export async function createLoggedInMember(
   body: Record<string, unknown> = {},
 ): Promise<TestAgent> {
   const email = (body.email as string | undefined) ?? `membre-${Date.now()}-${Math.random().toString(36).slice(2)}@example.org`;
-  const password = (body.password as string | undefined) ?? 'un-mot-de-passe-long';
-  await createMember(adminAgent, { name: 'Membre', ...body, email, password });
+  await createMember(adminAgent, { name: 'Membre', ...body, email });
   return t.signIn(t.agent(), { email, name: 'Membre' });
 }

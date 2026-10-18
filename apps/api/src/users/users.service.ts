@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { CreateUserInput } from '@kitchen/shared';
 import { ApiError } from '../common/api-error.js';
-import { hashPassword } from '../auth/password.js';
 import { SessionService } from '../auth/session.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -31,8 +30,8 @@ export class UsersService {
     }
     const user = await this.prisma.user.create({
       // Un compte créé par un administrateur est validé par ce geste même : il
-      // entre `ACTIVE`, sans repasser par la file d'attente (D1).
-      data: { email: input.email, name: input.name, role: input.role, status: 'ACTIVE', passwordHash: await hashPassword(input.password) },
+      // entre `ACTIVE`, sans repasser par la file d'attente (D1). Sans mot de passe : son titulaire entre par Google.
+      data: { email: input.email, name: input.name, role: input.role, status: 'ACTIVE' },
     });
     return toDto(user);
   }

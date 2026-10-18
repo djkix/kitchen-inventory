@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { MediaModule } from './media/media.module.js';
 import { RecognitionModule } from './recognition/recognition.module.js';
 import { randomUUID } from 'node:crypto';
+import { AccountsModule } from './accounts/accounts.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { GOOGLE_TOKEN_VERIFIER, GoogleIdTokenVerifier, type GoogleTokenVerifier } from './auth/google-token.verifier.js';
 import { BootstrapModule } from './bootstrap/bootstrap.module.js';
@@ -55,6 +56,7 @@ export class AppModule {
         }),
         PrismaModule,
         AuthModule,
+        AccountsModule,
         UsersModule,
         ServiceTokensModule,
         LocationsModule,

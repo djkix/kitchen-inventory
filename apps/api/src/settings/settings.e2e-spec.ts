@@ -4,7 +4,7 @@ import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { FakeHttp, json } from '../../test/fake-http.js';
 
 const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
-const MEMBRE = { email: 'membre@example.org', name: 'Membre', password: 'un-autre-mot-de-passe' };
+const MEMBRE = { email: 'membre@example.org', name: 'Membre' };
 
 const LIST_MODELS = {
   models: [

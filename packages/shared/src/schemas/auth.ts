@@ -42,7 +42,6 @@ export type CurrentUser = z.infer<typeof currentUserSchema>;
 export const createUserSchema = z.object({
   email: emailSchema,
   name: z.string().trim().min(1, { message: 'Nom requis' }).max(80),
-  password: passwordSchema,
   role: userRoleSchema.default('MEMBER'),
 });
 export type CreateUserInput = z.infer<typeof createUserSchema>;
