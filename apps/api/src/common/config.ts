@@ -44,6 +44,9 @@ const configSchema = z.object({
   WEB_DIST_DIR: z.string().optional(),
   MIGRATIONS_DIR: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  // Client ID public de Google Identity Services (section 10, spec du 2026-10-18).
+  // Vide = connexion Google indisponible, et le bouton ne s'affiche pas.
+  GOOGLE_CLIENT_ID: z.string().default(''),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
   APP_VERSION: z.string().default('0.0.0-dev'),
 });

@@ -3,7 +3,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { FakeHttp, geminiFixture, TINY_PNG } from '../../test/fake-http.js';
 
-const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-de-passe-long' };
+const ADMIN = { email: 'franck@example.org', name: 'Franck' };
 
 describe('scan par code-barres (EF-01, EF-02, EF-14)', () => {
   let t: TestApp;
@@ -17,7 +17,7 @@ describe('scan par code-barres (EF-01, EF-02, EF-14)', () => {
     await t.reset();
     http.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
   });
   afterAll(() => t.close());
 
@@ -92,7 +92,7 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
     await t.reset();
     http.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
   });
   afterAll(() => t.close());
 
@@ -222,7 +222,7 @@ describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
     await t.reset();
     http.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
   });
   afterAll(() => t.close());
 
@@ -272,7 +272,7 @@ describe('plafond de dépense mensuel', () => {
     http.reset();
     http.on('generativelanguage.googleapis.com', () => geminiFixture('vision-gochujang.json'));
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
   });
   afterAll(() => t.close());
 
@@ -307,7 +307,7 @@ describe('fournisseur de vision désactivé', () => {
     const t = await createTestApp({ VISION_PROVIDER: 'none' });
     await t.reset();
     const agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(422);
     expect(res.body.error.code).toBe('provider_disabled');
     expect(res.body.error.message).toBe('Fournisseur de vision désactivé : renseignez VISION_PROVIDER et VISION_API_KEY');

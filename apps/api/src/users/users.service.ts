@@ -30,7 +30,9 @@ export class UsersService {
       throw ApiError.conflict('Un compte existe déjà avec cette adresse');
     }
     const user = await this.prisma.user.create({
-      data: { email: input.email, name: input.name, role: input.role, passwordHash: await hashPassword(input.password) },
+      // Un compte créé par un administrateur est validé par ce geste même : il
+      // entre `ACTIVE`, sans repasser par la file d'attente (D1).
+      data: { email: input.email, name: input.name, role: input.role, status: 'ACTIVE', passwordHash: await hashPassword(input.password) },
     });
     return toDto(user);
   }

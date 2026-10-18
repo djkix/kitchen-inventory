@@ -6,7 +6,7 @@ import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { createProduct, createStock } from '../../test/recipes.test-helpers.js';
 import { FakeHttp, geminiFixture } from '../../test/fake-http.js';
 
-const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-de-passe-long' };
+const ADMIN = { email: 'franck@example.org', name: 'Franck' };
 
 /** Hôte IP littéral (RFC 5737) : atteint sans résolution DNS, pour qu'aucun test ne dépende du réseau (section 19). */
 const WEB_RECIPE_HOST = '203.0.113.20';
@@ -167,7 +167,7 @@ describe('scénario de réussite figé des suggestions', () => {
     await t.reset();
     http.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
     await seedScenario();
     wireModel();
   });

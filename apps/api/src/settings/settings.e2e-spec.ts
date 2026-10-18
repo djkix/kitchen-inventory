@@ -3,7 +3,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { FakeHttp, json } from '../../test/fake-http.js';
 
-const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-de-passe-long' };
+const ADMIN = { email: 'franck@example.org', name: 'Franck' };
 const MEMBRE = { email: 'membre@example.org', name: 'Membre', password: 'un-autre-mot-de-passe' };
 
 const LIST_MODELS = {
@@ -32,7 +32,7 @@ describe('réglages : choix du modèle', () => {
   beforeEach(async () => {
     await t.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
   });
   afterAll(() => t.close());
 
@@ -76,14 +76,14 @@ describe('réglages : choix du modèle', () => {
 
     await agent.post('/api/v1/users').send(MEMBRE).expect(201);
     const membre = t.agent();
-    await membre.post('/api/v1/auth/login').send({ email: MEMBRE.email, password: MEMBRE.password }).expect(204);
+    await t.signIn(membre, MEMBRE);
     await membre.get('/api/v1/settings/models').expect(403);
   });
 
   it('refuse à un membre de changer le modèle', async () => {
     await agent.post('/api/v1/users').send(MEMBRE).expect(201);
     const membre = t.agent();
-    await membre.post('/api/v1/auth/login').send({ email: MEMBRE.email, password: MEMBRE.password }).expect(204);
+    await t.signIn(membre, MEMBRE);
     await membre.patch('/api/v1/settings').send({ suggestionModel: 'gemini-3.5-flash' }).expect(403);
   });
 });

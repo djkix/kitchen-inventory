@@ -3,7 +3,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { cookRecipe, createLoggedInMember, createProduct, createRecipe, createStock, isoIn, logCooked } from '../../test/recipes.test-helpers.js';
 
-const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-de-passe-long' };
+const ADMIN = { email: 'franck@example.org', name: 'Franck' };
 
 describe('recettes (EF-17, EF-21)', () => {
   let t: TestApp;
@@ -15,7 +15,7 @@ describe('recettes (EF-17, EF-21)', () => {
   beforeEach(async () => {
     await t.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
   });
   afterAll(() => t.close());
 
@@ -316,7 +316,7 @@ describe('recettes (EF-17, EF-21)', () => {
 
       await agent.post('/api/v1/users').send({ email: 'marie@example.org', name: 'Marie', password: 'encore-un-mot-de-passe' }).expect(201);
       const marie = t.agent();
-      await marie.post('/api/v1/auth/login').send({ email: 'marie@example.org', password: 'encore-un-mot-de-passe' }).expect(204);
+      await t.signIn(marie, { email: 'marie@example.org', name: 'Marie' });
       await marie.put(`/api/v1/recipe-logs/${log.id}/rating`).send({ stars: 3 }).expect(200);
 
       expect((await agent.get(`/api/v1/recipes/${recipe.id}`).expect(200)).body.stats).toMatchObject({ averageRating: 4, ratingCount: 2 });

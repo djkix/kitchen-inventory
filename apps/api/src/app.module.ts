@@ -5,6 +5,7 @@ import { MediaModule } from './media/media.module.js';
 import { RecognitionModule } from './recognition/recognition.module.js';
 import { randomUUID } from 'node:crypto';
 import { AuthModule } from './auth/auth.module.js';
+import { GOOGLE_TOKEN_VERIFIER, GoogleIdTokenVerifier, type GoogleTokenVerifier } from './auth/google-token.verifier.js';
 import { BootstrapModule } from './bootstrap/bootstrap.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
 import { CuisinesModule } from './cuisines/cuisines.module.js';
@@ -29,7 +30,12 @@ import { UsersModule } from './users/users.module.js';
 @Global()
 @Module({})
 export class AppModule {
-  static forRoot(config: AppConfig, httpClient: HttpClient = defaultHttpClient): DynamicModule {
+  static forRoot(
+    config: AppConfig,
+    httpClient: HttpClient = defaultHttpClient,
+    // Injecté pour que les tests posent une doublure : aucun test ne contacte Google.
+    googleVerifier: GoogleTokenVerifier = new GoogleIdTokenVerifier(config.GOOGLE_CLIENT_ID),
+  ): DynamicModule {
     return {
       module: AppModule,
       imports: [
@@ -70,8 +76,9 @@ export class AppModule {
       providers: [
         { provide: APP_FILTER, useClass: ApiErrorFilter },
         { provide: HTTP_CLIENT, useValue: httpClient },
+        { provide: GOOGLE_TOKEN_VERIFIER, useValue: googleVerifier },
       ],
-      exports: [HTTP_CLIENT],
+      exports: [HTTP_CLIENT, GOOGLE_TOKEN_VERIFIER],
     };
   }
 }

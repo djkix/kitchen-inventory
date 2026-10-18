@@ -23,7 +23,7 @@ import type { PageRecipe } from './recipe-page.fetcher.js';
 import { SuggestionsModule } from './suggestions.module.js';
 import { SuggestionsService } from './suggestions.service.js';
 
-const ADMIN = { email: 'franck@example.org', name: 'Franck', password: 'un-mot-de-passe-long' };
+const ADMIN = { email: 'franck@example.org', name: 'Franck' };
 
 /**
  * Contexte Nest minimal (sans HTTP) pour tester `SuggestionsService` seule, sans
@@ -1135,7 +1135,7 @@ describe('GET /suggestions (EF-26, tâche 7)', () => {
     await t.reset();
     http.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
   });
   afterAll(() => t.close());
 
@@ -1171,7 +1171,7 @@ describe('GET /suggestions, fournisseur désactivé (EF-26, tâche 7)', () => {
     try {
       await t.reset();
       const agent = t.agent();
-      await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+      await t.signIn(agent, ADMIN);
 
       const res = await agent.get('/api/v1/suggestions').expect(422);
       expect(res.body.error.code).toBe('provider_disabled');
@@ -1195,7 +1195,7 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
     await t.reset();
     http.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
   });
   afterAll(() => t.close());
 
