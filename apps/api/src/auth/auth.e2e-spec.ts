@@ -234,17 +234,17 @@ describe('utilisateurs et jetons de service', () => {
   beforeEach(() => t.reset());
   afterAll(() => t.close());
 
-  it('liste le foyer, mais aucune route n’y crée de compte', async () => {
+  // `GET /users` a disparu avec l'écran Utilisateurs (revue de la tâche 6) :
+  // `GET /accounts` rend la même chose, avec les états, et réservé aux
+  // administrateurs. Ce qui reste à vérifier ici est qu'aucune route ne crée
+  // un compte, et qu'un membre ne valide pas les demandes.
+  it('aucune route ne crée de compte, et un membre ne valide pas les demandes', async () => {
     const admin = await t.signIn(t.agent(), ADMIN);
     const marie = { email: 'marie@example.org', name: 'Marie' };
     await admin.post('/api/v1/users').send(marie).expect(404);
 
     await t.addMember(admin, marie);
     const member = await t.signIn(t.agent(), marie);
-    const list = await member.get('/api/v1/users').expect(200);
-    expect(list.body).toHaveLength(2);
-    expect(list.body[0].passwordHash).toBeUndefined();
-    // Un membre ne valide pas les demandes.
     await member.get('/api/v1/accounts').expect(403);
   });
 
