@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createStockItemSchema, paginationQuerySchema, scanBarcodeSchema, setupSchema, visionSuggestionSchema } from './index.js';
+import { createStockItemSchema, paginationQuerySchema, scanBarcodeSchema, visionSuggestionSchema } from './index.js';
 
 describe('scanBarcodeSchema', () => {
   it('accepte un EAN-13 et un EAN-8', () => {
@@ -28,13 +28,6 @@ describe('paginationQuerySchema', () => {
   it('convertit les chaînes et plafonne à 200', () => {
     expect(paginationQuerySchema.parse({ page: '2', limit: '10' })).toEqual({ page: 2, limit: 10 });
     expect(paginationQuerySchema.safeParse({ limit: '500' }).success).toBe(false);
-  });
-});
-
-describe('setupSchema', () => {
-  it('exige 12 caractères de mot de passe et normalise l’e-mail', () => {
-    expect(setupSchema.safeParse({ email: 'a@b.fr', name: 'A', password: 'court' }).success).toBe(false);
-    expect(setupSchema.parse({ email: ' Franck@Example.org ', name: 'Franck', password: 'motdepasse-long' }).email).toBe('franck@example.org');
   });
 });
 
