@@ -432,8 +432,8 @@ une seule valeur à configurer, publique, `GOOGLE_CLIENT_ID`.
 
 À faire une fois, sur le projet Google Cloud qui sert déjà la clé Gemini (ou
 sur un projet neuf, peu importe : le Client ID et la clé d'API n'ont aucun
-lien). **Remplacer partout `https://inventaire.example.org` par l'URL publique
-de votre instance** — celle que vous avez mise dans `PUBLIC_URL`.
+lien). L'URL publique utilisée ci-dessous est celle de l'instance,
+`https://kitchen.djkix.ovh` — la même que dans `PUBLIC_URL`.
 
 1. Ouvrir [console.cloud.google.com](https://console.cloud.google.com) et
    sélectionner le projet en haut de la page.
@@ -456,13 +456,13 @@ de votre instance** — celle que vous avez mise dans `PUBLIC_URL`.
    **l'URL publique exacte** :
 
    ```
-   https://inventaire.example.org
+   https://kitchen.djkix.ovh
    ```
 
    Exacte veut dire **au caractère près** : le schéma (`https://`), le nom
    d'hôte et, seulement s'il n'est pas standard, le port. **Pas de chemin, pas
-   de barre oblique finale.** `https://inventaire.example.org/` et
-   `https://inventaire.example.org/connexion` sont refusés, et Google répond
+   de barre oblique finale.** `https://kitchen.djkix.ovh/` et
+   `https://kitchen.djkix.ovh/connexion` sont refusés, et Google répond
    alors une erreur `origin_mismatch` que rien n'affiche dans l'application :
    le bouton reste simplement sans effet.
 7. **Laisser « URI de redirection autorisés » vide.** Ce flux n'utilise aucune
@@ -554,7 +554,7 @@ dans les journaux. Il s'utilise sur une route que l'interface ne présente
 nulle part, `POST /api/v1/auth/recovery` :
 
 ```bash
-curl -i -X POST https://inventaire.example.org/api/v1/auth/recovery \
+curl -i -X POST https://kitchen.djkix.ovh/api/v1/auth/recovery \
   -H 'Content-Type: application/json' \
   -d '{"email":"adresse@example.org","password":"LE-MOT-DE-PASSE"}'
 ```
@@ -659,7 +659,7 @@ part des scans résolus par le cache) sont affichés dans les réglages.
 Réglages › Jetons de service donne un accès en lecture seule à l'API :
 
 ```bash
-curl -H "Authorization: Bearer kit_…" https://inventaire.example.org/api/v1/stock/expiring?days=7
+curl -H "Authorization: Bearer kit_…" https://kitchen.djkix.ovh/api/v1/stock/expiring?days=7
 ```
 
 Toute méthode autre que `GET` est refusée avec ce jeton.
