@@ -122,6 +122,8 @@ jobs:
   build-image:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      IMAGE: kitchen-build-check:ci
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -131,12 +133,42 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: false
+          # Chargée dans le démon local pour le contrôle ci-dessous : sans
+          # cela, l'image reste dans le cache de buildx et rien ne peut
+          # tourner dedans.
+          load: true
+          tags: ${{ env.IMAGE }}
           build-args: |
             APP_VERSION=ci
           cache-from: |
             type=gha,scope=ci
             type=gha,scope=main
           cache-to: type=gha,mode=max,scope=ci
+
+      # La porte de secours (D6) est la seule commande dont le propriétaire
+      # aura besoin le jour où plus rien d'autre ne marche — et c'est la seule
+      # qui dépend d'une chaîne d'emballage à part (`tsc -p tools/tsconfig.json`,
+      # `.dockerignore`, deux `COPY`). Elle est donc lancée pour de vrai dans
+      # l'image qui vient d'être construite, sans argument : le contrôle porte
+      # sur l'emballage (le fichier existe, se charge comme module ES, résout
+      # `@prisma/client` et le hachage Argon2id), pas sur le comportement, déjà
+      # couvert par `apps/api/src/auth/recovery.e2e-spec.ts`.
+      #
+      # `--entrypoint node` : l'entrypoint de l'image joue les migrations
+      # Prisma avant toute commande `node`, ce qui demanderait une base. Le
+      # `DATABASE_URL` factice ne sert qu'à construire le `PrismaClient` ;
+      # aucune connexion n'est ouverte, le message d'usage étant rendu avant
+      # la première requête.
+      - name: La commande de secours démarre dans l'image
+        run: |
+          set -o pipefail
+          sortie="$(docker run --rm --entrypoint node \
+            -e DATABASE_URL=postgresql://inutilise:inutilise@127.0.0.1:1/inutilise \
+            "$IMAGE" tools/acces-secours.js 2>&1)" && code=0 || code=$?
+          echo "$sortie"
+          test "$code" -eq 1 || { echo "::error::code de sortie attendu 1, obtenu $code"; exit 1; }
+          echo "$sortie" | grep -qF 'Usage : node tools/acces-secours.js <adresse e-mail>' \
+            || { echo "::error::message d'usage absent"; exit 1; }
 
   # Parcours bout en bout (section 19), sur le montage jetable de la tâche 1
   # (docker-compose.e2e.yml) : jamais l'image publiée, jamais un réseau réel

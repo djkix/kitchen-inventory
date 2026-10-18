@@ -6,6 +6,7 @@ import { RecognitionModule } from './recognition/recognition.module.js';
 import { randomUUID } from 'node:crypto';
 import { AccountsModule } from './accounts/accounts.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { OAuth2Client } from 'google-auth-library';
 import { GOOGLE_TOKEN_VERIFIER, GoogleIdTokenVerifier, type GoogleTokenVerifier } from './auth/google-token.verifier.js';
 import { BootstrapModule } from './bootstrap/bootstrap.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
@@ -28,6 +29,20 @@ import { StockModule } from './stock/stock.module.js';
 import { SuggestionsModule } from './suggestions/suggestions.module.js';
 import { UsersModule } from './users/users.module.js';
 
+/**
+ * Client Google du vérificateur de jeton. `GOOGLE_CERTS_URL` déplace la seule
+ * chose qu'il va chercher sur le réseau — les clés publiques de signature —
+ * pour que les parcours bout en bout vérifient une vraie signature contre une
+ * doublure locale (`e2e/fixtures/stub-server.ts`). Absente en production : les
+ * clés viennent de Google. Les deux formats sont pointés au même endroit, le
+ * choix PEM/JWK appartenant à la bibliothèque.
+ */
+function googleClient(config: AppConfig): OAuth2Client {
+  const url = config.GOOGLE_CERTS_URL;
+  if (!url) return new OAuth2Client();
+  return new OAuth2Client({ endpoints: { oauth2FederatedSignonPemCertsUrl: url, oauth2FederatedSignonJwkCertsUrl: url } });
+}
+
 @Global()
 @Module({})
 export class AppModule {
@@ -35,7 +50,7 @@ export class AppModule {
     config: AppConfig,
     httpClient: HttpClient = defaultHttpClient,
     // Injecté pour que les tests posent une doublure : aucun test ne contacte Google.
-    googleVerifier: GoogleTokenVerifier = new GoogleIdTokenVerifier(config.GOOGLE_CLIENT_ID),
+    googleVerifier: GoogleTokenVerifier = new GoogleIdTokenVerifier(config.GOOGLE_CLIENT_ID, googleClient(config)),
   ): DynamicModule {
     return {
       module: AppModule,

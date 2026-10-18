@@ -284,11 +284,16 @@ Livraison sous forme d'une stack `docker compose` de trois services, déployable
 L'application est destinée au foyer, mais elle doit être joignable depuis l'extérieur pour servir en magasin — ce qui impose un niveau de sécurité supérieur à celui d'un service purement LAN.
 
 - Authentification obligatoire sur toutes les routes, y compris les endpoints de scan.
-- Mots de passe hachés en Argon2id ; pas de compte par défaut, création du premier administrateur à l'installation.
+- **Le mot de passe n'est plus le mécanisme d'authentification** (amendement du 2026-10-18). On se connecte par **compte Google**, flux « jeton d'identité » de Google Identity Services : pas de redirection OAuth, pas de client secret, une seule valeur publique à configurer (`GOOGLE_CLIENT_ID`). Le jeton est vérifié **côté serveur** — signature, émetteur, expiration, et audience égale au Client ID configuré — puis l'application ouvre **sa propre session**, inchangée. Un jeton dont l'adresse n'est pas vérifiée par Google (`email_verified`) est refusé. Il n'y a plus de formulaire de connexion, plus de changement de mot de passe, plus d'écran d'installation : les routes `POST /auth/login`, `POST /auth/setup`, `POST /me/password` et `POST /users` n'existent plus.
+- **Le compte est retrouvé par son adresse e-mail**, jamais par l'identifiant Google (`sub`), qui n'est stocké que pour mémoire. Une **discordance** entre le `sub` présenté et celui déjà enregistré pour cette adresse est un refus : sur un domaine Workspace, une adresse réattribuée donnerait sinon le compte, le rôle et l'inventaire de l'ancien titulaire à son successeur.
+- **L'inscription est ouverte, l'accès ne l'est pas.** Un compte porte un statut (`PENDING`, `ACTIVE`, `REVOKED`). Une adresse inconnue crée un compte `PENDING` : le jeton est valide, mais **aucune session n'est ouverte** et rien de l'inventaire n'est visible tant qu'un administrateur n'a pas validé la demande (Réglages › Comptes). Un compte refusé ou révoqué n'est pas supprimé — il porte de l'historique — et reçoit **exactement la même réponse** qu'une demande en attente : la page de connexion ne doit pas servir à savoir quelles adresses le foyer connaît. Révoquer coupe les sessions en cours.
+- **Le statut est vérifié à chaque requête**, pas seulement à l'ouverture de session : une révocation qui ne tiendrait qu'au geste de coupure laisserait la porte ouverte le jour où un chemin oublie de le faire.
+- **Premier démarrage** : pas de compte par défaut. Sur une base vide, la **première connexion Google réussie** crée l'administrateur (`ACTIVE`, `ADMIN`) et pose les emplacements par défaut, sous verrou d'exclusion pour que deux connexions simultanées n'en créent qu'un seul.
+- **Porte de secours.** Une connexion Google indisponible (projet suspendu, Client ID effacé, domaine changé) rendrait l'application inaccessible à tous. Le recours est une **commande serveur**, jamais une route visible ni une variable d'environnement : `tools/acces-secours.ts`, lancée dans le conteneur, crée ou réactive un administrateur et lui pose un mot de passe à usage unique, **valable une heure**, haché en **Argon2id** — le seul mot de passe qui subsiste. La route qui le consomme (`POST /auth/recovery`) n'ouvre rien tant que ce mot de passe n'est pas en base : pas de secret dormant, et un seul message de refus pour tous les cas d'échec. Le dispositif suppose un accès au serveur ; sans lui, il n'y a pas de recours.
 - Sessions par cookie `httpOnly`, `Secure`, `SameSite=Lax`, expiration longue mais révocable, car le cas d'usage est un téléphone personnel.
 - Limitation de débit sur `/scan/image` : c'est la seule route qui engage un coût externe.
 - TLS terminé par le reverse proxy, avec certificat valide — prérequis de l'accès caméra (section 8).
-- Exposition retenue : sous-domaine dédié publié par le reverse proxy. L'application étant joignable depuis Internet, quatre mesures sont obligatoires : limitation des tentatives de connexion, verrouillage temporaire après échecs répétés, en-tête noindex sur toutes les réponses, et aucune route accessible sans session valide, fichiers média compris.
+- Exposition retenue : sous-domaine dédié publié par le reverse proxy. L'application étant joignable depuis Internet, quatre mesures sont obligatoires : limitation des tentatives de connexion (`POST /auth/google` et `POST /auth/recovery`, dix par minute et par IP), validation d'un compte par un administrateur avant tout accès — qui remplace le verrouillage temporaire après échecs répétés, devenu sans objet puisqu'un jeton Google ne se devine pas par essais successifs —, en-tête noindex sur toutes les réponses, et aucune route accessible sans session valide, fichiers média compris.
 
 **Données personnelles.** L'inventaire alimentaire d'un foyer révèle des habitudes de consommation et, indirectement, des informations de santé et de pratique religieuse. Conséquences concrètes :
 
@@ -403,7 +408,7 @@ flowchart TD
   MR --> R[Fiche recette]
   T3[Onglet Courses]
   T4[Onglet Réglages] --> L[Emplacements]
-  T4 --> U[Utilisateurs]
+  T4 --> U[Comptes]
   S((Bouton scan)) --> SC[Écran scan<br/>caméra plein écran]
   SC --> V[Validation rapide<br/>bandeau bas]
   V --> F
@@ -420,7 +425,7 @@ flowchart TD
 | Fiche recette | Ingrédients avec état en stock ou manquant, étapes, difficulté, temps | Cuisiner, ajouter les manquants aux courses, noter |
 | Courses | Liste cochable, articles issus des seuils et des recettes distingués | Cocher, ajouter, vider les cochés |
 | Périme bientôt | Vue dédiée atteignable depuis Stock et depuis une notification | Consommer, jeter, voir les recettes associées |
-| Réglages | Emplacements, utilisateurs, seuil d'alerte, fournisseur de vision, sauvegardes | Créer, modifier |
+| Réglages | Emplacements, comptes (demandes en attente, actifs, refusés), seuil d'alerte, fournisseur de vision, sauvegardes | Créer, modifier, valider ou révoquer un compte |
 
 **Règles d'interface transverses**
 
@@ -466,12 +471,17 @@ Ce sont les règles qu'un développeur ou un agent inventerait autrement, avec d
 
 ## 16. Spécification d'API
 
-REST sous `/api/v1`, JSON en entrée et en sortie, schéma OpenAPI généré depuis le code et servi sur `/api/v1/openapi.json`. Toutes les routes exigent une session valide, sauf `POST /auth/login` et `GET /health`.
+REST sous `/api/v1`, JSON en entrée et en sortie, schéma OpenAPI généré depuis le code et servi sur `/api/v1/openapi.json`. Toutes les routes exigent une session valide, sauf `GET /health` et les routes publiques de connexion (`GET /auth/status`, `GET /auth/google/client-id`, `POST /auth/google`, `POST /auth/recovery`) — amendement du 2026-10-18, section 10.
 
 | Méthode | Route | Corps ou paramètres | Réponse |
 | --- | --- | --- | --- |
-| POST | `/auth/login` | email, password | 204 + cookie de session |
+| POST | `/auth/google` | `credential` (jeton d'identité Google) | utilisateur courant + cookie de session ; 403 si le compte n'est pas validé |
+| GET | `/auth/google/client-id` | — | `{clientId}` (vide = connexion Google non configurée) |
+| POST | `/auth/recovery` | email, mot de passe à usage unique | utilisateur courant + cookie de session ; porte de secours, voir section 10 |
 | POST | `/auth/logout` | — | 204 |
+| GET | `/accounts` | — | comptes et statuts (administrateur) |
+| POST | `/accounts/{id}/approve` | — | compte validé (administrateur) |
+| POST | `/accounts/{id}/revoke` | — | compte refusé ou révoqué, sessions coupées (administrateur) |
 | GET | `/me` | — | utilisateur courant |
 | POST | `/scan/barcode` | barcode | `{product, source: cache\|off\|unknown}` ou 404 |
 | POST | `/scan/image` | image multipart, hint optionnel | `{suggestion, confidence, raw_id}` |
@@ -582,7 +592,7 @@ Le critère de passage est simple : les règles de la section 15 et les cas limi
 | --- | --- | --- |
 | Unitaire | Règles métier pures : conversions d'unités, dates effectives, taux de couverture, détection de doublons | Vitest |
 | Intégration API | Chaque route de la section 16 sur une base PostgreSQL jetable, y compris les codes d'erreur | Vitest + Testcontainers |
-| Contrat externe | Réponses d'Open Food Facts et du fournisseur de vision rejouées depuis des enregistrements, jamais d'appel réseau en test | Fixtures locales |
+| Contrat externe | Réponses d'Open Food Facts et du fournisseur de vision rejouées depuis des enregistrements, clés de signature de Google servies par une doublure locale, jamais d'appel réseau en test | Fixtures locales |
 | Bout en bout | Parcours P1 à P4 de la section 3, dont le mode rafale et le mode hors ligne | Playwright |
 | Non-régression reconnaissance | Jeu de 50 photos d'articles réels, dont 15 étiquettes non latines, avec le résultat attendu par photo | Script dédié |
 
@@ -763,6 +773,7 @@ ici, daté et motivé, plutôt que laissé à l'appréciation du code.
 
 | Date | Section | Amendement | Motif |
 | --- | --- | --- | --- |
+| 2026-10-18 | 10 | Le mot de passe cesse d'être le mécanisme d'authentification : on se connecte par compte Google (flux « jeton d'identité », `GOOGLE_CLIENT_ID` public, pas de client secret), le jeton est vérifié côté serveur et l'application ouvre sa propre session. `POST /auth/login`, `POST /auth/setup`, `POST /me/password` et `POST /users` sont retirées, ainsi que l'écran d'installation et le verrouillage après cinq échecs. Un compte porte désormais un statut (`PENDING`, `ACTIVE`, `REVOKED`) : une adresse inconnue crée une demande qui n'ouvre aucune session, et c'est un administrateur qui valide dans Réglages › Comptes ; le statut est contrôlé à chaque requête. Sur une base vide, la première connexion Google crée l'administrateur et les emplacements par défaut. Argon2id ne sert plus qu'au mot de passe à usage unique de la porte de secours (`tools/acces-secours.ts`, une heure, un seul usage, `POST /auth/recovery`). | Demande de djkix : « pour la connexion (compte de l'application), je veux utiliser des adresses mail Google. Il me faut la possibilité de m'enregistrer ou de me loguer via une adresse gmail (plus de mdp). » Le mécanisme est repris tel quel de son autre application pour qu'il n'existe pas deux façons de se connecter à Google dans sa maison logicielle. La validation par un administrateur est l'écart assumé : l'application est publiée sur Internet et une inscription réellement ouverte y publierait le contenu des placards. Décisions D1 à D9 et amendement D10 de `docs/specs/2026-10-18-connexion-google.md`, ce dernier issu de la revue de sécurité (réponses indistinctes pour `PENDING` et `REVOKED`, refus sur discordance de `sub`, statut vérifié à chaque requête, retrait de la création de compte par `POST /users`). |
 | 2026-10-08 | 12, EF-28 | EF-28 n'exige plus d'avoir cuisiné une recette pour pouvoir la noter : une note directe (une étoile de favori, cinq étoiles de note, sur la fiche et sur chaque carte de « Mes recettes ») s'ajoute à la note par réalisation, qui reste inchangée. Partout où une note s'affiche (carte, fiche, tri par note), la note directe prime quand elle existe, la moyenne des réalisations prend le relais sinon. | djkix avait demandé à pouvoir noter une recette et ne trouvait nulle part où le faire : `RecipeRating` était rattaché à `RecipeLog`, donc tant qu'aucune réalisation n'était enregistrée, aucun bouton « Noter » n'existait. L'exigence, écrite avant le module, supposait à tort qu'on ne juge une recette qu'après l'avoir faite. Décisions D1 à D5 de `docs/specs/2026-10-08-favoris-et-note-directe.md`. |
 | 2026-10-07 | 22 | `VISION_PROVIDER` n'accepte plus que `none` et `gemini`. Les adaptateurs Anthropic, OpenAI et Ollama sont supprimés, ainsi que la dépendance `@anthropic-ai/sdk`. L'interface `RecognitionProvider` est conservée : c'est elle, et non ces adaptateurs, qui rend un autre fournisseur ajoutable le jour où il en faudra un. | Gemini est le fournisseur retenu depuis le 2026-09-21. Les trois autres n'ont jamais été configurés ni exercés hors de leurs propres tests : ils portaient une flexibilité que personne n'a utilisée, au prix d'une dépendance et de deux cents lignes à maintenir. Audit d'over-engineering du 2026-10-07. |
 | 2026-10-04 | 12, EF-25, EF-26, EF-27 | La suggestion assistée par IA devient la porte d'entrée du module : le stock est le point de départ de la recherche. La saisie manuelle est supprimée comme source, l'extraction d'une page web devient un mécanisme interne, EF-26 passe en `Must`, et EF-27 est retirée — les dates de péremption n'interviennent plus dans le module. | À la livraison du socle le 2026-10-04, djkix a constaté que l'approche ne répondait pas à son intention : il voulait que l'application propose des recettes trouvées sur internet à partir de son stock, pas qu'il remplisse lui-même un carnet. Cette intention avait déjà été exprimée par sa réponse « tout, génération IA comprise » lors du cadrage du module. Arbitrages de `docs/specs/2026-10-04-recettes-suggerees.md`. |

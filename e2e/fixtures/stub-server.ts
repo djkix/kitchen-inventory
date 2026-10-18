@@ -1,5 +1,6 @@
 // Doublure HTTP pour les tests bout en bout (section 19) : remplace Open Food
-// Facts et Gemini dans le montage docker-compose.e2e.yml. Elle rejoue les
+// Facts, Gemini et **les clés de signature de Google** dans le montage
+// docker-compose.e2e.yml. Elle rejoue les
 // fixtures déjà utilisées par les tests d'intégration d'apps/api
 // (apps/api/test/fixtures) sans jamais en recopier le contenu — une réponse
 // qui diverge entre les deux suites ne prouverait rien.
@@ -10,6 +11,7 @@
 // `node --experimental-strip-types`, sans étape de compilation ni dépendance
 // à installer dans son conteneur.
 
+import { createHash, createSign, generateKeyPairSync } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +23,56 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = resolve(HERE, '../../apps/api/test/fixtures');
 
 const DEFAULT_PORT = 3101;
+
+// ------------------------------------------------------------- Google (D1–D7)
+//
+// Les parcours doivent se connecter par le vrai chemin — `POST /auth/google`,
+// vérification complète du jeton par `google-auth-library` — sans jamais
+// toucher au réseau. On ne double donc PAS la vérification : on double la
+// seule chose qu'elle va chercher dehors, les clés publiques de signature.
+// `GOOGLE_CERTS_URL` (apps/api/src/common/config.ts) pointe l'application ici,
+// et `/__google/token` frappe des jetons signés par la clé privée
+// correspondante. Signature RS256, émetteur, audience et expiration sont
+// vérifiés pour de bon.
+//
+// Paire de clés tirée au démarrage : elle ne sort jamais de ce conteneur
+// jetable, et rien ne la réutilise d'une exécution à l'autre.
+const GOOGLE_KEY_ID = 'e2e';
+const GOOGLE_ISSUER = 'https://accounts.google.com';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? '';
+const googleKeys = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding: { type: 'spki', format: 'pem' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
+
+function base64url(value: string | Buffer): string {
+  return Buffer.from(value).toString('base64url');
+}
+
+/**
+ * Jeton d'identité signé pour une adresse. Le `sub` dérive de l'adresse plutôt
+ * que d'être tiré au hasard : il doit rester le même d'une connexion à
+ * l'autre, sans quoi le contrôle de discordance de `sub` (D10) refuserait la
+ * seconde connexion de la même personne.
+ */
+function mintGoogleCredential(email: string, name: string): string {
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS256', kid: GOOGLE_KEY_ID, typ: 'JWT' };
+  const payload = {
+    iss: GOOGLE_ISSUER,
+    aud: GOOGLE_CLIENT_ID,
+    sub: createHash('sha256').update(email).digest('hex').slice(0, 21),
+    email,
+    email_verified: true,
+    name,
+    iat: now,
+    exp: now + 3600,
+  };
+  const signingInput = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
+  const signature = createSign('RSA-SHA256').update(signingInput).end().sign(googleKeys.privateKey);
+  return `${signingInput}.${base64url(signature)}`;
+}
 
 // En-tête qui force le code de statut donné sur n'importe quelle route, pour
 // rejouer une panne à la demande plutôt que de prévoir un chemin par panne.
@@ -158,6 +210,27 @@ export function createStubServer() {
         }
 
         const url = new URL(req.url ?? '/', 'http://stub.local');
+
+        // Clés publiques de signature, à l'emplacement que
+        // `GOOGLE_CERTS_URL` donne à l'application. Format PEM indexé par
+        // `kid`, celui que `google-auth-library` lit côté Node.
+        if (url.pathname === '/oauth2/v1/certs' && req.method === 'GET') {
+          sendJson(res, 200, { [GOOGLE_KEY_ID]: googleKeys.publicKey });
+          return;
+        }
+
+        // Frappe d'un jeton d'identité, lue par les parcours depuis le runner
+        // (e2e/support/auth.ts), jamais par l'application. Deux soulignés en
+        // tête, comme `/__calls`.
+        if (url.pathname === '/__google/token' && req.method === 'GET') {
+          const email = (url.searchParams.get('email') ?? '').trim().toLowerCase();
+          if (!email) {
+            sendJson(res, 400, { error: 'paramètre « email » attendu' });
+            return;
+          }
+          sendJson(res, 200, { credential: mintGoogleCredential(email, url.searchParams.get('name') ?? email) });
+          return;
+        }
 
         if (url.pathname === '/healthz' && req.method === 'GET') {
           sendJson(res, 200, { status: 'ok' });

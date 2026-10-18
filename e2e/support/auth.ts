@@ -2,23 +2,98 @@ import { createHash, randomUUID } from 'node:crypto';
 import { test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { runSql } from './database.ts';
 
-/** Identifiants créés par `prisma/seed/dev.ts` (section 19). */
+/** Compte administrateur créé par `prisma/seed/dev.ts` (section 19), `ACTIVE` et `ADMIN`. */
 export const ADMIN_EMAIL = 'admin@example.org';
-export const ADMIN_PASSWORD = 'inventaire-dev-2026';
 
 /** Nom du cookie de session (`SESSION_COOKIE`, `apps/api/src/auth/session.service.ts`). */
 const SESSION_COOKIE_NAME = 'sid';
 
 /**
- * Connexion par le formulaire (jamais par appel direct à `/auth/login` : on
- * veut exercer le vrai parcours). Rend la main une fois le stock affiché,
- * pour que les tests suivants n'aient pas à réattendre la navigation.
+ * Doublure de Google, atteinte depuis le runner (`e2e/fixtures/stub-server.ts`,
+ * service `stub` du montage, publié sur ce port par `docker-compose.e2e.yml`).
+ */
+const STUB_URL = 'http://127.0.0.1:3101';
+
+/**
+ * Jeton d'identité signé pour une adresse, frappé par la doublure.
+ *
+ * Ce qui est doublé, et ce qui ne l'est pas : la doublure tient la **paire de
+ * clés** qui signe le jeton, et l'application lit ses clés publiques chez elle
+ * (`GOOGLE_CERTS_URL`, `docker-compose.e2e.yml`). La vérification elle-même
+ * reste celle de production — `google-auth-library` contrôle la signature
+ * RS256, l'émetteur, l'expiration et l'audience. Aucun appel ne sort du
+ * montage, et aucun chemin de l'application n'est court-circuité.
+ */
+export async function mintGoogleCredential(email: string, name = email): Promise<string> {
+  const url = new URL('/__google/token', STUB_URL);
+  url.searchParams.set('email', email);
+  url.searchParams.set('name', name);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`La doublure Google n'a pas frappé de jeton pour ${email} (${response.status})`);
+  const { credential } = (await response.json()) as { credential: string };
+  return credential;
+}
+
+/**
+ * Pose un `window.google.accounts.id` qui rend un vrai bouton et rappelle
+ * l'application avec le jeton frappé ci-dessus.
+ *
+ * Seul le **widget** de Google est remplacé, pas le chemin d'authentification :
+ * le script `https://accounts.google.com/gsi/client` ne peut pas se charger
+ * dans un montage sans réseau, et c'est lui qui, en production, dessine le
+ * bouton et remonte le jeton. Tout ce qui suit l'appel du callback est le code
+ * réel — `signIn` de `login-screen.tsx`, `POST /auth/google`, vérification du
+ * jeton, statut du compte, ouverture de session. Le rendu du vrai bouton
+ * Google reste donc hors de portée des parcours (limite déjà assumée par la
+ * tâche 5 du lot).
+ *
+ * Script injecté en chaîne, pas en fonction typée, pour la même raison que
+ * `denyCameraForTest` (`e2e/support/camera.ts`) : la configuration TypeScript
+ * de `e2e/` ne charge pas la bibliothèque DOM.
+ */
+export async function installGoogleStub(page: Page, credential: string): Promise<void> {
+  await page.addInitScript(`
+    (() => {
+      const credential = ${JSON.stringify(credential)};
+      let callback = null;
+      window.google = {
+        accounts: {
+          id: {
+            initialize: (options) => { callback = options.callback; },
+            renderButton: (parent) => {
+              parent.innerHTML = '';
+              const button = document.createElement('button');
+              button.type = 'button';
+              button.textContent = 'Continuer avec Google';
+              button.addEventListener('click', () => { if (callback) callback({ credential }); });
+              parent.appendChild(button);
+            },
+          },
+        },
+      };
+    })();
+  `);
+}
+
+/**
+ * Parcours de connexion complet pour une adresse : page de connexion, bouton
+ * Google, jeton vérifié par le serveur. Ne suppose **rien** de ce qui suit —
+ * une adresse en attente reste sur cet écran, c'est à l'appelant de dire ce
+ * qu'il attend.
+ */
+export async function signInWithGoogle(page: Page, email: string, name = email): Promise<void> {
+  await installGoogleStub(page, await mintGoogleCredential(email, name));
+  await page.goto('/connexion');
+  await page.getByRole('button', { name: 'Continuer avec Google' }).click();
+}
+
+/**
+ * Connexion de l'administrateur du jeu de développement, par le vrai écran.
+ * Rend la main une fois le stock affiché, pour que les tests suivants n'aient
+ * pas à réattendre la navigation.
  */
 export async function loginAsAdmin(page: Page): Promise<void> {
-  await page.goto('/connexion');
-  await page.getByLabel('Adresse e-mail').fill(ADMIN_EMAIL);
-  await page.getByLabel('Mot de passe').fill(ADMIN_PASSWORD);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await signInWithGoogle(page, ADMIN_EMAIL);
   await page.getByRole('heading', { name: 'Stock', level: 1 }).waitFor();
 }
 
@@ -33,14 +108,14 @@ interface SharedSession {
 }
 
 /**
- * Une seule connexion réelle (`POST /auth/login`, HTTP) pour TOUTE
+ * Une seule connexion réelle (`POST /auth/google`, HTTP) pour TOUTE
  * l'exécution Playwright de ce process — jamais une par fichier. Mémoïsée au
  * niveau du module : `workers: 1` et `fullyParallel: false`
  * (`e2e/playwright.config.ts`) garantissent un seul process Node pour tous
  * les fichiers du projet `chromium`, donc une seule promesse partagée.
  *
- * Pourquoi c'était nécessaire (incident CI, tâche 7) : `POST /auth/login` est
- * limité à 10 tentatives par minute et par IP (`@Throttle`,
+ * Pourquoi c'était nécessaire (incident CI, tâche 7) : la route de connexion
+ * est limitée à 10 tentatives par minute et par IP (`@Throttle`,
  * `apps/api/src/auth/auth.controller.ts`, **non configurable** — la limite
  * est un littéral du décorateur, pas une variable d'environnement lue depuis
  * `AppConfig`), un quota partagé par tout le conteneur `app` de l'exécution.
@@ -48,10 +123,8 @@ interface SharedSession {
  * `useSharedAdminSession`) épuisait ce budget au fil des fichiers ajoutés à
  * la suite — observé deux fois dans cette branche (tâche 4, puis de nouveau
  * à l'ajout de P5) : le dernier fichier par ordre alphabétique
- * (`smoke.spec.ts`) en payait systématiquement le prix. Rendre la limite
- * configurable aurait exigé un changement d'application (le décorateur
- * `@Throttle` ne lit aucune config) hors du mandat d'écriture de tests ;
- * partager une session unique pour toute l'exécution n'en a besoin d'aucun.
+ * (`smoke.spec.ts`) en payait systématiquement le prix. La limite n'a pas
+ * bougé en passant à `POST /auth/google` : le partage reste nécessaire.
  */
 let sharedSession: Promise<SharedSession> | null = null;
 
@@ -86,6 +159,9 @@ async function establishSharedSession(browser: Browser): Promise<SharedSession> 
  * de nouvel appel HTTP, donc aucun coût sur le quota de connexion) : un
  * nouvel identifiant à chaque fois (l'ancien a disparu avec la table), même
  * empreinte de jeton et même utilisateur qu'à l'établissement.
+ *
+ * L'identifiant d'utilisateur, lui, survit : l'instantané restauré est celui
+ * du seed, qui crée l'administrateur avec le même `id` à chaque fois.
  */
 async function reinsertSharedSession(session: SharedSession): Promise<void> {
   const id = randomUUID();

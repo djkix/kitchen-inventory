@@ -137,6 +137,33 @@ tools/             utilitaires hors application
   décisions et les deux limites assumées dans
   `docs/specs/2026-10-04-tests-bout-en-bout.md` et
   `docs/decisions/2026-10-04-tests-bout-en-bout.md`.
+- Connexion par compte Google livrée (section 10, spec
+  `docs/specs/2026-10-18-connexion-google.md`, D1 à D9 et amendement D10 issu
+  de la revue de sécurité) : flux « jeton d'identité », `GOOGLE_CLIENT_ID`
+  public servi à l'exécution par `GET /auth/google/client-id`, jeton vérifié
+  côté serveur par `google-auth-library` (signature, émetteur, expiration,
+  audience). **Plus aucun mot de passe dans l'interface** : `POST /auth/login`,
+  `POST /auth/setup`, `POST /me/password` et `POST /users` ont disparu, avec
+  l'écran d'installation, l'écran Utilisateurs et le verrouillage après cinq
+  échecs. Une adresse inconnue crée une demande `PENDING` sans ouvrir de
+  session ; un administrateur valide dans **Réglages › Comptes**
+  (`apps/web/src/screens/settings/accounts-section.tsx`, quatre listes : en
+  attente, actifs, refusés avec « Rétablir », son propre compte), servie par
+  `apps/api/src/accounts`. `PENDING` et `REVOKED` rendent la même réponse ; une
+  discordance de `googleSub` sur une adresse connue est un refus ; le statut
+  est vérifié **à chaque requête** (`SessionService.authenticate`). Sur une
+  base vide, la première connexion Google crée l'administrateur et les
+  emplacements par défaut, sous `LOCK TABLE … SHARE ROW EXCLUSIVE`. Porte de
+  secours : `tools/acces-secours.ts`, lancée dans le conteneur
+  (`docker compose exec app node tools/acces-secours.js adresse@example.org`),
+  mot de passe Argon2id affiché une seule fois, une heure, un seul usage, sur
+  `POST /auth/recovery` — seul reste du mot de passe. Migrations
+  `0011_connexion_google` et `0012_acces_secours` ; cahier des charges amendé
+  le 2026-10-18 (sections 10, 14, 16, 19 et 26). Parcours bout en bout P6
+  (`e2e/p6-comptes.spec.ts`) : les clés de signature de Google sont doublées
+  par `e2e/fixtures/stub-server.ts` (`GOOGLE_CERTS_URL`), la vérification reste
+  celle de production, seul le widget Google est remplacé. Le job `build-image`
+  de la CI lance la commande de secours dans l'image fraîchement construite.
 - Saisie de la DLC directement dans le tiroir de validation du scan livrée
   (EF-02, section 3, P2) : sous la quantité, trois raccourcis (« +3 j »,
   « +1 sem », « +1 mois », calculés par `expiryShortcutDate` dans
