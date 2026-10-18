@@ -7,6 +7,14 @@
 # ---------------------------------------------------------------- dépendances
 FROM node:22-alpine AS deps
 WORKDIR /app
+# npm épinglé sur la version qui a écrit le fichier de verrouillage (section 9).
+# `node:22-alpine` embarque npm 10, qui réclame des entrées que npm 11 élague en
+# les jugeant inutiles : `npm ci` échouait alors sur « Missing: magicast … from
+# lock file » alors que l'installation passait en local. Le dépôt s'est fait
+# prendre deux fois ; épingler la version supprime la classe entière de panne,
+# au lieu de recoller le fichier de verrouillage à la main après chaque ajout
+# de dépendance.
+RUN npm install -g npm@11.20.0
 COPY package.json package-lock.json .npmrc ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
