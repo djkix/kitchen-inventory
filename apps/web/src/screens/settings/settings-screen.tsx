@@ -9,7 +9,6 @@ import { useAuth } from '../../hooks/use-auth';
 import { API_BASE, api, errorMessage } from '../../lib/api';
 import { queryKeys, useSettingsQuery } from '../../lib/queries';
 import { ModelRow } from './model-row';
-import { PasswordSheet } from './password-sheet';
 import { WebSearchRow } from './web-search-row';
 import { VersionBadge } from '../../components/shell/version-badge';
 import { StatsPanel } from './stats-panel';
@@ -18,7 +17,6 @@ import { StatsPanel } from './stats-panel';
 export function SettingsScreen() {
   const auth = useAuth();
   const navigate = useNavigate();
-  const [passwordOpen, setPasswordOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   const logout = async () => {
@@ -75,9 +73,6 @@ export function SettingsScreen() {
         </Section>
 
         <Section title="Compte">
-          <Button block onClick={() => setPasswordOpen(true)}>
-            Changer le mot de passe
-          </Button>
           <Button block variant="outline" loading={loggingOut} onClick={() => void logout()}>
             Se déconnecter
           </Button>
@@ -86,7 +81,6 @@ export function SettingsScreen() {
 
         <VersionBadge className="pt-0" />
       </div>
-      <PasswordSheet open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </>
   );
 }

@@ -11,7 +11,6 @@ import { MaintenanceScreen } from './screens/maintenance-screen';
 import { ComingSoonScreen } from './screens/placeholder/coming-soon-screen';
 import { RecipesScreen } from './screens/recipes/recipes-screen';
 import { RecipeScreen } from './screens/recipe/recipe-screen';
-import { SetupScreen } from './screens/setup/setup-screen';
 import { StockScreen } from './screens/stock/stock-screen';
 import { ItemScreen } from './screens/item/item-screen';
 import { ExpiringScreen } from './screens/expiring/expiring-screen';
@@ -48,7 +47,6 @@ export function App() {
           <UnauthenticatedRedirect />
           <Suspense fallback={<LoadingScreen />}>
           <Routes>
-            <Route path="/installation" element={<SetupScreen />} />
             <Route path="/connexion" element={<LoginScreen />} />
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
@@ -95,8 +93,10 @@ function RequireAuth({ children }: { children?: ReactNode }) {
 
   if (auth.state === 'loading') return <LoadingScreen />;
   if (auth.state === 'unreachable') return <MaintenanceScreen error={auth.error} onRetry={() => void auth.refresh()} />;
-  if (auth.state === 'setup_required') return <Navigate to="/installation" replace />;
-  if (auth.state === 'anonymous') {
+  // Base vide ou session absente : même destination. L'écran de connexion
+  // explique, sur une base vide, que la première connexion Google crée
+  // l'administrateur (D7).
+  if (auth.state === 'anonymous' || auth.state === 'setup_required') {
     const next = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/connexion?next=${next}`} replace />;
   }

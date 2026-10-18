@@ -33,6 +33,7 @@ export interface StockListParams {
 
 export const queryKeys = {
   authStatus: ['auth', 'status'] as const,
+  googleClientId: ['auth', 'google-client-id'] as const,
   me: ['auth', 'me'] as const,
   stock: (params: StockListParams) => ['stock', 'list', params] as const,
   stockAll: ['stock'] as const,
@@ -69,6 +70,20 @@ export function useAuthStatusQuery() {
     queryFn: () => api.get<AuthStatus>('/auth/status', { skipAuthRedirect: true }),
     staleTime: 60_000,
     retry: 1,
+  });
+}
+
+/**
+ * Client ID Google, lu à l'exécution : Vite fige ses variables au build et
+ * l'image du projet est construite une seule fois par la CI — une variable de
+ * build serait vide en production. Chaîne vide = connexion Google non
+ * configurée.
+ */
+export function useGoogleClientIdQuery() {
+  return useQuery({
+    queryKey: queryKeys.googleClientId,
+    queryFn: () => api.get<{ clientId: string }>('/auth/google/client-id', { skipAuthRedirect: true }),
+    staleTime: Infinity,
   });
 }
 

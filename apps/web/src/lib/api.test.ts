@@ -40,13 +40,13 @@ describe('api.request', () => {
   it('envoie le JSON avec les cookies et renvoie undefined sur 204', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    const result = await api.post<void>('/auth/login', { email: 'a@b.fr', password: 'x' });
+    const result = await api.post<void>('/auth/google', { credential: 'jeton' });
     expect(result).toBeUndefined();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('/api/v1/auth/login');
+    expect(url).toBe('/api/v1/auth/google');
     expect(init.method).toBe('POST');
     expect(init.credentials).toBe('include');
-    expect(JSON.parse(String(init.body))).toEqual({ email: 'a@b.fr', password: 'x' });
+    expect(JSON.parse(String(init.body))).toEqual({ credential: 'jeton' });
   });
 
   it('traduit une panne réseau en erreur « network »', async () => {

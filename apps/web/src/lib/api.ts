@@ -3,7 +3,7 @@ import { apiErrorSchema, type ErrorCode } from '@kitchen/shared';
 export const API_BASE = '/api/v1';
 
 /** Écrans accessibles sans session : un 401 n'y déclenche pas de redirection. */
-const AUTH_PATHS = ['/connexion', '/installation'];
+const AUTH_PATHS = ['/connexion'];
 
 export type ClientErrorCode = ErrorCode | 'network' | 'unknown';
 
