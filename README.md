@@ -34,6 +34,7 @@ le réseau, jamais l'inventaire.
 - [Fonctionnalités](#fonctionnalités)
 - [Installation](#installation)
 - [Première connexion](#première-connexion)
+- [Accès de secours](#accès-de-secours)
 - [Mise à jour](#mise-à-jour)
 - [Sauvegarde et restauration](#sauvegarde-et-restauration)
 - [Configuration](#configuration)
@@ -354,6 +355,18 @@ chaque requête réellement exécutée par le modèle est comptée dans le plafo
 mensuel, au tarif public de 35 $ pour mille : elles
 pèsent bien plus que les jetons, et le plafond les ignorait jusqu'à la 0.12.0.
 
+**Comptes et connexion.** On entre avec un compte Google, et avec rien
+d'autre : plus de mot de passe nulle part dans l'interface. Une adresse
+inconnue qui se connecte crée une **demande** — aucune session n'est ouverte,
+rien de l'inventaire n'est visible — qu'un administrateur valide dans
+Réglages › Comptes. Il peut aussi refuser, révoquer un accès (les sessions en
+cours sont coupées), rétablir un compte refusé, ou déconnecter tous les
+appareils d'un membre. Le statut est vérifié à chaque requête, pas seulement à
+la connexion. Sur une base vide, la première connexion Google crée
+l'administrateur et les emplacements par défaut. Une porte de secours en ligne
+de commande, lancée dans le conteneur, reste disponible si Google devient
+inutilisable : voir [Accès de secours](#accès-de-secours).
+
 ## Installation
 
 ### Prérequis
@@ -409,14 +422,163 @@ sauvegarde doit être présent dans `docker/backup.sh` à côté du compose.
 
 ## Première connexion
 
-Aucun compte n'existe à l'installation. La première visite de l'URL publique
-affiche l'écran d'installation qui crée l'administrateur (mot de passe de douze
-caractères minimum) et propose des emplacements par défaut (cuisine, placard,
-réfrigérateur, congélateur, cellier), renommables ou supprimables. Les autres
-membres du foyer sont créés depuis Réglages › Utilisateurs.
+On se connecte **avec un compte Google**, et avec rien d'autre : il n'y a plus
+de mot de passe dans l'application, ni formulaire de connexion, ni écran
+d'installation, ni changement de mot de passe. Le flux utilisé est celui du
+« jeton d'identité » de Google Identity Services : **pas de client secret**,
+une seule valeur à configurer, publique, `GOOGLE_CLIENT_ID`.
 
-Sur le téléphone, « Ajouter à l'écran d'accueil » installe l'application
-(PWA). Le thème sombre est activé par défaut, pensé pour un cellier peu éclairé.
+### 1. Créer l'identifiant OAuth dans la console Google Cloud
+
+À faire une fois, sur le projet Google Cloud qui sert déjà la clé Gemini (ou
+sur un projet neuf, peu importe : le Client ID et la clé d'API n'ont aucun
+lien). **Remplacer partout `https://inventaire.example.org` par l'URL publique
+de votre instance** — celle que vous avez mise dans `PUBLIC_URL`.
+
+1. Ouvrir [console.cloud.google.com](https://console.cloud.google.com) et
+   sélectionner le projet en haut de la page.
+2. **APIs et services → Écran de consentement OAuth.** Si l'écran n'existe pas
+   encore : type d'utilisateur **Externe**, puis renseigner le nom de
+   l'application, l'adresse d'assistance et l'adresse du développeur. Aucune
+   portée (« scope ») à ajouter : le flux n'en demande aucune au-delà de
+   l'identité de base.
+3. Sur ce même écran de consentement, **passer l'état en « En production »**
+   (bouton « Publier l'application »). Laissé en « Test », seuls les comptes
+   déclarés un par un dans la liste des testeurs peuvent se connecter, et la
+   session expire au bout de sept jours. Ce n'est pas un risque d'ouverture :
+   ce qui ferme la porte ici, c'est la validation par un administrateur
+   (étape suivante), pas le mode de l'écran de consentement.
+4. **APIs et services → Identifiants → Créer des identifiants → ID client
+   OAuth.**
+5. Type d'application : **Application web**. Nom : ce que vous voulez
+   (« Kitchen Inventory » par exemple), il n'est vu que dans la console.
+6. **Origines JavaScript autorisées → Ajouter un URI**, et y mettre
+   **l'URL publique exacte** :
+
+   ```
+   https://inventaire.example.org
+   ```
+
+   Exacte veut dire **au caractère près** : le schéma (`https://`), le nom
+   d'hôte et, seulement s'il n'est pas standard, le port. **Pas de chemin, pas
+   de barre oblique finale.** `https://inventaire.example.org/` et
+   `https://inventaire.example.org/connexion` sont refusés, et Google répond
+   alors une erreur `origin_mismatch` que rien n'affiche dans l'application :
+   le bouton reste simplement sans effet.
+7. **Laisser « URI de redirection autorisés » vide.** Ce flux n'utilise aucune
+   redirection ; une URI de redirection ne sert à rien ici et son absence
+   n'empêche pas de valider le formulaire.
+8. Valider. La console affiche le **Client ID**, de la forme
+   `123456789012-abcdefghijklmnop.apps.googleusercontent.com`. Le *client
+   secret* affiché à côté **ne sert pas** : ne le copier nulle part.
+9. Coller ce Client ID dans `.env` :
+
+   ```
+   GOOGLE_CLIENT_ID=123456789012-abcdefghijklmnop.apps.googleusercontent.com
+   ```
+
+   puis `docker compose up -d` (sous Dockge : « Save » puis « Update ») pour
+   que le conteneur relise la variable. Le Client ID est servi à l'exécution
+   par l'API, jamais figé dans l'interface compilée : il suffit de redémarrer
+   le conteneur, il n'y a pas d'image à reconstruire.
+
+> **Changement de domaine = retour dans la console.** L'origine autorisée est
+> comparée telle quelle par Google. Le jour où l'instance change d'URL
+> (nouveau domaine, passage de `http` à `https`, changement de port), il faut
+> ajouter la nouvelle origine dans cette même liste, sinon plus personne ne
+> peut se connecter. On peut en déclarer plusieurs : pendant une migration,
+> garder l'ancienne et la nouvelle évite toute coupure.
+
+### 2. Le premier compte, puis les suivants
+
+Sur une base vide, **la première connexion Google réussie crée le compte
+administrateur** — `ACTIVE` et `ADMIN` — et pose les emplacements par défaut
+(cuisine, placard, réfrigérateur, congélateur, cellier), renommables ou
+supprimables. Il n'y a rien à faire d'autre que de se connecter.
+
+Ensuite, l'inscription est ouverte mais **l'accès ne l'est pas**. Une adresse
+inconnue qui se connecte crée une **demande** : aucune session n'est ouverte,
+l'écran annonce que la demande attend une validation, et la personne ne voit
+rien de l'inventaire. Un administrateur la valide dans **Réglages › Comptes**,
+qui présente quatre listes :
+
+| Liste | Actions |
+| --- | --- |
+| Demandes en attente | **Valider** (le compte devient actif) ou **Refuser** |
+| Comptes actifs | **Déconnecter** (coupe toutes les sessions, téléphone perdu ; la personne peut se reconnecter) ou **Révoquer** (retire l'accès et coupe les sessions en cours) |
+| Refusés | **Rétablir** |
+| Compte (le vôtre) | **Déconnecter tous mes appareils** |
+
+Un compte refusé ou révoqué n'est jamais supprimé : il porte de l'historique de
+réalisations et des notes. Une personne refusée qui se reconnecte reçoit
+exactement le même message qu'une demande ordinaire — la page de connexion ne
+sert pas à savoir quelles adresses le foyer connaît.
+
+Le statut du compte est vérifié **à chaque requête**, pas seulement au moment
+de la connexion : révoquer un accès le coupe immédiatement, même sur un
+téléphone déjà connecté.
+
+### 3. Sur le téléphone
+
+« Ajouter à l'écran d'accueil » installe l'application (PWA). Le thème sombre
+est activé par défaut, pensé pour un cellier peu éclairé.
+
+## Accès de secours
+
+Si la configuration Google casse — projet suspendu, Client ID effacé, domaine
+changé sans mise à jour de l'origine autorisée — **plus personne n'entre**.
+C'est le prix assumé de « plus de mot de passe », et c'est pourquoi il existe
+une porte de secours. Elle n'est **pas** une route cachée ni une variable
+d'environnement : c'est une commande, lancée dans le conteneur, qui n'ouvre
+rien tant qu'elle n'a pas tourné.
+
+Depuis le terminal de la stack sous Dockge (ou en SSH, dans le répertoire du
+`docker-compose.yml`) :
+
+```bash
+docker compose exec app node tools/acces-secours.js adresse@example.org
+```
+
+Elle crée ou réactive ce compte en `ACTIVE`/`ADMIN` et affiche, **une seule
+fois** :
+
+```
+Compte créé : adresse@example.org (ACTIVE, ADMIN)
+Mot de passe de secours : …
+Valable jusqu'à 18/10/2026 14:13:38, pour une seule connexion.
+```
+
+Ce mot de passe est **valable une heure**, **utilisable une seule fois**, et
+n'est **jamais réaffiché** : il n'existe en clair nulle part ailleurs, pas même
+dans les journaux. Il s'utilise sur une route que l'interface ne présente
+nulle part, `POST /api/v1/auth/recovery` :
+
+```bash
+curl -i -X POST https://inventaire.example.org/api/v1/auth/recovery \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"adresse@example.org","password":"LE-MOT-DE-PASSE"}'
+```
+
+La réponse pose le cookie de session habituel. Pour entrer directement dans le
+navigateur plutôt qu'avec `curl`, ouvrir la console de l'application sur son
+domaine et y lancer le même appel avec `fetch` : le cookie est posé sur place.
+
+> **Le terminal web de Dockge garde ce qu'il affiche.** C'est une page de
+> navigateur : le mot de passe reste dans l'historique de défilement de
+> l'onglet, et peut survivre à un rechargement. Le dégât est borné — une
+> heure, un seul usage — mais le réflexe est de fermer l'onglet du terminal
+> une fois la connexion faite, et de ne pas laisser la fenêtre Dockge ouverte
+> sur cette sortie.
+
+Si le conteneur ne démarre pas du tout (migration en échec, par exemple), la
+variante qui ne suppose pas un conteneur déjà en service :
+
+```bash
+docker compose run --rm app node tools/acces-secours.js adresse@example.org
+```
+
+Cette commande suppose un accès au serveur. Sans Dockge ni SSH, il n'y a pas
+de recours : c'est la limite assumée du dispositif.
 
 ## Mise à jour
 
@@ -473,6 +635,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | --- | --- |
 | `SECRET_KEY` | Secret de signature des cookies, 32 caractères minimum, obligatoire |
 | `PUBLIC_URL` | URL publique HTTPS |
+| `GOOGLE_CLIENT_ID` | Client ID OAuth « Application web » de la console Google Cloud, **public** (pas de client secret avec ce flux). Vide = la connexion Google est indisponible et le bouton ne s'affiche pas, l'application devenant inaccessible autrement que par la porte de secours. Obtention : [Première connexion](#première-connexion) |
 | `VISION_PROVIDER` | `none` ou `gemini` |
 | `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.5-flash`) ; `VISION_BASE_URL` sert pour un proxy. Comme `SUGGESTION_MODEL`, `VISION_MODEL` n'est qu'une valeur de départ : le choix fait dans Réglages prime |
 | `SUGGESTION_MODEL` | Modèle des appels recettes — suggestions et réécriture (défaut `gemini-3.5-flash-lite`). Distinct de `VISION_MODEL` : lire une étiquette et chercher une recette sur le web n'appellent pas le même modèle. Comme `VISION_MODEL`, c'est une **valeur de départ** : un administrateur peut la remplacer depuis Réglages, et le choix enregistré prime |
@@ -484,8 +647,8 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `EXPIRY_ALERT_DAYS` | Seuil d'alerte par défaut (7), modifiable dans les réglages |
 | `LOG_LEVEL` | Niveau des journaux JSON sur la sortie standard |
 
-Les journaux ne contiennent jamais de mot de passe, de cookie ni de contenu
-d'image. Chaque appel au fournisseur de vision est journalisé avec sa latence,
+Les journaux ne contiennent jamais de cookie, de jeton Google, de mot de
+passe de secours ni de contenu d'image. Chaque appel au fournisseur de vision est journalisé avec sa latence,
 son coût estimé et sa confiance ; les compteurs correspondants (appels du jour
 et du mois, coût cumulé, taux de reconnaissance automatique sur trente jours,
 part des scans résolus par le cache) sont affichés dans les réglages.
@@ -537,8 +700,12 @@ npm run dev -w @kitchen/api         # http://localhost:3000
 npm run dev -w @kitchen/web         # http://localhost:5173, proxy /api
 ```
 
-Le jeu de développement crée le compte `admin@example.org` avec le mot de
-passe `inventaire-dev-2026` si aucun utilisateur n'existe.
+Le jeu de développement crée le compte `admin@example.org`, `ACTIVE` et
+`ADMIN`, si aucun utilisateur n'existe. Il n'a pas de mot de passe : pour
+l'utiliser en local, soit renseigner `GOOGLE_CLIENT_ID` et se connecter avec un
+compte Google portant cette adresse, soit ouvrir une porte de secours
+(`npx tsx tools/acces-secours.ts votre.adresse@example.org`, qui crée ou
+réactive ce compte en administrateur).
 
 Construire l'image localement :
 
@@ -548,14 +715,23 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 ### Tests bout en bout
 
-Une suite Playwright (section 19) joue les parcours P1 à P5 dans un vrai
+Une suite Playwright (section 19) joue les parcours P1 à P6 dans un vrai
 Chromium (caméra simulée depuis une vidéo fabriquée) contre **l'image Docker
 réellement construite** — jamais un serveur de développement — démarrée par
 un montage jetable dédié (`docker-compose.e2e.yml`) : une base PostgreSQL 16
-vide et une doublure locale d'Open Food Facts et de Gemini
-(`e2e/fixtures/stub-server.ts`, qui rejoue les fixtures d'
+vide et une doublure locale d'Open Food Facts, de Gemini et des clés de
+signature de Google (`e2e/fixtures/stub-server.ts`, qui rejoue les fixtures d'
 `apps/api/test/fixtures`). Rien n'est persistant : `down -v` ne laisse rien
 derrière lui.
+
+Les parcours se connectent par le chemin réel. Ce qui est doublé, c'est la
+**paire de clés** qui signe les jetons Google : la doublure frappe des jetons,
+l'application lit ses clés publiques chez elle (`GOOGLE_CERTS_URL`, une
+variable qui n'existe que pour ce montage) et les vérifie avec
+`google-auth-library` comme en production — signature RS256, émetteur,
+audience, expiration. Seul le **widget** de Google est remplacé par un bouton
+de test : son script ne peut pas se charger sans réseau. Le rendu du vrai
+bouton reste donc la seule partie de la connexion qu'aucun test ne couvre.
 
 Couverture actuelle : P1 (inventaire initial, scans enchaînés), P2 (rangement
 des courses, DLC saisie aussi bien directement dans le tiroir de validation
@@ -564,8 +740,11 @@ de la date, qui n'existe pas encore), P3
 (consommation, hors bascule en liste de courses — ni seuils ni liste
 n'existent), P4 (consultation, recherche, filtre par emplacement, périme
 bientôt, hors vue « à racheter » qui dépend de cette même liste de courses),
-et P5 (suggestions de recettes, hors cahier des charges, ajouté parce que
-c'est la fonctionnalité la plus récente et la plus fragile). Le mode hors
+P5 (suggestions de recettes, hors cahier des charges, ajouté parce que
+c'est la fonctionnalité la plus récente et la plus fragile) et P6 (inscription
+et validation d'un compte, hors cahier lui aussi : une adresse inconnue se
+connecte, voit le message d'attente et n'accède à rien, un administrateur la
+valide dans Réglages › Comptes, elle entre). Le mode hors
 ligne n'est pas couvert non plus, pour la même raison : il n'existe pas
 encore (lot 2). La conservation d'une recette trouvée sur le **web** n'est
 pas jouée bout en bout : le récupérateur de pages refuse délibérément le HTTP
@@ -615,7 +794,9 @@ Les commits suivent Conventional Commits avec la référence de l'exigence
 TypeScript de bout en bout. NestJS 12 et Prisma 6 sur PostgreSQL 16
 (extension `pg_trgm` pour la recherche tolérante) côté API ; React 19, Vite,
 Tailwind et `vite-plugin-pwa` côté front ; Zod pour les schémas partagés ;
-Argon2id pour les mots de passe ; Vitest pour les tests. Une seule image
+Google Identity Services (flux « jeton d'identité », vérifié côté serveur
+par `google-auth-library`) pour la connexion, Argon2id pour le seul mot de
+passe qui subsiste, celui de la porte de secours ; Vitest pour les tests. Une seule image
 Docker sert l'API et le front compilé ; l'intégration continue GitHub Actions
 vérifie types, lint, tests, cohérence des migrations, puis publie l'image
 `amd64` sur GitHub Container Registry à chaque version taguée par
@@ -625,6 +806,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.18.0 | 2026-10-18 | Connexion par compte Google, et plus de mot de passe nulle part dans l'interface (section 10). Le flux est celui du « jeton d'identité » : une seule valeur à configurer, `GOOGLE_CLIENT_ID`, publique, sans client secret — les étapes exactes de la console Google Cloud sont dans le README, section « Première connexion ». Les routes `POST /auth/login`, `POST /auth/setup`, `POST /me/password` et `POST /users` disparaissent, ainsi que l'écran d'installation, l'écran Utilisateurs et le verrouillage après cinq échecs, devenu sans objet. L'inscription est ouverte, l'accès ne l'est pas : une adresse inconnue qui se connecte crée une demande, ne voit rien de l'inventaire, et attend qu'un administrateur la valide dans Réglages › Comptes — quatre listes (en attente, actifs, refusés avec « Rétablir », et son propre compte). Un compte refusé ou révoqué n'est jamais supprimé, il garde son historique, et se reconnecter lui rend le même message qu'une demande ordinaire : la page de connexion ne sert pas à énumérer les adresses du foyer. Le statut du compte est vérifié à chaque requête, pas seulement à la connexion : une révocation coupe l'accès immédiatement. Sur une base vide, la première connexion Google crée l'administrateur et les emplacements par défaut. Un jeton dont l'audience n'est pas le Client ID configuré, dont l'adresse n'est pas vérifiée, ou dont l'identité Google ne correspond pas à celle déjà enregistrée pour cette adresse, est refusé. Porte de secours si Google devient inutilisable : `docker compose exec app node tools/acces-secours.js adresse@example.org` pose un mot de passe affiché une seule fois, valable une heure, utilisable une seule fois, sur une route que l'interface ne présente nulle part — le terminal web de Dockge garde ce mot de passe dans son historique de défilement, fermer l'onglet après usage. Migrations `0011_connexion_google` et `0012_acces_secours`. Un parcours bout en bout P6 rejoue l'inscription et la validation, et la construction de l'image vérifie désormais que la commande de secours démarre bien dedans |
 | 0.17.0 | 2026-10-15 | Le menu de choix des modèles, dans Réglages › Reconnaissance, se limite désormais à la famille Flash : l'API Gemini ne dépend pas de l'abonnement Google AI Plus et servirait un modèle Pro sans rien demander, facturé sur la clé. Réservoir permanent de suggestions (EF-25, EF-26) : les recettes rapportées par Gemini ne s'effacent plus, elles entrent dans une table dédiée, dédoublonnées, sans limite d'âge. À chaque visite l'application lit ce réservoir, recalcule la couverture contre le stock du moment et n'appelle le modèle que si moins de six recettes correspondent à l'orientation, ou sur relance explicite — consommer un article ne déclenche plus de recherche payante, la signature de recherche ne dépendant plus du stock. Une recette annoncée comme trouvée sur le web n'est retenue que si sa page répond : le contenu est recopié en base une fois pour toutes, le site n'est plus jamais recontacté, pas même au moment de conserver la recette. Les compositions du modèle restent, affichées « composée par l'IA, non vérifiée » et classées après les recettes vérifiées. Une orientation déjà cherchée dans les 24 h n'est pas redemandée : l'écran annonce la cause, l'échéance, et offre un bouton « Chercher de nouvelles recettes ». Le cache de fournée de 24 h disparaît. Migration `0009_suggestion_pool`. Les filtres de « Mes recettes » adoptent par ailleurs la présentation de Suggestions : les six rangées de pastilles défilantes deviennent six sélecteurs natifs par paires, type de plat d'abord, une seule valeur active par facette ; les cinq bascules rapides restent des pastilles sur une rangée Suggestions : l'écran n'affiche plus qu'une douzaine de recettes à la fois, les mieux classées, au lieu de tout le réservoir — une visite ne ralentit plus à mesure qu'il grossit. Le bouton « Chercher de nouvelles recettes » repart bien à chaque appui, y compris après être allé voir « Mes recettes » et revenu. Un stock momentanément vide n'empêche plus de consulter le réservoir : les recettes déjà trouvées restent affichées, avec une couverture nulle. Les seize recettes demandées au modèle entrent toutes au réservoir, au lieu de douze sur seize. La colonne `payload` des fournées, que plus personne ne lisait, est retirée (migration `0010_suggestion_batch_sans_payload`) |
 | 0.16.0 | 2026-10-11 | Parcours dirigé des suggestions sur mobile (EF-25). L'onglet Recettes ouvre toujours Suggestions ; la mémorisation du dernier volet consulté est retirée. À l'arrivée, une question bloquante demande le type de plat avant d'afficher quoi que ce soit d'autre, et oriente la recherche initiale — le modèle ne proposant alors plus que ce type. Les quatre rangées de pastilles d'orientation (type de plat, cuisine, durée, facilité) font place à quatre sélecteurs natifs sur deux lignes de deux, qui ne prennent plus la moitié d'un écran de téléphone ; les quatre relancent désormais une recherche à chaque changement, y compris le type de plat, qui ne pouvait plus se contenter de filtrer une fournée déjà réduite à ce même type. Le titre d'une recette tient désormais sur deux lignes au plus, sans jamais être tronqué sur une seule, aussi bien sur une carte de suggestion que sur « Mes recettes » |
 | 0.15.0 | 2026-10-08 | Favoris et note directe sur une recette (EF-21). Une étoile à cocher marque une recette comme favorite — liste unique partagée par le foyer — depuis sa fiche et chaque carte de « Mes recettes », indépendamment de la note. La fiche gagne cinq étoiles de note directe, posables sans aucune réalisation enregistrée. Partout où une note s'affiche (carte, fiche, tri), la note directe prime désormais sur la moyenne des réalisations, qui prend le relais en son absence ; la note par réalisation reste par ailleurs inchangée, pour l'historique. Pastille « Favoris » dans les filtres rapides de « Mes recettes ». La fiche d'une recette jamais cuisinée explique désormais l'absence d'historique au lieu de l'afficher vide |

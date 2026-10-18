@@ -8,9 +8,11 @@
  *
  *   DATABASE_URL=… npm run seed:dev -w @kitchen/api
  *
- * Compte créé : admin@example.org / inventaire-dev-2026 (si aucun utilisateur).
+ * Compte créé : admin@example.org (si aucun utilisateur), ACTIVE et ADMIN.
+ * Plus de mot de passe depuis la connexion Google (D5) : en développement on
+ * se connecte avec un compte Google dont l'adresse est celle-ci, ou par la
+ * porte de secours (`tools/acces-secours.ts`).
  */
-import { hash, Algorithm } from '@node-rs/argon2';
 import { PrismaClient, type Diet, type Difficulty, type DishType, type Unit } from '@prisma/client';
 import { normalizeProductName } from '@kitchen/shared';
 
@@ -87,7 +89,9 @@ async function main(): Promise<void> {
         email: 'admin@example.org',
         name: 'Admin dev',
         role: 'ADMIN',
-        passwordHash: await hash('inventaire-dev-2026', { algorithm: Algorithm.Argon2id }),
+        // Explicite : le défaut de la colonne est PENDING, et un compte semé
+        // en attente ne passerait aucun contrôle de statut (D10).
+        status: 'ACTIVE',
       },
     });
   }
@@ -144,7 +148,7 @@ async function main(): Promise<void> {
       email: 'camille@example.org',
       name: 'Camille',
       role: 'MEMBER',
-      passwordHash: await hash('inventaire-dev-2026', { algorithm: Algorithm.Argon2id }),
+      status: 'ACTIVE',
     },
     update: {},
   });

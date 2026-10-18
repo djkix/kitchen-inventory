@@ -47,6 +47,12 @@ const configSchema = z.object({
   // Client ID public de Google Identity Services (section 10, spec du 2026-10-18).
   // Vide = connexion Google indisponible, et le bouton ne s'affiche pas.
   GOOGLE_CLIENT_ID: z.string().default(''),
+  // Où lire les clés publiques qui signent les jetons Google. Absente = les
+  // vraies, chez Google. Sert **uniquement** au montage de tests bout en bout
+  // (docker-compose.e2e.yml), qui doit vérifier une signature sans réseau : la
+  // vérification reste entière (signature RS256, émetteur, audience,
+  // expiration), seule la provenance des clés change.
+  GOOGLE_CERTS_URL: z.string().url().optional(),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
   APP_VERSION: z.string().default('0.0.0-dev'),
 });

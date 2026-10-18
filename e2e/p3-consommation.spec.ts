@@ -54,7 +54,7 @@ import { expectNoActiveStockOf, getSingleActiveStockItemId, getStockItemById } f
  * (`useSharedAdminSession`, `e2e/support/auth.ts`), jamais une connexion
  * réelle par test. Les quatre tests de ce fichier appelaient `loginAsAdmin`
  * chacun pour leur compte, soit quatre des dix tentatives par minute et par
- * IP qu'autorise `POST /auth/login` (`@Throttle`,
+ * IP qu'autorise `POST /auth/google` (`@Throttle`,
  * `apps/api/src/auth/auth.controller.ts`, quota partagé par tout le
  * conteneur `app`) : avec la connexion réelle de `smoke.spec.ts` et celle
  * qui établit la session partagée, l'exécution en consommait six pour aucun

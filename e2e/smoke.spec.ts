@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { loginAsAdmin, useSharedAdminSession } from './support/auth.ts';
+import { installGoogleStub, loginAsAdmin, useSharedAdminSession } from './support/auth.ts';
 import { restoreDatabase } from './support/database.ts';
 import { identifyScannedProduct } from './support/scan.ts';
 
@@ -22,6 +22,11 @@ test.beforeAll(async () => {
 });
 
 test('l’application répond et affiche la connexion', async ({ page }) => {
+  // Ce test reste anonyme, mais la doublure de Google est tout de même posée :
+  // sans elle, l'écran de connexion irait chercher le script du bouton chez
+  // Google, et aucun test de ce projet ne doit toucher au réseau. Le jeton
+  // n'est jamais remis, personne ne clique.
+  await installGoogleStub(page, 'jeton-jamais-remis');
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Connexion', level: 1 })).toBeVisible();
 });
