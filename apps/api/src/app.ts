@@ -5,6 +5,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
+import type { GoogleTokenVerifier } from './auth/google-token.verifier.js';
 import type { AppConfig } from './common/config.js';
 import type { HttpClient } from './common/http-client.js';
 import { noindexMiddleware } from './common/noindex.middleware.js';
@@ -13,9 +14,9 @@ import { unpricedModelWarning } from './recognition/providers/gemini.provider.js
 export const API_PREFIX = 'api/v1';
 
 /** Construit l'application sans l'écouter : partagé entre `main.ts` et les tests. */
-export async function createApp(config: AppConfig, httpClient?: HttpClient): Promise<INestApplication> {
+export async function createApp(config: AppConfig, httpClient?: HttpClient, googleVerifier?: GoogleTokenVerifier): Promise<INestApplication> {
   await mkdir(config.mediaDir, { recursive: true });
-  const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config, httpClient), { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config, httpClient, googleVerifier), { bufferLogs: true });
   const logger = app.get(Logger);
   app.useLogger(logger);
   // Un modèle hors table de prix désactive le plafond mensuel sans rien dire :

@@ -1,17 +1,24 @@
-import { Injectable } from '@nestjs/common';
-import type { ChangePasswordInput, CurrentUser, LoginInput, SetupInput } from '@kitchen/shared';
+import { Inject, Injectable } from '@nestjs/common';
+import type { CurrentUser, GoogleLoginInput } from '@kitchen/shared';
 import type { Response } from 'express';
 import { Logger } from 'nestjs-pino';
 import { ApiError } from '../common/api-error.js';
 import { createDefaultLocations } from '../locations/default-locations.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { hashPassword, verifyPassword } from './password.js';
+import { GOOGLE_TOKEN_VERIFIER, type GoogleIdentity, type GoogleTokenVerifier } from './google-token.verifier.js';
 import type { RequestUser } from './request-user.js';
 import { SessionService } from './session.service.js';
 
-const MAX_FAILED_LOGINS = 5;
-const LOCK_MINUTES = 15;
-const INVALID_CREDENTIALS = 'Identifiants incorrects';
+const PENDING_MESSAGE = 'Votre demande attend la validation d’un administrateur.';
+const REVOKED_MESSAGE = 'Cet accès a été refusé.';
+
+interface Account {
+  id: string;
+  email: string;
+  name: string;
+  role: 'ADMIN' | 'MEMBER';
+  status: 'PENDING' | 'ACTIVE' | 'REVOKED';
+}
 
 @Injectable()
 export class AuthService {
@@ -19,67 +26,78 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly sessions: SessionService,
     private readonly logger: Logger,
+    @Inject(GOOGLE_TOKEN_VERIFIER) private readonly google: GoogleTokenVerifier,
   ) {}
 
   async setupRequired(): Promise<boolean> {
     return (await this.prisma.user.count()) === 0;
   }
 
-  /** Section 10 : pas de compte par défaut, création du premier administrateur à l'installation. */
-  async setup(input: SetupInput, res: Response): Promise<CurrentUser> {
-    const passwordHash = await hashPassword(input.password);
-    const user = await this.prisma.$transaction(async (tx) => {
-      // Verrou d'exclusion : deux installations simultanées ne créent qu'un admin.
-      await tx.$executeRaw`LOCK TABLE "User" IN SHARE ROW EXCLUSIVE MODE`;
-      if ((await tx.user.count()) > 0) throw ApiError.conflict('L’installation a déjà été effectuée');
-      const created = await tx.user.create({ data: { email: input.email, name: input.name, passwordHash, role: 'ADMIN' } });
-      await createDefaultLocations(tx);
-      return created;
-    });
-    await this.sessions.open(user.id, res);
-    this.logger.log({ userId: user.id }, 'Premier administrateur créé');
-    return toCurrentUser(user);
+  /**
+   * Section 10 (D1, D3, D7) : le jeton Google est vérifié côté serveur, le
+   * compte est retrouvé **par adresse e-mail**, et aucune session n'est ouverte
+   * tant que le compte n'est pas `ACTIVE`. Sur une base vide, la première
+   * connexion crée l'administrateur.
+   */
+  async loginWithGoogle(input: GoogleLoginInput, res: Response): Promise<CurrentUser> {
+    const identity = await this.google.verify(input.credential);
+    // On n'authentifie personne sur une adresse qu'il ne contrôle pas.
+    if (!identity.emailVerified) throw ApiError.unauthenticated('Adresse Google non vérifiée');
+
+    const { account, created, first } = await this.resolveAccount(identity);
+    if (first) this.logger.log({ userId: account.id }, 'Premier administrateur créé par connexion Google');
+    else if (created) this.logger.log({ userId: account.id }, 'Demande d’accès créée, en attente de validation');
+
+    // Un compte neuf répond exactement comme un compte déjà en attente : la page
+    // de connexion ne doit pas servir à énumérer les adresses connues du foyer.
+    if (account.status === 'REVOKED') throw ApiError.forbidden(REVOKED_MESSAGE);
+    if (account.status !== 'ACTIVE') throw ApiError.forbidden(PENDING_MESSAGE);
+
+    await this.sessions.open(account.id, res);
+    return toCurrentUser(account);
   }
 
-  async login(input: LoginInput, res: Response): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { email: input.email } });
-    if (!user) {
-      // Coût constant : on vérifie quand même un hachage pour ne pas révéler l'existence du compte.
-      await verifyPassword('$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', input.password);
-      throw ApiError.unauthenticated(INVALID_CREDENTIALS);
-    }
-    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
-      throw ApiError.rateLimited('Compte temporairement verrouillé après plusieurs échecs', { lockedUntil: user.lockedUntil.toISOString() });
-    }
-    const ok = await verifyPassword(user.passwordHash, input.password);
-    if (!ok) {
-      const failedLogins = user.failedLogins + 1;
-      const lock = failedLogins >= MAX_FAILED_LOGINS;
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { failedLogins: lock ? 0 : failedLogins, lockedUntil: lock ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null },
+  /** Retrouve le compte par adresse, ou le crée — sous le verrou d'exclusion pour une création. */
+  private async resolveAccount(identity: GoogleIdentity): Promise<{ account: Account; created: boolean; first: boolean }> {
+    const existing = await this.prisma.user.findUnique({ where: { email: identity.email } });
+    if (existing) return { account: await this.attachGoogleSub(existing, identity), created: false, first: false };
+
+    return this.prisma.$transaction(async (tx) => {
+      // Verrou d'exclusion : deux connexions simultanées sur une base vide ne
+      // créent qu'un seul administrateur (D7).
+      await tx.$executeRaw`LOCK TABLE "User" IN SHARE ROW EXCLUSIVE MODE`;
+      const raced = await tx.user.findUnique({ where: { email: identity.email } });
+      if (raced) return { account: raced, created: false, first: false };
+
+      const first = (await tx.user.count()) === 0;
+      const account = await tx.user.create({
+        data: {
+          email: identity.email,
+          name: identity.name ?? identity.email,
+          // `sub` n'est stocké que pour mémoire : jamais deux comptes dessus,
+          // sinon une adresse Google changée ne pourrait plus faire de demande.
+          googleSub: (await tx.user.findUnique({ where: { googleSub: identity.sub } })) ? null : identity.sub,
+          passwordHash: null,
+          role: first ? 'ADMIN' : 'MEMBER',
+          status: first ? 'ACTIVE' : 'PENDING',
+        },
       });
-      if (lock) this.logger.warn({ userId: user.id }, 'Compte verrouillé après échecs répétés');
-      throw ApiError.unauthenticated(INVALID_CREDENTIALS);
-    }
-    if (user.failedLogins > 0 || user.lockedUntil) {
-      await this.prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null } });
-    }
-    await this.sessions.open(user.id, res);
+      if (first) await createDefaultLocations(tx);
+      return { account, created: true, first };
+    });
+  }
+
+  /** Mémorise le `sub` sur un compte retrouvé par son adresse, s'il est libre. */
+  private async attachGoogleSub(user: Account & { googleSub: string | null }, identity: GoogleIdentity): Promise<Account> {
+    if (user.googleSub) return user;
+    const taken = await this.prisma.user.findUnique({ where: { googleSub: identity.sub } });
+    if (taken) return user;
+    return this.prisma.user.update({ where: { id: user.id }, data: { googleSub: identity.sub } });
   }
 
   async logout(user: RequestUser, res: Response): Promise<void> {
     if (user.sessionId) await this.sessions.revoke(user.sessionId);
     this.sessions.clearCookie(res);
-  }
-
-  async changePassword(user: RequestUser, input: ChangePasswordInput): Promise<void> {
-    const record = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
-    if (!(await verifyPassword(record.passwordHash, input.currentPassword))) {
-      throw ApiError.businessRule('Mot de passe actuel incorrect');
-    }
-    await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(input.newPassword) } });
-    await this.sessions.revokeAll(user.id, user.sessionId);
   }
 }
 

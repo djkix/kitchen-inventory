@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix', password: 'un-mot-de-passe-long' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
 
 describe('cuisines et préférences de filtres (EF-22)', () => {
   let t: TestApp;
@@ -13,7 +13,7 @@ describe('cuisines et préférences de filtres (EF-22)', () => {
   beforeEach(async () => {
     await t.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
   });
   afterAll(() => t.close());
 
@@ -56,7 +56,7 @@ describe('cuisines et préférences de filtres (EF-22)', () => {
 
     await agent.post('/api/v1/users').send({ email: 'marie@example.org', name: 'Marie', password: 'encore-un-mot-de-passe' }).expect(201);
     const marie = t.agent();
-    await marie.post('/api/v1/auth/login').send({ email: 'marie@example.org', password: 'encore-un-mot-de-passe' }).expect(204);
+    await t.signIn(marie, { email: 'marie@example.org', name: 'Marie' });
     expect((await marie.get('/api/v1/preferences/recipe-filters').expect(200)).body).toEqual({});
   });
 

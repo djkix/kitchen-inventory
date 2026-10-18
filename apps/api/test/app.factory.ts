@@ -10,6 +10,7 @@ import { loadConfig, type AppConfig } from '../src/common/config.js';
 import type { HttpClient } from '../src/common/http-client.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { truncateAll } from './db.js';
+import { fakeGoogleCredential, fakeGoogleVerifier, type FakeIdentity } from './google-verifier.double.js';
 
 export interface TestApp {
   app: INestApplication;
@@ -19,6 +20,8 @@ export interface TestApp {
   api: TestAgent;
   /** Nouvel agent qui conserve ses cookies (une session). */
   agent: () => TestAgent;
+  /** Connecte un agent par jeton Google doublé ; la première connexion crée l'administrateur. */
+  signIn: (agent: TestAgent, identity: FakeIdentity) => Promise<TestAgent>;
   reset: () => Promise<void>;
   close: () => Promise<void>;
 }
@@ -35,7 +38,7 @@ export async function createTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}, 
     LOG_LEVEL: 'silent',
     ...overrides,
   });
-  const app = await createApp(config, httpClient);
+  const app = await createApp(config, httpClient, fakeGoogleVerifier);
   await app.init();
   const prisma = app.get(PrismaService);
   const bootstrap = app.get(BootstrapService);
@@ -46,6 +49,10 @@ export async function createTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}, 
     config,
     api: request(server),
     agent: () => request.agent(server),
+    signIn: async (agent, identity) => {
+      await agent.post('/api/v1/auth/google').send({ credential: fakeGoogleCredential(identity) }).expect(200);
+      return agent;
+    },
     // Vide les données puis recrée les référentiels de la section 22, comme au démarrage.
     reset: async () => {
       await truncateAll(prisma);

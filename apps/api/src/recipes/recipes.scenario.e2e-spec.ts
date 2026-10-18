@@ -3,7 +3,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { createProduct, createRecipe, createStock, isoIn, logCooked } from '../../test/recipes.test-helpers.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix', password: 'un-mot-de-passe-long' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
 
 /**
  * Scénario de réussite du socle (A23). Stock et recettes figés, résultat
@@ -74,7 +74,7 @@ describe('scénario de réussite du socle', () => {
   beforeEach(async () => {
     await t.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
     recipes = await seedScenario();
   });
   afterAll(() => t.close());

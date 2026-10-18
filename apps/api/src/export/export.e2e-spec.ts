@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix', password: 'un-mot-de-passe-long' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
 
 describe('export (EF-16), front statique et robots', () => {
   let t: TestApp;
@@ -19,7 +19,7 @@ describe('export (EF-16), front statique et robots', () => {
 
   it('exporte l’inventaire actif en CSV et en JSON', async () => {
     const agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
     const product = await agent.post('/api/v1/products').send({ name: 'Sauce; soja "Kikkoman"', originalName: '醤油' }).expect(201);
     const location = await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } });
     await agent.post('/api/v1/stock').send({ productId: product.body.id, locationId: location.id, quantity: 2 }).expect(201);

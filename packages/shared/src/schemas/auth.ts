@@ -3,12 +3,22 @@ import { z } from 'zod';
 const emailSchema = z.string().trim().toLowerCase().email({ message: 'Adresse e-mail invalide' }).max(254);
 const passwordSchema = z.string().min(12, { message: 'Le mot de passe doit faire au moins 12 caractères' }).max(256);
 
+/**
+ * @deprecated Les mots de passe ne sont plus un moyen de connexion (D5). Les
+ * routes correspondantes ont disparu de l'API avec la tâche 3 ; ces schémas ne
+ * servent plus qu'aux écrans que la tâche 5 remplace, et partent avec eux.
+ */
 export const loginSchema = z.object({
   email: emailSchema,
   password: z.string().min(1, { message: 'Mot de passe requis' }).max(256),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+/**
+ * @deprecated Les mots de passe ne sont plus un moyen de connexion (D5). Les
+ * routes correspondantes ont disparu de l'API avec la tâche 3 ; ces schémas ne
+ * servent plus qu'aux écrans que la tâche 5 remplace, et partent avec eux.
+ */
 export const setupSchema = z.object({
   email: emailSchema,
   name: z.string().trim().min(1, { message: 'Nom requis' }).max(80),
@@ -37,6 +47,11 @@ export const createUserSchema = z.object({
 });
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 
+/**
+ * @deprecated Les mots de passe ne sont plus un moyen de connexion (D5). Les
+ * routes correspondantes ont disparu de l'API avec la tâche 3 ; ces schémas ne
+ * servent plus qu'aux écrans que la tâche 5 remplace, et partent avec eux.
+ */
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: passwordSchema,

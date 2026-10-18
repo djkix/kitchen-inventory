@@ -17,8 +17,8 @@ describe('base de test et migration initiale', () => {
 
   it('a les colonnes ajoutées au schéma fourni', async () => {
     const rows = await prisma.$queryRaw<Array<{ column_name: string }>>`
-      SELECT column_name FROM information_schema.columns WHERE table_name = 'User' AND column_name IN ('lockedUntil', 'failedLogins')`;
-    expect(rows.map((r) => r.column_name).sort()).toEqual(['failedLogins', 'lockedUntil']);
+      SELECT column_name FROM information_schema.columns WHERE table_name = 'User' AND column_name IN ('googleSub', 'status')`;
+    expect(rows.map((r) => r.column_name).sort()).toEqual(['googleSub', 'status']);
   });
 
   it('a toutes les migrations appliquées', async () => {

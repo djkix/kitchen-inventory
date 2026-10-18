@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix', password: 'un-mot-de-passe-long' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
 
 describe('produits (EF-05, EF-11, EF-14)', () => {
   let t: TestApp;
@@ -13,7 +13,7 @@ describe('produits (EF-05, EF-11, EF-14)', () => {
   beforeEach(async () => {
     await t.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
   });
   afterAll(() => t.close());
 

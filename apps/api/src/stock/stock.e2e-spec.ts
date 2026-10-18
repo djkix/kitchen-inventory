@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix', password: 'un-mot-de-passe-long' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
 const isoIn = (days: number): string => {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -25,7 +25,7 @@ describe('stock (EF-07, EF-08, EF-09, EF-10)', () => {
   beforeEach(async () => {
     await t.reset();
     agent = t.agent();
-    await agent.post('/api/v1/auth/setup').send(ADMIN).expect(201);
+    await t.signIn(agent, ADMIN);
     placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
     frigoId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/refrigerateur' } })).id;
     const list = (await agent.get('/api/v1/categories')).body as Array<{ id: string; name: string }>;
