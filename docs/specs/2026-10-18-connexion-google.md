@@ -127,6 +127,29 @@ finale. Pas d'URI de redirection avec ce flux. Écran de consentement en
 se connecter — c'est la validation par l'administrateur qui ferme la porte,
 pas le mode de l'écran de consentement.
 
+**D10 — Amendement du 2026-10-18, après la revue de sécurité.** Trois points
+que la première rédaction avait manqués :
+
+- **`PENDING` et `REVOKED` rendent la même réponse.** La spec prévoyait deux
+  messages distincts. C'était une erreur : un appelant non authentifié
+  distinguait alors trois classes d'adresses, et la seconde confirmait qu'une
+  adresse appartient au foyer et en a été écartée.
+- **Une discordance de `sub` est un refus, pas un détail.** La spec écarte la
+  *recherche* par `sub` — elle n'a jamais demandé d'*ignorer* un `sub` qui ne
+  correspond pas à celui déjà enregistré pour cette adresse. Sans ce contrôle,
+  une adresse Workspace supprimée puis réattribuée donne à son nouveau
+  titulaire le compte de l'ancien, son rôle et tout l'inventaire.
+- **Le statut est vérifié à chaque requête**, pas seulement à la connexion.
+  Révoquer coupe les sessions en cours (D4), mais une révocation qui ne tient
+  qu'à ce geste laisse la porte ouverte trente jours le jour où un chemin
+  oublie de le faire.
+- **`POST /users` ne crée plus de compte.** Deux façons de créer un compte
+  actif, dont une absente de l'écran Comptes, et une faute de frappe dans une
+  adresse saisie à la main ouvrait l'inventaire au titulaire réel de cette
+  boîte. Avec D1, pré-créer n'a plus d'objet : la personne se connecte, apparaît
+  en attente, et l'administrateur valide une adresse **que Google a
+  authentifiée**.
+
 ## Limites assumées
 
 - **Une connexion Google indisponible rend l'application inaccessible** à tous
