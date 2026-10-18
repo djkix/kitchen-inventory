@@ -150,6 +150,51 @@ que la première rédaction avait manqués :
   en attente, et l'administrateur valide une adresse **que Google a
   authentifiée**.
 
+**D11 — Amendement du 2026-10-18, après la revue finale du lot.** Quatre
+points que la revue a relevés et qui sont tranchés ici :
+
+- **L'administration se partage** (`POST /accounts/:id/role`, réservé aux
+  administrateurs). D7 fait du premier connecté l'administrateur et de tous les
+  suivants des membres, et D10 a retiré `POST /users` : plus aucun chemin ne
+  créait un second administrateur. Conséquences réelles : l'administration ne
+  se partageait pas, la garde « dernier administrateur actif » ne pouvait
+  jamais être levée, et la commande de secours devenait de fait le seul outil
+  de promotion du projet. La route porte les garde-fous du même esprit que la
+  révocation : on ne change pas son propre rôle, on ne rétrograde pas le
+  dernier administrateur actif (sous le même verrou consultatif), et un compte
+  non actif ne change pas de rôle — le promouvoir reviendrait à le valider sans
+  le dire. Exposé dans Réglages › Comptes sur la ligne d'un compte actif.
+
+- **Un jeton de service appartient au foyer, pas à une personne.** La revue
+  relève qu'un `Bearer kit_…` survit à la révocation de qui l'a créé. C'est
+  exact, et c'est le comportement juste : `ServiceToken` n'a jamais porté de
+  lien vers `User`, il est créé avec un nom et rien d'autre, et la section 11
+  du cahier en fait l'accès en lecture seule d'une **intégration** (Home
+  Assistant). Lui inventer un propriétaire ferait porter à l'intégration de la
+  maison le sort du compte de celui qui a cliqué : le jour où cette personne
+  part, le tableau de bord tombe sans que personne ne comprenne pourquoi. La
+  correction est donc de le **dire** — README (« Le premier compte, puis les
+  suivants » et « Intégrations ») — et non d'ajouter un lien qui n'existe pas :
+  révoquer un compte ne coupe pas les jetons de service, on les supprime dans
+  Réglages › Jetons de service, comme on change une serrure.
+
+- **La fenêtre du premier administrateur est nommée.** `GET /auth/status`
+  annonce publiquement `setupRequired`, et la première connexion sur une base
+  vide crée un `ADMIN`. Aucune garde technique ne ferme cette fenêtre sans
+  interdire l'installation elle-même ; elle se ferme par la conduite : se
+  connecter **immédiatement** après le premier démarrage, avant d'ouvrir
+  l'accès, et de nouveau après toute restauration sur base vide. Dit dans le
+  README aux deux endroits (« Déployer » et « Sauvegarde et restauration »).
+
+- **`GOOGLE_CERTS_URL` n'est plus silencieuse.** Elle reste sans garde
+  `NODE_ENV` — qui peut poser une variable d'environnement peut déjà lancer la
+  commande de secours, la garde n'enlèverait aucune capacité et casserait le
+  montage e2e. Mais elle est documentée dans `.env.example` comme réservée aux
+  tests, elle émet un avertissement au démarrage
+  (`googleCertsOverrideWarning`), et `/health` la rend visible sous
+  `google_certs_url` dans `degraded`. Un compromis muet est pire qu'un
+  compromis bruyant ; le montage e2e, lui, marche à l'identique.
+
 ## Limites assumées
 
 - **Une connexion Google indisponible rend l'application inaccessible** à tous
@@ -165,3 +210,7 @@ que la première rédaction avait manqués :
   que le guide écarte délibérément pour que la fusion par adresse fonctionne.
 - **Le script de secours suppose un accès au serveur.** Sans accès à Dockge ni
   au conteneur, il n'y a pas de recours.
+- **Un jeton de service survit à la révocation de son créateur** : c'est voulu
+  (D11), il appartient au foyer. Le supprimer est le seul geste qui le coupe.
+- **La fenêtre du premier administrateur ne se ferme que par la conduite**
+  (D11) : aucune garde technique ne la referme sans interdire l'installation.

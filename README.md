@@ -418,7 +418,19 @@ service : un placard s'inventorie très bien sans IA.
 
 Sous [Dockge](https://github.com/louislam/dockge), coller le contenu de
 `docker-compose.yml` et de `.env` dans une nouvelle stack ; le script de
-sauvegarde doit être présent dans `docker/backup.sh` à côté du compose.
+sauvegarde doit être présent dans `docker/backup.sh` à côté du compose. **Ne
+pas y recopier de fragment de `docker-compose.e2e.yml`** : ce fichier de tests
+pose `GOOGLE_CERTS_URL`, qui déplace la racine de confiance de
+l'authentification (voir [Configuration](#configuration)).
+
+> **Se connecter immédiatement après le premier démarrage, avant d'ouvrir
+> l'accès à qui que ce soit.** Sur une base vide, la première connexion Google
+> réussie crée l'administrateur : tant que personne ne s'est connecté, la
+> place est libre pour le premier qui trouve l'adresse. Concrètement : ne
+> publier le nom de domaine dans le reverse proxy qu'une fois
+> `GOOGLE_CLIENT_ID` renseigné et votre propre connexion faite, ou garder
+> l'accès restreint (réseau local, filtrage d'IP) le temps de le faire. La même
+> fenêtre se rouvre après toute restauration sur base vide.
 
 ## Première connexion
 
@@ -494,7 +506,10 @@ lien). L'URL publique utilisée ci-dessous est celle de l'instance,
 Sur une base vide, **la première connexion Google réussie crée le compte
 administrateur** — `ACTIVE` et `ADMIN` — et pose les emplacements par défaut
 (cuisine, placard, réfrigérateur, congélateur, cellier), renommables ou
-supprimables. Il n'y a rien à faire d'autre que de se connecter.
+supprimables. Il n'y a rien à faire d'autre que de se connecter — **et il faut
+le faire tout de suite** : c'est le premier connecté qui devient
+administrateur, pas le propriétaire de la machine. Voir l'avertissement de
+[Déployer](#déployer).
 
 Ensuite, l'inscription est ouverte mais **l'accès ne l'est pas**. Une adresse
 inconnue qui se connecte crée une **demande** : aucune session n'est ouverte,
@@ -505,7 +520,7 @@ qui présente quatre listes :
 | Liste | Actions |
 | --- | --- |
 | Demandes en attente | **Valider** (le compte devient actif) ou **Refuser** |
-| Comptes actifs | **Déconnecter** (coupe toutes les sessions, téléphone perdu ; la personne peut se reconnecter) ou **Révoquer** (retire l'accès et coupe les sessions en cours) |
+| Comptes actifs | **Déconnecter** (coupe toutes les sessions, téléphone perdu ; la personne peut se reconnecter), **Promouvoir** / **Retirer admin** (partage de l'administration) ou **Révoquer** (retire l'accès et coupe les sessions en cours) |
 | Refusés | **Rétablir** |
 | Compte (le vôtre) | **Déconnecter tous mes appareils** |
 
@@ -517,6 +532,19 @@ sert pas à savoir quelles adresses le foyer connaît.
 Le statut du compte est vérifié **à chaque requête**, pas seulement au moment
 de la connexion : révoquer un accès le coupe immédiatement, même sur un
 téléphone déjà connecté.
+
+**L'administration se partage.** Sur la ligne d'un compte actif, **Promouvoir**
+en fait un administrateur, **Retirer admin** le ramène au rang de membre. Trois
+garde-fous : on ne change pas son propre rôle, on ne rétrograde pas le dernier
+administrateur actif, et seul un compte déjà actif change de rôle. Il est
+conseillé d'avoir **deux administrateurs** : sinon, perdre l'accès à son compte
+Google ne laisse que l'[accès de secours](#accès-de-secours).
+
+> **Révoquer un compte ne révoque pas les jetons de service.** Ceux-ci
+> n'appartiennent à personne : ce sont des jetons d'**intégration du foyer**
+> (Home Assistant, voir [Intégrations](#intégrations)), pas l'accès d'une
+> personne. Si quelqu'un qui partait avait noté un jeton, le supprimer dans
+> **Réglages › Jetons de service** — c'est le seul geste qui le coupe.
 
 ### 3. Sur le téléphone
 
@@ -627,6 +655,12 @@ tar xzf backups/media-<horodatage>.tar.gz -C ./media
 docker compose start app backup
 ```
 
+> **Si l'application redémarre sur une base vide** — restauration ratée, dump
+> absent, volume perdu — la fenêtre du premier administrateur se rouvre : le
+> premier qui se connecte devient administrateur du foyer. Vérifier que la
+> restauration a bien repeuplé la base **avant** de remettre le service
+> derrière le reverse proxy, et se reconnecter sans attendre.
+
 ## Configuration
 
 Toutes les variables sont documentées dans `.env.example`. Les principales :
@@ -636,6 +670,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `SECRET_KEY` | Secret de signature des cookies, 32 caractères minimum, obligatoire |
 | `PUBLIC_URL` | URL publique HTTPS |
 | `GOOGLE_CLIENT_ID` | Client ID OAuth « Application web » de la console Google Cloud, **public** (pas de client secret avec ce flux). Vide = la connexion Google est indisponible et le bouton ne s'affiche pas, l'application devenant inaccessible autrement que par la porte de secours. Obtention : [Première connexion](#première-connexion) |
+| `GOOGLE_CERTS_URL` | **Réservée au montage de tests bout en bout, à ne jamais poser ici.** Elle remplace les clés publiques qui valident les jetons Google : qui sert ces clés signe des jetons que l'application accepte. Posée, elle est signalée par un avertissement au démarrage et par `google_certs_url` dans le `degraded` de `/health` |
 | `VISION_PROVIDER` | `none` ou `gemini` |
 | `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.5-flash`) ; `VISION_BASE_URL` sert pour un proxy. Comme `SUGGESTION_MODEL`, `VISION_MODEL` n'est qu'une valeur de départ : le choix fait dans Réglages prime |
 | `SUGGESTION_MODEL` | Modèle des appels recettes — suggestions et réécriture (défaut `gemini-3.5-flash-lite`). Distinct de `VISION_MODEL` : lire une étiquette et chercher une recette sur le web n'appellent pas le même modèle. Comme `VISION_MODEL`, c'est une **valeur de départ** : un administrateur peut la remplacer depuis Réglages, et le choix enregistré prime |
@@ -656,7 +691,11 @@ part des scans résolus par le cache) sont affichés dans les réglages.
 ## Intégrations
 
 **Home Assistant et autres lecteurs.** Un jeton de service créé dans
-Réglages › Jetons de service donne un accès en lecture seule à l'API :
+Réglages › Jetons de service donne un accès en lecture seule à l'API. Il
+appartient au **foyer**, pas à la personne qui l'a créé : il n'est rattaché à
+aucun compte, il ne porte aucun rôle, et **révoquer un compte ne l'invalide
+pas**. Un jeton se coupe en le supprimant, et seulement ainsi — le supprimer
+quand quelqu'un quitte le foyer, comme on change une serrure.
 
 ```bash
 curl -H "Authorization: Bearer kit_…" https://kitchen.example.org/api/v1/stock/expiring?days=7
@@ -806,7 +845,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.18.0 | 2026-10-18 | Connexion par compte Google, et plus de mot de passe nulle part dans l'interface (section 10). Le flux est celui du « jeton d'identité » : une seule valeur à configurer, `GOOGLE_CLIENT_ID`, publique, sans client secret — les étapes exactes de la console Google Cloud sont dans le README, section « Première connexion ». Les routes `POST /auth/login`, `POST /auth/setup`, `POST /me/password` et `POST /users` disparaissent, ainsi que l'écran d'installation, l'écran Utilisateurs et le verrouillage après cinq échecs, devenu sans objet. L'inscription est ouverte, l'accès ne l'est pas : une adresse inconnue qui se connecte crée une demande, ne voit rien de l'inventaire, et attend qu'un administrateur la valide dans Réglages › Comptes — quatre listes (en attente, actifs, refusés avec « Rétablir », et son propre compte). Un compte refusé ou révoqué n'est jamais supprimé, il garde son historique, et se reconnecter lui rend le même message qu'une demande ordinaire : la page de connexion ne sert pas à énumérer les adresses du foyer. Le statut du compte est vérifié à chaque requête, pas seulement à la connexion : une révocation coupe l'accès immédiatement. Sur une base vide, la première connexion Google crée l'administrateur et les emplacements par défaut. Un jeton dont l'audience n'est pas le Client ID configuré, dont l'adresse n'est pas vérifiée, ou dont l'identité Google ne correspond pas à celle déjà enregistrée pour cette adresse, est refusé. Porte de secours si Google devient inutilisable : `docker compose exec app node tools/acces-secours.js adresse@example.org` pose un mot de passe affiché une seule fois, valable une heure, utilisable une seule fois, sur une route que l'interface ne présente nulle part — le terminal web de Dockge garde ce mot de passe dans son historique de défilement, fermer l'onglet après usage. Migrations `0011_connexion_google` et `0012_acces_secours`. Un parcours bout en bout P6 rejoue l'inscription et la validation, et la construction de l'image vérifie désormais que la commande de secours démarre bien dedans |
+| 0.18.0 | 2026-10-18 | Connexion par compte Google, et plus de mot de passe nulle part dans l'interface (section 10). Le flux est celui du « jeton d'identité » : une seule valeur à configurer, `GOOGLE_CLIENT_ID`, publique, sans client secret — les étapes exactes de la console Google Cloud sont dans le README, section « Première connexion ». Les routes `POST /auth/login`, `POST /auth/setup`, `POST /me/password` et `POST /users` disparaissent, ainsi que l'écran d'installation, l'écran Utilisateurs et le verrouillage après cinq échecs, devenu sans objet. L'inscription est ouverte, l'accès ne l'est pas : une adresse inconnue qui se connecte crée une demande, ne voit rien de l'inventaire, et attend qu'un administrateur la valide dans Réglages › Comptes — quatre listes (en attente, actifs, refusés avec « Rétablir », et son propre compte). Un compte refusé ou révoqué n'est jamais supprimé, il garde son historique, et se reconnecter lui rend le même message qu'une demande ordinaire : la page de connexion ne sert pas à énumérer les adresses du foyer. Le statut du compte est vérifié à chaque requête, pas seulement à la connexion : une révocation coupe l'accès immédiatement. Sur une base vide, la première connexion Google crée l'administrateur et les emplacements par défaut. Un jeton dont l'audience n'est pas le Client ID configuré, dont l'adresse n'est pas vérifiée, ou dont l'identité Google ne correspond pas à celle déjà enregistrée pour cette adresse, est refusé. Porte de secours si Google devient inutilisable : `docker compose exec app node tools/acces-secours.js adresse@example.org` pose un mot de passe affiché une seule fois, valable une heure, utilisable une seule fois, sur une route que l'interface ne présente nulle part — le terminal web de Dockge garde ce mot de passe dans son historique de défilement, fermer l'onglet après usage. L'administration se partage : sur la ligne d'un compte actif, « Promouvoir » et « Retirer admin » changent le rôle, avec trois garde-fous (jamais son propre rôle, jamais le dernier administrateur actif, jamais un compte non actif) — sans quoi seul le tout premier compte connecté aurait été administrateur, à jamais. Une connexion Google réussie referme au passage la porte de secours restée ouverte. Les jetons de service appartiennent au foyer et non à une personne : révoquer un compte ne les coupe pas, il faut les supprimer. Migrations `0011_connexion_google` et `0012_acces_secours`. Un parcours bout en bout P6 rejoue l'inscription et la validation, et la construction de l'image vérifie désormais que la commande de secours démarre bien dedans |
 | 0.17.0 | 2026-10-15 | Le menu de choix des modèles, dans Réglages › Reconnaissance, se limite désormais à la famille Flash : l'API Gemini ne dépend pas de l'abonnement Google AI Plus et servirait un modèle Pro sans rien demander, facturé sur la clé. Réservoir permanent de suggestions (EF-25, EF-26) : les recettes rapportées par Gemini ne s'effacent plus, elles entrent dans une table dédiée, dédoublonnées, sans limite d'âge. À chaque visite l'application lit ce réservoir, recalcule la couverture contre le stock du moment et n'appelle le modèle que si moins de six recettes correspondent à l'orientation, ou sur relance explicite — consommer un article ne déclenche plus de recherche payante, la signature de recherche ne dépendant plus du stock. Une recette annoncée comme trouvée sur le web n'est retenue que si sa page répond : le contenu est recopié en base une fois pour toutes, le site n'est plus jamais recontacté, pas même au moment de conserver la recette. Les compositions du modèle restent, affichées « composée par l'IA, non vérifiée » et classées après les recettes vérifiées. Une orientation déjà cherchée dans les 24 h n'est pas redemandée : l'écran annonce la cause, l'échéance, et offre un bouton « Chercher de nouvelles recettes ». Le cache de fournée de 24 h disparaît. Migration `0009_suggestion_pool`. Les filtres de « Mes recettes » adoptent par ailleurs la présentation de Suggestions : les six rangées de pastilles défilantes deviennent six sélecteurs natifs par paires, type de plat d'abord, une seule valeur active par facette ; les cinq bascules rapides restent des pastilles sur une rangée Suggestions : l'écran n'affiche plus qu'une douzaine de recettes à la fois, les mieux classées, au lieu de tout le réservoir — une visite ne ralentit plus à mesure qu'il grossit. Le bouton « Chercher de nouvelles recettes » repart bien à chaque appui, y compris après être allé voir « Mes recettes » et revenu. Un stock momentanément vide n'empêche plus de consulter le réservoir : les recettes déjà trouvées restent affichées, avec une couverture nulle. Les seize recettes demandées au modèle entrent toutes au réservoir, au lieu de douze sur seize. La colonne `payload` des fournées, que plus personne ne lisait, est retirée (migration `0010_suggestion_batch_sans_payload`) |
 | 0.16.0 | 2026-10-11 | Parcours dirigé des suggestions sur mobile (EF-25). L'onglet Recettes ouvre toujours Suggestions ; la mémorisation du dernier volet consulté est retirée. À l'arrivée, une question bloquante demande le type de plat avant d'afficher quoi que ce soit d'autre, et oriente la recherche initiale — le modèle ne proposant alors plus que ce type. Les quatre rangées de pastilles d'orientation (type de plat, cuisine, durée, facilité) font place à quatre sélecteurs natifs sur deux lignes de deux, qui ne prennent plus la moitié d'un écran de téléphone ; les quatre relancent désormais une recherche à chaque changement, y compris le type de plat, qui ne pouvait plus se contenter de filtrer une fournée déjà réduite à ce même type. Le titre d'une recette tient désormais sur deux lignes au plus, sans jamais être tronqué sur une seule, aussi bien sur une carte de suggestion que sur « Mes recettes » |
 | 0.15.0 | 2026-10-08 | Favoris et note directe sur une recette (EF-21). Une étoile à cocher marque une recette comme favorite — liste unique partagée par le foyer — depuis sa fiche et chaque carte de « Mes recettes », indépendamment de la note. La fiche gagne cinq étoiles de note directe, posables sans aucune réalisation enregistrée. Partout où une note s'affiche (carte, fiche, tri), la note directe prime désormais sur la moyenne des réalisations, qui prend le relais en son absence ; la note par réalisation reste par ailleurs inchangée, pour l'historique. Pastille « Favoris » dans les filtres rapides de « Mes recettes ». La fiche d'une recette jamais cuisinée explique désormais l'absence d'historique au lieu de l'afficher vide |

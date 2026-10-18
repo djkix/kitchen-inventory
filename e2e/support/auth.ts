@@ -203,13 +203,46 @@ async function reinsertSharedSession(session: SharedSession): Promise<void> {
  */
 export function useSharedAdminSession(): void {
   test.beforeAll(async ({ browser }) => {
-    sharedSession ??= establishSharedSession(browser);
-    const session = await sharedSession;
-    await reinsertSharedSession(session);
+    await shareAdminSession(browser);
   });
 
   test.beforeEach(async ({ page }) => {
     const session = await sharedSession!;
     await page.context().addCookies(session.cookies);
+    // Doublure de Google posée même ici, où la connexion n'est qu'un préalable :
+    // si le cookie partagé échouait, `RequireAuth` renverrait la page sur
+    // `/connexion`, qui irait chercher `accounts.google.com/gsi/client` — un
+    // appel réseau réel dans une suite qui s'interdit le réseau. Le jeton
+    // n'est jamais remis : personne ne clique sur ce bouton.
+    await installGoogleStub(page, 'jeton-jamais-remis');
   });
+}
+
+/** Établit (une seule fois) la session partagée et repose sa ligne `Session`. */
+async function shareAdminSession(browser: Browser): Promise<SharedSession> {
+  sharedSession ??= establishSharedSession(browser);
+  const session = await sharedSession;
+  await reinsertSharedSession(session);
+  return session;
+}
+
+/**
+ * Contexte navigateur déjà authentifié en administrateur, pour un test qui a
+ * besoin d'une **seconde** fenêtre admin à côté d'une page anonyme (P6).
+ *
+ * Pourquoi pas un `loginAsAdmin` de plus : la route de connexion est limitée à
+ * 10 tentatives par minute et par IP, quota partagé par toute l'exécution (voir
+ * `sharedSession` ci-dessus). Réutiliser la session déjà ouverte au lieu d'en
+ * ouvrir une autre rend une tentative au budget, et retire surtout une
+ * connexion de la rafale la plus serrée de la suite. Relever le quota de
+ * production pour faire passer des tests serait la mauvaise réponse : c'est
+ * une protection de la section 10.
+ *
+ * À appeler depuis un test, après la restauration de base du fichier.
+ */
+export async function newAdminContext(browser: Browser): Promise<BrowserContext> {
+  const session = await shareAdminSession(browser);
+  const context = await browser.newContext();
+  await context.addCookies(session.cookies);
+  return context;
 }

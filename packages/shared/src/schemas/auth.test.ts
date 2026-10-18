@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACCOUNT_STATUSES, ACCOUNT_STATUS_LABELS_FR, googleLoginSchema } from './index.js';
+import { googleLoginSchema, updateAccountRoleSchema } from './index.js';
 
 describe('googleLoginSchema', () => {
   it('refuse un jeton vide ou blanc', () => {
@@ -11,9 +11,11 @@ describe('googleLoginSchema', () => {
   });
 });
 
-describe('ACCOUNT_STATUS_LABELS_FR', () => {
-  it('couvre les trois états', () => {
-    expect(ACCOUNT_STATUSES).toHaveLength(3);
-    for (const s of ACCOUNT_STATUSES) expect(ACCOUNT_STATUS_LABELS_FR[s]).toBeTruthy();
+describe('updateAccountRoleSchema', () => {
+  it('n’accepte que les deux rôles connus', () => {
+    expect(updateAccountRoleSchema.parse({ role: 'ADMIN' }).role).toBe('ADMIN');
+    expect(updateAccountRoleSchema.parse({ role: 'MEMBER' }).role).toBe('MEMBER');
+    expect(updateAccountRoleSchema.safeParse({ role: 'SUPERADMIN' }).success).toBe(false);
+    expect(updateAccountRoleSchema.safeParse({}).success).toBe(false);
   });
 });

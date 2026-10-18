@@ -52,6 +52,13 @@ const configSchema = z.object({
   // (docker-compose.e2e.yml), qui doit vérifier une signature sans réseau : la
   // vérification reste entière (signature RS256, émetteur, audience,
   // expiration), seule la provenance des clés change.
+  //
+  // **À ne jamais poser en production** : qui sert ces clés signe des jetons
+  // que l'application acceptera. Posée par mégarde — un fragment du compose de
+  // test recopié dans une stack — elle déplacerait la racine de confiance de
+  // l'authentification. Elle n'est donc pas silencieuse : avertissement au
+  // démarrage (`googleCertsOverrideWarning`) et dégradation explicite dans
+  // `/health`.
   GOOGLE_CERTS_URL: z.string().url().optional(),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
   APP_VERSION: z.string().default('0.0.0-dev'),
@@ -66,6 +73,21 @@ export type AppConfig = z.infer<typeof configSchema> & {
 };
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
+
+/**
+ * Avertissement de démarrage quand `GOOGLE_CERTS_URL` est posée. Un compromis
+ * muet est pire qu'un compromis bruyant : cette variable remplace les clés
+ * publiques qui valident les jetons Google, et seul le montage de tests bout
+ * en bout a une raison de la poser.
+ */
+export function googleCertsOverrideWarning(config: Pick<AppConfig, 'GOOGLE_CERTS_URL'>): string | null {
+  if (!config.GOOGLE_CERTS_URL) return null;
+  return (
+    `GOOGLE_CERTS_URL est posée (${config.GOOGLE_CERTS_URL}) : les jetons Google sont validés ` +
+    'contre des clés publiques qui ne viennent pas de Google. Réservé au montage de tests bout en ' +
+    'bout — à retirer de toute configuration de production.'
+  );
+}
 
 function firstExisting(candidates: string[]): string {
   return candidates.find((c) => existsSync(c)) ?? candidates[0]!;

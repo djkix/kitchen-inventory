@@ -66,6 +66,13 @@ export class AuthService {
     // adresses connues du foyer.
     if (account.status !== 'ACTIVE') throw ApiError.forbidden(PENDING_MESSAGE);
 
+    // La porte de secours (D6) n'a plus d'objet dès que Google remarche : le
+    // mot de passe à usage unique meurt ici plutôt qu'au bout de son heure.
+    await this.prisma.user.updateMany({
+      where: { id: account.id, recoveryExpiresAt: { not: null } },
+      data: { passwordHash: null, recoveryExpiresAt: null },
+    });
+
     await this.sessions.open(account.id, res);
     return toCurrentUser(account);
   }

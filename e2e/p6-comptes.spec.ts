@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { loginAsAdmin, signInWithGoogle } from './support/auth.ts';
+import { newAdminContext, signInWithGoogle } from './support/auth.ts';
 import { restoreDatabase } from './support/database.ts';
 
 /**
@@ -42,10 +42,12 @@ test('une adresse inconnue attend une validation, puis entre une fois validée',
 
   // --- 2. Un administrateur la valide depuis Réglages › Comptes.
   // Contexte séparé : la page ci-dessus doit rester celle de l'invitée, sans
-  // cookie d'administrateur.
-  const adminContext = await browser.newContext();
+  // cookie d'administrateur. La session partagée de l'exécution est réutilisée
+  // plutôt qu'une connexion de plus : le quota de la route de connexion (10 par
+  // minute et par IP) est partagé par toute la suite, et ce fichier en
+  // consomme déjà deux coup sur coup.
+  const adminContext = await newAdminContext(browser);
   const adminPage = await adminContext.newPage();
-  await loginAsAdmin(adminPage);
   await adminPage.goto('/reglages');
 
   // `<section aria-label="…">` nommée, donc un rôle `region` : les trois

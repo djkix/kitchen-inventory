@@ -1,6 +1,7 @@
 import { Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
-import type { AccountDto } from '@kitchen/shared';
+import { updateAccountRoleSchema, type AccountDto, type UpdateAccountRoleInput } from '@kitchen/shared';
 import { AdminOnly, CurrentUser, type RequestUser } from '../auth/request-user.js';
+import { ZodBody } from '../common/zod-validation.pipe.js';
 import { AccountsService } from './accounts.service.js';
 
 @AdminOnly()
@@ -17,6 +18,17 @@ export class AccountsController {
   @HttpCode(200)
   approve(@Param('id') id: string): Promise<AccountDto> {
     return this.accounts.approve(id);
+  }
+
+  /** Partage de l'administration (section 10) : promouvoir ou rétrograder un compte actif. */
+  @Post(':id/role')
+  @HttpCode(200)
+  setRole(
+    @Param('id') id: string,
+    @ZodBody(updateAccountRoleSchema) body: UpdateAccountRoleInput,
+    @CurrentUser() actor: RequestUser,
+  ): Promise<AccountDto> {
+    return this.accounts.setRole(id, body.role, actor.id);
   }
 
   @Post(':id/revoke')

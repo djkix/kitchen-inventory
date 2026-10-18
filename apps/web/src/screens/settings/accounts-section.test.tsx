@@ -159,13 +159,66 @@ describe('AccountsSection', () => {
     expect(within(active).getAllByRole('button', { name: 'Révoquer' })).toHaveLength(1);
   });
 
-  it('Déconnecter appelle la révocation des sessions du compte', async () => {
+  it('Déconnecter demande confirmation puis coupe les sessions du compte', async () => {
     setAuth(true);
     get.mockResolvedValue([ME, OTHER]);
     renderUi(<AccountsSection />);
     const active = await screen.findByRole('region', { name: 'Comptes actifs' });
-    fireEvent.click(within(within(active).getByText('Olivier').closest('div')?.parentElement as HTMLElement).getByRole('button', { name: 'Déconnecter' }));
+    const ligne = within(within(active).getByText('Olivier').closest('div')?.parentElement as HTMLElement);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
+    fireEvent.click(ligne.getByRole('button', { name: 'Déconnecter' }));
+    expect(del).not.toHaveBeenCalled();
+    confirmSpy.mockReturnValueOnce(true);
+    fireEvent.click(ligne.getByRole('button', { name: 'Déconnecter' }));
     await waitFor(() => expect(del).toHaveBeenCalledWith('/users/o1/sessions'));
+  });
+
+  it('« Déconnecter » sur sa propre ligne demande aussi confirmation, et le refus ne coupe rien', async () => {
+    // Sur un téléphone, cette ligne est voisine de « Révoquer » : un doigt mal
+    // placé ne doit pas couper toutes ses propres sessions, celle-ci comprise.
+    setAuth(true);
+    get.mockResolvedValue([ME, OTHER]);
+    renderUi(<AccountsSection />);
+    const active = await screen.findByRole('region', { name: 'Comptes actifs' });
+    const maLigne = within(within(active).getByText(/Moi/).closest('div')?.parentElement as HTMLElement);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
+    fireEvent.click(maLigne.getByRole('button', { name: 'Déconnecter' }));
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringMatching(/y compris celle-ci/));
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  describe('partage de l’administration', () => {
+    it('Promouvoir appelle la route de rôle après confirmation', async () => {
+      setAuth(true);
+      get.mockResolvedValueOnce([ME, OTHER]).mockResolvedValue([ME, { ...OTHER, role: 'ADMIN' }]);
+      renderUi(<AccountsSection />);
+      const active = await screen.findByRole('region', { name: 'Comptes actifs' });
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
+      fireEvent.click(within(active).getByRole('button', { name: 'Promouvoir' }));
+      expect(post).not.toHaveBeenCalled();
+      confirmSpy.mockReturnValueOnce(true);
+      fireEvent.click(within(active).getByRole('button', { name: 'Promouvoir' }));
+      await waitFor(() => expect(post).toHaveBeenCalledWith('/accounts/o1/role', { role: 'ADMIN' }));
+      await waitFor(() => expect(show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Olivier est administrateur', tone: 'success' })));
+    });
+
+    it('« Retirer admin » rétrograde un autre administrateur', async () => {
+      setAuth(true);
+      get.mockResolvedValue([ME, { ...OTHER, role: 'ADMIN' }]);
+      renderUi(<AccountsSection />);
+      const active = await screen.findByRole('region', { name: 'Comptes actifs' });
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      fireEvent.click(within(active).getByRole('button', { name: 'Retirer admin' }));
+      await waitFor(() => expect(post).toHaveBeenCalledWith('/accounts/o1/role', { role: 'MEMBER' }));
+    });
+
+    it('ne propose aucun changement de rôle sur sa propre ligne', async () => {
+      setAuth(true);
+      get.mockResolvedValue([ME, OTHER]);
+      renderUi(<AccountsSection />);
+      const active = await screen.findByRole('region', { name: 'Comptes actifs' });
+      expect(within(active).getAllByRole('button', { name: /Promouvoir|Retirer admin/ })).toHaveLength(1);
+    });
   });
 
   it('affiche l’erreur de l’API si la validation échoue', async () => {

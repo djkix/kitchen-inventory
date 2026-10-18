@@ -110,6 +110,21 @@ describe('porte de secours en ligne de commande (D6)', () => {
       expect(expiresAt.getTime() - avant).toBeLessThan(3_605_000);
     });
 
+    it('une connexion Google réussie referme la porte restée ouverte', async () => {
+      // La porte n'a plus d'objet dès que Google remarche : la laisser vivre
+      // jusqu'à la fin de son heure serait une entrée gratuite sans raison.
+      const { password } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
+      await t.signIn(t.agent(), PROPRIETAIRE);
+
+      const apres = await t.prisma.user.findUniqueOrThrow({ where: { email: PROPRIETAIRE.email } });
+      expect(apres.passwordHash).toBeNull();
+      expect(apres.recoveryExpiresAt).toBeNull();
+
+      const refus = await recovery(t, PROPRIETAIRE.email, password).expect(401);
+      expect(refus.body.error.message).toBe(REFUS);
+      expect(refus.headers['set-cookie']).toBeUndefined();
+    });
+
     it('ne sert qu’une fois : le succès efface le hachage et l’expiration', async () => {
       const { password } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
       await recovery(t, PROPRIETAIRE.email, password).expect(200);
