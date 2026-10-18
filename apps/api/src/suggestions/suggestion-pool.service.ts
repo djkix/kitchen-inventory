@@ -76,10 +76,18 @@ export class SuggestionPoolService {
     // à l'autre. Une fournée est découverte d'un bloc, et l'ordre se départage
     // ensuite sur le titre et l'identité (`comparePoolEntries`).
     const now = new Date();
-    const written = await Promise.all(recipes.map((recipe, index) => this.ingestOne(recipe, identities[index] as string, model, alreadyRead, now)));
-    // Une identité n'est comptée qu'une fois, même répétée dans la fournée.
-    const created = new Set(identities.filter((identity, index) => written[index] && !existing.has(identity)));
-    return created.size;
+    // Dédoublonnage AVANT l'écriture, la première occurrence gagne (CI du
+    // 2026-10-18). Deux compositions de même titre portent la même identité :
+    // les passer toutes les deux à `Promise.all` lançait deux `upsert`
+    // concurrents sur la même ligne, et la survivante dépendait de l'ordre
+    // d'arrivée — stable sur ma machine, inversé en intégration continue, où le
+    // test qui épingle laquelle survit est tombé. Filtrer ici rend le résultat
+    // déterministe et supprime au passage la collision d'écriture.
+    const unique = recipes
+      .map((recipe, index) => ({ recipe, identity: identities[index] as string }))
+      .filter((entry, index) => identities.indexOf(entry.identity) === index);
+    const written = await Promise.all(unique.map((entry) => this.ingestOne(entry.recipe, entry.identity, model, alreadyRead, now)));
+    return unique.filter((entry, index) => written[index] && !existing.has(entry.identity)).length;
   }
 
   async read(filter: PoolFilter = {}): Promise<PoolRecipe[]> {
