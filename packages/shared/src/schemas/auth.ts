@@ -47,3 +47,28 @@ export const createServiceTokenSchema = z.object({
   name: z.string().trim().min(1, { message: 'Nom requis' }).max(80),
 });
 export type CreateServiceTokenInput = z.infer<typeof createServiceTokenSchema>;
+
+export const ACCOUNT_STATUSES = ['PENDING', 'ACTIVE', 'REVOKED'] as const;
+export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
+
+export const ACCOUNT_STATUS_LABELS_FR: Record<AccountStatus, string> = {
+  PENDING: 'En attente',
+  ACTIVE: 'Actif',
+  REVOKED: 'Refusé',
+};
+
+/** Corps de `POST /auth/google`. Le nom `credential` est imposé par le callback GSI. */
+export const googleLoginSchema = z.object({
+  credential: z.string().trim().min(1, { message: 'Jeton Google requis' }),
+});
+export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;
+
+/** Une ligne de Réglages › Comptes. */
+export interface AccountDto {
+  id: string;
+  email: string;
+  name: string;
+  role: 'ADMIN' | 'MEMBER';
+  status: AccountStatus;
+  createdAt: string;
+}
