@@ -359,7 +359,7 @@ test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où
   await answerDishTypeQuestion(page);
   const dialog = await openSuggestionSheet(page, 'Recette composée 1');
 
-  await dialog.getByRole('button', { name: 'Ajouter à mes recettes' }).click();
+  await dialog.getByRole('button', { name: 'Je fais cette recette' }).click();
 
   // Composition (B6) : aucun appel supplémentaire, contrairement au chemin
   // web, qui fait réécrire la recette par Gemini — mais depuis le contenu

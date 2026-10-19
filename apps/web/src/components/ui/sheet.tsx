@@ -1,5 +1,22 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
+
+/**
+ * Pile des tiroirs qui ont posé une entrée d'historique, du plus ancien au
+ * plus récent. Un `popstate` est entendu par TOUS les tiroirs ouverts : sans
+ * cette pile, ouvrir un tiroir par-dessus un autre puis revenir en arrière
+ * les fermerait tous les deux d'un coup. Seul celui du dessus réagit.
+ */
+const openSheets: string[] = [];
+
+/** Clé posée dans `history.state` pour reconnaître l'entrée d'un tiroir. */
+const MARKER = 'kitchenSheet';
+
+function pushMarker(id: string) {
+  // L'état du routeur (`usr`, `key`, `idx`) est conservé : l'entrée porte la
+  // même adresse que la page en dessous, seule la marque s'y ajoute.
+  window.history.pushState({ ...window.history.state, [MARKER]: id }, '');
+}
 
 interface SheetProps {
   open: boolean;
@@ -18,6 +35,58 @@ interface SheetProps {
  */
 export function Sheet({ open, onClose, title, description, children, locked = false, className }: SheetProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const id = useId();
+  // Lus par un gestionnaire qui ne doit PAS se réabonner à chaque rendu :
+  // réexécuter l'effet empilerait une seconde entrée d'historique.
+  const lockedRef = useRef(locked);
+  const onCloseRef = useRef(onClose);
+  lockedRef.current = locked;
+  onCloseRef.current = onClose;
+
+  /**
+   * Le geste « page précédente » ferme le tiroir au lieu de quitter l'écran
+   * (Franck, 2026-10-19 : « quand je swipe vers la gauche, au lieu d'avoir un
+   * retour aux suggestions, je bascule sur Mes recettes »). Rien n'écoutait ce
+   * glissement : c'est le navigateur qui remontait l'historique, puisque
+   * l'ouverture d'un tiroir n'y ajoutait aucune entrée.
+   *
+   * À l'ouverture, le tiroir empile donc une entrée ; un retour arrière la
+   * dépile et le ferme. Fermé autrement (croix, Échap, Annuler), il retire son
+   * entrée — sans quoi un premier Retour ne ferait rien de visible et il en
+   * faudrait deux pour quitter l'écran.
+   *
+   * L'effet ne dépend que de `open` : `locked` et `onClose` passent par des
+   * références, parce qu'un réabonnement empilerait une entrée de plus.
+   */
+  useEffect(() => {
+    if (!open) return;
+    openSheets.push(id);
+    pushMarker(id);
+    let closedByBack = false;
+
+    const onPop = () => {
+      if (openSheets[openSheets.length - 1] !== id) return;
+      // Envoi en cours : on remet l'entrée, le tiroir reste verrouillé.
+      if (lockedRef.current) {
+        pushMarker(id);
+        return;
+      }
+      closedByBack = true;
+      openSheets.pop();
+      onCloseRef.current();
+    };
+
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      const index = openSheets.lastIndexOf(id);
+      if (index >= 0) openSheets.splice(index, 1);
+      // Une navigation volontaire (conserver une suggestion mène à la fiche)
+      // a déjà empilé la sienne par-dessus : la dépiler mangerait le passage
+      // à la fiche. On ne retire que notre propre entrée, restée au sommet.
+      if (!closedByBack && (window.history.state as Record<string, unknown> | null)?.[MARKER] === id) window.history.back();
+    };
+  }, [open, id]);
 
   useEffect(() => {
     if (!open) return;

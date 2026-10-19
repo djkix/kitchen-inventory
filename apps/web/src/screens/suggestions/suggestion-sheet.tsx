@@ -32,13 +32,15 @@ interface SuggestionSheetProps {
  * lot du 2026-10-15), et son contenu n'est mis en forme qu'à la conservation —
  * la fiche l'annonce honnêtement plutôt que de laisser croire à un oubli (B7).
  *
- * Un seul geste : le bouton « Ajouter à mes recettes » (E2, D1 du
- * 2026-10-19) conserve la recette et déclenche
+ * Deux boutons (demande de Franck, 2026-10-19) : « Je fais cette recette »
+ * conserve et mène à la fiche, où se trouve le nombre de parts ; « Annuler »
+ * ferme et revient aux suggestions, sans rien enregistrer. L'action principale
+ * conserve la recette et déclenche
  * côté serveur sa réécriture par Gemini — depuis le contenu déjà recopié au
  * réservoir, sans jamais rappeler le site —, d'où l'attente explicite pendant
- * l'appel. Le libellé précédent, « Plus d'informations », promettait une
- * lecture là où le geste enregistre : Franck a buté dessus le 2026-10-19, le
- * bouton dit désormais ce qu'il fait.
+ * l'appel. Les libellés précédents disaient mal ce geste : « Plus
+ * d'informations » promettait une lecture là où il enregistre définitivement,
+ * et « Ajouter à mes recettes » ne disait pas où l'on atterrit.
  *
  * `clientOpId` est **déterministe** (round 1 de revue) — dérivé de la seule
  * identité de la suggestion, jamais tiré au hasard : un identifiant aléatoire régénéré à
@@ -86,9 +88,13 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
       // coûterait un appel sur la seule route payante du module pour retirer
       // une carte dont on vient de quitter l'écran.
       await queryClient.invalidateQueries({ queryKey: queryKeys.recipesAll });
-      onClose();
+      // Naviguer AVANT de fermer : le tiroir retire son entrée d'historique en
+      // se fermant (voir `Sheet`), et il ne la retire que si elle est encore
+      // au sommet. La fiche empilée d'abord, la fermeture ne touche à rien et
+      // le passage à la fiche n'est pas mangé par la dépile.
       // C'est là, et seulement là, que Franck lit enfin les étapes.
       navigate(`/recettes/${recipe.id}`);
+      onClose();
     } catch (err) {
       // Message de l'API relayé tel quel (suggestion disparue du réservoir 404,
       // réponse du modèle inexploitable 502, quota atteint 429) : jamais un code
@@ -221,9 +227,23 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
           </p>
         )}
 
-        <Button variant="primary" block loading={busy} disabled={busy} onClick={() => void confirm()}>
-          Ajouter à mes recettes
-        </Button>
+        {/*
+          Deux boutons (demande de Franck, 2026-10-19) : l'action à gauche,
+          l'abandon à droite. L'action est pleine, accentuée et deux fois plus
+          large — un geste d'abandon ne doit pas se confondre avec un
+          enregistrement définitif —, et les deux restent dans le tiers
+          inférieur du tiroir, atteignables au pouce. « Annuler » est
+          indisponible pendant l'enregistrement, comme le tiroir lui-même
+          (`locked`) : on n'abandonne pas une conservation en cours de route.
+        */}
+        <div className="flex gap-2">
+          <Button variant="primary" size="lg" className="flex-[2]" loading={busy} disabled={busy} onClick={() => void confirm()}>
+            Je fais cette recette
+          </Button>
+          <Button variant="secondary" size="lg" className="flex-1" disabled={busy} onClick={onClose}>
+            Annuler
+          </Button>
+        </div>
       </div>
     </Sheet>
   );
