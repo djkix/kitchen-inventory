@@ -191,6 +191,67 @@ celles ci-dessus, sans en rouvrir aucune :
   lecteur depuis D8 ; la ligne ne date plus qu'une orientation déjà demandée.
   Migration `0010_suggestion_batch_sans_payload`.
 
+## Amendement du 2026-10-19 : diversité et visibilité de la relance
+
+**Demande de djkix** : « j'ai l'impression qu'il n'y a que 12 recettes, et
+tout autour de fusilli et abricot » ; « si je ne trouve pas de recette qui me
+plaît, permet de faire un nouvel appel. Et diversifie les propositions (pas de
+variante) ».
+
+**D12 — Ce que la relance rapporte s'affiche en premier.** L'appel partait
+déjà (D6, cas 2), mais l'ordre de D7 classait les arrivantes derrière les
+anciennes mieux couvertes : l'écran ne bougeait pas, et la relance ressemblait
+à un bouton mort. Les identités créées par l'ingestion — `ingest` les rend
+désormais, au lieu de leur seul nombre — passent en tête de la page pour
+**cette réponse seulement**. `comparePoolEntries` reçoit un champ `fresh`
+comparé avant tous les autres. Rien n'est persisté : pas de colonne « déjà
+vue », pas d'état de session. Au geste suivant, l'ordre de D7 reprend seul.
+Ces recettes entrent aussi dans la fenêtre de classement sans passer par la
+présélection, qui pourrait sinon les couper.
+
+**D13 — Le prompt exige la diversité et cite ce qui est déjà connu.** Deux
+causes au même symptôme :
+
+1. le prompt disait « Aucune variété de régions ou de styles n'est exigée » —
+   l'inverse du besoin. Remplacé par une exigence de plats nettement
+   différents, jamais deux variantes d'une même recette, en variant
+   l'ingrédient principal, la technique et la base. Les consignes
+   d'orientation (région, durée, difficulté, type) sont inchangées et restent
+   impératives : diversifier, c'est varier à l'intérieur du filtre.
+2. rien n'empêchait le modèle de reproposer ce que le réservoir contient
+   déjà, sa consigne de diversité ne valant qu'à l'intérieur d'une fournée.
+   Les titres connus **pour l'orientation demandée** lui sont donc cités, avec
+   consigne de ne pas les reproposer.
+
+Cette liste est bornée à quarante titres, les plus récents
+(`KNOWN_TITLES_CAP`) : elle part à chaque appel, un prompt qui enfle coûte
+plus de jetons que les doublons qu'il économise et noie la consigne. Au-delà
+de la borne, les titres les plus anciens ne sont plus cités, le modèle peut
+les reproposer — `suggestionIdentity` les reconnaît alors au dédoublonnage
+(D3), ils ne créent pas de ligne. Le coût se limite à une place perdue dans
+la fournée payée.
+
+**D14 — Aucun rapprochement de titres à l'ingestion.** Le dédoublonnage reste
+celui de D3, exact : titre normalisé + URL. Deux variantes aux titres
+différents (« Fusilli aux abricots », « Fusilli abricots et romarin ») restent
+donc deux lignes. Écarter à l'ingestion une recette « trop proche » d'une
+existante a été examiné et refusé :
+
+- la mesure serait une similarité de chaînes sur des titres de trois à six
+  mots, où les faux positifs sont la règle et non l'exception : « Tarte aux
+  pommes » et « Tarte aux poireaux » se ressemblent plus, caractère pour
+  caractère, que « Fusilli aux abricots » et sa variante. Un seuil réglé à
+  l'aveugle jetterait de vraies recettes différentes ;
+- le rejet est irréversible et silencieux, sur du contenu déjà payé — contre
+  D1 (« pas d'âge max, tu logges tout ») ;
+- la cause est en amont. Un modèle à qui l'on demandait explicitement de ne
+  pas varier produisait des variantes ; la correction se fait là où elle est
+  gratuite et réversible (D13), pas par un filtre destructif en aval.
+
+Si des variantes subsistent malgré D13, l'escalade raisonnable n'est pas de
+les jeter mais de les montrer regroupées. Rien n'est fait en ce sens
+aujourd'hui.
+
 ## Limites assumées
 
 - **Le prix de D11 : une orientation jamais satisfaite reste vide 24 heures.**

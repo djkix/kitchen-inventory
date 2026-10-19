@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
+import { buildSuggestionPrompt, KNOWN_TITLES_CAP } from './prompt.js';
 import type { SuggestionProviderError, SuggestionRequest } from './suggestion-provider.js';
 
 const BASE_REQUEST: SuggestionRequest = { seeds: ['tomate', 'pâtes', 'basilic'], count: 12 };
@@ -162,5 +163,51 @@ describe('GeminiSuggestionProvider (EF-26)', () => {
     await expect(provider.suggest(BASE_REQUEST)).rejects.toThrow(/tronqu/);
     // Pas de reprise : redemander le même volume dans le même budget ne ferait que retronquer.
     expect(http.calls).toHaveLength(1);
+  });
+});
+
+/**
+ * La demande de djkix du 2026-10-19 — « diversifie les propositions (pas de
+ * variante) » — se joue entièrement dans le texte envoyé au modèle : ces cas
+ * épinglent les deux consignes qui la portent.
+ */
+describe('buildSuggestionPrompt, diversité des propositions (2026-10-19)', () => {
+  it('exige des plats nettement différents, jamais deux variantes du même', () => {
+    const prompt = buildSuggestionPrompt(BASE_REQUEST);
+    expect(prompt).toContain('nettement différentes');
+    expect(prompt).toContain('variante');
+    expect(prompt).not.toContain('Aucune variété');
+  });
+
+  it('exige la même diversité sans recherche web', () => {
+    const prompt = buildSuggestionPrompt({ ...BASE_REQUEST, webSearch: false });
+    expect(prompt).toContain('nettement différentes');
+    expect(prompt).not.toContain('Aucune variété');
+  });
+
+  it('cite les titres déjà connus et interdit de les reproposer', () => {
+    const prompt = buildSuggestionPrompt({ ...BASE_REQUEST, knownTitles: ['Fusilli aux abricots', 'Tarte aux pommes'] });
+    expect(prompt).toMatch(/Ne propose aucune de ces recettes/);
+    expect(prompt).toContain('Fusilli aux abricots');
+    expect(prompt).toContain('Tarte aux pommes');
+  });
+
+  it('ne cite aucune recette connue quand le réservoir est vide pour cette orientation', () => {
+    expect(buildSuggestionPrompt({ ...BASE_REQUEST, knownTitles: [] })).not.toMatch(/Ne propose aucune de ces recettes/);
+  });
+
+  it('borne la liste des titres connus pour que le prompt n’enfle pas', () => {
+    const titles = Array.from({ length: KNOWN_TITLES_CAP + 5 }, (_, i) => `Recette ${i}`);
+    const prompt = buildSuggestionPrompt({ ...BASE_REQUEST, knownTitles: titles });
+    // Les plus récents d'abord : le service lit le réservoir par date de
+    // première apparition décroissante, la borne coupe donc la queue.
+    expect(prompt).toContain(`Recette ${KNOWN_TITLES_CAP - 1} `);
+    expect(prompt).not.toContain(`Recette ${KNOWN_TITLES_CAP} `);
+  });
+
+  it('garde la consigne d’orientation malgré la diversité demandée', () => {
+    const prompt = buildSuggestionPrompt({ ...BASE_REQUEST, region: 'asiatique', difficulty: 'EASY' });
+    expect(prompt).toContain('vers la cuisine Asiatique');
+    expect(prompt).toContain('nettement différentes');
   });
 });

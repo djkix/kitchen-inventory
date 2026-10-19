@@ -579,6 +579,87 @@ describe('SuggestionsService (EF-26)', () => {
     expect(http.calls).toHaveLength(2);
   });
 
+  /**
+   * Demande de djkix du 2026-10-19 : « si je ne trouve pas de recette qui me
+   * plaît, permet de faire un nouvel appel ». L'appel partait déjà, mais
+   * `comparePoolEntries` plaçait les arrivantes derrière les anciennes mieux
+   * couvertes : l'écran ne bougeait pas d'un pouce.
+   */
+  describe('relance explicite (2026-10-19)', () => {
+    /** Vérifiée et parfaitement couverte : sans le correctif, elle tient la tête de liste pour toujours. */
+    const VEDETTE: ModelRecipe = {
+      title: 'Ancienne vedette du réservoir',
+      origin: 'Cuisine Test',
+      region: 'asiatique',
+      totalMinutes: 20,
+      prepMinutes: 10, cookMinutes: 10,
+      difficulty: 'EASY', dishType: 'MAIN',
+      provenance: 'web',
+      sourceUrl: `https://${WEB_RECIPE_HOST}/vedette`,
+      steps: [],
+      ingredients: [{ label: 'Tomate', quantity: 2, unit: 'PIECE' }],
+    };
+
+    it('affiche en tête les recettes que la relance vient de rapporter', async () => {
+      const { service, db } = await createService();
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+      await seedPool(db, [{ recipe: VEDETTE, pageText: 'texte de la page' }]);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-orientation-b.json'));
+
+      const relance = await service.list({ refresh: true });
+
+      // La nouveauté est une composition non vérifiée : l'ordre normal la
+      // placerait derrière la vedette vérifiée, quoi qu'elle vaille.
+      expect(relance.items[0]?.title).toBe('Recette orientation B');
+      expect(relance.items.map((i) => i.title)).toContain(VEDETTE.title);
+    });
+
+    it('reprend l’ordre normal au geste suivant, sans rien mémoriser', async () => {
+      const { service, db } = await createService();
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+      await seedPool(db, [{ recipe: VEDETTE, pageText: 'texte de la page' }]);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-orientation-b.json'));
+
+      await service.list({ refresh: true });
+      const suivant = await service.list({ refresh: false });
+
+      expect(suivant.fromCache).toBe(true);
+      expect(suivant.items[0]?.title).toBe(VEDETTE.title);
+      // Aucun second appel : la relance est un geste, pas un état.
+      expect(http.calls).toHaveLength(1);
+    });
+
+    it('cite au modèle les titres déjà connus pour cette orientation', async () => {
+      const { service, db } = await createService();
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+      await seedPool(db, [{ recipe: VEDETTE, pageText: 'texte de la page' }]);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-orientation-b.json'));
+
+      await service.list({ refresh: true });
+
+      const prompt = JSON.parse(String(http.calls[0]?.init?.body)).contents[0].parts[0].text as string;
+      expect(prompt).toContain('Ne propose aucune de ces recettes');
+      expect(prompt).toContain(VEDETTE.title);
+    });
+
+    it('ne cite que les titres de l’orientation demandée', async () => {
+      const { service, db } = await createService();
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+      // La vedette est asiatique : une recherche européenne ne doit pas la citer.
+      await seedPool(db, [{ recipe: VEDETTE, pageText: 'texte de la page' }]);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-reservoir.json'));
+
+      await service.list({ refresh: true, region: 'europeenne' });
+
+      const prompt = JSON.parse(String(http.calls[0]?.init?.body)).contents[0].parts[0].text as string;
+      expect(prompt).not.toContain(VEDETTE.title);
+    });
+  });
+
   it('garde chaque orientation au réservoir et ne redemande que celle qui manque', async () => {
     // Le réservoir est lu filtré sur l'orientation (D6) : une cuisine déjà
     // servie n'est plus redemandée, une cuisine inconnue l'est.

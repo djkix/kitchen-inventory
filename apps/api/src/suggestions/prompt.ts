@@ -18,6 +18,33 @@ Tu n'as aucun outil de recherche : tu composes toutes les recettes toi-même, sa
 Chaque étape doit être réalisable sans rien deviner : indique la température du four en degrés Celsius, l'intensité du feu (doux, moyen, vif) et la durée de l'étape chaque fois que la cuisson l'exige. Une étape de cuisson sans température ni durée est inutilisable.
 Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clôtures de bloc de code (pas de \`\`\`).`;
 
+/**
+ * Consigne de diversité (demande de djkix du 2026-10-19 : « diversifie les
+ * propositions (pas de variante) »). Elle remplace l'ancien « Aucune variété de
+ * régions ou de styles n'est exigée », qui disait exactement l'inverse et
+ * laissait le modèle tourner autour d'un même plat — douze recettes toutes
+ * bâties sur les fusilli et les abricots.
+ *
+ * Elle ne dispense d'aucune orientation : les lignes de région, de durée, de
+ * difficulté et de type de plat sont ajoutées après et restent impératives.
+ * Diversifier, c'est varier à l'intérieur du filtre demandé.
+ */
+const SUGGESTION_DIVERSITY_RULE =
+  "Les recettes proposées doivent être nettement différentes les unes des autres : jamais deux variantes d'une même recette, et pas deux fois le même plat sous un autre nom. Varie l'ingrédient principal, la technique de cuisson et la base (pâtes, riz, légumes, légumineuses, pain, œufs, viande, poisson).";
+
+/**
+ * Nombre maximal de titres déjà connus cités au modèle. Borne volontaire : la
+ * liste part à CHAQUE appel, un prompt qui enfle finit par coûter plus de
+ * jetons que les recettes en double qu'il économise, et une consigne noyée au
+ * milieu de centaines de titres cesse d'être lue.
+ *
+ * Au-delà de la borne, les titres les plus anciens ne sont plus cités : le
+ * modèle peut les reproposer. Ce n'est pas une perte — `suggestionIdentity`
+ * les reconnaît au dédoublonnage du réservoir, ils ne créent pas de ligne. Le
+ * coût se limite à une place perdue dans la fournée payée.
+ */
+export const KNOWN_TITLES_CAP = 40;
+
 /** Rappel ajouté à la reprise après une réponse illisible ou non conforme : même demande, format répété. */
 export const SUGGESTION_FORMAT_REMINDER =
   "Ta réponse précédente n'était pas exploitable : ce n'était pas un objet JSON unique et conforme. Réponds cette fois uniquement par l'objet JSON demandé ci-dessus, rien d'autre autour, sans clôtures de bloc de code.";
@@ -31,18 +58,26 @@ export function buildSuggestionPrompt(req: SuggestionRequest, options: { retry?:
   if (webSearch) {
     lines.push(
       `Propose au total ${req.count} recettes utilisant si possible ces ingrédients : environ ${webCount} trouvées par recherche web réelle (avec leur URL source en https), et environ ${aiCount} composées par toi (sans URL).`,
-      "Ajuste ce dosage si la recherche web ne renvoie pas assez de résultats pertinents : complète alors par des compositions. Aucune variété de régions ou de styles n'est exigée.",
+      'Ajuste ce dosage si la recherche web ne renvoie pas assez de résultats pertinents : complète alors par des compositions.',
+      SUGGESTION_DIVERSITY_RULE,
     );
   } else {
     lines.push(
       `Propose au total ${req.count} recettes utilisant si possible ces ingrédients, toutes composées par toi : provenance "ai" et sourceUrl null pour chacune.`,
-      "Aucune variété de régions ou de styles n'est exigée.",
+      SUGGESTION_DIVERSITY_RULE,
     );
   }
   if (req.region) lines.push(`Oriente ${webSearch ? 'la recherche' : 'tes propositions'} vers la cuisine ${SUGGESTION_REGION_LABELS_FR[req.region]}.`);
   if (req.maxMinutes) lines.push(`Chaque recette doit se faire en ${req.maxMinutes} minutes maximum au total.`);
   if (req.difficulty) lines.push(`Niveau de difficulté visé : ${DIFFICULTY_LABELS_FR[req.difficulty]}.`);
   if (req.dishType) lines.push(`Ne propose que des recettes de type « ${DISH_TYPE_LABELS_FR[req.dishType]} ».`);
+  // Sans cette ligne, rien n'empêchait le modèle de reproposer ce que le
+  // réservoir contient déjà : la consigne de diversité ne vaut qu'à
+  // l'intérieur d'une fournée, elle ignore les précédentes.
+  const knownTitles = req.knownTitles?.slice(0, KNOWN_TITLES_CAP) ?? [];
+  if (knownTitles.length > 0) {
+    lines.push(`Ne propose aucune de ces recettes, déjà connues de l'application, ni une simple variante de l'une d'elles : ${knownTitles.map((title) => `« ${title} »`).join(', ')}.`);
+  }
   lines.push(
     'Réponds par un objet JSON unique de la forme { "recipes": [ ... ] }.',
     'Chaque recette porte : title, origin (nom du site ou "Composition" pour une création), region (une valeur parmi : ' +

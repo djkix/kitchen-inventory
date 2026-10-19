@@ -62,8 +62,16 @@ export class SuggestionPoolService {
     private readonly logger: Logger,
   ) {}
 
-  /** Rend le nombre de recettes nouvellement créées au réservoir (une ligne déjà connue, seulement revue, ne compte pas). Un échec sur une recette n'en fait jamais tomber une autre. */
-  async ingest(recipes: readonly ModelRecipe[], model: string): Promise<number> {
+  /**
+   * Rend les identités des recettes **nouvellement créées** au réservoir (une
+   * ligne déjà connue, seulement revue, n'y figure pas). Un échec sur une
+   * recette n'en fait jamais tomber une autre.
+   *
+   * Les identités, et plus seulement leur nombre, depuis le 2026-10-19 :
+   * l'appelant en a besoin pour afficher en tête ce que la relance vient de
+   * rapporter.
+   */
+  async ingest(recipes: readonly ModelRecipe[], model: string): Promise<string[]> {
     const identities = recipes.map((recipe) => suggestionIdentity(recipe));
     const known = await this.prisma.suggestionPoolRecipe.findMany({ where: { identity: { in: identities } }, select: { identity: true, verifiedAt: true } });
     const existing = new Set(known.map((row) => row.identity));
@@ -87,7 +95,7 @@ export class SuggestionPoolService {
       .map((recipe, index) => ({ recipe, identity: identities[index] as string }))
       .filter((entry, index) => identities.indexOf(entry.identity) === index);
     const written = await Promise.all(unique.map((entry) => this.ingestOne(entry.recipe, entry.identity, model, alreadyRead, now)));
-    return unique.filter((entry, index) => written[index] && !existing.has(entry.identity)).length;
+    return unique.filter((entry, index) => written[index] && !existing.has(entry.identity)).map((entry) => entry.identity);
   }
 
   /** Nombre de recettes au réservoir, toutes orientations confondues (2026-10-19). */
