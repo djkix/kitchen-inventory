@@ -149,19 +149,21 @@ interface GeminiRequestBody {
  * Les deux usages de Gemini (reconnaissance photo et suggestions de recettes)
  * arrivent sur la même route `generateContent` ; on les distingue par le
  * corps de la requête, jamais par un ordre d'appel supposé :
- *  - les suggestions portent l'outil `google_search` (GeminiSuggestionProvider
- *    — vigilance 1 : cet outil et `responseSchema` sont mutuellement
- *    exclusifs côté API Gemini, donc seul cet appel porte `tools`) ;
  *  - la reconnaissance photo porte une image en `inlineData` dans les parts
- *    (GeminiProvider), jamais d'outil.
- * ATTENTION si l'un des deux fournisseurs change de forme de requête : ce
- * commentaire décrit l'état actuel des deux clients
- * (apps/api/src/recognition/providers/gemini.provider.ts et
- * apps/api/src/suggestions/gemini-suggestion.provider.ts), pas une règle
- * générale de l'API Gemini — une divergence future doit être répercutée ici.
+ *    (GeminiProvider), jamais d'outil ;
+ *  - tout le reste vient du module recettes.
+ *
+ * Le critère était auparavant la présence de l'outil `google_search`. Il est
+ * tombé le 2026-10-19, quand la recherche web est passée éteinte par défaut :
+ * une suggestion sans recherche ne porte plus `tools`, la doublure ne la
+ * reconnaissait plus, et les six parcours P5 ont échoué d'un coup. Le commentaire
+ * d'origine avertissait déjà qu'un changement de forme de requête devait être
+ * répercuté ici — il l'a été trop tard. L'image est le seul signal qui ne
+ * dépend d'aucun réglage : on route donc sur elle, et le reste est du module
+ * recettes, avec ou sans outil.
  */
 function isSuggestionRequest(body: GeminiRequestBody): boolean {
-  return Array.isArray(body.tools) && body.tools.length > 0;
+  return !isVisionRequest(body);
 }
 
 function isVisionRequest(body: GeminiRequestBody): boolean {
@@ -189,7 +191,7 @@ async function handleGenerateContent(req: IncomingMessage, res: ServerResponse):
     sendRawJson(res, 200, JSON.stringify(wrapGeminiText(text)));
     return;
   }
-  sendJson(res, 400, { error: 'requête Gemini non reconnue par la doublure : ni outil de recherche, ni image' });
+  sendJson(res, 400, { error: 'requête Gemini non reconnue par la doublure' });
 }
 
 async function handleOffLookup(barcode: string, res: ServerResponse): Promise<void> {
