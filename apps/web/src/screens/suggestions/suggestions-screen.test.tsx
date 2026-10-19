@@ -124,6 +124,8 @@ describe('SuggestionsScreen', () => {
       isFetching: false,
       data: {
         notice: null,
+        poolCount: 1,
+        poolTotal: 1,
         items: [
           {
             id: 's1',
@@ -193,6 +195,8 @@ describe('SuggestionsScreen', () => {
       isFetching: false,
       data: {
         notice: null,
+        poolCount: 1,
+        poolTotal: 1,
         items: [{ ...base, id: 's1', title: 'Pâtes à la tomate', dishType: 'MAIN' }],
       },
       error: null,
@@ -227,12 +231,12 @@ describe('SuggestionsScreen', () => {
    * disparition du bouton de relance. Le recours existait sans être
    * atteignable : l'écran vide était un cul-de-sac.
    */
-  it('offre une relance explicite depuis l’état vide, et seulement là', () => {
+  it('offre une relance explicite depuis l’état vide', () => {
     const batch = (items: unknown[]) => ({
       isPending: false,
       isError: false,
       isFetching: false,
-      data: { notice: null, items },
+      data: { notice: null, items, poolCount: items.length, poolTotal: items.length },
       error: null,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
@@ -266,6 +270,61 @@ describe('SuggestionsScreen', () => {
   });
 
   /**
+   * Franck, 2026-10-19 : « j'ai l'impression qu'il n'y a que 12 recettes ».
+   * C'était exact. Le bouton de relance n'existait que dans l'état vide, donc
+   * dès que le réservoir rendait de quoi remplir une page pour l'orientation,
+   * plus aucun appel ne partait et rien ne permettait d'en demander d'autres.
+   * Les deux nombres rendent la situation lisible, le bouton la débloque.
+   */
+  it('annonce la taille du réservoir et laisse relancer même avec des résultats', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      data: {
+        notice: null,
+        poolCount: 12,
+        poolTotal: 37,
+        items: [
+          {
+            id: 's1',
+            title: 'Pâtes à la tomate',
+            dishType: 'MAIN',
+            origin: 'italienne',
+            region: 'mediterraneenne',
+            totalMinutes: 25,
+            difficulty: 'EASY',
+            provenance: 'web',
+            verified: true,
+            sourceUrl: 'https://exemple.test/x',
+            coverage: 1,
+            group: 'ready',
+            missingLabels: [],
+            ingredients: [],
+          },
+        ],
+      },
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+
+    expect(screen.getByText(/12/)).toBeTruthy();
+    expect(screen.getByText(/37/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Chercher de nouvelles recettes' }));
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(1);
+  });
+
+  /**
    * Une relance ne doit valoir que pour LA recherche qu'elle déclenche : collée
    * à l'orientation, elle contournerait le verrou de 24 heures à chaque geste
    * suivant — et, le `staleTime` aidant, à chaque retour sur l'onglet. Le
@@ -277,7 +336,7 @@ describe('SuggestionsScreen', () => {
       isPending: false,
       isError: false,
       isFetching: false,
-      data: { notice: null, items: [] },
+      data: { notice: null, items: [], poolCount: 0, poolTotal: 0 },
       error: null,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useSuggestionsQuery>);

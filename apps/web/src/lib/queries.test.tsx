@@ -23,7 +23,7 @@ function wrapper({ children }: { children: ReactNode }) {
 beforeEach(() => {
   client = new QueryClient();
   list.mockReset();
-  list.mockResolvedValue({ fromCache: true, items: [], notice: null });
+  list.mockResolvedValue({ fromCache: true, items: [], notice: null, poolCount: 0, poolTotal: 0 });
 });
 
 afterEach(() => {

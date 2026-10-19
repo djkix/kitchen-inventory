@@ -303,6 +303,10 @@ export class SuggestionsService {
    * 4. la page est bornée après le tri, donc aux meilleures.
    */
   private async render(entries: readonly PoolRecipe[], snapshot: StockSnapshot, fromCache: boolean, notice: string | null): Promise<SuggestionBatchDto> {
+    // Compté avant la fenêtre de classement et la page : c'est le réservoir
+    // réel pour cette orientation, pas ce qu'on en montre.
+    const poolCount = entries.length;
+    const poolTotal = await this.pool.count();
     const window = rankingWindow(entries);
     const items = await this.toSuggestionDtos(window, snapshot);
     const firstSeenById = new Map(window.map((entry) => [entry.identity, entry.firstSeenAt]));
@@ -319,6 +323,8 @@ export class SuggestionsService {
       fromCache,
       items: items.slice(0, SUGGESTION_BATCH_SIZE),
       notice,
+      poolCount,
+      poolTotal,
     };
   }
 

@@ -90,6 +90,11 @@ export class SuggestionPoolService {
     return unique.filter((entry, index) => written[index] && !existing.has(entry.identity)).length;
   }
 
+  /** Nombre de recettes au réservoir, toutes orientations confondues (2026-10-19). */
+  async count(): Promise<number> {
+    return this.prisma.suggestionPoolRecipe.count();
+  }
+
   async read(filter: PoolFilter = {}): Promise<PoolRecipe[]> {
     const rows = await this.prisma.suggestionPoolRecipe.findMany({ where: filter.dishType ? { dishType: filter.dishType } : {}, orderBy: { firstSeenAt: 'desc' } });
     const result: PoolRecipe[] = [];
