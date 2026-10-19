@@ -39,7 +39,9 @@ export function WebSearchRow({ isAdmin }: { isAdmin: boolean }) {
       <label htmlFor="web-search" className="flex min-w-0 flex-1 flex-col">
         <span className="text-[15px] font-medium">Recherche web des recettes</span>
         <span className="text-[13px] text-muted">
-          {enabled ? 'Une partie des recettes vient de pages réelles ; facturée à part par le fournisseur' : 'Toutes les recettes sont composées par le modèle, sans aller sur le web'}
+          {enabled
+            ? 'Une partie des recettes vient de pages réelles ; facturée à la requête par le fournisseur'
+            : 'Toutes les recettes sont composées par le modèle. L’activer exige la facturation sur le projet Google Cloud : sans elle, les recherches sont refusées et l’écran reste vide.'}
         </span>
       </label>
       <input

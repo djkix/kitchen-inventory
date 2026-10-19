@@ -59,15 +59,19 @@ describe('réglages : choix du modèle', () => {
     expect(res.body.suggestionModel).toBe('depuis-env');
   });
 
-  it('active la recherche web par défaut et la laisse basculer', async () => {
+  it('laisse la recherche web éteinte par défaut et la laisse basculer', async () => {
     const avant = await agent.get('/api/v1/settings').expect(200);
-    // Par défaut activée : c'est la fonctionnalité demandée (« des recettes
-    // trouvées sur internet »), pas une option à activer soi-même.
-    expect(avant.body.suggestionWebSearch).toBe(true);
+    // Éteinte par défaut depuis le 2026-10-19. Elle valait `true` au motif que
+    // c'était la fonctionnalité demandée et non une option — mais la recherche
+    // web de Google est facturée à la requête, hors quota gratuit, et une clé
+    // sans facturation la refuse par un 429 sans consommation. Allumée sur une
+    // instance non facturée, elle ne rend pas des recettes web : elle rend un
+    // écran vide.
+    expect(avant.body.suggestionWebSearch).toBe(false);
 
-    await agent.patch('/api/v1/settings').send({ suggestionWebSearch: false }).expect(200);
+    await agent.patch('/api/v1/settings').send({ suggestionWebSearch: true }).expect(200);
     const apres = await agent.get('/api/v1/settings').expect(200);
-    expect(apres.body.suggestionWebSearch).toBe(false);
+    expect(apres.body.suggestionWebSearch).toBe(true);
   });
 
   it('liste les modèles servis par la clé, aux admins seulement', async () => {
