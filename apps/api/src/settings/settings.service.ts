@@ -23,7 +23,15 @@ export class SettingsService {
       ...(this.config.SUGGESTION_MODEL ? { suggestionModel: this.config.SUGGESTION_MODEL } : {}),
       // Recherche web active par défaut : c'est la fonctionnalité demandée
       // (« des recettes trouvées sur internet »), pas une option à activer.
-      suggestionWebSearch: this.config.SUGGESTION_WEB_SEARCH ?? true,
+      // Éteinte par défaut (2026-10-19, « pas de web pour le moment, mets-le
+      // en standby »). Elle valait `true` depuis la 0.12.0, au motif que
+      // c'était la fonctionnalité demandée et non une option — mais la
+      // recherche web de Google est facturée à la requête, hors quota gratuit,
+      // et une clé sans facturation la refuse par un 429 sans consommation.
+      // Allumée sur une instance non facturée, elle ne produit donc pas des
+      // recettes web : elle produit un écran vide. Le défaut sûr est éteint ;
+      // le choix d'un administrateur prime toujours sur cette valeur.
+      suggestionWebSearch: this.config.SUGGESTION_WEB_SEARCH ?? false,
     };
     const parsed = settingsSchema.safeParse({ ...fromEnv, ...stored });
     return parsed.success ? parsed.data : fromEnv;
