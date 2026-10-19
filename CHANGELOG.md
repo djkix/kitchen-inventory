@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.21.0](https://github.com/djkix/kitchen-inventory/compare/v0.20.0...v0.21.0) (2026-10-19)
+
+
+### Features
+
+* **settings:** recherche web des recettes éteinte par défaut ([91f84c8](https://github.com/djkix/kitchen-inventory/commit/91f84c84517d1195c2e142bfadc499cbc50115c3))
+* **suggestions:** pastilles et autocomplétion des ingrédients dictés (EF-25, EF-26) ([a47e137](https://github.com/djkix/kitchen-inventory/commit/a47e13704a2c33a9b8b330b0ed824bcf9aac4184))
+
+
+### Bug Fixes
+
+* **e2e:** router la doublure Gemini sur l'image, pas sur l'outil de recherche ([b1c6127](https://github.com/djkix/kitchen-inventory/commit/b1c612767217d2e87746235b8c2b6e958d26837a))
+* **suggestions:** un terme multi-mots se retrouve mot à mot dans la recette (EF-25) ([4646d18](https://github.com/djkix/kitchen-inventory/commit/4646d1828920d1e7fed0e4c574659f7d7365e45e))
+
 ## [0.20.0](https://github.com/djkix/kitchen-inventory/compare/v0.19.0...v0.20.0) (2026-10-19)
 
 
