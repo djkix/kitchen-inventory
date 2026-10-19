@@ -69,10 +69,51 @@ function foldForComparison(value: string): string {
   );
 }
 
-/** Un libellé d'ingrédient de recette porte-t-il l'un des termes dictés (D5, D8) ? */
+/**
+ * Mots trop courts ou trop vides de sens pour porter un rapprochement à eux
+ * seuls : « de » apparaît dans un libellé sur deux.
+ */
+const STOP_WORDS = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'un', 'une', 'au', 'aux', 'et', 'a', 'en', 'avec']);
+
+/** Mots d'un terme qui portent réellement le sens, forme comparable. */
+function significantWords(term: string): string[] {
+  return foldForComparison(term)
+    .split(' ')
+    .filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
+}
+
+/**
+ * Un libellé d'ingrédient de recette porte-t-il l'un des termes dictés (D5, D8) ?
+ * Inclusion du terme entier seulement : c'est la question « ce libellé-ci
+ * est-il celui que Franck a déclaré ? », qui se pose libellé par libellé.
+ */
 export function labelMatchesTerms(label: string, terms: readonly string[]): boolean {
   const folded = foldForComparison(label);
   return terms.some((term) => folded.includes(foldForComparison(term)));
+}
+
+/**
+ * Un terme est-il couvert par **l'ensemble** des libellés d'une recette ?
+ *
+ * Deux lectures, dans cet ordre : le terme entier dans un libellé (« pomme de
+ * terre » dans « Pommes de terre nouvelles »), sinon **chacun de ses mots
+ * significatifs** dans un libellé quelconque de la recette.
+ *
+ * La seconde lecture existe pour une saisie que la première rejetait en bloc
+ * (constat de Franck, 2026-10-19) : il a tapé « poulet tomate » sans virgule,
+ * donc un terme unique, et aucun libellé ne contient « poulet tomate » d'un
+ * seul tenant. L'écran annonçait « aucune recette » pour du poulet et des
+ * tomates, après avoir payé l'appel au modèle dont les recettes venaient
+ * d'être filtrées. Le séparateur reste la virgule — on ne peut pas découper
+ * sur l'espace sans casser « pommes de terre » — mais ne pas trouver du poulet
+ * et de la tomate dans une recette qui contient les deux n'était défendable
+ * d'aucune façon.
+ */
+function termCoveredByLabels(labels: readonly string[], term: string): boolean {
+  if (labels.some((label) => labelMatchesTerms(label, [term]))) return true;
+  const words = significantWords(term);
+  if (words.length < 2) return false;
+  return words.every((word) => labels.some((label) => foldForComparison(label).includes(word)));
 }
 
 /**
@@ -82,7 +123,5 @@ export function labelMatchesTerms(label: string, terms: readonly string[]): bool
  * coûte une recette un peu à côté, un faux négatif coûte un appel au modèle.
  */
 export function recipeUsesAllTerms(labels: readonly string[], terms: readonly string[]): boolean {
-  // Le test d'inclusion n'existe qu'en un seul endroit (`labelMatchesTerms`) :
-  // le recopier ici ferait diverger les deux lectures de D5 et D8.
-  return terms.every((term) => labels.some((label) => labelMatchesTerms(label, [term])));
+  return terms.every((term) => termCoveredByLabels(labels, term));
 }
