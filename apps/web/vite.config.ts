@@ -24,8 +24,10 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['icon.svg', 'icon-maskable.svg'],
       manifest: {
-        name: 'Inventaire',
-        short_name: 'Inventaire',
+        name: 'Kitchen Inventory',
+        // Court exprès : c'est l'étiquette sous l'icône de l'écran d'accueil,
+        // que le système tronque autour d'une douzaine de caractères.
+        short_name: 'Kitchen',
         description: 'Inventaire alimentaire : scan, péremptions, stock réel',
         lang: 'fr',
         display: 'standalone',
