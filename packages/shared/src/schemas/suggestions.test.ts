@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { modelBatchSchema, modelRecipeSchema, suggestionQuerySchema, SUGGESTION_REGIONS } from './suggestions.js';
+import { modelBatchSchema, modelRecipeSchema, suggestionQuerySchema, SUGGESTION_PAGE_MAX, SUGGESTION_REGIONS } from './suggestions.js';
 
 const recette = {
   title: 'Pâtes à la tomate', origin: 'italienne', region: 'mediterraneenne',
@@ -94,6 +94,20 @@ describe('suggestionQuerySchema', () => {
   });
   it('refuse une région inconnue', () => {
     expect(suggestionQuerySchema.safeParse({ region: 'martienne' }).success).toBe(false);
+  });
+  it('borne la page demandée, et refuse tout ce qui sort de la borne', () => {
+    // Une limite libre venue du client ferait calculer la couverture sur tout
+    // le réservoir : le rapprochement `pg_trgm` se paie par libellé
+    // d'ingrédient, sur un mini-PC (2026-10-19).
+    expect(suggestionQuerySchema.parse({ limit: '36' }).limit).toBe(36);
+    expect(suggestionQuerySchema.parse({ limit: String(SUGGESTION_PAGE_MAX) }).limit).toBe(SUGGESTION_PAGE_MAX);
+    expect(suggestionQuerySchema.safeParse({ limit: String(SUGGESTION_PAGE_MAX + 1) }).success).toBe(false);
+    expect(suggestionQuerySchema.safeParse({ limit: '10000' }).success).toBe(false);
+    expect(suggestionQuerySchema.safeParse({ limit: '0' }).success).toBe(false);
+    expect(suggestionQuerySchema.safeParse({ limit: '12.5' }).success).toBe(false);
+  });
+  it('laisse la limite absente : le serveur pose alors la page par défaut', () => {
+    expect(suggestionQuerySchema.parse({}).limit).toBeUndefined();
   });
   it('expose sept régions, sans doublon', () => {
     expect(new Set(SUGGESTION_REGIONS).size).toBe(SUGGESTION_REGIONS.length);

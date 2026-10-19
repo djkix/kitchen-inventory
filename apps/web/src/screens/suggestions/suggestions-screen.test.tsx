@@ -318,8 +318,12 @@ describe('SuggestionsScreen', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
 
-    expect(screen.getByText(/12/)).toBeTruthy();
-    expect(screen.getByText(/37/)).toBeTruthy();
+    // Les deux nombres sont lus sur le pied de liste lui-même : depuis le
+    // 2026-10-19 le bouton « Charger plus » les reprend, un `getByText(/12/)`
+    // nu ne désignerait donc plus rien d'unique.
+    const footer = screen.getByText(/pour cette orientation/);
+    expect(footer.textContent).toContain('12');
+    expect(footer.textContent).toContain('37');
     fireEvent.click(screen.getByRole('button', { name: 'Chercher de nouvelles recettes' }));
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(1);
   });
@@ -357,6 +361,92 @@ describe('SuggestionsScreen', () => {
 
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN', region: 'asiatique', refresh: undefined });
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(0);
+  });
+
+  /**
+   * djkix, 2026-10-19 : « je veux les conserver afin de les consulter
+   * ultérieurement. Plus je fais de requêtes pour les recettes, plus
+   * j'emmagasine de recettes dans l'application. » Le réservoir les gardait
+   * déjà ; l'écran en cachait définitivement tout ce qui dépassait la page.
+   * Même geste et même formulation que « Mes recettes ».
+   */
+  describe('parcourir le réservoir (2026-10-19)', () => {
+    function pooled(count: number, poolCount: number) {
+      return {
+        isPending: false,
+        isError: false,
+        isFetching: false,
+        data: {
+          notice: null,
+          poolCount,
+          poolTotal: poolCount,
+          items: Array.from({ length: count }, (_, index) => ({
+            id: `s${index}`,
+            title: `Recette ${index}`,
+            dishType: 'MAIN',
+            origin: 'italienne',
+            region: 'mediterraneenne',
+            totalMinutes: 25,
+            difficulty: 'EASY',
+            provenance: 'web',
+            verified: true,
+            sourceUrl: 'https://exemple.test/x',
+            coverage: 1,
+            group: 'ready',
+            missingLabels: [],
+            ingredients: [],
+          })),
+        },
+        error: null,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSuggestionsQuery>;
+    }
+
+    function mount() {
+      const client = new QueryClient();
+      render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <SuggestionsScreen />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+    }
+
+    it('demande une page plus grande sans rien repayer au modèle', () => {
+      vi.mocked(useSuggestionsQuery).mockReturnValue(pooled(12, 37));
+      mount();
+
+      // Un appui au bouton de relance d'abord : charger plus ne doit pas le
+      // rejouer, sans quoi chaque page coûterait un appel au modèle.
+      fireEvent.click(screen.getByRole('button', { name: 'Chercher de nouvelles recettes' }));
+      expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(1);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Charger plus (12 sur 37)' }));
+
+      expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.limit).toBe(24);
+      expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(0);
+    });
+
+    it('ne propose pas de charger plus quand tout le réservoir est affiché', () => {
+      vi.mocked(useSuggestionsQuery).mockReturnValue(pooled(5, 5));
+      mount();
+
+      expect(screen.queryByRole('button', { name: /Charger plus/ })).toBeNull();
+    });
+
+    it('revient à la première page quand l’orientation change', () => {
+      vi.mocked(useSuggestionsQuery).mockReturnValue(pooled(12, 37));
+      mount();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Charger plus (12 sur 37)' }));
+      expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.limit).toBe(24);
+
+      fireEvent.change(screen.getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'asiatique' } });
+
+      expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.limit).toBe(12);
+    });
   });
 
   /** Revue finale du 2026-10-11 : le type de plat compte comme orientation active, la barre ne doit pas dire « Aucune orientation ». */
