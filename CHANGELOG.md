@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.20.0](https://github.com/djkix/kitchen-inventory/compare/v0.19.0...v0.20.0) (2026-10-19)
+
+
+### Features
+
+* **suggestions:** recettes à partir d'ingrédients dictés (EF-25, EF-26) ([62bb447](https://github.com/djkix/kitchen-inventory/commit/62bb44765ce43f0c99b785adfdffc8059e606d09))
+
+
+### Bug Fixes
+
+* **suggestions:** singulier, pluriel et ingrédients déclarés (EF-25, EF-26) ([5d8d137](https://github.com/djkix/kitchen-inventory/commit/5d8d1371db87fa4b4aed460be2d9499b0b1c82bd))
+
 ## [0.19.0](https://github.com/djkix/kitchen-inventory/compare/v0.18.0...v0.19.0) (2026-10-19)
 
 
