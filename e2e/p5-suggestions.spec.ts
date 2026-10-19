@@ -21,7 +21,14 @@ import { emptySuggestionPool, seedReadWebRecipes, suggestionCalls } from './supp
  *  3. les deux provenances s'affichent comme elles doivent (B10, B7) ;
  *  4. une orientation jamais cherchée relance une vraie recherche ;
  *  5. l'état vide dit la cause, propose la relance, et le verrou de 24 heures
- *     s'annonce au lieu de laisser un écran vide et muet (décision D11).
+ *     s'annonce au lieu de laisser un écran vide et muet (décision D11) ;
+ *  6. les ingrédients dictés (spécification du 2026-10-19) : un terme validé
+ *     devient une pastille visible et retirable, l'autocomplétion propose le
+ *     catalogue, et la recherche ne rend que des recettes qui les utilisent
+ *     TOUS (D1, D8). Le dernier de la liste parce qu'il s'appuie sur le
+ *     réservoir que les tests précédents ont rempli : huit recettes y portent
+ *     déjà « Tomate » et « Huile d’olive », soit plus que le plancher de six,
+ *     donc aucun appel au modèle à payer pour l'essentiel de ce parcours.
  *
  * **Preuve des appels** : le compteur de la doublure
  * (`e2e/fixtures/stub-server.ts`, route `/__calls`, lu par
@@ -101,6 +108,18 @@ import { emptySuggestionPool, seedReadWebRecipes, suggestionCalls } from './supp
  *   d'une étape — `apps/web/src/screens/recipe/recipe-screen.tsx`.
  * - `getByPlaceholder('Rechercher une recette')` —
  *   `apps/web/src/screens/recipes/recipes-screen.tsx`.
+ * - `getByRole('combobox', { name: 'Ingrédients à utiliser' })`, le bouton
+ *   « Chercher » (`exact: true`, pour ne jamais attraper « Chercher de
+ *   nouvelles recettes »), la liste `getByRole('listbox', { name: 'Produits
+ *   proposés' })` et ses `option`, la croix d'une pastille
+ *   (`aria-label` « Retirer <terme> ») —
+ *   `apps/web/src/screens/suggestions/ingredients-field.tsx`.
+ * - « Huile d’olive » : produit du jeu de développement
+ *   (`prisma/seed/dev.ts`), ce qui en fait une proposition d'autocomplétion
+ *   réelle ; c'est aussi, avec « Tomate », l'un des deux libellés des huit
+ *   recettes web de la fixture. Les quatre compositions ne portent que
+ *   « Pâtes » : aucune recette ne porte « Tomate » ET « Pâtes », d'où la
+ *   combinaison sans résultat jouée en fin de parcours.
  *
  * Fermeture des tiroirs par `Escape` plutôt que par le bouton de fond
  * (`aria-label="Fermer"`) : ce bouton couvre tout l'écran, y compris derrière
@@ -408,4 +427,83 @@ test('bascule le favori d’une carte sans naviguer vers la fiche (EF-21)', asyn
   // Pastille « Favoris » (A4) : la recette fraîchement marquée s'y retrouve.
   await page.getByRole('group', { name: 'Pastilles rapides' }).getByRole('button', { name: 'Favoris' }).click();
   await expect(page.getByRole('link', { name: /^Croque-monsieur,/ })).toBeVisible();
+});
+
+test('ingrédients dictés : pastilles, autocomplétion, et des recettes qui les utilisent toutes (EF-25, EF-26)', async ({ page }) => {
+  // Réservoir déjà rempli par les tests précédents de ce fichier : les huit
+  // recettes web portent « Tomate » et « Huile d’olive », les quatre
+  // compositions portent « Pâtes » (fixture `gemini-batch.json`, citée en
+  // tête). « tomate » + « Huile d’olive » trouve donc huit recettes au
+  // réservoir, au-dessus du plancher de six : aucun appel au modèle n'est
+  // payé pour la partie principale de ce parcours — seule la combinaison
+  // sans résultat, à la fin, en coûte un (elle ne peut pas être prouvée
+  // autrement : le réservoir vide EST ce qui fait partir l'appel).
+  await page.goto('/recettes');
+  await waitForSuggestionsResponse(page, () => answerDishTypeQuestion(page));
+  const before = await suggestionCalls();
+
+  // Motif `combobox` (`ingredients-field.tsx`) : le champ s'annonce comme tel
+  // pour porter sa liste de propositions. À ne pas confondre avec les quatre
+  // `<select>` de la barre de filtres, qui sont aussi des `combobox` mais
+  // portent d'autres noms (« Cuisine », « Type de plat »…).
+  const field = page.getByRole('combobox', { name: 'Ingrédients à utiliser' });
+
+  // 1. Le cœur de la correction : un terme validé par Entrée devient une
+  //    pastille VISIBLE. djkix avait tapé « poulet tomate » sans virgule, et
+  //    rien à l'écran ne disait que l'application n'y lisait qu'un seul
+  //    ingrédient de ce nom — il a lu « Aucune recette » après avoir payé
+  //    l'appel. La croix de la pastille porte le terme dans son nom
+  //    accessible (« Retirer tomate »), c'est elle qui prouve laquelle est là.
+  await field.fill('tomate');
+  await field.press('Enter');
+  await expect(page.getByRole('button', { name: 'Retirer tomate' })).toBeVisible();
+  // Entrée valide le terme, elle ne lance pas la recherche : le champ est
+  // rendu vide pour le suivant, et aucun appel n'est parti.
+  await expect(field).toHaveValue('');
+
+  // 2. Autocomplétion depuis le catalogue de produits (`GET /products`) :
+  //    « Huile d’olive » est un produit du jeu de développement
+  //    (`prisma/seed/dev.ts`). Le clic sur la proposition la pose en pastille
+  //    — et le terme porte alors exactement un libellé connu, ce qui est tout
+  //    l'intérêt : le rapprochement au réservoir ne dépend plus de
+  //    l'orthographe du jour.
+  await field.fill('huile');
+  await page.getByRole('listbox', { name: 'Produits proposés' }).getByRole('option', { name: 'Huile d’olive', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Retirer Huile d’olive' })).toBeVisible();
+
+  // 3. La virgule valide elle aussi, et la croix retire la pastille — ici un
+  //    terme tapé par erreur, qu'il faut pouvoir enlever sans tout reprendre.
+  await field.fill('merguez,');
+  const removeMerguez = page.getByRole('button', { name: 'Retirer merguez' });
+  await expect(removeMerguez).toBeVisible();
+  await removeMerguez.click();
+  await expect(page.getByRole('button', { name: 'Retirer merguez' })).toHaveCount(0);
+
+  // 4. La recherche ne rend que des recettes utilisant TOUS les termes (D1,
+  //    D8) : les huit recettes web portent les deux, les quatre compositions
+  //    n'en portent aucun et sont absentes. Servi par le réservoir, donc sans
+  //    le moindre appel au modèle (D2).
+  //    `exact: true` : « Chercher » seul, jamais « Chercher de nouvelles
+  //    recettes », l'autre bouton de cet écran.
+  const search = page.getByRole('button', { name: 'Chercher', exact: true });
+  const matched = await waitForSuggestionsResponse(page, () => search.click());
+  expect(matched.items).toHaveLength(WEB_RECIPE_COUNT);
+  await expect(page.locator('article')).toHaveCount(WEB_RECIPE_COUNT);
+  await expect(page.getByText('Composée par l’IA, non vérifiée')).toHaveCount(0);
+  expect(await suggestionCalls()).toBe(before);
+
+  // 5. Combinaison que rien ne satisfait : aucune recette ne porte à la fois
+  //    « Tomate » et « Pâtes ». Le réservoir filtré rend zéro, donc le modèle
+  //    est appelé une fois (le seul appel de ce parcours) ; la fournée
+  //    rejouée n'apporte rien de plus qui les porte toutes, et l'écran doit
+  //    le DIRE plutôt que de laisser une liste vide et muette — la limite
+  //    assumée de D1, qui est précisément ce que djkix a subi.
+  await field.fill('pâtes,');
+  const empty = await waitForSuggestionsResponse(page, () => search.click());
+  expect(empty.items).toHaveLength(0);
+  expect(await suggestionCalls()).toBe(before + 1);
+  await expect(page.getByRole('heading', { name: 'Aucune recette avec ces ingrédients', level: 2 })).toBeVisible();
+  await expect(
+    page.getByText('La combinaison demandée est trop rare : chaque recette doit utiliser tous les ingrédients saisis.', { exact: false }),
+  ).toBeVisible();
 });
