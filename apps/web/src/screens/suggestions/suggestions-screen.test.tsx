@@ -9,6 +9,9 @@ import { SuggestionsErrorState, SuggestionsScreen } from './suggestions-screen';
 
 vi.mock('../../lib/queries', () => ({
   useSuggestionsQuery: vi.fn(),
+  // Autocomplétion du champ d'ingrédients (2026-10-19) : rien à proposer ici,
+  // ces scénarios-là portent sur ce qui part dans l'orientation.
+  useProductsQuery: () => ({ data: undefined, isSuccess: false }),
 }));
 
 beforeEach(() => {
@@ -724,7 +727,8 @@ describe('SuggestionsScreen, ingrédients dictés (2026-10-19)', () => {
   }
 
   function type(text: string) {
-    const field = screen.getByRole('textbox', { name: /ingrédients/i });
+    // Le champ est un `combobox` depuis les pastilles du 2026-10-19.
+    const field = screen.getByRole('combobox', { name: /ingrédients/i });
     fireEvent.change(field, { target: { value: text } });
     fireEvent.submit(field);
   }
