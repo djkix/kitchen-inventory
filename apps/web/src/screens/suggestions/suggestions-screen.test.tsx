@@ -754,6 +754,17 @@ describe('SuggestionsScreen, ingrédients dictés (2026-10-19)', () => {
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]?.ingredients).toBeUndefined();
   });
 
+  it('traite une saisie faite de virgules comme une absence de contrainte (tour 1)', () => {
+    // Elle passait le schéma, posait `ingredients: ', ,,'` dans l'orientation,
+    // et l'écran expliquait alors une liste vide par une « combinaison trop
+    // rare » — une explication fausse pour une demande inexistante.
+    mountWith([]);
+    type(' , ,, ');
+
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]?.ingredients).toBeUndefined();
+    expect(screen.queryByText(/combinaison/i)).toBeNull();
+  });
+
   it('dit pourquoi une demande ne rend rien, au lieu d’une liste vide et muette', () => {
     mountWith([]);
     type('merguez, pommes de terre');

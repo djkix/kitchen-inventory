@@ -58,28 +58,37 @@ export function buildSuggestionPrompt(req: SuggestionRequest, options: { retry?:
    * Ingrédients dictés (D1, D4, 2026-10-19). Deux lignes, et pas une : ce qui
    * est imposé et ce qui est seulement disponible ne se lisent pas pareil —
    * le modèle doit pouvoir ignorer une tomate du placard, jamais la merguez
-   * qu'on vient de lui nommer. Les termes partent normalisés (minuscules,
-   * sans accent) : c'est la forme qui entre aussi dans la signature, et le
-   * modèle s'en accommode sans difficulté.
+   * qu'on vient de lui nommer. La saisie part **telle qu'elle a été tapée**
+   * (tour de correction 1) : « crème fraîche » doit arriver accentué au
+   * modèle, la forme normalisée ne sert qu'à la signature (D3) et au
+   * rapprochement au réservoir (D8).
    */
-  const dictated = req.ingredients ?? [];
+  const dictated = req.ingredients?.terms ?? [];
   const stockLine = req.seeds.join(', ') || 'aucun en particulier';
   const lines: string[] =
     dictated.length > 0
       ? [
-          `Ingrédients imposés : ${dictated.join(', ')}. Chaque recette proposée doit les utiliser TOUS, sans exception : n'en propose aucune qui en ignore un seul.`,
+          `Ingrédients imposés : ${req.ingredients?.raw ?? ''}. Chaque recette proposée doit les utiliser TOUS, sans exception : n'en propose aucune qui en ignore un seul.`,
           `Ingrédients seulement disponibles dans le foyer, à utiliser en complément si cela sert la recette : ${stockLine}.`,
         ]
       : [`Ingrédients disponibles dans le foyer : ${stockLine}.`];
+  /**
+   * Un seul référent par phrase (tour de correction 1). « Utilisant si
+   * possible ces ingrédients » voisinait avec « doit les utiliser TOUS » :
+   * deux consignes contradictoires, sur un « ces ingrédients » devenu
+   * ambigu — et des fournées payées qui ignoraient la merguez.
+   */
+  const useClause =
+    dictated.length > 0 ? 'utilisant tous les ingrédients imposés ci-dessus' : 'utilisant si possible ces ingrédients';
   if (webSearch) {
     lines.push(
-      `Propose au total ${req.count} recettes utilisant si possible ces ingrédients : environ ${webCount} trouvées par recherche web réelle (avec leur URL source en https), et environ ${aiCount} composées par toi (sans URL).`,
+      `Propose au total ${req.count} recettes ${useClause} : environ ${webCount} trouvées par recherche web réelle (avec leur URL source en https), et environ ${aiCount} composées par toi (sans URL).`,
       'Ajuste ce dosage si la recherche web ne renvoie pas assez de résultats pertinents : complète alors par des compositions.',
       SUGGESTION_DIVERSITY_RULE,
     );
   } else {
     lines.push(
-      `Propose au total ${req.count} recettes utilisant si possible ces ingrédients, toutes composées par toi : provenance "ai" et sourceUrl null pour chacune.`,
+      `Propose au total ${req.count} recettes ${useClause}, toutes composées par toi : provenance "ai" et sourceUrl null pour chacune.`,
       SUGGESTION_DIVERSITY_RULE,
     );
   }

@@ -38,6 +38,17 @@ describe('recipeUsesAllTerms (D1, D8)', () => {
   it('rapproche par inclusion : « pomme de terre » trouve « pommes de terre nouvelles »', () => {
     expect(recipeUsesAllTerms(['Pommes de terre nouvelles'], ['pommes de terre'])).toBe(true);
   });
+  it('ne sépare pas le singulier du pluriel, dans les deux sens', () => {
+    // L'exemple littéral de la demande : « j'ai des pommes de terre ». Selon
+    // que Franck tape au singulier ou au pluriel, il déclenchait un appel
+    // payant au lieu de lire son réservoir.
+    expect(recipeUsesAllTerms(['Pommes de terre nouvelles'], ['pomme de terre'])).toBe(true);
+    expect(recipeUsesAllTerms(['Pomme de terre'], ['pommes de terre'])).toBe(true);
+    expect(recipeUsesAllTerms(['Œufs'], ['oeuf'])).toBe(true);
+    expect(recipeUsesAllTerms(['Œuf'], ['oeufs'])).toBe(true);
+    expect(recipeUsesAllTerms(['Noix de muscade'], ['noix'])).toBe(true);
+  });
+
   it('sans terme, aucune contrainte', () => {
     expect(recipeUsesAllTerms([], [])).toBe(true);
   });
@@ -47,6 +58,12 @@ describe('labelMatchesTerms (D5)', () => {
   it('reconnaît le libellé qui porte un terme dicté', () => {
     expect(labelMatchesTerms('Merguez d’agneau', ['merguez'])).toBe(true);
   });
+  it('reconnaît aussi le pluriel du terme dicté', () => {
+    expect(labelMatchesTerms('Merguez d’agneau', ['merguez'])).toBe(true);
+    expect(labelMatchesTerms('Pomme de terre', ['pommes de terre'])).toBe(true);
+    expect(labelMatchesTerms('Pommes de terre nouvelles', ['pomme de terre'])).toBe(true);
+  });
+
   it('laisse les autres libellés tranquilles', () => {
     expect(labelMatchesTerms('Huile d’olive', ['merguez'])).toBe(false);
     expect(labelMatchesTerms('Merguez', [])).toBe(false);

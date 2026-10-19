@@ -27,15 +27,15 @@ const suggestion: SuggestionDto = {
   ingredients: [
     {
       label: 'Crème', quantity: 200, unit: 'MILLILITER', match: 'probable', productId: 'p1', productName: 'Crème fraîche épaisse 30%',
-      state: 'available', productImagePath: null, locationName: null, locationTemperature: null,
+      state: 'available', declared: false, productImagePath: null, locationName: null, locationTemperature: null,
     },
     {
       label: 'Œufs', quantity: 3, unit: 'PIECE', match: 'sure', productId: 'p2', productName: 'Œufs',
-      state: 'available', productImagePath: null, locationName: null, locationTemperature: null,
+      state: 'available', declared: false, productImagePath: null, locationName: null, locationTemperature: null,
     },
     {
       label: 'Farine', quantity: null, unit: null, match: 'absent', productId: null, productName: null,
-      state: 'missing', productImagePath: null, locationName: null, locationTemperature: null,
+      state: 'missing', declared: false, productImagePath: null, locationName: null, locationTemperature: null,
     },
   ],
 };
@@ -225,5 +225,39 @@ describe('SuggestionSheet', () => {
     expect(keep.mock.calls[1]![0].clientOpId).toBe(keep.mock.calls[0]![0].clientOpId);
     // Dérivé de la seule identité de la suggestion, et de rien d'autre.
     expect(keep.mock.calls[0]![0].clientOpId).toBe(`keep:${suggestion.id}`);
+  });
+});
+
+/**
+ * D5, tour de correction 1 (2026-10-19) : retirer l'ingrédient dicté des
+ * manquants ne suffisait pas — le tiroir affichait toujours « Merguez,
+ * Manquant » juste après que Franck ait tapé « merguez », et c'est là qu'il
+ * regarde.
+ */
+describe('SuggestionSheet, ingrédient déclaré', () => {
+  it('annonce « Déclaré » au lieu de « Manquant » pour un ingrédient que l’on vient de taper', () => {
+    const declared: SuggestionDto = {
+      ...suggestion,
+      missingLabels: [],
+      ingredients: [
+        {
+          label: 'Merguez', quantity: 4, unit: 'PIECE', match: 'absent', productId: null, productName: null,
+          // L'état venu du stock reste `missing` : la règle de couverture
+          // partagée n'est pas touchée, et le taux affiché reste prudent.
+          state: 'missing', declared: true, productImagePath: null, locationName: null, locationTemperature: null,
+        },
+      ],
+    };
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionSheet suggestion={declared} open onClose={vi.fn()} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText('Déclaré')).toBeTruthy();
+    expect(screen.queryByText('Manquant')).toBeNull();
   });
 });

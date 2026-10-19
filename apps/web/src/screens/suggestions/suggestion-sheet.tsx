@@ -121,7 +121,13 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <span className="min-w-0 flex-1 text-[15px] leading-tight">{ingredient.label}</span>
-                    <span className="shrink-0 text-[13px] text-muted">{INGREDIENT_STATE_LABELS_FR[ingredient.state]}</span>
+                    {/* Un ingrédient que l'on vient de déclarer dans le champ de
+                        saisie n'est jamais annoncé manquant (D5, tour 1) :
+                        `state` dit ce que le stock sait, cette ligne dit ce que
+                        Franck a sous la main. */}
+                    <span className="shrink-0 text-[13px] text-muted">
+                      {ingredient.declared ? 'Déclaré' : INGREDIENT_STATE_LABELS_FR[ingredient.state]}
+                    </span>
                   </div>
                   {ingredient.quantity !== null && ingredient.unit !== null && (
                     <span className="block text-[13px] text-faint">{formatQuantity(ingredient.quantity, ingredient.unit)}</span>
