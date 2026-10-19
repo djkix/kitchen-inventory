@@ -11,6 +11,22 @@ const entry = (over: Partial<PoolEntryForSort>): PoolEntryForSort => ({
 });
 
 describe('comparePoolEntries (EF-26, D7)', () => {
+  it('place une recette rapportée à l’instant avant tout le reste (2026-10-19)', () => {
+    const rapportee = entry({ fresh: true, verified: false, coverage: 0 });
+    const ancienne = entry({ verified: true, coverage: 1, firstSeenAt: '2026-09-01T00:00:00.000Z' });
+    expect(comparePoolEntries(rapportee, ancienne)).toBeLessThan(0);
+    expect(comparePoolEntries(ancienne, rapportee)).toBeGreaterThan(0);
+  });
+
+  it('entre deux recettes rapportées à l’instant, l’ordre habituel départage', () => {
+    const web = entry({ fresh: true, verified: true, identity: 'b' });
+    const compo = entry({ fresh: true, verified: false, identity: 'a' });
+    expect(comparePoolEntries(web, compo)).toBeLessThan(0);
+    // Les deux sens : un garde qui court-circuiterait tout l'ordre dès qu'une
+    // entrée est fraîche rendrait -1 ici aussi, et passerait inaperçu.
+    expect(comparePoolEntries(compo, web)).toBeGreaterThan(0);
+  });
+
   it('place une recette web vérifiée avant une composition, même moins couverte', () => {
     const web = entry({ verified: true, coverage: 0.2 });
     const compo = entry({ verified: false, coverage: 1 });

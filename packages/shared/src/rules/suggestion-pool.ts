@@ -28,9 +28,22 @@ export interface PoolEntryForSort {
   title: string;
   /** Clé unique de la ligne du réservoir (`suggestionIdentity`) : dernier recours, toujours décisif. */
   identity: string;
+  /**
+   * Recette rapportée par l'appel au modèle qui vient d'avoir lieu
+   * (2026-10-19). Elle passe devant tout le reste, couverture et vérification
+   * comprises : une relance explicite est un geste ponctuel dont le résultat
+   * doit se voir immédiatement, sans quoi une nouveauté moins bien couverte
+   * reste invisible derrière les anciennes et le foyer revoit la même liste.
+   * Rien n'est mémorisé : au geste suivant, plus aucune entrée n'est fraîche
+   * et l'ordre normal reprend de lui-même.
+   */
+  fresh?: boolean;
 }
 
 export function comparePoolEntries(a: PoolEntryForSort, b: PoolEntryForSort): number {
+  const aFresh = a.fresh ?? false;
+  const bFresh = b.fresh ?? false;
+  if (aFresh !== bFresh) return aFresh ? -1 : 1;
   if (a.verified !== b.verified) return a.verified ? -1 : 1;
   if (a.coverage !== b.coverage) return b.coverage - a.coverage;
   // Comparaison sur l'instant, pas sur la chaîne (revue du 2026-10-15) : deux

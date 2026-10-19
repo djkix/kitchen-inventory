@@ -72,7 +72,7 @@ describe('SuggestionPoolService.ingest (EF-26)', () => {
 
   it('retient une recette web vérifiée et recopie ses données structurées', async () => {
     const { service, db } = await setup({ fetchContent: async () => PAGE });
-    expect(await service.ingest([WEB], 'gemini-test')).toBe(1);
+    expect(await service.ingest([WEB], 'gemini-test')).toHaveLength(1);
     const row = await db.suggestionPoolRecipe.findUniqueOrThrow({ where: { identity: suggestionIdentity(WEB) } });
     expect(row.verifiedAt).not.toBeNull();
     expect(row.pageRecipe).toEqual(PAGE?.structured);
@@ -81,7 +81,7 @@ describe('SuggestionPoolService.ingest (EF-26)', () => {
 
   it('retient une recette web sans données structurées, avec son texte', async () => {
     const { service, db } = await setup({ fetchContent: async () => ({ structured: null, text: 'ingrédients : pommes' }) });
-    expect(await service.ingest([WEB], 'm')).toBe(1);
+    expect(await service.ingest([WEB], 'm')).toHaveLength(1);
     const row = await db.suggestionPoolRecipe.findFirstOrThrow();
     expect(row.pageRecipe).toBeNull();
     expect(row.pageText).toBe('ingrédients : pommes');
@@ -89,7 +89,7 @@ describe('SuggestionPoolService.ingest (EF-26)', () => {
 
   it('jette une recette web dont la page ne répond pas', async () => {
     const { service, db } = await setup({ fetchContent: async () => null });
-    expect(await service.ingest([WEB], 'm')).toBe(0);
+    expect(await service.ingest([WEB], 'm')).toHaveLength(0);
     expect(await db.suggestionPoolRecipe.count()).toBe(0);
   });
 
@@ -104,7 +104,9 @@ describe('SuggestionPoolService.ingest (EF-26)', () => {
         return PAGE;
       },
     });
-    expect(await service.ingest([a, b, c], 'm')).toBe(1);
+    // Les identités rendues, pas leur nombre (2026-10-19) : l'appelant s'en
+    // sert pour afficher en tête ce que la relance vient de rapporter.
+    expect(await service.ingest([a, b, c], 'm')).toEqual([suggestionIdentity(c)]);
     const rows = await db.suggestionPoolRecipe.findMany();
     expect(rows.map((r) => r.identity)).toEqual([suggestionIdentity(c)]);
   });
@@ -115,7 +117,7 @@ describe('SuggestionPoolService.ingest (EF-26)', () => {
         throw new Error('ne doit pas être appelé');
       },
     });
-    expect(await service.ingest([aiRecipe('Salade')], 'm')).toBe(1);
+    expect(await service.ingest([aiRecipe('Salade')], 'm')).toHaveLength(1);
     const row = await db.suggestionPoolRecipe.findFirstOrThrow();
     expect(row.verifiedAt).toBeNull();
     expect(row.pageRecipe).toBeNull();
@@ -135,7 +137,7 @@ describe('SuggestionPoolService.ingest (EF-26)', () => {
       },
     });
     const recipes = Array.from({ length: 6 }, (_, i) => webRecipe(`R${i}`, `https://203.0.113.9/r${i}`));
-    expect(await service.ingest(recipes, 'm')).toBe(6);
+    expect(await service.ingest(recipes, 'm')).toHaveLength(6);
     expect(peak).toBe(6);
   });
 
@@ -182,7 +184,7 @@ describe('SuggestionPoolService.ingest (EF-26)', () => {
       data: { identity: suggestionIdentity(WEB), payload: WEB as unknown as Prisma.InputJsonValue, provenance: 'web', dishType: 'MAIN', sourceUrl: WEB.sourceUrl, model: 'm0' },
     });
     // La ligne existait déjà : elle est vérifiée, pas créée — d'où 0 et non 1.
-    expect(await service.ingest([WEB], 'm')).toBe(0);
+    expect(await service.ingest([WEB], 'm')).toHaveLength(0);
     const first = await db.suggestionPoolRecipe.findFirstOrThrow();
     expect(first.verifiedAt).not.toBeNull();
     expect(first.pageText).toBe('texte');

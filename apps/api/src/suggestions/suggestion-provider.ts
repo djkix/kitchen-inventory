@@ -25,6 +25,12 @@ export interface SuggestionRequest {
    * recherche, qu'il facture séparément des jetons.
    */
   webSearch?: boolean;
+  /**
+   * Titres déjà présents au réservoir pour cette orientation (2026-10-19), que
+   * le modèle ne doit pas reproposer. Les plus récents d'abord : le prompt les
+   * borne (`KNOWN_TITLES_CAP`) et coupe la queue.
+   */
+  knownTitles?: readonly string[];
 }
 
 /**

@@ -35,7 +35,7 @@ import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { InvalidRewriteError, type GeminiRecipeRewriter, type RecipeRewriteInput } from './gemini-recipe-rewriter.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
-import { SuggestionPoolService, type PoolRecipe } from './suggestion-pool.service.js';
+import { SuggestionPoolService, type PoolFilter, type PoolRecipe } from './suggestion-pool.service.js';
 import { RECIPE_REWRITER, SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionRequest } from './suggestion-provider.js';
 
 /**
@@ -143,6 +143,11 @@ function rankingWindow(entries: readonly PoolRecipe[]): PoolRecipe[] {
   return [...entries.filter((entry) => entry.verified), ...entries.filter((entry) => !entry.verified)].slice(0, SUGGESTION_RANKING_WINDOW);
 }
 
+/** Orientation demandée, telle que le réservoir la filtre (D6). */
+function orientationFilter(query: SuggestionQuery): PoolFilter {
+  return { dishType: query.dishType, region: query.region, maxMinutes: query.maxMinutes, difficulty: query.difficulty };
+}
+
 function computeSignature(query: SuggestionQuery): string {
   const payload = JSON.stringify({
     region: query.region ?? null,
@@ -227,6 +232,14 @@ export class SuggestionsService {
     let entries = query.refresh ? [] : await this.readPool(query);
     let fromCache = true;
     let notice: string | null = null;
+    /**
+     * Identités rapportées par l'appel au modèle de CETTE requête (2026-10-19).
+     * Elles passent en tête de l'affichage : sans cela, une nouveauté moins
+     * bien couverte qu'une ancienne restait invisible et la relance explicite
+     * rendait exactement la même page. Rien n'est persisté — la requête
+     * suivante repart d'un ensemble vide et l'ordre normal reprend.
+     */
+    let fresh: ReadonlySet<string> = new Set();
 
     // Sous le plancher mais déjà demandée aujourd'hui : on sert ce que le
     // réservoir a, même maigre (D11). Un palier étroit — « ≤ 15 min » — laisse
@@ -264,7 +277,7 @@ export class SuggestionsService {
         if (entries.length === 0) {
           throw ApiError.insufficientStock('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
         }
-        return this.render(entries, snapshot, true, notice);
+        return this.render(entries, snapshot, true, notice, fresh);
       }
       const breach = await this.quotaBreach();
       if (breach) {
@@ -276,8 +289,12 @@ export class SuggestionsService {
         entries = fallback;
         notice = this.quotaMessage(breach, true);
       } else {
-        const fetched = await this.fetchAndStore(signature, seeds, query);
-        await this.pool.ingest(fetched.recipes, fetched.model);
+        // Titres déjà connus pour cette orientation, cités au modèle pour
+        // qu'il ne les repropose pas. Sur relance, `entries` est vide par
+        // construction (la lecture a été sautée) : il faut donc relire.
+        const known = query.refresh ? await this.pool.read(orientationFilter(query)) : entries;
+        const fetched = await this.fetchAndStore(signature, seeds, query, known.map((entry) => entry.recipe.title));
+        fresh = new Set(await this.pool.ingest(fetched.recipes, fetched.model));
         // Relecture obligatoire, jamais la réponse brute du modèle : une recette
         // web dont la page n'existe pas a été jetée à l'ingestion (D4) et ne
         // doit à aucun moment atteindre l'écran.
@@ -286,7 +303,7 @@ export class SuggestionsService {
       }
     }
 
-    return this.render(entries, snapshot, fromCache, notice);
+    return this.render(entries, snapshot, fromCache, notice, fresh);
   }
 
   /**
@@ -302,12 +319,21 @@ export class SuggestionsService {
    *    ici ;
    * 4. la page est bornée après le tri, donc aux meilleures.
    */
-  private async render(entries: readonly PoolRecipe[], snapshot: StockSnapshot, fromCache: boolean, notice: string | null): Promise<SuggestionBatchDto> {
+  private async render(
+    entries: readonly PoolRecipe[],
+    snapshot: StockSnapshot,
+    fromCache: boolean,
+    notice: string | null,
+    fresh: ReadonlySet<string>,
+  ): Promise<SuggestionBatchDto> {
     // Compté avant la fenêtre de classement et la page : c'est le réservoir
     // réel pour cette orientation, pas ce qu'on en montre.
     const poolCount = entries.length;
     const poolTotal = await this.pool.count();
-    const window = rankingWindow(entries);
+    // Les recettes rapportées à l'instant entrent dans la fenêtre sans
+    // condition : les faire passer par `rankingWindow` les exposerait à être
+    // coupées par les anciennes, ce qui annulerait la relance.
+    const window = fresh.size === 0 ? rankingWindow(entries) : [...entries.filter((e) => fresh.has(e.identity)), ...rankingWindow(entries.filter((e) => !fresh.has(e.identity)))];
     const items = await this.toSuggestionDtos(window, snapshot);
     const firstSeenById = new Map(window.map((entry) => [entry.identity, entry.firstSeenAt]));
     const key = (dto: SuggestionDto): Parameters<typeof comparePoolEntries>[0] => ({
@@ -316,6 +342,7 @@ export class SuggestionsService {
       firstSeenAt: firstSeenById.get(dto.id) ?? '',
       title: dto.title,
       identity: dto.id,
+      fresh: fresh.has(dto.id),
     });
     items.sort((a, b) => comparePoolEntries(key(a), key(b)));
 
@@ -341,7 +368,7 @@ export class SuggestionsService {
    */
   private async readPool(query: SuggestionQuery): Promise<PoolRecipe[]> {
     const [entries, kept] = await Promise.all([
-      this.pool.read({ dishType: query.dishType, region: query.region, maxMinutes: query.maxMinutes, difficulty: query.difficulty }),
+      this.pool.read(orientationFilter(query)),
       this.prisma.recipe.findMany({ where: { source: { in: ['IMPORTED', 'GENERATED'] } }, select: { title: true, sourceUrl: true } }),
     ]);
     const keptUrls = new Set<string>();
@@ -424,6 +451,7 @@ export class SuggestionsService {
     signature: string,
     seeds: readonly { productId: string; name: string }[],
     query: SuggestionQuery,
+    knownTitles: readonly string[],
   ): Promise<{ recipes: ModelRecipe[]; model: string }> {
     const request: SuggestionRequest = {
       seeds: seeds.map((s) => s.name),
@@ -432,6 +460,7 @@ export class SuggestionsService {
       difficulty: query.difficulty,
       dishType: query.dishType,
       count: SUGGESTION_BATCH_SIZE + SUGGESTION_REQUEST_BUFFER,
+      knownTitles,
     };
 
     const started = Date.now();
