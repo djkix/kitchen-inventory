@@ -5,7 +5,9 @@ import {
   comparePoolEntries,
   createRecipeSchema,
   pickSeedIngredients,
+  normalizeProductName,
   recipeCoverage,
+  SUGGESTION_REGION_LABELS_FR,
   suggestionIdentity,
   type CoverageIngredient,
   type CreateRecipeInput,
@@ -18,6 +20,7 @@ import {
   type SuggestionDto,
   type SuggestionIngredientDto,
   type SuggestionQuery,
+  type SuggestionRegion,
   type Unit,
 } from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
@@ -758,6 +761,13 @@ export class SuggestionsService {
       // filtre sur le même vocabulaire, une suggestion gardée n'a pas à être
       // reclassée à la main (demande du 2026-10-08).
       dishType: suggestion.dishType,
+      // La région de la suggestion devient la cuisine de la recette conservée
+      // (choix de Franck, 2026-10-19). Jusqu'ici une recette conservée
+      // n'arrivait avec aucune cuisine : le sélecteur « Cuisine » de « Mes
+      // recettes », qui liste les lignes de `Cuisine`, ne pouvait donc
+      // correspondre à aucune d'elles — un filtre qui ne filtrait rien. Les
+      // deux écrans partagent désormais le même vocabulaire à sept valeurs.
+      cuisineId: await this.regionCuisineId(suggestion.region),
       ingredients,
       // `difficulty` délibérément omis : `RecipesService.create` la calcule via
       // `computeDifficulty`, jamais recopiée ici (B15, règle métier partagée).
@@ -765,6 +775,33 @@ export class SuggestionsService {
     const parsed = createRecipeSchema.safeParse(draft);
     if (!parsed.success) throw ApiError.providerInvalidResponse('Réponse de réécriture non exploitable pour créer la recette', parsed.error.issues);
     return parsed.data;
+  }
+
+  /**
+   * Ligne `Cuisine` portant le libellé de la région, créée à la première
+   * recette conservée de cette région.
+   *
+   * On réutilise la table existante plutôt que d'ajouter une colonne à
+   * `Recipe` : pas de migration, et le sélecteur de « Mes recettes » se
+   * remplit tout seul puisqu'il liste déjà ces lignes. Le prix assumé est que
+   * « Européenne » (une région) y côtoiera une « Italienne » saisie à la main
+   * (une cuisine), deux notions que le modèle distingue par ailleurs.
+   *
+   * `region` est conservée en plus du nom : c'est elle qui relie la ligne au
+   * vocabulaire partagé, le libellé n'étant que son affichage.
+   */
+  private async regionCuisineId(region: SuggestionRegion): Promise<string> {
+    const name = SUGGESTION_REGION_LABELS_FR[region];
+    const normalizedName = normalizeProductName(name);
+    // `upsert` et non « chercher puis créer » : deux conservations simultanées
+    // de la même région courraient sinon vers la même contrainte d'unicité.
+    const row = await this.prisma.cuisine.upsert({
+      where: { normalizedName },
+      create: { name, normalizedName, region },
+      update: {},
+      select: { id: true },
+    });
+    return row.id;
   }
 
   /** Rattache chaque ingrédient à un produit rapproché (sûr ou probable, A11) ; les autres restent en texte libre. */
