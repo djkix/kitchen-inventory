@@ -31,6 +31,12 @@ export interface SuggestionRequest {
    * borne (`KNOWN_TITLES_CAP`) et coupe la queue.
    */
   knownTitles?: readonly string[];
+  /**
+   * Ingrédients dictés à la main sur l'écran (2026-10-19, D1) : normalisés,
+   * triés, et **imposés** — chaque recette doit tous les utiliser. Ils
+   * s'ajoutent aux graines tirées du stock, ils ne les remplacent pas (D4).
+   */
+  ingredients?: readonly string[];
 }
 
 /**

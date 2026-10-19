@@ -14,3 +14,4 @@ export * from './ingredient-match.js';
 export * from './suggestion-identity.js';
 export * from './effective-rating.js';
 export * from './suggestion-pool.js';
+export * from './suggestion-ingredients.js';

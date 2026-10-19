@@ -1326,6 +1326,145 @@ describe('SuggestionsService (EF-26)', () => {
       expect(kept.steps).toEqual(['Cuire le riz nature.']);
     });
   });
+
+  /**
+   * Suggestions à partir d'ingrédients dictés (spécification du 2026-10-19,
+   * EF-25, EF-26) : « j'ai des pommes de terre et un reste de merguez ». Le
+   * champ est du texte libre — un reste ne se scanne pas — et ce qui est tapé
+   * est imposé : chaque recette doit l'utiliser (D1).
+   */
+  describe('ingrédients dictés (2026-10-19)', () => {
+    /** Composition qui n'utilise aucun des ingrédients dictés : elle ne doit jamais remonter. */
+    const SANS_MERGUEZ: ModelRecipe = {
+      title: 'Soupe de courgettes au curry',
+      origin: 'Composition',
+      region: 'europeenne',
+      totalMinutes: 25,
+      prepMinutes: 10,
+      cookMinutes: 15,
+      difficulty: 'EASY',
+      dishType: 'MAIN',
+      provenance: 'ai',
+      sourceUrl: null,
+      steps: ['Cuire les courgettes 15 minutes à feu moyen.'],
+      ingredients: [{ label: 'Courgettes', quantity: 3, unit: 'PIECE' }],
+    };
+    const AVEC_MERGUEZ: ModelRecipe = {
+      ...SANS_MERGUEZ,
+      title: 'Poêlée de merguez et pommes de terre',
+      ingredients: [
+        { label: 'Pommes de terre nouvelles', quantity: 500, unit: 'GRAM' },
+        { label: 'Merguez', quantity: 4, unit: 'PIECE' },
+        { label: 'Persil plat', quantity: null, unit: null },
+      ],
+    };
+
+    async function seedStock(db: PrismaService): Promise<void> {
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+      await seedProduct(db, locationId, { name: 'Oignon', quantity: 4, unit: 'PIECE' });
+    }
+
+    it('lit le réservoir d’abord : une seconde demande identique n’appelle pas le modèle (D2)', async () => {
+      // Le compte porte sur les appels réellement passés à la doublure, jamais
+      // sur `fromCache` : un drapeau qu'on pose soi-même ne prouve rien.
+      const { service, db } = await createService();
+      await seedStock(db);
+      // Déjà au réservoir, et hors sujet : elle ne doit apparaître dans aucune
+      // des deux réponses, pas même dans celle servie sans appel.
+      await seedPool(db, [{ recipe: SANS_MERGUEZ }]);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-merguez.json'));
+
+      const query: SuggestionQuery = { refresh: false, ingredients: ['merguez', 'pommes de terre'] };
+      const first = await service.list(query);
+      expect(first.items.length).toBeGreaterThanOrEqual(6);
+      expect(first.fromCache).toBe(false);
+
+      const second = await service.list(query);
+      expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(1);
+      expect(second.fromCache).toBe(true);
+      expect(second.items.length).toBeGreaterThanOrEqual(6);
+      expect(second.items.map((item) => item.title)).not.toContain(SANS_MERGUEZ.title);
+      expect(await db.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION' } })).toBe(1);
+    });
+
+    it('ne rend que les recettes qui utilisent TOUS les ingrédients dictés (D1, D8)', async () => {
+      const { service, db } = await createService();
+      await seedStock(db);
+      await seedPool(db, [{ recipe: AVEC_MERGUEZ }, { recipe: SANS_MERGUEZ }]);
+      // Le réservoir filtré ne rend qu'une recette, donc sous le plancher : un
+      // appel part, et ne rapporte rien ici. Ce qui est affiché vient du
+      // réservoir filtré, et de lui seul.
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-vide.json'));
+
+      const result = await service.list({ refresh: false, ingredients: ['merguez', 'pommes de terre'] });
+      expect(result.items.map((item) => item.title)).toEqual(['Poêlée de merguez et pommes de terre']);
+    });
+
+    it('donne à chaque combinaison son propre verrou de 24 heures (D3)', async () => {
+      // Sans les ingrédients dans la signature, « courgette, feta » hériterait
+      // du verrou posé par « merguez, pommes de terre » et se verrait refuser
+      // son appel — un écran vide pour une question jamais posée.
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-vide.json'));
+
+      await service.list({ refresh: false, ingredients: ['merguez', 'pommes de terre'] });
+      expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(1);
+
+      await service.list({ refresh: false, ingredients: ['courgette', 'feta'] });
+      expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(2);
+
+      // La même demande, elle, reste verrouillée : rien de neuf à demander.
+      const encore = await service.list({ refresh: false, ingredients: ['merguez', 'pommes de terre'] });
+      expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(2);
+      expect(encore.notice).toMatch(/déjà été cherchée récemment/);
+    });
+
+    it('impose les ingrédients dictés au modèle sans cacher le stock (D1, D4)', async () => {
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-merguez.json'));
+
+      await service.list({ refresh: false, ingredients: ['merguez', 'pommes de terre'] });
+      const prompt = JSON.parse(String(http.calls[0]?.init?.body)).contents[0].parts[0].text as string;
+
+      expect(prompt).toContain('Ingrédients imposés : merguez, pommes de terre');
+      expect(prompt).toMatch(/doit les utiliser TOUS/);
+      // Le stock reste envoyé, mais clairement du côté du « disponible ».
+      expect(prompt).toContain('Tomate');
+      expect(prompt).toMatch(/seulement disponibles/);
+      // Les consignes existantes tiennent toujours.
+      expect(prompt).toMatch(/nettement différentes les unes des autres/);
+    });
+
+    it('n’annonce jamais comme manquant un ingrédient que l’on vient de déclarer (D5)', async () => {
+      const { service, db } = await createService();
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+      await seedPool(db, [
+        {
+          recipe: {
+            ...AVEC_MERGUEZ,
+            ingredients: [
+              { label: 'Merguez', quantity: 4, unit: 'PIECE' },
+              { label: 'Tomate', quantity: 2, unit: 'PIECE' },
+              { label: 'Persil plat', quantity: null, unit: null },
+            ],
+          },
+        },
+      ]);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-vide.json'));
+
+      const result = await service.list({ refresh: false, ingredients: ['merguez'] });
+      const item = result.items[0];
+      expect(item?.missingLabels).toEqual(['Persil plat']);
+      // Le taux reste calculé sur le stock réel : une déclaration à l'écran ne
+      // remplit pas le placard. Un chiffre prudent, pas un chiffre inventé.
+      expect(item?.coverage).toBeLessThan(1);
+    });
+  });
+
 });
 
 describe('GET /suggestions (EF-26, tâche 7)', () => {

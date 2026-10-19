@@ -54,7 +54,23 @@ export function buildSuggestionPrompt(req: SuggestionRequest, options: { retry?:
   const webSearch = req.webSearch !== false;
   const webCount = Math.max(0, req.count - Math.round(req.count / 3));
   const aiCount = req.count - webCount;
-  const lines: string[] = [`Ingrédients disponibles dans le foyer : ${req.seeds.join(', ') || 'aucun en particulier'}.`];
+  /**
+   * Ingrédients dictés (D1, D4, 2026-10-19). Deux lignes, et pas une : ce qui
+   * est imposé et ce qui est seulement disponible ne se lisent pas pareil —
+   * le modèle doit pouvoir ignorer une tomate du placard, jamais la merguez
+   * qu'on vient de lui nommer. Les termes partent normalisés (minuscules,
+   * sans accent) : c'est la forme qui entre aussi dans la signature, et le
+   * modèle s'en accommode sans difficulté.
+   */
+  const dictated = req.ingredients ?? [];
+  const stockLine = req.seeds.join(', ') || 'aucun en particulier';
+  const lines: string[] =
+    dictated.length > 0
+      ? [
+          `Ingrédients imposés : ${dictated.join(', ')}. Chaque recette proposée doit les utiliser TOUS, sans exception : n'en propose aucune qui en ignore un seul.`,
+          `Ingrédients seulement disponibles dans le foyer, à utiliser en complément si cela sert la recette : ${stockLine}.`,
+        ]
+      : [`Ingrédients disponibles dans le foyer : ${stockLine}.`];
   if (webSearch) {
     lines.push(
       `Propose au total ${req.count} recettes utilisant si possible ces ingrédients : environ ${webCount} trouvées par recherche web réelle (avec leur URL source en https), et environ ${aiCount} composées par toi (sans URL).`,

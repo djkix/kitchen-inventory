@@ -694,3 +694,78 @@ describe('SuggestionsScreen', () => {
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'DESSERT' });
   });
 });
+
+/**
+ * Suggestions à partir d'ingrédients dictés (spécification du 2026-10-19,
+ * D6, D7) : « j'ai des pommes de terre et un reste de merguez ». Un champ de
+ * texte libre au-dessus des filtres — un reste n'est pas en stock, il ne se
+ * choisit pas dans l'inventaire.
+ */
+describe('SuggestionsScreen, ingrédients dictés (2026-10-19)', () => {
+  function mountWith(items: unknown[], poolCount = items.length) {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      data: { notice: null, items, poolCount, poolTotal: poolCount },
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+  }
+
+  function type(text: string) {
+    const field = screen.getByRole('textbox', { name: /ingrédients/i });
+    fireEvent.change(field, { target: { value: text } });
+    fireEvent.submit(field);
+  }
+
+  it('n’envoie rien tant que le champ est vide : il ne change pas le comportement actuel (D6)', () => {
+    mountWith([]);
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN' });
+  });
+
+  it('porte les ingrédients saisis dans l’orientation, et repart de la première page', () => {
+    mountWith([]);
+    type('pommes de terre, merguez');
+
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toMatchObject({ dishType: 'MAIN', ingredients: 'pommes de terre, merguez' });
+    // Une autre demande est une autre liste : page et compteur de relances
+    // repartent de zéro, comme pour tout changement d'orientation.
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.limit).toBe(12);
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(0);
+  });
+
+  it('refuse une saisie hors des bornes du schéma partagé, et ne lance rien (D7)', () => {
+    mountWith([]);
+    type('a, b, c, d, e, f');
+
+    expect(screen.getByText(/5 ingrédients au maximum/i)).toBeTruthy();
+    // Rien n'est parti : l'orientation reste celle d'avant la saisie.
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]?.ingredients).toBeUndefined();
+  });
+
+  it('dit pourquoi une demande ne rend rien, au lieu d’une liste vide et muette', () => {
+    mountWith([]);
+    type('merguez, pommes de terre');
+
+    // La limite assumée de D1, dite à l'écran : imposer tous les ingrédients
+    // rend peu de choses sur une combinaison inhabituelle.
+    expect(screen.getByText(/combinaison/i)).toBeTruthy();
+  });
+
+  it('laisse l’état vide habituel quand aucun ingrédient n’est dicté', () => {
+    mountWith([]);
+    expect(screen.queryByText(/combinaison/i)).toBeNull();
+    expect(screen.getByText(/Changez d’orientation/i)).toBeTruthy();
+  });
+});

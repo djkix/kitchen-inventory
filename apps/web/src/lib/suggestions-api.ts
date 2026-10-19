@@ -30,6 +30,14 @@ export interface SuggestionOrientation {
    * (`SUGGESTION_PAGE_MAX`) ; il ne déclenche jamais d'appel au modèle.
    */
   limit?: number;
+  /**
+   * Ingrédients dictés à la main (2026-10-19, D1, D7) : du texte libre séparé
+   * par des virgules, tel que tapé. Chaque recette proposée doit les utiliser
+   * tous. C'est le serveur qui normalise, trie et borne, avec le schéma Zod
+   * partagé — l'écran valide avec ce même schéma avant d'envoyer, jamais avec
+   * une seconde règle.
+   */
+  ingredients?: string;
 }
 
 export const suggestionsApi = {
