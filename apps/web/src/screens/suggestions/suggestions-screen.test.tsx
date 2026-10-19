@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiClientError } from '../../lib/api';
@@ -270,6 +270,74 @@ describe('SuggestionsScreen', () => {
     // Le texte d'état vide n'invite plus à attendre un changement de stock :
     // depuis D11 la recherche n'en dépend plus (revue, tour 2).
     expect(screen.queryByText(/le stock aura peut-être changé/i)).toBeNull();
+  });
+
+  /**
+   * djkix, 2026-10-19 : « je suis obligé de cliquer sur charger plus ». La
+   * page suivante se demande désormais dès que le bas de liste entre dans la
+   * fenêtre. `jsdom` ne fournit pas `IntersectionObserver` : on le double pour
+   * déclencher l'entrée en vue à la main, sinon la sentinelle est inerte et le
+   * test ne prouverait rien.
+   */
+  it('demande la page suivante dès que le bas de liste entre en vue', () => {
+    const observers: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = [];
+    class FakeObserver {
+      constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
+        observers.push(callback);
+      }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('IntersectionObserver', FakeObserver);
+
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      data: {
+        notice: null,
+        poolCount: 30,
+        poolTotal: 30,
+        items: [
+          {
+            id: 's1',
+            title: 'Pâtes à la tomate',
+            dishType: 'MAIN',
+            origin: 'italienne',
+            region: 'mediterraneenne',
+            totalMinutes: 25,
+            difficulty: 'EASY',
+            provenance: 'web',
+            verified: true,
+            sourceUrl: 'https://exemple.test/x',
+            coverage: 1,
+            group: 'ready',
+            missingLabels: [],
+            ingredients: [],
+          },
+        ],
+      },
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+
+    const before = vi.mocked(useSuggestionsQuery).mock.calls.length;
+    act(() => observers.forEach((notify) => notify([{ isIntersecting: true }])));
+    const call = vi.mocked(useSuggestionsQuery).mock.calls.at(-1);
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.length).toBeGreaterThan(before);
+    expect(call?.[1]?.limit).toBeGreaterThan(12);
+
+    vi.unstubAllGlobals();
   });
 
   /**

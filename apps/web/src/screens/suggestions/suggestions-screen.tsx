@@ -1,5 +1,5 @@
 import { SUGGESTION_PAGE_SIZE, type SuggestionDto } from '@kitchen/shared';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Spinner } from '../../components/ui/button';
@@ -65,6 +65,13 @@ export function SuggestionsScreen() {
    * cache et ne partirait pas (revue finale du 2026-10-15).
    */
   const [relaunch, setRelaunch] = useState(0);
+  // Référence stable : la sentinelle du défilement infini la met en dépendance
+  // de son effet, et une fonction recréée à chaque rendu rebrancherait
+  // l'observateur en boucle.
+  const loadMore = useCallback(() => {
+    setRelaunch(0);
+    setLimit((size) => size + SUGGESTION_PAGE_SIZE);
+  }, []);
   /**
    * Taille de la page demandée au serveur (2026-10-19). « Plus je fais de
    * requêtes, plus j'emmagasine de recettes » — mais l'écran n'en montrait
@@ -159,10 +166,7 @@ export function SuggestionsScreen() {
             // retombe à zéro pour que `refresh` ne reparte pas avec la
             // nouvelle clé de requête, et qu'une page de plus ne coûte jamais
             // un appel au modèle.
-            onLoadMore={() => {
-              setRelaunch(0);
-              setLimit((size) => size + SUGGESTION_PAGE_SIZE);
-            }}
+            onLoadMore={loadMore}
           />
         </>
       )}
@@ -257,6 +261,40 @@ export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRe
  * relance ciblée a disparu avec lui (une relance par type ne peut plus
  * rendre un autre type à proposer).
  */
+/**
+ * Déclenche `onVisible` dès que ce point entre dans la fenêtre : c'est le
+ * défilement infini de la liste de suggestions.
+ *
+ * `rootMargin` anticipe de 200 px pour que la page suivante soit demandée
+ * avant que le pouce n'atteigne le bas — sinon le défilement s'arrête net le
+ * temps de la requête, ce qui se ressent comme un à-coup.
+ *
+ * L'observateur est débranché dès qu'il a servi, et reconstruit au rendu
+ * suivant si la liste n'est toujours pas complète : sans cela, une sentinelle
+ * restée visible pendant le chargement redemanderait la même page en boucle.
+ */
+function LoadMoreSentinel({ onVisible }: { onVisible: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          observer.disconnect();
+          onVisible();
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [onVisible]);
+
+  return <div ref={ref} aria-hidden className="h-px w-full" />;
+}
+
 function SuggestionsResult({
   batch,
   onSelect,
@@ -335,16 +373,32 @@ function SuggestionsResult({
          * pour cette orientation, et ce que l'application connaît en tout.
          */
         <div className="flex flex-col items-center gap-3 px-4 pb-6 pt-5">
-          {/* Même bouton et même formulation que « Mes recettes » : le geste
-              est déjà connu, il n'y en a pas un second à apprendre. */}
+          {/*
+            Défilement infini (demande de djkix, 2026-10-19 : « je suis obligé
+            de cliquer sur charger plus »). La sentinelle ci-dessous demande la
+            page suivante dès qu'elle entre dans la fenêtre.
+
+            Le bouton reste rendu, et ce n'est pas une hésitation : un
+            observateur d'intersection ne se déclenche ni au clavier seul, ni
+            pour un lecteur d'écran qui parcourt la page sans la faire défiler,
+            ni si le navigateur ne le fournit pas. Il porte donc le même
+            libellé qu'avant et sert de repli — invisible en pratique, puisque
+            la sentinelle l'aura déjà fait disparaître en chargeant la suite.
+
+            Charger ne coûte jamais un appel au modèle : c'est une relecture du
+            réservoir, bornée à soixante recettes par orientation.
+          */}
           {batch.items.length < batch.poolCount && (
-            <button
-              type="button"
-              onClick={onLoadMore}
-              className="min-h-touch w-full rounded-xl bg-accent px-4 text-[15px] font-semibold text-ink"
-            >
-              Charger plus (<span className="tnum">{batch.items.length}</span> sur <span className="tnum">{batch.poolCount}</span>)
-            </button>
+            <>
+              <LoadMoreSentinel onVisible={onLoadMore} />
+              <button
+                type="button"
+                onClick={onLoadMore}
+                className="min-h-touch w-full rounded-xl bg-accent px-4 text-[15px] font-semibold text-ink"
+              >
+                Charger plus (<span className="tnum">{batch.items.length}</span> sur <span className="tnum">{batch.poolCount}</span>)
+              </button>
+            </>
           )}
           <p className="text-center text-[13px] text-muted">
             <span className="tnum">{batch.poolCount}</span> recette{batch.poolCount > 1 ? 's' : ''} connue{batch.poolCount > 1 ? 's' : ''} pour cette
