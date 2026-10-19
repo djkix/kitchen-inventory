@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.22.0](https://github.com/djkix/kitchen-inventory/compare/v0.21.0...v0.22.0) (2026-10-19)
+
+
+### Features
+
+* **recipes:** « Mes recettes » et la fiche reprises pour le mobile (EF-21, EF-23, EF-25) ([79c4b28](https://github.com/djkix/kitchen-inventory/commit/79c4b2810de91c9829836b89700d2c0bdbd34821))
+* **suggestions:** défilement infini de la liste (EF-26) ([8d2ec5f](https://github.com/djkix/kitchen-inventory/commit/8d2ec5f0f944d3bb5a838acc4feb6a77d046817f))
+
+
+### Bug Fixes
+
+* **suggestions:** retour arrière fermant le tiroir, et deux boutons (EF-25) ([14ce79f](https://github.com/djkix/kitchen-inventory/commit/14ce79fca7586a91190694e9b088dd1a1048c006))
+* **web:** tiroirs enchaînés et effacement atteignable à la souris (EF-21, EF-25) ([47405fa](https://github.com/djkix/kitchen-inventory/commit/47405faec79c093299ec376556790ba4abc284ab))
+
 ## [0.21.0](https://github.com/djkix/kitchen-inventory/compare/v0.20.0...v0.21.0) (2026-10-19)
 
 
