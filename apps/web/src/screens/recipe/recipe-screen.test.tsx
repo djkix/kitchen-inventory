@@ -1,6 +1,6 @@
 import type { RecipeDto, RecipeLogDto } from '@kitchen/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../../components/ui/toast';
@@ -252,67 +252,6 @@ describe('RecipeScreen', () => {
     expect(vi.mocked(recipesApi.updateRecipe)).toHaveBeenCalledWith('r1', { favorite: false });
   });
 
-  // A3 : cinq étoiles posent une note directe, utilisable sans réalisation enregistrée.
-  it('pose une note directe depuis la fiche', () => {
-    renderRecipeScreen();
-
-    fireEvent.click(screen.getByRole('radio', { name: '4 étoiles' }));
-
-    expect(vi.mocked(recipesApi.updateRecipe)).toHaveBeenCalledWith('r1', { rating: 4 });
-  });
-
-  // A3 : une note directe déjà posée se corrige et se retire.
-  it('corrige puis retire une note directe déjà posée', async () => {
-    vi.mocked(useAuth).mockReturnValue(AUTHENTICATED_AUTH);
-    vi.mocked(useRecipeQuery).mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: { ...recipe, rating: 3 },
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useRecipeQuery>);
-    vi.mocked(useRecipeLogsInfiniteQuery).mockReturnValue(EMPTY_LOGS_QUERY);
-    renderWith();
-
-    expect(screen.getByRole('radio', { name: '3 étoiles', checked: true })).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('radio', { name: '2 étoiles' }));
-    expect(vi.mocked(recipesApi.updateRecipe)).toHaveBeenCalledWith('r1', { rating: 2 });
-    // Laisse la requête (simulée) se résoudre avant le geste suivant : sinon le
-    // bouton reste désactivé le temps de celle-ci (`busy`, évite un double envoi).
-    await waitFor(() => expect((screen.getByRole('button', { name: 'Retirer la note' }) as HTMLButtonElement).disabled).toBe(false));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Retirer la note' }));
-    expect(vi.mocked(recipesApi.updateRecipe)).toHaveBeenCalledWith('r1', { rating: null });
-  });
-
-  // Correctif de revue (2026-10-08, A5) : une moyenne de réalisations ne doit
-  // JAMAIS cocher une étoile du radiogroup — sinon re-taper cette étoile
-  // semblerait ne rien faire alors qu'elle convertirait silencieusement une
-  // moyenne en note directe. Les étoiles restent vides, le chiffre reste
-  // lisible dans la phrase en dessous.
-  it('laisse les étoiles vides quand la seule note vient de la moyenne des réalisations', () => {
-    vi.mocked(useAuth).mockReturnValue(AUTHENTICATED_AUTH);
-    vi.mocked(useRecipeQuery).mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: { ...recipe, rating: null, stats: { ...recipe.stats, averageRating: 4.3, ratingCount: 3 } },
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useRecipeQuery>);
-    vi.mocked(useRecipeLogsInfiniteQuery).mockReturnValue(EMPTY_LOGS_QUERY);
-    renderWith();
-
-    for (const star of [1, 2, 3, 4, 5]) {
-      expect(screen.getByRole('radio', { name: `${star} étoile${star > 1 ? 's' : ''}` }).getAttribute('aria-checked')).toBe('false');
-    }
-    expect(screen.getByText('Moyenne des réalisations : posez une note pour la remplacer.')).toBeTruthy();
-  });
-
-  // Sans note directe ni réalisation notée, rien à retirer : le bouton ne s'affiche pas.
-  it('ne propose pas de retirer une note qui n’existe pas', () => {
-    renderRecipeScreen();
-    expect(screen.queryByRole('button', { name: 'Retirer la note' })).toBeNull();
-  });
-
   // A6 : la fiche d'une recette jamais cuisinée explique l'absence d'historique et rappelle la note directe.
   it('explique l’absence d’historique pour une recette jamais cuisinée', () => {
     vi.mocked(useAuth).mockReturnValue(AUTHENTICATED_AUTH);
@@ -326,15 +265,87 @@ describe('RecipeScreen', () => {
     renderWith();
 
     expect(screen.getByText(/Jamais faite/)).toBeTruthy();
-    expect(screen.getByText(/note directe.*reste possible/)).toBeTruthy();
   });
 
-  it('intitule la note « Note du foyer », jamais « Ma note »', () => {
-    // `Recipe.rating` n'a pas de `userId` : la note est partagée, comme le
-    // favori. Un libellé possessif laisserait croire à une note personnelle
-    // qu'un autre membre ne pourrait pas écraser — ce qu'il peut faire.
+  /**
+   * D7 (2026-10-19) : « ne pas afficher la note du foyer (trop de place) ».
+   * Les cinq étoiles de notation directe quittent la fiche. La note reste
+   * lisible sur les cartes de « Mes recettes » et reste le tri par défaut ; la
+   * notation après cuisson, par personne, vit dans l'historique et n'est pas
+   * touchée.
+   */
+  it('n’affiche plus la note du foyer sur la fiche (D7)', () => {
     renderRecipeScreen();
-    expect(screen.getByText('Note du foyer')).toBeTruthy();
-    expect(screen.queryByText('Ma note')).toBeNull();
+
+    expect(screen.queryByText('Note du foyer')).toBeNull();
+    expect(screen.queryByRole('radio', { name: '4 étoiles' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Retirer la note' })).toBeNull();
+  });
+
+  // La notation par membre, après cuisson, n'est pas concernée : elle reste
+  // atteignable depuis chaque réalisation de l'historique.
+  it('laisse intacte la notation d’une réalisation dans l’historique (D7)', () => {
+    renderRecipeScreen();
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Noter/i })[0]!);
+    expect(screen.getByRole('radio', { name: '4 étoiles' })).toBeTruthy();
+  });
+
+  /**
+   * D8 : le nombre de parts rejoint préparation et cuisson — « pour combien, et
+   * combien de temps » est une seule lecture.
+   */
+  it('range le nombre de parts dans le bloc des durées (D8)', () => {
+    renderRecipeScreen();
+
+    const bloc = screen.getByRole('group', { name: 'Durées et parts' });
+    expect(bloc.contains(screen.getByLabelText('Nombre de parts'))).toBe(true);
+    expect(bloc.contains(screen.getByText('Préparation'))).toBe(true);
+    expect(bloc.contains(screen.getByText('Cuisson'))).toBe(true);
+  });
+
+  /**
+   * D9 : durée et difficulté deviennent des blocs colorés, sur deux échelles
+   * distinctes. La couleur ne porte jamais l'information seule — le texte reste
+   * lu, pour le daltonisme comme pour le mode sombre.
+   */
+  it('colore la difficulté selon son échelle, sans jamais retirer le texte (D9)', () => {
+    renderRecipeScreen();
+    const facile = screen.getByText('Facile');
+    const lookFacile = facile.className;
+
+    cleanup();
+    vi.mocked(useRecipeQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { ...recipe, difficulty: 'HARD' },
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRecipeQuery>);
+    renderWith();
+
+    const difficile = screen.getByText('Difficile');
+    expect(difficile.className).not.toBe(lookFacile);
+    // Jetés du thème, jamais de couleur en dur : l'application n'a qu'un mode
+    // sombre et une pastille codée en dur y a déjà disparu dans son conteneur.
+    expect(lookFacile).toMatch(/bg-[a-z-]+ text-[a-z-]+/);
+    expect(difficile.className).toMatch(/bg-[a-z-]+ text-[a-z-]+/);
+  });
+
+  it('colore la durée sur sa propre échelle, texte compris (D9)', () => {
+    renderRecipeScreen();
+    const court = screen.getByText('30 min');
+    const lookCourt = court.className;
+
+    cleanup();
+    vi.mocked(useRecipeQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { ...recipe, totalMinutes: 180, prepMinutes: 60, cookMinutes: 120 },
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRecipeQuery>);
+    renderWith();
+
+    const long = screen.getByText('3 h');
+    expect(long.className).not.toBe(lookCourt);
   });
 });

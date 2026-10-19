@@ -359,7 +359,7 @@ test('conserve une recette composée par l’IA : elle rejoint Mes recettes, où
   await answerDishTypeQuestion(page);
   const dialog = await openSuggestionSheet(page, 'Recette composée 1');
 
-  await dialog.getByRole('button', { name: 'Plus d’informations' }).click();
+  await dialog.getByRole('button', { name: 'Ajouter à mes recettes' }).click();
 
   // Composition (B6) : aucun appel supplémentaire, contrairement au chemin
   // web, qui fait réécrire la recette par Gemini — mais depuis le contenu
@@ -425,7 +425,16 @@ test('bascule le favori d’une carte sans naviguer vers la fiche (EF-21)', asyn
   await expect(page.getByRole('heading', { name: 'Croque-monsieur', level: 1 })).toHaveCount(0);
 
   // Pastille « Favoris » (A4) : la recette fraîchement marquée s'y retrouve.
-  await page.getByRole('group', { name: 'Pastilles rapides' }).getByRole('button', { name: 'Favoris' }).click();
+  // Les filtres vivent désormais derrière le bouton « Filtres », dans un
+  // panneau par le bas (D2, 2026-10-19) : sur un téléphone, les onze contrôles
+  // en place permanente repoussaient la liste hors de l'écran.
+  await page.getByRole('button', { name: 'Filtres' }).click();
+  const filtres = page.getByRole('dialog');
+  await filtres.getByRole('group', { name: 'Pastilles rapides' }).getByRole('button', { name: 'Favoris' }).click();
+  // Le bouton porte le nombre de filtres actifs, pour qu'un filtre resté actif
+  // ne devienne pas invisible une fois le panneau refermé.
+  await filtres.getByRole('button', { name: 'Voir les recettes' }).click();
+  await expect(page.getByRole('button', { name: 'Filtres (1 actif)' })).toBeVisible();
   await expect(page.getByRole('link', { name: /^Croque-monsieur,/ })).toBeVisible();
 });
 
@@ -506,4 +515,52 @@ test('ingrédients dictés : pastilles, autocomplétion, et des recettes qui les
   await expect(
     page.getByText('La combinaison demandée est trop rare : chaque recette doit utiliser tous les ingrédients saisis.', { exact: false }),
   ).toBeVisible();
+});
+
+test('efface une recette de la liste : archivage après confirmation, jamais de suppression (D4, D5)', async ({ page }) => {
+  // « Toujours présent dans la base des recettes » (demande de djkix) :
+  // l'effacement de la liste est un `POST /recipes/:id/archive`. La recette
+  // quitte « Mes recettes », garde son historique et ses notes, et la bascule
+  // « Archivées » la retrouve.
+  //
+  // Joué au navigateur et non en jsdom pour la même raison que le favori juste
+  // au-dessus : le bouton d'effacement est posé SOUS la carte opaque, découvert
+  // par un glissement, par le focus ou par le survol. Seul un vrai calcul de
+  // superposition CSS prouve qu'il est réellement atteignable — un test de
+  // composant ne voit ni recouvrement ni `@media (hover: hover)`.
+  //
+  // « Bibimbap simplifié » : recette du jeu de développement
+  // (`prisma/seed/dev.ts`), qu'aucun autre parcours ne touche.
+  await page.goto('/recettes/bibliotheque');
+
+  // Les préférences de filtres sont mémorisées côté serveur, et le parcours
+  // précédent laisse « Favoris » actif : on repart d'une liste non filtrée.
+  await page.getByRole('button', { name: /^Filtres/ }).click();
+  const filtres = page.getByRole('dialog');
+  await filtres.getByRole('button', { name: 'Tout effacer' }).click();
+  await filtres.getByRole('button', { name: 'Voir les recettes' }).click();
+
+  await page.getByPlaceholder('Rechercher une recette').fill('Bibimbap');
+  await expect(page.getByRole('link', { name: /^Bibimbap simplifié,/ })).toBeVisible();
+
+  // Nommé par sa recette, jamais « Supprimer » seul : plusieurs cartes portent
+  // la même action, un lecteur d'écran doit les distinguer (EF-23).
+  await page.getByRole('button', { name: 'Supprimer Bibimbap simplifié' }).click();
+
+  // Le geste seul n'efface pas : une confirmation s'interpose (D5).
+  const confirmation = page.getByRole('dialog');
+  await expect(confirmation.getByText(/quitte Mes recettes/)).toBeVisible();
+  await Promise.all([
+    page.waitForResponse((candidate) => /\/api\/v1\/recipes\/[^/]+\/archive$/.test(candidate.url()) && candidate.request().method() === 'POST'),
+    confirmation.getByRole('button', { name: 'Effacer' }).click(),
+  ]);
+
+  await expect(page.getByRole('link', { name: /^Bibimbap simplifié,/ })).toHaveCount(0);
+
+  // Toujours en base : la bascule « Archivées » la retrouve, entière.
+  await page.getByRole('button', { name: /^Filtres/ }).click();
+  const apres = page.getByRole('dialog');
+  await apres.getByRole('group', { name: 'Pastilles rapides' }).getByRole('button', { name: 'Archivées' }).click();
+  await apres.getByRole('button', { name: 'Voir les recettes' }).click();
+  await expect(page.getByRole('link', { name: /^Bibimbap simplifié,/ })).toBeVisible();
 });

@@ -45,7 +45,8 @@ export function HistoryPanel({ stats, logs, currentUserId, hasNextPage, isFetchi
 
       {logs.length === 0 ? (
         <p className="px-1 text-[14px] text-muted">
-          Jamais faite : aucune réalisation enregistrée. La note directe, ci-dessus, reste possible dès maintenant.
+          {/* La note directe a quitté la fiche (D7, 2026-10-19) : plus rien à y renvoyer ici. */}
+          Jamais faite : aucune réalisation enregistrée.
         </p>
       ) : (
         <ol className="flex flex-col divide-y divide-line rounded-card bg-surface">

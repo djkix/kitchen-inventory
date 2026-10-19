@@ -4,14 +4,11 @@ import {
   DIFFICULTY_LABELS_FR,
   DISH_TYPE_LABELS_FR,
   DISH_TYPES,
-  RECIPE_SORTS,
-  RECIPE_SORT_LABELS_FR,
   type Difficulty,
   type DishType,
   type RecipeFilters,
 } from '@kitchen/shared';
 import type { ChangeEvent, ReactNode } from 'react';
-import { Select } from '../../components/ui/input';
 import { cn } from '../../lib/cn';
 import type { CuisineDto } from '../../lib/types';
 
@@ -83,7 +80,14 @@ const SELECT_CLASS =
   'min-h-touch min-w-0 flex-1 truncate rounded-xl border border-line bg-surface px-2.5 text-[14px] text-fg focus:border-accent focus:outline-none';
 
 /**
- * Filtres et tri de la liste des recettes (EF-21, EF-22, EF-23 ; section 14).
+ * Filtres de la liste des recettes (EF-21, EF-22, EF-23 ; section 14), rendus
+ * dans le panneau par le bas ouvert par le bouton « Filtres »
+ * (`recipes-screen.tsx`, D2 du 2026-10-19) : sur un téléphone, ces onze
+ * contrôles en place permanente repoussaient la liste hors de l'écran.
+ *
+ * Le sélecteur « Trier par » a quitté l'écran (D3) : le tri reste dans
+ * `RecipeFilters`, dans la requête et dans les préférences enregistrées —
+ * aucun geste d'ici ne le change plus, `clearFilters` le reporte tel quel.
  *
  * Même présentation que l'orientation des suggestions (2026-10-15, demande de
  * djkix : « pour "mes recettes" avoir la même approche au niveau des filtres
@@ -111,7 +115,7 @@ export function RecipeFiltersBar({ value, cuisines, onChange }: RecipeFiltersBar
   };
 
   return (
-    <div className="flex flex-col gap-2 px-4 pb-3">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[13px] text-muted">{activeCount > 0 ? `${activeCount} filtre${activeCount > 1 ? 's' : ''}` : 'Aucun filtre'}</span>
         <button type="button" onClick={clearFilters} className="min-h-touch rounded-xl px-3 text-[14px] font-medium text-accent active:bg-raised">
@@ -229,13 +233,6 @@ export function RecipeFiltersBar({ value, cuisines, onChange }: RecipeFiltersBar
           </select>
         </div>
       </div>
-
-      <Select
-        label="Trier par"
-        value={value.sort}
-        onChange={(event) => onChange({ ...value, sort: event.target.value as RecipeFilters['sort'] })}
-        options={RECIPE_SORTS.map((sort) => ({ value: sort, label: RECIPE_SORT_LABELS_FR[sort] }))}
-      />
     </div>
   );
 }

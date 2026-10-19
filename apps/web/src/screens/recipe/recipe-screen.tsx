@@ -1,4 +1,4 @@
-import { DIFFICULTY_LABELS_FR, effectiveRating, scaleIngredients, servingsRatio, type RecipeDto, type RecipeLogDto } from '@kitchen/shared';
+import { DIFFICULTY_LABELS_FR, scaleIngredients, servingsRatio, type Difficulty, type RecipeDto, type RecipeLogDto } from '@kitchen/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -9,11 +9,11 @@ import { FavoriteStar } from '../../components/ui/favorite-star';
 import { Input } from '../../components/ui/input';
 import { Skeleton } from '../../components/ui/skeleton';
 import { Sheet } from '../../components/ui/sheet';
-import { StarRating } from '../../components/ui/star-rating';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../hooks/use-auth';
 import { errorMessage, isApiError, newClientOpId } from '../../lib/api';
 import { queryKeys, useRecipeDirectPatch, useRecipeLogsInfiniteQuery, useRecipeQuery } from '../../lib/queries';
+import { cn } from '../../lib/cn';
 import { formatMinutes } from '../../lib/quantity-ui';
 import { recipesApi } from '../../lib/recipes-api';
 import { CookSheet } from './cook-sheet';
@@ -26,6 +26,25 @@ type ConfirmTarget = { kind: 'delete-recipe' } | { kind: 'delete-log'; log: Reci
 /** Parts acceptées (`recipeDetailQuerySchema`, `cookRecipeSchema`, section 15) : mêmes bornes côté écran que côté serveur. */
 const MIN_SERVINGS = 1;
 const MAX_SERVINGS = 50;
+
+/**
+ * Échelle de difficulté (D9) : du céladon de l'accent — la couleur de ce qui
+ * est à portée — à l'orange d'avertissement. Jetons du thème uniquement.
+ */
+const DIFFICULTY_LOOK: Record<Difficulty, string> = {
+  VERY_EASY: 'bg-accent-deep text-accent',
+  EASY: 'bg-accent-deep text-accent',
+  INTERMEDIATE: 'bg-soon-deep text-soon',
+  HARD: 'bg-warn-deep text-warn',
+};
+
+/** Échelle de durée (D9), distincte de celle de la difficulté : une demi-heure, une heure, au-delà. */
+function timeLook(totalMinutes: number | null): string {
+  if (totalMinutes === null) return 'bg-raised text-muted';
+  if (totalMinutes <= 30) return 'bg-accent-deep text-accent';
+  if (totalMinutes <= 60) return 'bg-soon-deep text-soon';
+  return 'bg-warn-deep text-warn';
+}
 
 /** Fiche recette (section 14/15) : ingrédients face au stock réel, étapes, temps et historique des réalisations. */
 export function RecipeScreen() {
@@ -144,18 +163,6 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
     }
   };
 
-  /** Pose, corrige ou retire la note directe (A3) ; `null` l'efface (distinct de l'absence, voir `updateRecipeSchema`). */
-  const setDirectRating = async (stars: number | null) => {
-    setBusy('rating');
-    try {
-      await patchRecipe(recipe.id, { rating: stars });
-    } catch (error) {
-      toast.show({ message: errorMessage(error, 'Impossible d’enregistrer la note'), tone: 'danger' });
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const restore = async () => {
     setBusy('restore');
     try {
@@ -196,17 +203,6 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   const time = formatMinutes(recipe.totalMinutes);
   const mine = ratingLog?.ratings.find((rating) => rating.userId === auth.user?.id) ?? null;
 
-  // La note affichée passe toujours par `effectiveRating` (D3, A5) : jamais
-  // la préséance recalculée à la main ici. Le `radiogroup` ne montre une
-  // étoile cochée QUE pour une note directe : une moyenne de réalisations
-  // (ex. 4,3) arrondie dans un contrôle à cinq étoiles cocherait une étoile
-  // que personne n'a posée, et re-taper cette même étoile la convertirait
-  // silencieusement en note directe sans que rien ne le signale (revue
-  // finale du 2026-10-08). La moyenne reste lisible ailleurs — carte, phrase
-  // sous les étoiles — jamais recalculée ici en nombre entier approximatif.
-  const effective = effectiveRating(recipe.rating, recipe.stats.averageRating);
-  const ratingDisplay = effective.source === 'direct' ? effective.value : null;
-
   // Un seul nombre de parts du début à la fin (F4) : ce ratio sert à la fois
   // à l'affichage des quantités de la fiche et à l'initialisation du tiroir
   // de cuisson, jamais recalculé deux fois avec deux formules différentes.
@@ -224,65 +220,53 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
       <ScreenHeader title={recipe.title} back="/recettes/bibliotheque" subtitle={archived ? 'Archivée' : undefined} />
 
       <div className="flex flex-col gap-5 px-4 pb-32">
-        <section className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-muted">
-          {recipe.cuisineName && <span>{recipe.cuisineName}</span>}
-          {time && <span className="tnum">{time}</span>}
-          <span>
+        {/*
+          D9 : durée et difficulté deviennent des blocs colorés, sur deux
+          échelles distinctes (plus c'est long ou exigeant, plus la teinte
+          alerte). La couleur ne porte JAMAIS l'information seule — le texte
+          reste lu, pour le daltonisme comme pour le mode sombre. Les teintes
+          viennent des jetons du thème (`styles.css`), jamais d'une couleur en
+          dur : une pastille codée en dur a déjà disparu dans son conteneur ici.
+        */}
+        <section className="flex flex-wrap items-center gap-2 text-[14px]">
+          {recipe.cuisineName && <span className="text-muted">{recipe.cuisineName}</span>}
+          {time && <span className={cn('tnum rounded-md px-2 py-1 font-medium', timeLook(recipe.totalMinutes))}>{time}</span>}
+          <span className={cn('rounded-md px-2 py-1 font-medium', DIFFICULTY_LOOK[recipe.difficulty])}>
             {DIFFICULTY_LABELS_FR[recipe.difficulty]}
             {recipe.difficultyOverride && ' (corrigée)'}
           </span>
+          <FavoriteStar
+            favorite={recipe.favorite}
+            recipeTitle={recipe.title}
+            onToggle={() => void toggleFavorite()}
+            disabled={busy === 'favorite'}
+            className="ml-auto"
+          />
         </section>
 
-        <section className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-card bg-surface px-4 py-3 text-[14px]">
+        {/*
+          D8 : le nombre de parts rejoint préparation et cuisson — « pour
+          combien, et combien de temps » est une seule lecture, et le champ
+          n'est plus isolé au milieu de la fiche. Il reste ajustable, et ce même
+          nombre prérègle le tiroir de cuisson (F4) : un seul nombre du début à
+          la fin.
+        */}
+        <section role="group" aria-label="Durées et parts" className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-card bg-surface px-4 py-3 text-[14px]">
           <TimeField label="Préparation" minutes={recipe.prepMinutes} />
           <TimeField label="Cuisson" minutes={recipe.cookMinutes} />
           <TimeField label="Temps actif" minutes={recipe.activeTime} />
           <TimeField label="Repos" minutes={recipe.restMinutes} />
+          <Input
+            label="Nombre de parts"
+            // Champ texte et non « number » : le clavier décimal français
+            // produit une virgule, qu'un champ numérique rejette en silence.
+            type="text"
+            inputMode="numeric"
+            value={rawServings}
+            onChange={(event) => onServingsTyped(event.target.value)}
+            className="w-24"
+          />
         </section>
-
-        {/* Favori et note directe (A1-A3, D1-D5) : utilisables sans réalisation enregistrée. */}
-        <section className="flex items-center justify-between gap-3 rounded-card bg-surface px-4 py-3">
-          <div className="flex min-w-0 flex-col gap-1.5">
-            {/* « Note du foyer », pas « Ma note » (revue finale du 2026-10-08) :
-                `Recipe.rating` n'a pas de `userId`, exactement comme le favori
-                (D4) — un membre écrase la note d'un autre sans aucun signe. */}
-            <p className="text-[13px] font-semibold text-muted">Note du foyer</p>
-            <StarRating value={ratingDisplay} onChange={(stars) => void setDirectRating(stars)} disabled={busy === 'rating'} />
-            {effective.source === 'cooked' && (
-              <p className="text-[12px] text-muted">Moyenne des réalisations : posez une note pour la remplacer.</p>
-            )}
-            {effective.source === 'direct' && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-fit px-0 text-accent"
-                disabled={busy === 'rating'}
-                onClick={() => void setDirectRating(null)}
-              >
-                Retirer la note
-              </Button>
-            )}
-          </div>
-          <FavoriteStar favorite={recipe.favorite} recipeTitle={recipe.title} onToggle={() => void toggleFavorite()} disabled={busy === 'favorite'} />
-        </section>
-
-        {/*
-          Sélecteur de parts (EF-26, F1) : un seul champ, qui pilote à la fois
-          la couverture (requête relancée avec `servings`, tâche 7) et
-          l'affichage des quantités ci-dessous (`scaleIngredients`, même
-          ratio). La recette garde ses parts d'origine en mémoire
-          (`recipe.servings`) : seule la fiche s'adapte.
-        */}
-        <Input
-          label="Nombre de parts"
-          // Champ texte et non « number » : le clavier décimal français
-          // produit une virgule, qu'un champ numérique rejette en silence.
-          type="text"
-          inputMode="numeric"
-          value={rawServings}
-          onChange={(event) => onServingsTyped(event.target.value)}
-          className="w-28"
-        />
 
         <section>
           <h2 className="mb-2 px-1 text-[13px] font-semibold text-muted">Ingrédients</h2>

@@ -32,12 +32,13 @@ interface SuggestionSheetProps {
  * lot du 2026-10-15), et son contenu n'est mis en forme qu'à la conservation —
  * la fiche l'annonce honnêtement plutôt que de laisser croire à un oubli (B7).
  *
- * Un seul geste : le bouton « Plus d'informations » (E2, round de correction
- * 1 — djkix a confirmé qu'il s'agissait d'un simple renommage de
- * « Conserver », pas d'un geste en deux temps) conserve la recette et déclenche
+ * Un seul geste : le bouton « Ajouter à mes recettes » (E2, D1 du
+ * 2026-10-19) conserve la recette et déclenche
  * côté serveur sa réécriture par Gemini — depuis le contenu déjà recopié au
  * réservoir, sans jamais rappeler le site —, d'où l'attente explicite pendant
- * l'appel.
+ * l'appel. Le libellé précédent, « Plus d'informations », promettait une
+ * lecture là où le geste enregistre : djkix a buté dessus le 2026-10-19, le
+ * bouton dit désormais ce qu'il fait.
  *
  * `clientOpId` est **déterministe** (round 1 de revue) — dérivé de la seule
  * identité de la suggestion, jamais tiré au hasard : un identifiant aléatoire régénéré à
@@ -221,7 +222,7 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
         )}
 
         <Button variant="primary" block loading={busy} disabled={busy} onClick={() => void confirm()}>
-          Plus d’informations
+          Ajouter à mes recettes
         </Button>
       </div>
     </Sheet>

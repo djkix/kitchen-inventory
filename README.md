@@ -223,11 +223,13 @@ La fiche d'une suggestion montre les ingrédients et ce qui manque (chacun avec
 sa photo, s'il est rapproché d'un produit connu, et la pastille colorée de
 l'emplacement de son lot le plus proche de péremption quand il est en stock).
 Les étapes d'une recette **composée par l'IA** y sont déjà visibles, puisque
-« Plus d'informations » n'a alors rien de plus à aller chercher ; une recette
+« Ajouter à mes recettes » n'a alors rien de plus à aller chercher ; une recette
 **trouvée sur le web**, elle, n'affiche encore aucune étape à ce stade — sa
 page n'est lue qu'à la conservation, et la fiche l'annonce honnêtement plutôt
-que d'en inventer. **Plus d'informations** — un seul geste, pas une
-consultation puis une conservation séparée — récupère la page de la recette
+que d'en inventer. **Ajouter à mes recettes** — un seul geste, pas une
+consultation puis une conservation séparée (le bouton s'intitulait
+« Plus d'informations », ce qui promettait une lecture là où il enregistre) —
+récupère la page de la recette
 (HTTPS uniquement, 5 secondes maximum), lit ses données structurées
 `schema.org/Recipe` quand elles existent, et la fait **réécrire par Gemini au
 format propre à l'application** — l'application n'envoie jamais vers le site
@@ -252,15 +254,12 @@ une seule liste partagée par le foyer, pas de favori par personne : qui la
 retire la retire pour tout le monde. Elle se coche aussi bien sur la fiche que
 sur chaque carte de « Mes recettes », indépendamment de la note : on peut
 adorer une recette compliquée sans vouloir la refaire chaque semaine, et
-marquer une recette banale qu'on fait tout le temps. La fiche porte en plus
-cinq étoiles de « **Note du foyer** », posables et retirables sans qu'aucune
-réalisation n'ait jamais été enregistrée — jusque-là, noter une recette
-supposait d'avoir d'abord coché une cuisson, ce qui laissait beaucoup de
-recettes sans aucun moyen de les noter. Comme le favori, cette note directe
-est **partagée par le foyer** plutôt qu'attribuée à chacun : un membre la
-corrige, un autre peut la remplacer sans qu'aucune trace ne distingue qui l'a
-posée en dernier — contrairement à la note par réalisation, qui reste nominative
-et conservée par membre dans l'historique. **Règle de préséance**, partout où une
+marquer une recette banale qu'on fait tout le temps. Une **note du foyer**
+(partagée, pas une note par personne) existe en base et sert au tri par
+défaut ; elle se lit sur chaque carte de « Mes recettes », mais **ne s'affiche
+plus sur la fiche**, où ses cinq étoiles prenaient trop de place sur un
+téléphone. La notation d'une réalisation, elle, est intacte : nominative, par
+membre, depuis l'historique de la fiche. **Règle de préséance**, partout où une
 note s'affiche (carte, fiche, tri par note) : la note directe prime quand elle
 existe ; sinon la moyenne des réalisations prend le relais ; si ni l'une ni
 l'autre n'existe, rien ne s'affiche — jamais deux chiffres concurrents sous les
@@ -273,14 +272,27 @@ tête, note directe et moyenne des réalisations classées ensemble par la même
 règle de préséance, puis les non notées, titre à l'alphabet en dernier
 recours) — le stock n'intervient pas dans ce tri par défaut. La recherche par
 titre est tolérante aux accents et à la casse, comme la recherche produits
-(« crepes » trouve « Crêpes »). Trois autres tris au choix, mémorisés avec les
-filtres par utilisateur : réalisables avec le stock (couverture), les plus
-faites, les moins récentes. Filtres par type de plat, cuisine, durée, facilité,
-régime et note minimale, présentés comme sur Suggestions : six sélecteurs
-natifs par paires, une seule valeur active par facette, qui tiennent sur trois
-lignes au lieu des six rangées de pastilles défilantes d'avant. Les bascules
-restent des pastilles sur une rangée (valeurs sûres, réalisables maintenant,
-déjà faites, **favoris**, archivées). Chaque carte affiche son
+(« crepes » trouve « Crêpes »). Le tri reste mémorisé par utilisateur avec les
+filtres, mais **son sélecteur n'est plus affiché** : la liste commence en haut
+de l'écran, sur le tri que le foyer a mémorisé. Les filtres, eux, vivent
+derrière un **bouton « Filtres »** posé à droite de la recherche, portant le
+nombre de filtres actifs (« Filtres (2 actifs) ») et ouvrant un **panneau par
+le bas** : rien n'a été retiré, c'est la place permanente qui disparaît. On y
+retrouve les six sélecteurs (type de plat, cuisine, durée, facilité, régime,
+note minimale), une seule valeur active par facette, et les cinq bascules
+(valeurs sûres, réalisables maintenant, déjà faites, **favoris**, archivées).
+
+**Effacer une recette de la liste.** Un glissement vers la gauche sur une carte
+découvre une action rouge ; la toucher demande confirmation, et la recette est
+alors **archivée** — elle quitte « Mes recettes », garde son historique et ses
+notes, et la bascule « Archivées » la retrouve entière. Rien n'est supprimé.
+Le glissement seul n'efface jamais : il se déclenche par accident en faisant
+défiler au pouce. Et comme un glissement n'existe ni au clavier, ni au lecteur
+d'écran, ni à la souris, la même action se découvre aussi au **focus** (une
+tabulation) et au **survol**. Limite connue : rien à l'écran n'indique que le
+glissement existe, comme pour tous les glissements de liste.
+
+Chaque carte affiche son
 **taux de couverture et son groupe** (prête, presque, incomplète) calculés
 depuis le stock réel, même si ce groupe ne change plus l'ordre ni la visibilité
 de la liste. Chaque carte affiche aussi la note retenue par la règle de
@@ -300,7 +312,15 @@ autant que par teinte — la couleur ne porte jamais seule l'information)
 désignant l'emplacement de son lot le plus proche de péremption : ambiant,
 frais ou congelé.
 
-Le **nombre de parts** affiché en tête de fiche est ajustable (champ
+En tête de fiche, la **durée totale** et la **difficulté** sont des blocs
+colorés, sur deux échelles distinctes (du céladon de l'accent à l'orange
+d'avertissement, selon que c'est court et facile ou long et exigeant) : la
+couleur ne porte jamais l'information seule, le texte (« 30 min », « Facile »)
+reste écrit en toutes lettres.
+
+Le **nombre de parts** est rangé dans le même bloc que les durées
+(préparation, cuisson, temps actif, repos) — « pour combien, et combien de
+temps » est une seule lecture. Il reste ajustable (champ
 numérique, initialisé aux portions de la recette) : le modifier recalcule
 aussitôt la quantité de chaque ligne et son état face au stock (une ligne
 tout juste suffisante à quatre parts peut devenir insuffisante à huit — voir
@@ -904,6 +924,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.22.0 | 2026-10-19 | « Mes recettes » et la fiche recette reprises pour le téléphone, où l'application est utilisée en très grande majorité. Sur une suggestion, le bouton « Plus d'informations » devient **« Ajouter à mes recettes »** : le libellé promettait une lecture là où le geste enregistre définitivement la recette, et il a fait hésiter. Sur la liste, les onze contrôles de filtre qui occupaient en permanence le haut de l'écran passent derrière un **bouton « Filtres »** unique, posé à droite de la recherche, portant le nombre de filtres actifs et ouvrant un panneau par le bas : rien n'est retiré — les six sélecteurs et les cinq bascules y vivent inchangés —, c'est la place permanente qui disparaît, et la liste commence enfin en haut de l'écran. Le sélecteur **« Trier par » n'est plus affiché** : le tri reste mémorisé par utilisateur, par défaut la note, mais il ne prend plus de place (conséquence assumée : on ne peut plus en changer depuis cet écran). Une recette **s'efface d'un glissement vers la gauche** sur sa carte, qui découvre une action rouge, suivie d'une confirmation — effacer veut dire **archiver** : la recette quitte la liste, garde son historique et ses notes, et la bascule « Archivées » la retrouve entière, rien n'est supprimé de la base. Le glissement seul n'efface jamais, et comme il n'existe ni au clavier, ni au lecteur d'écran, ni à la souris, la même action se découvre aussi au focus et au survol ; chaque bouton est nommé par sa recette (« Supprimer Bibimbap simplifié »), jamais « Supprimer » seul au milieu d'une liste. Sur la fiche, les cinq étoiles de **note du foyer ne s'affichent plus** — elles prenaient trop de place ; la note reste en base, lisible sur les cartes de la liste et toujours le tri par défaut, et la notation après cuisson, par membre, reste intacte dans l'historique. Le **nombre de parts** rejoint le bloc des durées (préparation, cuisson, temps actif, repos), toujours ajustable et toujours le même nombre du premier coup d'œil jusqu'au tiroir de cuisson. **Durée totale et difficulté deviennent des blocs colorés**, sur deux échelles distinctes, avec des jetons du thème et jamais une couleur en dur : la couleur ne porte pas l'information seule, le texte reste écrit. Aucune route ni migration nouvelle — l'effacement utilise l'archivage qui existe depuis le socle du module recettes |
 | 0.21.0 | 2026-10-19 | Le champ d'ingrédients de l'écran Suggestions passe aux **pastilles** et s'accompagne d'une autocomplétion depuis votre catalogue de produits. Chaque terme validé, par Entrée ou par une virgule, devient une pastille visible portant une croix pour la retirer : « poulet tomate » tapé sans virgule était jusqu'ici compris comme un seul ingrédient de ce nom, sans que rien à l'écran ne le dise — on lisait « Aucune recette avec ces ingrédients » après avoir payé l'appel au modèle. Dès les premières lettres, les produits du catalogue sont proposés sous le champ (« pou » → « Poulet fermier »), navigables aux flèches et fermés par Échap ; un terme choisi dans la liste porte exactement un libellé connu, donc le rapprochement ne dépend plus de l'orthographe. La saisie libre reste entière : « reste de merguez » n'est dans aucun catalogue et s'écrit comme avant. Le retour arrière sur un champ vide retire la dernière pastille, un terme tapé sans être validé part quand même avec la recherche, et les bornes (cinq ingrédients, trente caractères) sont refusées à l'écran, avec leur raison, au lieu d'être rejetées par le serveur. Ni l'API ni la base ne changent : les termes repartent dans la même chaîne séparée par des virgules. Les ingrédients dictés tapés d'un seul tenant, sans virgule — « poulet tomate » — retrouvent désormais les recettes qui contiennent les deux. Un terme multi-mots est d'abord cherché tel quel dans un libellé, puis mot à mot dans l'ensemble des ingrédients de la recette : l'écran annonçait « aucune recette » pour du poulet et de la tomate, après avoir payé l'appel au modèle dont les recettes venaient d'être écartées. La recherche web des recettes est désormais **éteinte par défaut**. Elle était activée depuis la 0.12.0 au motif que c'était la fonctionnalité demandée et non une option — mais elle est facturée à la requête, hors quota gratuit, et une clé sans facturation la refuse : allumée sur une instance non facturée, elle ne produit pas des recettes web, elle produit un écran vide. Le réglage de Réglages › Reconnaissance dit maintenant ce que son activation exige. Le choix d'un administrateur continue de primer sur cette valeur de départ. Un parcours bout en bout joue désormais ce champ dans un vrai navigateur : pastilles, retrait par la croix, autocomplétion du catalogue, recherche limitée aux recettes qui portent tous les termes, et l'explication affichée quand une combinaison ne rend rien |
 | 0.20.0 | 2026-10-19 | Les suggestions partent désormais aussi des ingrédients que vous dictez : un champ de texte libre, au-dessus des filtres de l'écran Suggestions, où l'on tape « pommes de terre, merguez » (cinq ingrédients au plus, trente caractères chacun, séparés par des virgules). Ce qui est saisi est imposé — seules des recettes utilisant **tous** ces éléments sont proposées, l'objet étant d'écouler un reste et non de recevoir des idées vaguement proches. Du texte libre et non une sélection dans l'inventaire : un reste de merguez n'a pas de code-barres. Le stock reste pris en compte, en complément, et le modèle reçoit clairement ce qui est imposé et ce qui est seulement disponible. Le réservoir est lu d'abord, filtré sur ces ingrédients : le modèle n'est appelé que s'il en reste moins de six, donc retaper la même demande ne coûte rien. Chaque combinaison a son propre verrou de 24 heures, « merguez, pommes de terre » et « pommes de terre, merguez » comptant pour une seule et même demande. Le singulier et le pluriel mènent à la même recette (« pomme de terre » trouve « Pommes de terre nouvelles », « oeuf » trouve « Œufs ») : sans quoi, selon la façon de taper, on repayait un appel au lieu de lire le réservoir. Un ingrédient que l'on vient de déclarer n'est jamais annoncé comme manquant — ni dans la liste des manques de la carte, ni dans la fiche de la recette, qui l'affiche « Déclaré » —, tandis que le taux de couverture reste calculé sur le stock réel — une recette peut donc afficher « 3 sur 4 » sans lister de manquant, un chiffre prudent valant mieux qu'un chiffre inventé à partir d'une déclaration invérifiable. Une combinaison trop rare rend peu ou rien : l'écran en dit la raison au lieu d'afficher une liste vide et muette. Quand le quota journalier ou le plafond mensuel est atteint, la liste de repli affichée le dit désormais explicitement : les ingrédients demandés n'y sont pas pris en compte. Le champ vide ne change rien au comportement actuel, et aucune modification de la base de données n'est nécessaire |
 | 0.19.0 | 2026-10-19 | Tout le réservoir de recettes se parcourt enfin : sous la liste des suggestions, un bouton « Charger plus (12 sur 37) » — même geste et même formulation que « Mes recettes » — allonge la page de douze recettes à chaque appui, jusqu'à soixante, et disparaît quand tout ce que le réservoir connaît pour l'orientation est affiché. Jusqu'ici l'écran n'en montrait que douze et rien ne permettait de voir les autres : un réservoir de trente-sept recettes en cachait vingt-cinq, définitivement, alors que c'est tout l'intérêt de les conserver. Charger plus ne relit que le réservoir, sans jamais appeler le modèle ni dépenser quoi que ce soit, et la fenêtre de classement suit la page demandée — sans quoi les recettes au-delà des trente-six premières n'auraient jamais été ni classées ni rendues. Les suggestions se diversifient : le modèle doit désormais rendre des plats nettement différents les uns des autres, jamais deux variantes d'une même recette, en variant l'ingrédient principal, la technique et la base — le prompt disait jusqu'ici l'inverse en toutes lettres (« aucune variété n'est exigée »), ce qui faisait tourner les propositions autour d'un même plat. Les titres déjà connus pour l'orientation demandée (les quarante plus récents) lui sont cités avec consigne de ne pas les reproposer. Et une relance montre enfin ce qu'elle rapporte : les recettes que l'appel vient de ramener passent en tête de la liste, devant les anciennes même mieux couvertes ; l'ordre habituel reprend au geste suivant, sans rien mémoriser. L'écran Suggestions annonce sous la liste combien de recettes le réservoir connaît pour l'orientation affichée et combien il en contient en tout, et le bouton « Chercher de nouvelles recettes » y est désormais atteignable même quand des résultats s'affichent : il n'existait que dans l'état vide, si bien qu'un réservoir suffisant pour remplir une page ne pouvait plus jamais grandir. Une recette conservée depuis une suggestion arrive désormais avec une cuisine : celle de sa région (Européenne, Asiatique, Méditerranéenne…), créée à la première conservation. Le sélecteur « Cuisine » de « Mes recettes » parle donc du même vocabulaire que celui des Suggestions, et se remplit tout seul — jusqu'ici une recette conservée n'avait aucune cuisine, et ce filtre ne pouvait correspondre à aucune d'elles. L'écran de connexion devient une carte centrée verticalement et horizontalement, et porte le nom de l'application, désormais « Kitchen Inventory » partout — écran de connexion, titre du document et manifeste (l'étiquette sous l'icône de l'écran d'accueil reste « Kitchen », que le système tronque) — il était jusque-là poussé contre le bas de l'écran, ce qui se lisait comme un défaut de mise en page plutôt que comme une intention, et rien n'y disait de quelle application il s'agissait |

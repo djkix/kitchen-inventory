@@ -17,7 +17,7 @@ describe('RecipeFiltersBar', () => {
   it('présente les facettes comme des sélecteurs, type de plat en premier', () => {
     render(<RecipeFiltersBar value={empty} cuisines={[]} onChange={vi.fn()} />);
     const labels = screen.getAllByRole('combobox').map((node) => node.getAttribute('aria-label'));
-    expect(labels.slice(0, 6)).toEqual(['Type de plat', 'Cuisine', 'Durée', 'Facilité', 'Régime', 'Note minimale']);
+    expect(labels).toEqual(['Type de plat', 'Cuisine', 'Durée', 'Facilité', 'Régime', 'Note minimale']);
   });
 
   it('ne garde qu’une valeur par facette, la précédente est remplacée', () => {
@@ -35,11 +35,24 @@ describe('RecipeFiltersBar', () => {
     fireEvent.change(screen.getByLabelText('Durée'), { target: { value: '' } });
     expect(onChange).toHaveBeenCalledWith({ ...empty, maxTime: undefined });
   });
-  it('change le tri', () => {
+  // D3 (2026-10-19) : le sélecteur de tri quitte l'écran. Le tri reste dans le
+  // modèle, dans la requête et dans les préférences enregistrées — seul le
+  // contrôle disparaît.
+  it('n’affiche plus de sélecteur « Trier par » (D3)', () => {
+    render(<RecipeFiltersBar value={empty} cuisines={[]} onChange={vi.fn()} />);
+    expect(screen.queryByLabelText('Trier par')).toBeNull();
+    const labels = screen.getAllByRole('combobox').map((node) => node.getAttribute('aria-label'));
+    expect(labels).toEqual(['Type de plat', 'Cuisine', 'Durée', 'Facilité', 'Régime', 'Note minimale']);
+  });
+
+  // Le tri mémorisé traverse le panneau sans être touché : « Tout effacer »
+  // efface les facettes, jamais le tri (le test suivant), et aucun geste du
+  // panneau ne le change plus.
+  it('laisse le tri intact quand on change une facette (D3)', () => {
     const onChange = vi.fn();
-    render(<RecipeFiltersBar value={empty} cuisines={[]} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText('Trier par'), { target: { value: 'coverage' } });
-    expect(onChange).toHaveBeenCalledWith({ ...empty, sort: 'coverage' });
+    render(<RecipeFiltersBar value={{ ...empty, sort: 'coverage' }} cuisines={[]} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText('Facilité'), { target: { value: 'EASY' } });
+    expect(onChange).toHaveBeenCalledWith({ ...empty, sort: 'coverage', difficulty: ['EASY'] });
   });
   it('traduit les pastilles rapides en filtres', () => {
     const onChange = vi.fn();
