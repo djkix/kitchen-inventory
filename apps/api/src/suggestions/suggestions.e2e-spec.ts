@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { DynamicModule, Global, Module, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { DISH_TYPES, suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
+import { DISH_TYPES, SUGGESTION_REGION_LABELS_FR, suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
 import { LoggerModule } from 'nestjs-pino';
 import type TestAgent from 'supertest/lib/agent.js';
@@ -973,6 +973,29 @@ describe('SuggestionsService (EF-26)', () => {
       expect(recipe.prepMinutes).toBe(AI_RECIPE.prepMinutes);
       expect(recipe.cookMinutes).toBe(AI_RECIPE.cookMinutes);
       expect(http.calls).toHaveLength(0);
+    });
+
+    // 2026-10-19 : une recette conservée n'avait aucune cuisine, donc le
+    // sélecteur « Cuisine » de « Mes recettes » — qui liste les lignes de
+    // `Cuisine` — ne pouvait correspondre à aucune d'elles.
+    it('rattache la recette conservée à la cuisine de sa région, et n’en crée qu’une', async () => {
+      const { service, db } = await createService();
+      const keeper = await seedUser(db);
+      await seedPool(db, [{ recipe: AI_RECIPE }]);
+
+      const recipe = await service.keep({ batchId: '', suggestionId: AI_ID, clientOpId: 'op-keep-cuisine-001' }, keeper);
+
+      expect(recipe.cuisineName).toBe(SUGGESTION_REGION_LABELS_FR[AI_RECIPE.region]);
+      const rows = await db.cuisine.findMany({ where: { region: AI_RECIPE.region } });
+      expect(rows).toHaveLength(1);
+
+      // Une seconde conservation de la même région réutilise la ligne.
+      await seedPool(db, [{ recipe: { ...AI_RECIPE, title: 'Autre riz sauté' } }]);
+      await service.keep(
+        { batchId: '', suggestionId: suggestionIdentity({ ...AI_RECIPE, title: 'Autre riz sauté' }), clientOpId: 'op-keep-cuisine-002' },
+        keeper,
+      );
+      expect(await db.cuisine.count({ where: { region: AI_RECIPE.region } })).toBe(1);
     });
 
     it('reporte la durée totale sur prepMinutes quand la suggestion n’a ni préparation ni cuisson détaillée (constat final 3)', async () => {
