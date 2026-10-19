@@ -69,3 +69,33 @@ describe('labelMatchesTerms (D5)', () => {
     expect(labelMatchesTerms('Merguez', [])).toBe(false);
   });
 });
+
+describe('recipeUsesAllTerms — saisie sans virgule (constat de djkix, 2026-10-19)', () => {
+  const POULET_TOMATE = ['Blanc de poulet', 'Tomates cerises', 'Huile d’olive'];
+
+  it('trouve une recette au poulet et à la tomate quand les deux sont tapés d’un seul tenant', () => {
+    // « poulet tomate » sans virgule est UN terme : aucun libellé ne le
+    // contient d'un seul tenant, et l'écran annonçait « aucune recette » pour
+    // une recette qui contient pourtant les deux — après avoir payé l'appel.
+    expect(recipeUsesAllTerms(POULET_TOMATE, ['poulet tomate'])).toBe(true);
+  });
+
+  it('exige toujours que chaque mot significatif soit présent', () => {
+    expect(recipeUsesAllTerms(POULET_TOMATE, ['poulet merguez'])).toBe(false);
+  });
+
+  it('ne retient rien d’un terme fait de mots de liaison', () => {
+    // « de la » ne porte aucun sens : sans mot significatif, la seconde
+    // lecture ne doit pas s'ouvrir, sinon elle dirait oui à tout.
+    expect(recipeUsesAllTerms(['Crème fraîche'], ['de la'])).toBe(false);
+  });
+
+  it('garde la lecture d’un seul tenant quand elle suffit', () => {
+    expect(recipeUsesAllTerms(['Pommes de terre nouvelles'], ['pomme de terre'])).toBe(true);
+  });
+
+  it('n’élargit pas un terme d’un seul mot', () => {
+    // Un mot unique ne doit pas se disperser : seul le libellé compte.
+    expect(recipeUsesAllTerms(['Tomates cerises'], ['poulet'])).toBe(false);
+  });
+});
