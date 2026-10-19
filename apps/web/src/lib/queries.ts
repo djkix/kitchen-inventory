@@ -345,9 +345,17 @@ let nextRelaunchToken = 0;
  * la recherche qu'il déclenche et elle seule. Ce n'est pas le compteur reçu
  * qui entre dans la clé mais un jeton qui ne redescend jamais
  * (`nextRelaunchToken`), voir ci-dessous.
+ *
+ * `limit` (2026-10-19) : taille de la page demandée, augmentée par « Charger
+ * plus ». Elle entre dans la clé de requête — sans quoi l'appui ne
+ * déclencherait rien sous `staleTime: Infinity` — mais jamais dans le jeton de
+ * relance : agrandir la page relit le réservoir, elle ne repaie pas un appel
+ * au modèle. L'écran remet d'ailleurs le compteur de relances à zéro en
+ * chargeant plus, pour que `refresh` ne reparte pas avec la nouvelle clé.
  */
-export function useSuggestionsQuery(orientation: SuggestionOrientation, options?: { enabled?: boolean; relaunch?: number }) {
+export function useSuggestionsQuery(orientation: SuggestionOrientation, options?: { enabled?: boolean; relaunch?: number; limit?: number }) {
   const relaunch = options?.relaunch ?? 0;
+  const limit = options?.limit;
   const previousRelaunch = useRef(relaunch);
   const token = useRef(0);
   if (previousRelaunch.current !== relaunch) {
@@ -357,8 +365,8 @@ export function useSuggestionsQuery(orientation: SuggestionOrientation, options?
     token.current = relaunch === 0 ? 0 : (nextRelaunchToken += 1);
   }
   return useQuery({
-    queryKey: [...queryKeys.suggestions(orientation), token.current] as const,
-    queryFn: () => suggestionsApi.list({ ...orientation, refresh: token.current > 0 ? true : undefined }),
+    queryKey: [...queryKeys.suggestions(orientation), token.current, limit] as const,
+    queryFn: () => suggestionsApi.list({ ...orientation, limit, refresh: token.current > 0 ? true : undefined }),
     retry: false,
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,

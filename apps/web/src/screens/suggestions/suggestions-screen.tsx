@@ -1,4 +1,4 @@
-import type { SuggestionDto } from '@kitchen/shared';
+import { SUGGESTION_PAGE_SIZE, type SuggestionDto } from '@kitchen/shared';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
@@ -64,8 +64,17 @@ export function SuggestionsScreen() {
    * cache et ne partirait pas (revue finale du 2026-10-15).
    */
   const [relaunch, setRelaunch] = useState(0);
+  /**
+   * Taille de la page demandée au serveur (2026-10-19). « Plus je fais de
+   * requêtes, plus j'emmagasine de recettes » — mais l'écran n'en montrait
+   * jamais que la première page, et rien ne permettait de voir les autres :
+   * un réservoir de trente-sept recettes en cachait vingt-cinq, définitivement.
+   * Même geste que « Mes recettes » : un bouton « Charger plus (X sur Y) » qui
+   * allonge la liste, bornée par le schéma partagé (`SUGGESTION_PAGE_MAX`).
+   */
+  const [limit, setLimit] = useState(SUGGESTION_PAGE_SIZE);
   // Pas d'appel tant que la question n'a pas de réponse (voir `useSuggestionsQuery`).
-  const suggestions = useSuggestionsQuery(orientation, { enabled: answeredDishType !== null, relaunch });
+  const suggestions = useSuggestionsQuery(orientation, { enabled: answeredDishType !== null, relaunch, limit });
   // Suggestion ouverte dans la fiche de conservation (tâche 12) ; `null` quand le tiroir est fermé.
   const [selected, setSelected] = useState<SuggestionDto | null>(null);
 
@@ -99,6 +108,8 @@ export function SuggestionsScreen() {
           // compteur de relances repart de zéro, sans quoi il resterait collé
           // exactement comme le faisait `refresh: true` avant lui.
           setRelaunch(0);
+          // Une autre orientation est une autre liste : la page repart au début.
+          setLimit(SUGGESTION_PAGE_SIZE);
           setOrientation(next);
         }}
       />
@@ -126,6 +137,14 @@ export function SuggestionsScreen() {
             // de requête, donc relance réellement, et rien ne reste posé dans
             // l'orientation entre deux recherches.
             onRefresh={() => setRelaunch((count) => count + 1)}
+            // Charger plus ne relit que le réservoir : le compteur de relances
+            // retombe à zéro pour que `refresh` ne reparte pas avec la
+            // nouvelle clé de requête, et qu'une page de plus ne coûte jamais
+            // un appel au modèle.
+            onLoadMore={() => {
+              setRelaunch(0);
+              setLimit((size) => size + SUGGESTION_PAGE_SIZE);
+            }}
           />
         </>
       )}
@@ -224,10 +243,12 @@ function SuggestionsResult({
   batch,
   onSelect,
   onRefresh,
+  onLoadMore,
 }: {
   batch: ReturnType<typeof useSuggestionsQuery>['data'];
   onSelect: (suggestion: SuggestionDto) => void;
   onRefresh: () => void;
+  onLoadMore: () => void;
 }) {
   if (!batch) return null;
 
@@ -287,6 +308,17 @@ function SuggestionsResult({
          * pour cette orientation, et ce que l'application connaît en tout.
          */
         <div className="flex flex-col items-center gap-3 px-4 pb-6 pt-5">
+          {/* Même bouton et même formulation que « Mes recettes » : le geste
+              est déjà connu, il n'y en a pas un second à apprendre. */}
+          {batch.items.length < batch.poolCount && (
+            <button
+              type="button"
+              onClick={onLoadMore}
+              className="min-h-touch w-full rounded-xl bg-accent px-4 text-[15px] font-semibold text-ink"
+            >
+              Charger plus (<span className="tnum">{batch.items.length}</span> sur <span className="tnum">{batch.poolCount}</span>)
+            </button>
+          )}
           <p className="text-center text-[13px] text-muted">
             <span className="tnum">{batch.poolCount}</span> recette{batch.poolCount > 1 ? 's' : ''} connue{batch.poolCount > 1 ? 's' : ''} pour cette
             orientation · <span className="tnum">{batch.poolTotal}</span> en tout

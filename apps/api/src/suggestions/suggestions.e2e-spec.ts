@@ -456,6 +456,108 @@ describe('SuggestionsService (EF-26)', () => {
     expect(http.calls).toHaveLength(0);
   });
 
+  /**
+   * Franck, 2026-10-19 : « je veux les conserver afin de les consulter
+   * ultérieurement ». Le réservoir les gardait déjà ; l'écran n'en montrait
+   * que douze et rien ne permettait de voir les autres.
+   */
+  describe('page demandée par le client (2026-10-19)', () => {
+    it('rend la page demandée, fenêtre de classement comprise', async () => {
+      // Soixante recettes, page de quarante-huit : la fenêtre de présélection
+      // valait trois fois la page PAR DÉFAUT (36) et coupait donc avant la
+      // page demandée — les recettes au-delà n'étaient ni classées ni rendues.
+      const { service, db } = await createService();
+      await seedPool(
+        db,
+        Array.from({ length: 60 }, (_, index) => ({ recipe: composition(index) })),
+      );
+
+      const result = await service.list({ refresh: false, limit: 48 });
+
+      expect(result.items).toHaveLength(48);
+      expect(new Set(result.items.map((item) => item.id)).size).toBe(48);
+      expect(result.poolCount).toBe(60);
+    });
+
+    it('ne déclenche aucun appel au modèle, si grande soit la page', async () => {
+      // Le déclenchement tient au plancher de six et à la relance explicite,
+      // jamais à ce que l'écran affiche. Compté sur les appels réellement
+      // passés à la doublure, pas sur `fromCache`.
+      const { service, db } = await createService();
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+      await seedPool(
+        db,
+        Array.from({ length: 20 }, (_, index) => ({ recipe: composition(index) })),
+      );
+
+      const result = await service.list({ refresh: false, limit: 48 });
+
+      expect(http.calls).toHaveLength(0);
+      expect(result.items).toHaveLength(20);
+    });
+
+    /**
+     * Réservoir de recettes web vérifiées : l'ordre de D7 les place devant
+     * toute composition, quelle que soit sa couverture. Une arrivante
+     * composée n'est donc en tête que par le champ `fresh` de D12 — c'est
+     * cela que la page, plus grande, ne doit pas défaire.
+     */
+    function verifiee(index: number): ModelRecipe {
+      return {
+        title: `Recette vérifiée ${index}`,
+        origin: 'exemple.test',
+        region: 'europeenne',
+        totalMinutes: 20,
+        prepMinutes: 10,
+        cookMinutes: 10,
+        difficulty: 'EASY',
+        dishType: 'MAIN',
+        provenance: 'web',
+        sourceUrl: `https://${WEB_RECIPE_HOST}/recette-${index}`,
+        steps: [],
+        ingredients: [{ label: 'Tomate', quantity: 2, unit: 'PIECE' }],
+      };
+    }
+
+    it('garde en tête les recettes de la relance, même sur une grande page', async () => {
+      const { service, db } = await createService();
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+      await seedPool(
+        db,
+        Array.from({ length: 40 }, (_, index) => ({ recipe: verifiee(index), pageText: 'texte de la page' })),
+      );
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-orientation-b.json'));
+
+      const relance = await service.list({ refresh: true, limit: 24 });
+
+      expect(relance.items).toHaveLength(24);
+      expect(relance.items[0]?.title).toBe('Recette orientation B');
+    });
+
+    it('charger plus après une relance ne reperd pas les nouvelles, ni ne repaie', async () => {
+      const { service, db } = await createService();
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+      await seedPool(
+        db,
+        Array.from({ length: 20 }, (_, index) => ({ recipe: verifiee(index), pageText: 'texte de la page' })),
+      );
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-orientation-b.json'));
+
+      await service.list({ refresh: true });
+      const plus = await service.list({ refresh: false, limit: 24 });
+
+      // La page suivante relit le réservoir : l'arrivante n'est plus épinglée
+      // en tête (D12 ne vaut que pour la réponse de la relance), mais elle est
+      // servie avec le reste — et rien n'est repayé.
+      expect(plus.items).toHaveLength(21);
+      expect(plus.items.map((item) => item.title)).toContain('Recette orientation B');
+      expect(http.calls.filter((call) => call.url.includes('generateContent'))).toHaveLength(1);
+    });
+  });
+
   it('sert le réservoir même quand le stock ne donne aucune graine', async () => {
     // « Stock insuffisant pour suggérer » était levé AVANT toute lecture du
     // réservoir : un placard momentanément vide masquait des dizaines de

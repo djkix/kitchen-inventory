@@ -35,6 +35,27 @@ export const SUGGESTION_REGION_LABELS_FR: Record<SuggestionRegion, string> = {
 export const SUGGESTION_DURATIONS = [15, 30, 60] as const;
 export type SuggestionDuration = (typeof SUGGESTION_DURATIONS)[number];
 
+/**
+ * Page rendue par défaut quand la requête ne demande rien (section 5.1, B8),
+ * et pas de la liste côté écran.
+ */
+export const SUGGESTION_PAGE_SIZE = 12;
+
+/**
+ * Borne haute de la page demandée (2026-10-19).
+ *
+ * Pourquoi borner : le serveur calcule la couverture sur une fenêtre de
+ * classement proportionnelle à la page, et ce calcul est un rapprochement
+ * `pg_trgm` par libellé d'ingrédient contre tout le catalogue de produits.
+ * Une valeur libre venue du client (`?limit=10000`) ferait donc balayer tout
+ * le réservoir à chaque visite, sur un mini-PC, pour un téléphone.
+ *
+ * Pourquoi cinq pages et pas plus : c'est déjà soixante cartes à faire défiler
+ * au doigt — au-delà, l'outil qui sert n'est pas une page plus longue mais les
+ * orientations (cuisine, durée, facilité), qui filtrent le réservoir en amont.
+ */
+export const SUGGESTION_PAGE_MAX = 5 * SUGGESTION_PAGE_SIZE;
+
 export const suggestionQuerySchema = z.object({
   region: suggestionRegionSchema.optional(),
   maxMinutes: z.coerce
@@ -62,6 +83,14 @@ export const suggestionQuerySchema = z.object({
     .union([z.literal('true'), z.literal('false'), z.boolean()])
     .optional()
     .transform((value) => value === 'true' || value === true),
+  /**
+   * Nombre de recettes rendues en une fois. Absent, le serveur pose
+   * `SUGGESTION_PAGE_SIZE` ; c'est le bouton « Charger plus » de l'écran qui
+   * l'augmente, page par page, jusqu'à `SUGGESTION_PAGE_MAX`. Demander une
+   * page plus grande ne déclenche jamais d'appel au modèle : ce déclenchement
+   * ne tient qu'au plancher du réservoir et à la relance explicite.
+   */
+  limit: z.coerce.number().int().min(1).max(SUGGESTION_PAGE_MAX).optional(),
 });
 export type SuggestionQuery = z.infer<typeof suggestionQuerySchema>;
 

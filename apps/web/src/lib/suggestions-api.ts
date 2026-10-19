@@ -24,6 +24,12 @@ export interface SuggestionOrientation {
    * heures posé sur une orientation déjà demandée.
    */
   refresh?: boolean;
+  /**
+   * Nombre de recettes demandées en une fois (« Charger plus », 2026-10-19) :
+   * absent, le serveur pose sa page par défaut. Borné par le schéma partagé
+   * (`SUGGESTION_PAGE_MAX`) ; il ne déclenche jamais d'appel au modèle.
+   */
+  limit?: number;
 }
 
 export const suggestionsApi = {

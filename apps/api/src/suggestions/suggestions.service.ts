@@ -7,6 +7,7 @@ import {
   pickSeedIngredients,
   normalizeProductName,
   recipeCoverage,
+  SUGGESTION_PAGE_SIZE,
   SUGGESTION_REGION_LABELS_FR,
   suggestionIdentity,
   type CoverageIngredient,
@@ -50,7 +51,7 @@ import { RECIPE_REWRITER, SuggestionProviderError, type SuggestionAttempt, type 
  * rendue, appliquée APRÈS le tri de `comparePoolEntries` : les meilleures en
  * tête, c'est tout l'objet de ce tri.
  */
-export const SUGGESTION_BATCH_SIZE = 12;
+export const SUGGESTION_BATCH_SIZE = SUGGESTION_PAGE_SIZE;
 /**
  * Marge demandée au fournisseur au-delà de la page rendue (voir « Vigilance 2 »
  * du rapport de tâche 5) : `GeminiSuggestionProvider.suggest()` tronque à
@@ -79,8 +80,14 @@ export const SUGGESTION_REQUEST_BUFFER = 4;
  * Plafond assumé : une recette plus ancienne que la fenêtre ne peut plus
  * remonter sur sa seule couverture. Trois fois la page rendue laisse de quoi
  * départager ; aller plus loin demanderait de porter la couverture en base.
+ *
+ * C'est un facteur, pas un nombre fixe (2026-10-19) : la page est désormais
+ * demandée par le client (« Charger plus »), et une fenêtre figée sur la page
+ * par défaut couperait avant la page demandée — les recettes au-delà ne
+ * seraient alors ni classées ni rendues, ce que le réservoir promet
+ * exactement l'inverse. `SUGGESTION_PAGE_MAX` borne l'ensemble.
  */
-const SUGGESTION_RANKING_WINDOW = 3 * SUGGESTION_BATCH_SIZE;
+const SUGGESTION_RANKING_WINDOW_FACTOR = 3;
 
 /**
  * Plancher sous lequel le réservoir ne suffit plus pour l'orientation demandée
@@ -133,14 +140,15 @@ const MATCH_CANDIDATES_PER_LABEL = 5;
 const ABSENT_MATCH_SENTINEL = '__suggestion_absent_match__';
 
 /**
- * Présélection avant calcul de la couverture (voir `SUGGESTION_RANKING_WINDOW`) :
+ * Présélection avant calcul de la couverture (voir `SUGGESTION_RANKING_WINDOW_FACTOR`) :
  * la part de l'ordre de `comparePoolEntries` qui ne dépend pas du stock —
  * vérifiées d'abord (D5), chaque groupe gardant l'ordre de première apparition
  * décroissant rendu par `pool.read`.
  */
-function rankingWindow(entries: readonly PoolRecipe[]): PoolRecipe[] {
-  if (entries.length <= SUGGESTION_RANKING_WINDOW) return [...entries];
-  return [...entries.filter((entry) => entry.verified), ...entries.filter((entry) => !entry.verified)].slice(0, SUGGESTION_RANKING_WINDOW);
+function rankingWindow(entries: readonly PoolRecipe[], pageSize: number): PoolRecipe[] {
+  const size = SUGGESTION_RANKING_WINDOW_FACTOR * pageSize;
+  if (entries.length <= size) return [...entries];
+  return [...entries.filter((entry) => entry.verified), ...entries.filter((entry) => !entry.verified)].slice(0, size);
 }
 
 /** Orientation demandée, telle que le réservoir la filtre (D6). */
@@ -218,6 +226,10 @@ export class SuggestionsService {
     // si le fournisseur ne pourra de toute façon pas répondre. Garde partagée
     // avec `RecognitionService.recognizeImage` (`assertProviderEnabled`).
     assertProviderEnabled(this.provider, 'suggestions');
+    // Page demandée par l'écran, bornée au schéma partagé. Elle ne change que
+    // ce qui est rendu : ni le plancher du réservoir, ni le nombre de recettes
+    // demandées au modèle n'en dépendent.
+    const pageSize = query.limit ?? SUGGESTION_PAGE_SIZE;
     // Une seule lecture de l'arbre des catégories, partagée par l'instantané de
     // stock et par les candidats de départ (revue de tâche 6 : `snapshot()` et
     // `loadSeedCandidates` interrogeaient chacun la table `Category`).
@@ -277,7 +289,7 @@ export class SuggestionsService {
         if (entries.length === 0) {
           throw ApiError.insufficientStock('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
         }
-        return this.render(entries, snapshot, true, notice, fresh);
+        return this.render(entries, snapshot, true, notice, fresh, pageSize);
       }
       const breach = await this.quotaBreach();
       if (breach) {
@@ -303,7 +315,7 @@ export class SuggestionsService {
       }
     }
 
-    return this.render(entries, snapshot, fromCache, notice, fresh);
+    return this.render(entries, snapshot, fromCache, notice, fresh, pageSize);
   }
 
   /**
@@ -318,6 +330,11 @@ export class SuggestionsService {
    * 3. `comparePoolEntries`, la règle pure partagée, ordonne ; jamais réécrite
    *    ici ;
    * 4. la page est bornée après le tri, donc aux meilleures.
+   *
+   * `pageSize` vient de la requête (« Charger plus », 2026-10-19), borné par
+   * `SUGGESTION_PAGE_MAX` au schéma partagé. Il traverse les deux étapes 1 et
+   * 4 : borner la page sans élargir la fenêtre rendrait la page demandée
+   * impossible à remplir au-delà de la fenêtre par défaut.
    */
   private async render(
     entries: readonly PoolRecipe[],
@@ -325,6 +342,7 @@ export class SuggestionsService {
     fromCache: boolean,
     notice: string | null,
     fresh: ReadonlySet<string>,
+    pageSize: number,
   ): Promise<SuggestionBatchDto> {
     // Compté avant la fenêtre de classement et la page : c'est le réservoir
     // réel pour cette orientation, pas ce qu'on en montre.
@@ -333,7 +351,10 @@ export class SuggestionsService {
     // Les recettes rapportées à l'instant entrent dans la fenêtre sans
     // condition : les faire passer par `rankingWindow` les exposerait à être
     // coupées par les anciennes, ce qui annulerait la relance.
-    const window = fresh.size === 0 ? rankingWindow(entries) : [...entries.filter((e) => fresh.has(e.identity)), ...rankingWindow(entries.filter((e) => !fresh.has(e.identity)))];
+    const window =
+      fresh.size === 0
+        ? rankingWindow(entries, pageSize)
+        : [...entries.filter((e) => fresh.has(e.identity)), ...rankingWindow(entries.filter((e) => !fresh.has(e.identity)), pageSize)];
     const items = await this.toSuggestionDtos(window, snapshot);
     const firstSeenById = new Map(window.map((entry) => [entry.identity, entry.firstSeenAt]));
     const key = (dto: SuggestionDto): Parameters<typeof comparePoolEntries>[0] => ({
@@ -348,7 +369,7 @@ export class SuggestionsService {
 
     return {
       fromCache,
-      items: items.slice(0, SUGGESTION_BATCH_SIZE),
+      items: items.slice(0, pageSize),
       notice,
       poolCount,
       poolTotal,

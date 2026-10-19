@@ -252,6 +252,50 @@ Si des variantes subsistent malgré D13, l'escalade raisonnable n'est pas de
 les jeter mais de les montrer regroupées. Rien n'est fait en ce sens
 aujourd'hui.
 
+## Amendement du 2026-10-19 : parcourir le réservoir
+
+**Demande de Franck** : « oui mais je veux les conserver afin de les consulter
+ultérieurement. Plus je fais de requêtes pour les recettes, plus j'emmagasine
+de recettes dans l'application. »
+
+Le réservoir conservait déjà tout (D1). Ce qui manquait est l'autre moitié :
+la page rendue est bornée à douze (revue finale du 2026-10-15) et **rien** ne
+permettait de voir les suivantes. Un réservoir de trente-sept recettes en
+cachait vingt-cinq, définitivement.
+
+**D15 — La page devient un paramètre de la requête, borné.** `limit` est
+facultatif, entier, entre 1 et `SUGGESTION_PAGE_MAX` (soixante, cinq pages de
+douze) ; absent, le serveur pose `SUGGESTION_PAGE_SIZE`. La borne est posée au
+schéma Zod partagé, pas dans le service : sans elle, un `?limit=10000` ferait
+calculer la couverture — un rapprochement `pg_trgm` par libellé d'ingrédient —
+sur tout le réservoir, à chaque visite, sur un mini-PC. Soixante parce qu'au
+delà, l'outil qui sert à retrouver une recette n'est pas une page plus longue
+mais les orientations, qui filtrent le réservoir en amont.
+
+Trois conséquences, toutes vérifiées par des tests :
+
+1. **La fenêtre de classement suit la page.** `SUGGESTION_RANKING_WINDOW`
+   devient un facteur (trois fois la page demandée) et non plus un nombre
+   fixe : figée sur la page par défaut, elle aurait coupé à trente-six et les
+   recettes au-delà n'auraient jamais été ni classées ni rendues — le défaut
+   que cet amendement corrige, réintroduit par une autre porte.
+2. **Une page plus grande n'appelle jamais le modèle.** Le déclenchement ne
+   tient qu'au plancher de six (D6) et à la relance explicite ; `limit` n'y
+   entre pas, et n'entre pas davantage dans le nombre de recettes demandées au
+   modèle, qui reste celui de la page par défaut plus sa marge.
+3. **L'écran reprend le geste de « Mes recettes ».** Bouton « Charger plus
+   (X sur Y) », X étant ce qui est affiché et Y le `poolCount` déjà rendu ;
+   absent quand tout est affiché. Charger plus remet le compteur de relances à
+   zéro côté écran : la nouvelle clé de requête ne doit pas remmener
+   `refresh: true` avec elle, sans quoi chaque page coûterait un appel.
+
+**Limite assumée.** L'ordre « les arrivantes en tête » de D12 ne vaut que pour
+la réponse de la relance. Charger plus est un geste suivant : il relit le
+réservoir, et une recette fraîchement rapportée y reprend son rang normal —
+derrière les recettes web vérifiées, le cas échéant. Elle reste servie, et la
+page plus longue la rend justement plus facile à retrouver ; la figer en tête
+demanderait de mémoriser « déjà vu », ce que D12 refuse explicitement.
+
 ## Limites assumées
 
 - **Le prix de D11 : une orientation jamais satisfaite reste vide 24 heures.**
