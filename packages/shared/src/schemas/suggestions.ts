@@ -267,4 +267,13 @@ export interface SuggestionBatchDto {
   items: SuggestionDto[];
   /** Message affiché au-dessus du lot (ex. limite du fournisseur atteinte) ; `null` si rien à signaler. */
   notice: string | null;
+  /**
+   * Recettes connues pour cette orientation, et dans toute l'application
+   * (2026-10-19). `items` n'en montre qu'une page : sans ces deux nombres, un
+   * réservoir qui ne bouge plus et un réservoir plein se ressemblent — c'est
+   * exactement ce qui a donné à djkix l'impression de tourner sur douze
+   * recettes.
+   */
+  poolCount: number;
+  poolTotal: number;
 }

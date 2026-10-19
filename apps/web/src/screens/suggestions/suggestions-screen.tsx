@@ -276,6 +276,30 @@ function SuggestionsResult({
           ))}
         </ul>
       )}
+
+      {batch.items.length > 0 && (
+        /*
+         * Pied de liste (2026-10-19). Le bouton de relance n'existait que dans
+         * l'état vide : dès que le réservoir rendait six recettes ou plus pour
+         * l'orientation, plus aucun appel ne partait et rien ne permettait d'en
+         * demander d'autres — djkix a vu « toujours les mêmes douze recettes »,
+         * et c'était exact. Les deux nombres disent pourquoi : ce qui est connu
+         * pour cette orientation, et ce que l'application connaît en tout.
+         */
+        <div className="flex flex-col items-center gap-3 px-4 pb-6 pt-5">
+          <p className="text-center text-[13px] text-muted">
+            <span className="tnum">{batch.poolCount}</span> recette{batch.poolCount > 1 ? 's' : ''} connue{batch.poolCount > 1 ? 's' : ''} pour cette
+            orientation · <span className="tnum">{batch.poolTotal}</span> en tout
+          </p>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="min-h-touch rounded-xl border border-line px-4 text-[14px] font-medium text-accent active:bg-raised"
+          >
+            Chercher de nouvelles recettes
+          </button>
+        </div>
+      )}
     </>
   );
 }
