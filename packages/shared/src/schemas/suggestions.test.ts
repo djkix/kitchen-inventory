@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SUGGESTION_INGREDIENT_LENGTH_MAX } from '../rules/suggestion-ingredients.js';
 import { modelBatchSchema, modelRecipeSchema, suggestionQuerySchema, SUGGESTION_PAGE_MAX, SUGGESTION_REGIONS } from './suggestions.js';
 
 const recette = {
@@ -108,6 +109,22 @@ describe('suggestionQuerySchema', () => {
   });
   it('laisse la limite absente : le serveur pose alors la page par défaut', () => {
     expect(suggestionQuerySchema.parse({}).limit).toBeUndefined();
+  });
+  it('rend les ingrédients dictés normalisés et triés (D3, D7)', () => {
+    // Triés au schéma, donc une seule fois : la signature de l'orientation les
+    // reprend tels quels, et deux saisies de même contenu sont la même demande.
+    expect(suggestionQuerySchema.parse({ ingredients: 'Merguez, Pommes de terre' }).ingredients).toEqual(['merguez', 'pommes de terre']);
+    expect(suggestionQuerySchema.parse({ ingredients: 'pommes de terre, merguez' }).ingredients).toEqual(['merguez', 'pommes de terre']);
+  });
+  it('traite une saisie vide comme une absence de contrainte, jamais comme une contrainte vide (D7)', () => {
+    expect(suggestionQuerySchema.parse({ ingredients: '  ' }).ingredients).toEqual([]);
+    expect(suggestionQuerySchema.parse({}).ingredients).toBeUndefined();
+  });
+  it('borne la saisie à cinq ingrédients de trente caractères (D7)', () => {
+    expect(suggestionQuerySchema.safeParse({ ingredients: 'a, b, c, d, e' }).success).toBe(true);
+    expect(suggestionQuerySchema.safeParse({ ingredients: 'a, b, c, d, e, f' }).success).toBe(false);
+    expect(suggestionQuerySchema.safeParse({ ingredients: 'x'.repeat(SUGGESTION_INGREDIENT_LENGTH_MAX) }).success).toBe(true);
+    expect(suggestionQuerySchema.safeParse({ ingredients: 'x'.repeat(SUGGESTION_INGREDIENT_LENGTH_MAX + 1) }).success).toBe(false);
   });
   it('expose sept régions, sans doublon', () => {
     expect(new Set(SUGGESTION_REGIONS).size).toBe(SUGGESTION_REGIONS.length);

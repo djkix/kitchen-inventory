@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { modelRecipeSchema, suggestionIdentity, type Difficulty, type DishType, type ModelRecipe, type SuggestionRegion } from '@kitchen/shared';
+import { modelRecipeSchema, recipeUsesAllTerms, suggestionIdentity, type Difficulty, type DishType, type ModelRecipe, type SuggestionRegion } from '@kitchen/shared';
 import { Prisma, type SuggestionPoolRecipe as SuggestionPoolRecipeRow } from '@prisma/client';
 import { Logger } from 'nestjs-pino';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -28,6 +28,13 @@ export interface PoolFilter {
   /** Durée totale maximale acceptée, en minutes. */
   maxMinutes?: number;
   difficulty?: Difficulty;
+  /**
+   * Ingrédients dictés à la main (2026-10-19, D2) : une recette n'est retenue
+   * que si ses libellés les portent **tous** (`recipeUsesAllTerms`, règle
+   * partagée). C'est ce filtre qui fait que taper deux fois la même chose ne
+   * coûte rien la seconde fois — le réservoir répond avant le modèle.
+   */
+  ingredients?: readonly string[];
 }
 
 /** Ligne du réservoir revalidée, ou `null` si son `payload` n'est plus conforme au schéma. */
@@ -113,6 +120,7 @@ export class SuggestionPoolService {
       if (filter.region && entry.recipe.region !== filter.region) continue;
       if (filter.maxMinutes !== undefined && entry.recipe.totalMinutes > filter.maxMinutes) continue;
       if (filter.difficulty && entry.recipe.difficulty !== filter.difficulty) continue;
+      if (filter.ingredients?.length && !recipeUsesAllTerms(entry.recipe.ingredients.map((i) => i.label), filter.ingredients)) continue;
       result.push(entry);
     }
     return result;

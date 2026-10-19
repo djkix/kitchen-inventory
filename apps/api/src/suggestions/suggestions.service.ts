@@ -6,6 +6,7 @@ import {
   createRecipeSchema,
   pickSeedIngredients,
   normalizeProductName,
+  labelMatchesTerms,
   recipeCoverage,
   SUGGESTION_PAGE_SIZE,
   SUGGESTION_REGION_LABELS_FR,
@@ -109,11 +110,11 @@ const SUGGESTION_POOL_FLOOR = 6;
  *
  * Passée à `v2` le 2026-10-08 avec l'arrivée du type de plat, à `v3` le même
  * jour avec les durées de préparation et de cuisson séparées, et à `v4` le
- * 2026-10-15 avec le retrait des graines : sans ce changement de version, les
- * lignes écrites avant seraient relues comme des orientations qu'elles ne
- * désignent pas.
+ * 2026-10-15 avec le retrait des graines, et à `v5` le 2026-10-19 avec les
+ * ingrédients dictés (D3) : sans ce changement de version, les lignes écrites
+ * avant seraient relues comme des orientations qu'elles ne désignent pas.
  */
-const SUGGESTION_SIGNATURE_VERSION = 'v4';
+const SUGGESTION_SIGNATURE_VERSION = 'v5';
 
 /**
  * Au-delà de ce délai, une orientation déjà demandée peut l'être à nouveau
@@ -153,7 +154,16 @@ function rankingWindow(entries: readonly PoolRecipe[], pageSize: number): PoolRe
 
 /** Orientation demandée, telle que le réservoir la filtre (D6). */
 function orientationFilter(query: SuggestionQuery): PoolFilter {
-  return { dishType: query.dishType, region: query.region, maxMinutes: query.maxMinutes, difficulty: query.difficulty };
+  return {
+    dishType: query.dishType,
+    region: query.region,
+    maxMinutes: query.maxMinutes,
+    difficulty: query.difficulty,
+    // Les ingrédients dictés sont une orientation comme les autres (D2) : le
+    // réservoir est lu filtré sur eux, et le modèle n'est appelé que si ce
+    // réservoir filtré reste sous le plancher de six.
+    ingredients: query.ingredients,
+  };
 }
 
 function computeSignature(query: SuggestionQuery): string {
@@ -162,6 +172,12 @@ function computeSignature(query: SuggestionQuery): string {
     maxMinutes: query.maxMinutes ?? null,
     difficulty: query.difficulty ?? null,
     dishType: query.dishType ?? null,
+    // Normalisés et TRIÉS par le schéma partagé (D3) : sans le tri, « merguez,
+    // pommes de terre » et « pommes de terre, merguez » seraient deux
+    // orientations distinctes ; sans leur présence ici, deux combinaisons
+    // différentes partageraient le verrou de 24 h et la seconde se verrait
+    // refuser son appel à cause de la première.
+    ingredients: query.ingredients ?? [],
     version: SUGGESTION_SIGNATURE_VERSION,
   });
   return createHash('sha256').update(payload).digest('hex');
@@ -289,7 +305,7 @@ export class SuggestionsService {
         if (entries.length === 0) {
           throw ApiError.insufficientStock('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
         }
-        return this.render(entries, snapshot, true, notice, fresh, pageSize);
+        return this.render(entries, snapshot, true, notice, fresh, pageSize, query.ingredients ?? []);
       }
       const breach = await this.quotaBreach();
       if (breach) {
@@ -315,7 +331,7 @@ export class SuggestionsService {
       }
     }
 
-    return this.render(entries, snapshot, fromCache, notice, fresh, pageSize);
+    return this.render(entries, snapshot, fromCache, notice, fresh, pageSize, query.ingredients ?? []);
   }
 
   /**
@@ -343,6 +359,7 @@ export class SuggestionsService {
     notice: string | null,
     fresh: ReadonlySet<string>,
     pageSize: number,
+    dictated: readonly string[],
   ): Promise<SuggestionBatchDto> {
     // Compté avant la fenêtre de classement et la page : c'est le réservoir
     // réel pour cette orientation, pas ce qu'on en montre.
@@ -369,7 +386,19 @@ export class SuggestionsService {
 
     return {
       fromCache,
-      items: items.slice(0, pageSize),
+      /**
+       * D5 — un ingrédient que l'on vient de taper n'est jamais annoncé comme
+       * manquant : « il vous manque : merguez » juste après l'avoir déclaré
+       * serait absurde.
+       *
+       * Ce n'est PAS un bug que le taux affiché n'en tienne pas compte : la
+       * règle de couverture partagée ne connaît que le stock et n'est pas
+       * touchée ici. Une recette peut donc afficher « 3 sur 4 » sans lister le
+       * moindre manquant — c'est voulu. Un chiffre prudent, calculé sur ce que
+       * le placard contient réellement, vaut mieux qu'un chiffre gonflé par
+       * une déclaration invérifiable.
+       */
+      items: items.slice(0, pageSize).map((item) => ({ ...item, missingLabels: item.missingLabels.filter((label) => !labelMatchesTerms(label, dictated)) })),
       notice,
       poolCount,
       poolTotal,
@@ -482,6 +511,9 @@ export class SuggestionsService {
       dishType: query.dishType,
       count: SUGGESTION_BATCH_SIZE + SUGGESTION_REQUEST_BUFFER,
       knownTitles,
+      // Imposés au modèle (D1), en plus des graines tirées du stock (D4) : le
+      // prompt distingue les deux, l'un s'ajoute à l'autre.
+      ingredients: query.ingredients,
     };
 
     const started = Date.now();

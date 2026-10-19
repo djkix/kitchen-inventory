@@ -8,6 +8,7 @@ import { isApiError } from '../../lib/api';
 import { useSuggestionsQuery } from '../../lib/queries';
 import type { SuggestionOrientation } from '../../lib/suggestions-api';
 import { DishTypeQuestion, useDishTypeAnswer } from './dish-type-question';
+import { IngredientsField } from './ingredients-field';
 import { OrientationBar } from './orientation-bar';
 import { SuggestionCard, suggestionAccessibleName } from './suggestion-card';
 import { SuggestionSheet } from './suggestion-sheet';
@@ -101,6 +102,19 @@ export function SuggestionsScreen() {
 
       <RecipeTabSwitch />
 
+      {/* Au-dessus des filtres (D6, 2026-10-19), et vide par défaut : ce qui est
+          tapé ici est imposé à chaque recette proposée, le stock venant en plus. */}
+      <IngredientsField
+        value={orientation.ingredients ?? ''}
+        onChange={(raw) => {
+          // Une autre demande est une autre recherche : mêmes remises à zéro
+          // que pour un changement d'orientation.
+          setRelaunch(0);
+          setLimit(SUGGESTION_PAGE_SIZE);
+          setOrientation((current) => ({ ...current, ingredients: raw === '' ? undefined : raw, refresh: undefined }));
+        }}
+      />
+
       <OrientationBar
         value={orientation}
         onChange={(next) => {
@@ -127,6 +141,10 @@ export function SuggestionsScreen() {
           <SuggestionsResult
             batch={suggestions.data}
             onSelect={setSelected}
+            // L'état vide doit dire POURQUOI il est vide : imposer tous les
+            // ingrédients dictés (D1) rend peu de chose sur une combinaison
+            // inhabituelle, et une liste vide et muette ne l'explique pas.
+            dictated={orientation.ingredients !== undefined}
             // Seule sortie du verrou de 24 heures posé par la décision D11 du
             // 2026-10-15 : sans `refresh`, une orientation que le modèle n'a
             // jamais su satisfaire reste vide jusqu'au bout du délai. Le
@@ -244,11 +262,14 @@ function SuggestionsResult({
   onSelect,
   onRefresh,
   onLoadMore,
+  dictated,
 }: {
   batch: ReturnType<typeof useSuggestionsQuery>['data'];
   onSelect: (suggestion: SuggestionDto) => void;
   onRefresh: () => void;
   onLoadMore: () => void;
+  /** Une demande porte des ingrédients dictés : l'état vide s'explique autrement. */
+  dictated: boolean;
 }) {
   if (!batch) return null;
 
@@ -262,13 +283,19 @@ function SuggestionsResult({
 
       {batch.items.length === 0 ? (
         <EmptyState
-          title="Aucune suggestion pour cette orientation"
+          title={dictated ? 'Aucune recette avec ces ingrédients' : 'Aucune suggestion pour cette orientation'}
           // « Revenez plus tard, le stock aura peut-être changé » était devenu
           // faux : depuis la décision D11 du 2026-10-15, la recherche ne dépend
           // plus du contenu du placard — on invitait à faire la seule chose qui
           // ne peut plus rien y changer. Les deux vraies sorties sont dites
           // ici, et le bouton rend la seconde atteignable.
-          description="Changez d’orientation — une autre cuisine, une durée plus large — ou lancez vous-même une nouvelle recherche."
+          description={
+            dictated
+              ? // Limite assumée de D1 : chaque recette doit utiliser TOUS les
+                // ingrédients saisis, et une combinaison rare n'en rend que peu.
+                'La combinaison demandée est trop rare : chaque recette doit utiliser tous les ingrédients saisis. Retirez-en un, élargissez l’orientation, ou lancez vous-même une nouvelle recherche.'
+              : 'Changez d’orientation — une autre cuisine, une durée plus large — ou lancez vous-même une nouvelle recherche.'
+          }
           action={
             <button
               type="button"

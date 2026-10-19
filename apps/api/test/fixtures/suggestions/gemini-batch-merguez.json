@@ -1,0 +1,268 @@
+{
+  "recipes": [
+    {
+      "title": "Tortilla de pommes de terre et merguez",
+      "origin": "Composition",
+      "region": "europeenne",
+      "totalMinutes": 30,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Couper les pommes de terre.",
+        "Faire revenir les merguez à feu moyen 10 minutes."
+      ],
+      "ingredients": [
+        {
+          "label": "Pommes de terre nouvelles",
+          "quantity": 500,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Merguez",
+          "quantity": 4,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Persil plat",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Ragoût de merguez aux pommes de terre",
+      "origin": "Composition",
+      "region": "europeenne",
+      "totalMinutes": 31,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Couper les pommes de terre.",
+        "Faire revenir les merguez à feu moyen 10 minutes."
+      ],
+      "ingredients": [
+        {
+          "label": "Pommes de terre nouvelles",
+          "quantity": 500,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Merguez",
+          "quantity": 4,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Persil plat",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Salade tiède de pommes de terre et merguez",
+      "origin": "Composition",
+      "region": "europeenne",
+      "totalMinutes": 32,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Couper les pommes de terre.",
+        "Faire revenir les merguez à feu moyen 10 minutes."
+      ],
+      "ingredients": [
+        {
+          "label": "Pommes de terre nouvelles",
+          "quantity": 500,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Merguez",
+          "quantity": 4,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Persil plat",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Gratin de pommes de terre à la merguez",
+      "origin": "Composition",
+      "region": "europeenne",
+      "totalMinutes": 33,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Couper les pommes de terre.",
+        "Faire revenir les merguez à feu moyen 10 minutes."
+      ],
+      "ingredients": [
+        {
+          "label": "Pommes de terre nouvelles",
+          "quantity": 500,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Merguez",
+          "quantity": 4,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Persil plat",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Brochettes de merguez et pommes de terre rôties",
+      "origin": "Composition",
+      "region": "europeenne",
+      "totalMinutes": 34,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Couper les pommes de terre.",
+        "Faire revenir les merguez à feu moyen 10 minutes."
+      ],
+      "ingredients": [
+        {
+          "label": "Pommes de terre nouvelles",
+          "quantity": 500,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Merguez",
+          "quantity": 4,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Persil plat",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Soupe épaisse de pommes de terre et merguez",
+      "origin": "Composition",
+      "region": "europeenne",
+      "totalMinutes": 35,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Couper les pommes de terre.",
+        "Faire revenir les merguez à feu moyen 10 minutes."
+      ],
+      "ingredients": [
+        {
+          "label": "Pommes de terre nouvelles",
+          "quantity": 500,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Merguez",
+          "quantity": 4,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Persil plat",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Galette de pommes de terre garnie de merguez",
+      "origin": "Composition",
+      "region": "europeenne",
+      "totalMinutes": 36,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Couper les pommes de terre.",
+        "Faire revenir les merguez à feu moyen 10 minutes."
+      ],
+      "ingredients": [
+        {
+          "label": "Pommes de terre nouvelles",
+          "quantity": 500,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Merguez",
+          "quantity": 4,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Persil plat",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    },
+    {
+      "title": "Poêlée de merguez, pommes de terre et oignons",
+      "origin": "Composition",
+      "region": "europeenne",
+      "totalMinutes": 37,
+      "prepMinutes": 10,
+      "cookMinutes": 20,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Couper les pommes de terre.",
+        "Faire revenir les merguez à feu moyen 10 minutes."
+      ],
+      "ingredients": [
+        {
+          "label": "Pommes de terre nouvelles",
+          "quantity": 500,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Merguez",
+          "quantity": 4,
+          "unit": "PIECE"
+        },
+        {
+          "label": "Persil plat",
+          "quantity": null,
+          "unit": null
+        }
+      ]
+    }
+  ]
+}
