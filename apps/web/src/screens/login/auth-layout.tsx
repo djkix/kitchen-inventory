@@ -1,8 +1,12 @@
 import type { ReactNode } from 'react';
 import { ScanIcon } from '../../components/ui/icons';
 
-/** Nom affiché de l'application, sur le seul écran qui n'a ni barre de titre ni navigation. */
-export const APP_NAME = 'Kitchen';
+/**
+ * Nom affiché de l'application, sur le seul écran qui n'a ni barre de titre ni
+ * navigation. Même valeur que le `name` du manifeste et que le titre du
+ * document : une seule identité partout (choix de djkix, 2026-10-19).
+ */
+export const APP_NAME = 'Kitchen Inventory';
 
 /**
  * Écran sans session : une carte centrée, verticalement et horizontalement.
