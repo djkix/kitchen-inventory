@@ -5,6 +5,7 @@ import { ApiClientError } from '../../lib/api';
 import type * as ApiModule from '../../lib/api';
 import { useAuth } from '../../hooks/use-auth';
 import { useGoogleClientIdQuery } from '../../lib/queries';
+import { APP_NAME } from './auth-layout';
 import { LoginScreen } from './login-screen';
 
 const post = vi.fn();
@@ -82,6 +83,16 @@ describe('LoginScreen', () => {
 
     expect(await screen.findByText(/connexion Google n’est pas configurée/i)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /google/i })).toBeNull();
+  });
+
+  // Demande de Franck (2026-10-19) : l'écran de connexion est le seul que l'on
+  // voit sans barre de titre ni navigation, et rien n'y disait de quelle
+  // application il s'agit.
+  it('porte le nom de l’application', () => {
+    stubGoogle();
+    renderLogin('abc');
+
+    expect(screen.getByText(APP_NAME)).toBeTruthy();
   });
 
   it('n’affiche plus de formulaire de mot de passe', () => {
