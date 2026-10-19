@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Sheet } from './sheet';
 
@@ -42,7 +43,7 @@ function renderSheet({ open = true, ...props }: Partial<Parameters<typeof Sheet>
 }
 
 /** Marque posée par le tiroir sur son entrée d'historique. */
-const marker = () => (window.history.state as { kitchenSheet?: string } | null)?.kitchenSheet;
+const marker = () => (window.history.state as { kitchenSheet?: true } | null)?.kitchenSheet;
 
 describe('Sheet et le geste « page précédente »', () => {
   it('empile une entrée d’historique à l’ouverture', () => {
@@ -51,7 +52,7 @@ describe('Sheet et le geste « page précédente »', () => {
 
     setOpen(true);
 
-    expect(typeof marker()).toBe('string');
+    expect(marker()).toBe(true);
   });
 
   it('ferme le tiroir sur un retour arrière, au lieu de quitter l’écran', async () => {
@@ -66,7 +67,6 @@ describe('Sheet et le geste « page précédente »', () => {
   // verrouillé, l'entrée est remise en place pour que le piège tienne encore.
   it('ignore le retour arrière pendant un envoi (locked)', async () => {
     const { onClose } = renderSheet({ locked: true });
-    const avant = marker();
 
     // Attend que le `popstate` ait réellement été traité : `history.back()`
     // est asynchrone, et vérifier trop tôt lirait l'état d'avant le retour —
@@ -77,7 +77,7 @@ describe('Sheet et le geste « page précédente »', () => {
 
     expect(onClose).not.toHaveBeenCalled();
     // L'entrée est remise en place : le piège tient pour le retour suivant.
-    await waitFor(() => expect(marker()).toBe(avant));
+    await waitFor(() => expect(marker()).toBe(true));
   });
 
   /**
@@ -87,7 +87,7 @@ describe('Sheet et le geste « page précédente »', () => {
    */
   it('retire son entrée quand on ferme autrement (croix, Échap, Annuler)', async () => {
     const { setOpen } = renderSheet();
-    expect(typeof marker()).toBe('string');
+    expect(marker()).toBe(true);
 
     setOpen(false);
 
@@ -140,5 +140,59 @@ describe('Sheet et le geste « page précédente »', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * Régression (CI du 2026-10-19, `p2-rangement`) : au scan, « Code-barres
+   * inconnu » cède la place à « Nouveau produit » — un tiroir démonté, un
+   * autre monté dans la foulée. Avec une entrée d'historique par tiroir,
+   * celle du premier était dépilée APRÈS que le second eut posé la sienne
+   * (`history.back()` est asynchrone), et le second se refermait aussitôt sur
+   * ce `popstate` : le parcours ne voyait jamais « Nouveau produit ».
+   *
+   * **La course elle-même n'est pas reproductible en jsdom** : une
+   * `pushState` intercalée y annule la traversée en attente, là où un vrai
+   * navigateur l'exécute. Ce test vérifie donc l'invariant qui rend la course
+   * impossible — les deux tiroirs se **partagent une seule entrée**, donc
+   * aucune n'est empilée ni dépilée au passage de l'un à l'autre. Une dépile
+   * non différée casse bien ce test (entrée de plus), ce qu'un simple
+   * « le second tiroir est encore là » ne verrait pas.
+   */
+  it('laisse ouvert un tiroir qui en remplace un autre, sans toucher à l’historique', async () => {
+    const closeSecond = vi.fn();
+
+    function Enchainement() {
+      const [etape, setEtape] = useState<'premier' | 'second'>('premier');
+      return (
+        <>
+          <Sheet open={etape === 'premier'} onClose={() => undefined} title="Code-barres inconnu">
+            <button type="button" onClick={() => setEtape('second')}>
+              Créer à la main
+            </button>
+          </Sheet>
+          <Sheet open={etape === 'second'} onClose={closeSecond} title="Nouveau produit">
+            <p>formulaire</p>
+          </Sheet>
+        </>
+      );
+    }
+
+    render(<Enchainement />);
+    const entrees = window.history.length;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Créer à la main' }));
+    // Laisse passer la dépile différée : c'est elle qui refermait le second.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(closeSecond).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Nouveau produit' })).toBeTruthy();
+    // L'entrée du premier a été reprise, pas remplacée : rien n'a été empilé,
+    // donc rien ne reste à dépiler sous les pieds du second.
+    expect(window.history.length).toBe(entrees);
+    expect(marker()).toBe(true);
+
+    // Et le piège tient toujours : un retour ferme ce second tiroir.
+    window.history.back();
+    await waitFor(() => expect(closeSecond).toHaveBeenCalled());
   });
 });

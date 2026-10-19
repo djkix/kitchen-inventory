@@ -2,20 +2,42 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 
 /**
- * Pile des tiroirs qui ont posé une entrée d'historique, du plus ancien au
+ * Pile des tiroirs qui s'appuient sur l'entrée d'historique, du plus ancien au
  * plus récent. Un `popstate` est entendu par TOUS les tiroirs ouverts : sans
- * cette pile, ouvrir un tiroir par-dessus un autre puis revenir en arrière
- * les fermerait tous les deux d'un coup. Seul celui du dessus réagit.
+ * cette pile, ouvrir un tiroir par-dessus un autre puis revenir en arrière les
+ * fermerait tous les deux d'un coup. Seul celui du dessus réagit.
  */
 const openSheets: string[] = [];
 
-/** Clé posée dans `history.state` pour reconnaître l'entrée d'un tiroir. */
+/** Clé posée dans `history.state` pour reconnaître l'entrée des tiroirs. */
 const MARKER = 'kitchenSheet';
 
-function pushMarker(id: string) {
+/**
+ * **Une seule** entrée d'historique pour toute la pile, et non une par tiroir.
+ * Un tiroir qui en remplace un autre — « Code-barres inconnu » puis « Nouveau
+ * produit », au scan — démonte le premier avant de monter le second : avec une
+ * entrée par tiroir, celle du premier était dépilée (`history.back()` est
+ * asynchrone) APRÈS que le second eut posé la sienne, et le second se fermait
+ * aussitôt sur ce `popstate`. Les deux parcours de rangement cassés par la CI
+ * du 2026-10-19 viennent exactement de là.
+ */
+let entryPushed = false;
+
+function pushEntry() {
+  if (entryPushed) return;
   // L'état du routeur (`usr`, `key`, `idx`) est conservé : l'entrée porte la
   // même adresse que la page en dessous, seule la marque s'y ajoute.
-  window.history.pushState({ ...window.history.state, [MARKER]: id }, '');
+  window.history.pushState({ ...window.history.state, [MARKER]: true }, '');
+  entryPushed = true;
+}
+
+/** Retire l'entrée dès que plus aucun tiroir ne s'en sert — et seulement si elle est encore au sommet. */
+function dropEntryIfUnused() {
+  if (openSheets.length > 0 || !entryPushed) return;
+  entryPushed = false;
+  // Une navigation volontaire (conserver une suggestion mène à sa fiche) a
+  // déjà empilé la sienne par-dessus : la dépiler mangerait ce passage.
+  if ((window.history.state as Record<string, unknown> | null)?.[MARKER] === true) window.history.back();
 }
 
 interface SheetProps {
@@ -50,29 +72,32 @@ export function Sheet({ open, onClose, title, description, children, locked = fa
    * glissement : c'est le navigateur qui remontait l'historique, puisque
    * l'ouverture d'un tiroir n'y ajoutait aucune entrée.
    *
-   * À l'ouverture, le tiroir empile donc une entrée ; un retour arrière la
-   * dépile et le ferme. Fermé autrement (croix, Échap, Annuler), il retire son
-   * entrée — sans quoi un premier Retour ne ferait rien de visible et il en
-   * faudrait deux pour quitter l'écran.
+   * À l'ouverture, la pile des tiroirs s'assure qu'une entrée est posée ; un
+   * retour arrière la dépile et ferme le tiroir du dessus. Quand le dernier
+   * tiroir se ferme autrement (croix, Échap, Annuler), l'entrée est retirée —
+   * sans quoi un premier Retour ne ferait rien de visible et il en faudrait
+   * deux pour quitter l'écran.
    *
    * L'effet ne dépend que de `open` : `locked` et `onClose` passent par des
-   * références, parce qu'un réabonnement empilerait une entrée de plus.
+   * références, parce qu'un réabonnement rejouerait tout l'enchaînement.
    */
   useEffect(() => {
     if (!open) return;
     openSheets.push(id);
-    pushMarker(id);
-    let closedByBack = false;
+    pushEntry();
 
     const onPop = () => {
       if (openSheets[openSheets.length - 1] !== id) return;
-      // Envoi en cours : on remet l'entrée, le tiroir reste verrouillé.
+      // Le navigateur vient de dépiler l'entrée commune.
+      entryPushed = false;
+      // Envoi en cours : on la remet, le tiroir reste verrouillé.
       if (lockedRef.current) {
-        pushMarker(id);
+        pushEntry();
         return;
       }
-      closedByBack = true;
       openSheets.pop();
+      // Un tiroir reste ouvert en dessous : il lui faut son propre piège.
+      if (openSheets.length > 0) pushEntry();
       onCloseRef.current();
     };
 
@@ -81,10 +106,10 @@ export function Sheet({ open, onClose, title, description, children, locked = fa
       window.removeEventListener('popstate', onPop);
       const index = openSheets.lastIndexOf(id);
       if (index >= 0) openSheets.splice(index, 1);
-      // Une navigation volontaire (conserver une suggestion mène à la fiche)
-      // a déjà empilé la sienne par-dessus : la dépiler mangerait le passage
-      // à la fiche. On ne retire que notre propre entrée, restée au sommet.
-      if (!closedByBack && (window.history.state as Record<string, unknown> | null)?.[MARKER] === id) window.history.back();
+      // Différé d'un tour : un tiroir qui en remplace un autre est monté juste
+      // après le démontage du premier, et reprend l'entrée au lieu d'en poser
+      // une seconde. Retirer tout de suite la dépilerait sous ses pieds.
+      setTimeout(dropEntryIfUnused, 0);
     };
   }, [open, id]);
 

@@ -354,4 +354,33 @@ describe('RecipesScreen', () => {
 
     expect(screen.queryByRole('button', { name: /^Supprimer / })).toBeNull();
   });
+
+  /**
+   * D5 nomme la souris parmi les accès obligatoires. Le `group-hover` de
+   * Tailwind, fermé par `@media (hover: hover)`, laissait le bouton
+   * réellement incliquable : le parcours de bout en bout du 2026-10-19 le
+   * trouvait sans jamais pouvoir l'atteindre. Un vrai gestionnaire de
+   * pointeur le découvre, et seulement pour une souris.
+   */
+  it('découvre l’effacement au survol de la souris (D5)', () => {
+    renderRecipesScreen(onePage());
+
+    const row = screen.getByRole('listitem');
+    fireEvent.pointerEnter(row, { pointerType: 'mouse' });
+    expect(row.getAttribute('data-revealed')).toBe('true');
+
+    fireEvent.pointerLeave(row, { pointerType: 'mouse' });
+    expect(row.getAttribute('data-revealed')).toBe('false');
+  });
+
+  // Un doigt produit aussi des événements de pointeur : découvrir l'action au
+  // moindre effleurement rendrait le glissement inutile.
+  it('ne découvre rien au contact d’un doigt, seulement au glissement (D5)', () => {
+    renderRecipesScreen(onePage());
+
+    const row = screen.getByRole('listitem');
+    fireEvent.pointerEnter(row, { pointerType: 'touch' });
+
+    expect(row.getAttribute('data-revealed')).toBe('false');
+  });
 });

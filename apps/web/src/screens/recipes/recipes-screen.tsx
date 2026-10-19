@@ -1,6 +1,6 @@
 import type { RecipeFilters, RecipeSummaryDto } from '@kitchen/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Button } from '../../components/ui/button';
@@ -202,6 +202,12 @@ export function RecipesScreen() {
  * et l'action doit rester atteignable sans glisser (D5). Trois chemins, donc :
  * le glissement au doigt, le focus (qui révèle de lui-même, pour que le bouton
  * ne soit jamais actionné à l'aveugle), et le survol à la souris.
+ *
+ * Le survol est un vrai gestionnaire de pointeur, filtré sur `pointerType`, et
+ * non le `group-hover` de Tailwind : celui-ci est fermé par
+ * `@media (hover: hover)`, que rien ne garantit, et le bouton restait alors
+ * **réellement incliquable** — le parcours de bout en bout du 2026-10-19 le
+ * trouvait sans jamais pouvoir l'atteindre, exactement comme une souris.
  */
 function RecipeListRow({
   recipe,
@@ -216,6 +222,15 @@ function RecipeListRow({
   const start = useRef<{ x: number; y: number } | null>(null);
   // Une recette déjà archivée ne se ré-archive pas (bascule « Archivées »).
   const erasable = recipe.archivedAt === null;
+
+  // Souris seule : un doigt produit aussi des événements de pointeur, et
+  // découvrir l'action au moindre effleurement rendrait le glissement inutile.
+  const onPointerEnter = (event: PointerEvent) => {
+    if (event.pointerType === 'mouse' && erasable) setRevealed(true);
+  };
+  const onPointerLeave = (event: PointerEvent) => {
+    if (event.pointerType === 'mouse') setRevealed(false);
+  };
 
   const onTouchStart = (event: TouchEvent) => {
     const touch = event.touches[0];
@@ -236,7 +251,14 @@ function RecipeListRow({
   };
 
   return (
-    <li className="group relative overflow-hidden rounded-card" data-revealed={revealed} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <li
+      className="relative overflow-hidden rounded-card"
+      data-revealed={revealed}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
       {erasable && (
         <button
           type="button"
@@ -250,14 +272,7 @@ function RecipeListRow({
         </button>
       )}
       <div
-        className={cn(
-          'relative transition-transform duration-150',
-          // Survol : seule façon d'atteindre l'action à la souris (D5 la nomme
-          // explicitement). La variante `hover` de Tailwind est déjà fermée par
-          // `@media (hover: hover)`, un doigt ne la déclenche donc jamais.
-          erasable && 'group-hover:-translate-x-24',
-          revealed && erasable && '-translate-x-24',
-        )}
+        className={cn('relative transition-transform duration-150', revealed && erasable && '-translate-x-24')}
       >
         {/*
           L'étoile de favori est un bouton, posé dans la carte juste

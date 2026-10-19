@@ -527,7 +527,13 @@ test('efface une recette de la liste : archivage après confirmation, jamais de 
   // au-dessus : le bouton d'effacement est posé SOUS la carte opaque, découvert
   // par un glissement, par le focus ou par le survol. Seul un vrai calcul de
   // superposition CSS prouve qu'il est réellement atteignable — un test de
-  // composant ne voit ni recouvrement ni `@media (hover: hover)`.
+  // composant ne voit pas le recouvrement.
+  //
+  // Le survol est joué explicitement : sans geste, Playwright trouvait le
+  // bouton mais ne pouvait pas le cliquer (CI du 2026-10-19), et c'était le
+  // vrai défaut — une souris non plus ne pouvait pas l'atteindre. Le
+  // glissement au doigt, lui, n'est pas joué ici : il est couvert par les
+  // tests de composant (`recipes-screen.test.tsx`).
   //
   // « Bibimbap simplifié » : recette du jeu de développement
   // (`prisma/seed/dev.ts`), qu'aucun autre parcours ne touche.
@@ -545,6 +551,9 @@ test('efface une recette de la liste : archivage après confirmation, jamais de 
 
   // Nommé par sa recette, jamais « Supprimer » seul : plusieurs cartes portent
   // la même action, un lecteur d'écran doit les distinguer (EF-23).
+  const carte = page.getByRole('listitem').filter({ has: page.getByRole('link', { name: /^Bibimbap simplifié,/ }) });
+  await carte.hover();
+  await expect(carte).toHaveAttribute('data-revealed', 'true');
   await page.getByRole('button', { name: 'Supprimer Bibimbap simplifié' }).click();
 
   // Le geste seul n'efface pas : une confirmation s'interpose (D5).
