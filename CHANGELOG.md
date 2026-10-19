@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.19.0](https://github.com/djkix/kitchen-inventory/compare/v0.18.0...v0.19.0) (2026-10-19)
+
+
+### Features
+
+* **suggestions:** annoncer la taille du réservoir et rendre la relance atteignable ([05b1cd4](https://github.com/djkix/kitchen-inventory/commit/05b1cd41238eb6496508c330ae739dfbddb30af7))
+* **suggestions:** diversifier les propositions et rendre la relance visible (EF-25, EF-26) ([16d9e79](https://github.com/djkix/kitchen-inventory/commit/16d9e790835bcf05d6b4b9d9ce29f4f0454d4989))
+* **suggestions:** la région d'une suggestion devient la cuisine de la recette conservée ([d5f7001](https://github.com/djkix/kitchen-inventory/commit/d5f70018b32694c92d6ec5d120631504bdfe9411))
+* **suggestions:** parcourir tout le réservoir avec « Charger plus » (EF-25, EF-26) ([af1d84e](https://github.com/djkix/kitchen-inventory/commit/af1d84e865a3b89db8c5ff6d387beb2c202d0578))
+* **web:** « Kitchen Inventory » comme nom unique de l'application ([b2dfc43](https://github.com/djkix/kitchen-inventory/commit/b2dfc43560d3f521f1cf4e6d378cb0012a789e1f))
+* **web:** écran de connexion centré, portant le nom de l'application ([4edd6e9](https://github.com/djkix/kitchen-inventory/commit/4edd6e9743f074f81c3e366e93be029603814181))
+
 ## [0.18.0](https://github.com/djkix/kitchen-inventory/compare/v0.17.0...v0.18.0) (2026-10-18)
 
 
