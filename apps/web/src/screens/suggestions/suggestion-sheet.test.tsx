@@ -91,10 +91,14 @@ describe('SuggestionSheet', () => {
     expect(screen.getByText(/«\s*Crème\s*».*→.*«\s*Crème fraîche épaisse 30%\s*»/)).toBeTruthy();
   });
 
-  it('intitule le bouton principal « Plus d’informations » (E2, renommage simple : un seul geste, qui conserve)', () => {
+  // D1 (2026-10-19) : « Plus d'informations » promettait une lecture là où le
+  // geste enregistre définitivement la recette — Franck a buté dessus. Le
+  // libellé dit désormais ce que le bouton fait.
+  it('intitule le bouton principal « Ajouter à mes recettes » (D1)', () => {
     renderSheet();
-    expect(screen.getByRole('button', { name: /Plus d’informations/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Ajouter à mes recettes/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Conserver$/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Plus d’informations/i })).toBeNull();
   });
 
   it('affiche les étapes d’une composition de l’IA d’emblée, sans dépliage : elles sont déjà dans la fournée', () => {
@@ -122,10 +126,10 @@ describe('SuggestionSheet', () => {
     const { onClose } = renderSheet({ keep });
 
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter à mes recettes/i }));
 
     await waitFor(() => expect(screen.getByText(/réécriture de la recette en cours/i)).toBeTruthy());
-    expect((screen.getByRole('button', { name: /Plus d’informations/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /Ajouter à mes recettes/i }) as HTMLButtonElement).disabled).toBe(true);
 
     resolveKeep(recipe);
     await waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -140,7 +144,7 @@ describe('SuggestionSheet', () => {
     const keep = vi.fn().mockImplementation(() => new Promise<RecipeDto>(() => {}));
     renderSheet({ suggestion: aiSuggestion, keep });
 
-    fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter à mes recettes/i }));
 
     expect(screen.queryByText(/plusieurs secondes/i)).toBeNull();
     expect(screen.getByText(/enregistrement de la recette/i)).toBeTruthy();
@@ -151,7 +155,7 @@ describe('SuggestionSheet', () => {
     const keep = vi.fn().mockRejectedValue(new ApiClientError(502, 'provider_unavailable', message));
     renderSheet({ keep });
 
-    fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter à mes recettes/i }));
 
     await waitFor(() => expect(screen.getByText(message)).toBeTruthy());
     expect(screen.queryByText(/provider_unavailable/)).toBeNull();
@@ -162,7 +166,7 @@ describe('SuggestionSheet', () => {
     const keep = vi.fn().mockRejectedValueOnce(new ApiClientError(502, 'provider_unavailable', message)).mockResolvedValueOnce(recipe);
     renderSheet({ keep });
 
-    const button = () => screen.getByRole('button', { name: /Plus d’informations/i });
+    const button = () => screen.getByRole('button', { name: /Ajouter à mes recettes/i });
 
     fireEvent.click(button());
     // Le bouton est désactivé pendant l'appel : un second appui pendant ce
@@ -187,7 +191,7 @@ describe('SuggestionSheet', () => {
     const keep = vi.fn().mockRejectedValueOnce(new ApiClientError(502, 'provider_unavailable', message)).mockResolvedValueOnce(recipe);
     const { setOpen } = renderSheet({ keep });
 
-    fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter à mes recettes/i }));
     await waitFor(() => expect(screen.getByText(message)).toBeTruthy());
 
     // Parcours de récupération naturel après un échec : fermer, puis rouvrir
@@ -195,7 +199,7 @@ describe('SuggestionSheet', () => {
     setOpen(false);
     setOpen(true);
 
-    fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter à mes recettes/i }));
     await waitFor(() => expect(keep).toHaveBeenCalledTimes(2));
 
     const firstOpId = keep.mock.calls[0]![0].clientOpId;
@@ -212,14 +216,14 @@ describe('SuggestionSheet', () => {
     const keep = vi.fn().mockRejectedValueOnce(new ApiClientError(502, 'provider_unavailable', message)).mockResolvedValueOnce(recipe);
     const { setOpen } = renderSheet({ keep });
 
-    fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter à mes recettes/i }));
     await waitFor(() => expect(screen.getByText(message)).toBeTruthy());
 
     // Tiroir refermé puis rouvert après une nouvelle recherche, même suggestion.
     setOpen(false);
     setOpen(true);
 
-    fireEvent.click(screen.getByRole('button', { name: /Plus d’informations/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter à mes recettes/i }));
     await waitFor(() => expect(keep).toHaveBeenCalledTimes(2));
 
     expect(keep.mock.calls[1]![0].clientOpId).toBe(keep.mock.calls[0]![0].clientOpId);
