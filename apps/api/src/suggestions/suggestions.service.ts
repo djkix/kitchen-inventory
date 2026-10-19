@@ -162,7 +162,7 @@ function orientationFilter(query: SuggestionQuery): PoolFilter {
     // Les ingrédients dictés sont une orientation comme les autres (D2) : le
     // réservoir est lu filtré sur eux, et le modèle n'est appelé que si ce
     // réservoir filtré reste sous le plancher de six.
-    ingredients: query.ingredients,
+    ingredients: query.ingredients?.terms,
   };
 }
 
@@ -177,7 +177,7 @@ function computeSignature(query: SuggestionQuery): string {
     // orientations distinctes ; sans leur présence ici, deux combinaisons
     // différentes partageraient le verrou de 24 h et la seconde se verrait
     // refuser son appel à cause de la première.
-    ingredients: query.ingredients ?? [],
+    ingredients: query.ingredients?.terms ?? [],
     version: SUGGESTION_SIGNATURE_VERSION,
   });
   return createHash('sha256').update(payload).digest('hex');
@@ -305,7 +305,7 @@ export class SuggestionsService {
         if (entries.length === 0) {
           throw ApiError.insufficientStock('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
         }
-        return this.render(entries, snapshot, true, notice, fresh, pageSize, query.ingredients ?? []);
+        return this.render(entries, snapshot, true, notice, fresh, pageSize, query.ingredients?.terms ?? []);
       }
       const breach = await this.quotaBreach();
       if (breach) {
@@ -315,7 +315,11 @@ export class SuggestionsService {
         const fallback = await this.readPool({ refresh: false });
         if (fallback.length === 0) throw ApiError.rateLimited(this.quotaMessage(breach, false));
         entries = fallback;
-        notice = this.quotaMessage(breach, true);
+        // Le repli lit le réservoir sans AUCUN filtre : ni orientation, ni
+        // ingrédients dictés. Le dire (tour de correction 1) — sinon djkix
+        // reçoit des recettes sans rapport avec ce qu'il vient de taper, et
+        // seul le quota lui est expliqué.
+        notice = this.quotaMessage(breach, true, (query.ingredients?.terms.length ?? 0) > 0);
       } else {
         // Titres déjà connus pour cette orientation, cités au modèle pour
         // qu'il ne les repropose pas. Sur relance, `entries` est vide par
@@ -331,7 +335,7 @@ export class SuggestionsService {
       }
     }
 
-    return this.render(entries, snapshot, fromCache, notice, fresh, pageSize, query.ingredients ?? []);
+    return this.render(entries, snapshot, fromCache, notice, fresh, pageSize, query.ingredients?.terms ?? []);
   }
 
   /**
@@ -372,7 +376,7 @@ export class SuggestionsService {
       fresh.size === 0
         ? rankingWindow(entries, pageSize)
         : [...entries.filter((e) => fresh.has(e.identity)), ...rankingWindow(entries.filter((e) => !fresh.has(e.identity)), pageSize)];
-    const items = await this.toSuggestionDtos(window, snapshot);
+    const items = await this.toSuggestionDtos(window, snapshot, dictated);
     const firstSeenById = new Map(window.map((entry) => [entry.identity, entry.firstSeenAt]));
     const key = (dto: SuggestionDto): Parameters<typeof comparePoolEntries>[0] => ({
       verified: dto.verified,
@@ -386,19 +390,7 @@ export class SuggestionsService {
 
     return {
       fromCache,
-      /**
-       * D5 — un ingrédient que l'on vient de taper n'est jamais annoncé comme
-       * manquant : « il vous manque : merguez » juste après l'avoir déclaré
-       * serait absurde.
-       *
-       * Ce n'est PAS un bug que le taux affiché n'en tienne pas compte : la
-       * règle de couverture partagée ne connaît que le stock et n'est pas
-       * touchée ici. Une recette peut donc afficher « 3 sur 4 » sans lister le
-       * moindre manquant — c'est voulu. Un chiffre prudent, calculé sur ce que
-       * le placard contient réellement, vaut mieux qu'un chiffre gonflé par
-       * une déclaration invérifiable.
-       */
-      items: items.slice(0, pageSize).map((item) => ({ ...item, missingLabels: item.missingLabels.filter((label) => !labelMatchesTerms(label, dictated)) })),
+      items: items.slice(0, pageSize),
       notice,
       poolCount,
       poolTotal,
@@ -476,15 +468,19 @@ export class SuggestionsService {
    * le dit, faute de quoi l'écran afficherait des desserts sous un filtre
    * « Plat » sans que rien ne l'explique (revue de la tâche 4).
    */
-  private quotaMessage(breach: { kind: 'daily' | 'monthly' }, hasPoolEntries: boolean): string {
+  private quotaMessage(breach: { kind: 'daily' | 'monthly' }, hasPoolEntries: boolean, droppedIngredients = false): string {
+    // Les ingrédients dictés tombent avec l'orientation : la phrase le dit,
+    // faute de quoi l'écran afficherait des recettes sans merguez sous une
+    // demande de merguez, sans que rien ne l'explique (tour 1).
+    const dropped = droppedIngredients ? ' Les ingrédients demandés ne sont pas pris en compte dans cette liste.' : '';
     if (breach.kind === 'daily') {
       const dailyQuota = this.config.RECIPE_SUGGESTION_DAILY_QUOTA;
       return hasPoolEntries
-        ? `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; les recettes déjà connues sont affichées, toutes orientations confondues.`
+        ? `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; les recettes déjà connues sont affichées, toutes orientations confondues.${dropped}`
         : `Quota journalier de suggestions atteint (${dailyQuota} par jour) ; réessayez demain, ou augmentez-le dans la configuration du serveur.`;
     }
     return hasPoolEntries
-      ? 'Plafond de dépense mensuel atteint ; les recettes déjà connues sont affichées, toutes orientations confondues.'
+      ? `Plafond de dépense mensuel atteint ; les recettes déjà connues sont affichées, toutes orientations confondues.${dropped}`
       : 'Plafond de dépense mensuel atteint ; réessayez le mois prochain, ou augmentez-le dans la configuration du serveur.';
   }
 
@@ -599,7 +595,7 @@ export class SuggestionsService {
    * une douzaine de recettes à dix ingrédients chacune ferait cent vingt
    * requêtes si ce n'était pas le cas.
    */
-  private async toSuggestionDtos(entries: readonly PoolRecipe[], snapshot: StockSnapshot): Promise<SuggestionDto[]> {
+  private async toSuggestionDtos(entries: readonly PoolRecipe[], snapshot: StockSnapshot, dictated: readonly string[]): Promise<SuggestionDto[]> {
     const labels = entries.flatMap((entry) => entry.recipe.ingredients.map((ingredient) => ingredient.label));
     const matchesByLabel = await this.matchLabels(labels);
 
@@ -635,7 +631,21 @@ export class SuggestionsService {
       const coverage = recipeCoverage(coverageIngredients, snapshot);
       const outcomeById = new Map(coverage.outcomes.map((o) => [o.id, o]));
       const labelById = new Map(rows.map(({ id, ingredient }) => [id, ingredient.label]));
-      const missingLabels = coverage.missingIds.map((id) => labelById.get(id) ?? id);
+      /**
+       * D5 — un ingrédient que l'on vient de taper n'est jamais annoncé comme
+       * manquant : « il vous manque : merguez » juste après l'avoir déclaré
+       * serait absurde. Il est retiré des manquants ici, et marqué `declared`
+       * plus bas pour que le tiroir cesse de l'afficher « Manquant » (tour de
+       * correction 1).
+       *
+       * Ce n'est PAS un bug que le taux de couverture n'en tienne pas compte :
+       * la règle partagée ne connaît que le stock et n'est pas touchée. Une
+       * recette peut donc afficher « 3 sur 4 » sans lister le moindre manquant
+       * — c'est voulu. Un chiffre prudent, calculé sur ce que le placard
+       * contient réellement, vaut mieux qu'un chiffre gonflé par une
+       * déclaration invérifiable.
+       */
+      const missingLabels = coverage.missingIds.map((id) => labelById.get(id) ?? id).filter((label) => !labelMatchesTerms(label, dictated));
 
       return { recipe, identity, verified, rows, coverage, outcomeById, missingLabels };
     });
@@ -665,6 +675,9 @@ export class SuggestionsService {
           locationName: entry?.locationName ?? null,
           locationTemperature: entry?.locationTemperature ?? null,
           state: outcomeById.get(id)?.state ?? 'untracked',
+          // Déclaré à l'instant par djkix (D5) : `state` continue de dire ce
+          // que le stock sait, l'écran dit ce qu'il a sous la main.
+          declared: labelMatchesTerms(ingredient.label, dictated),
         };
       });
 

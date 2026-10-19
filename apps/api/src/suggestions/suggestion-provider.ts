@@ -1,4 +1,4 @@
-import type { Difficulty, DishType, ModelRecipe, SuggestionRegion } from '@kitchen/shared';
+import type { Difficulty, DishType, ModelRecipe, SuggestionIngredients, SuggestionRegion } from '@kitchen/shared';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 
 /** Orientation facultative de la recherche (section 12, EF-25, B9) et nombre de recettes voulues. */
@@ -32,11 +32,12 @@ export interface SuggestionRequest {
    */
   knownTitles?: readonly string[];
   /**
-   * Ingrédients dictés à la main sur l'écran (2026-10-19, D1) : normalisés,
-   * triés, et **imposés** — chaque recette doit tous les utiliser. Ils
-   * s'ajoutent aux graines tirées du stock, ils ne les remplacent pas (D4).
+   * Ingrédients dictés à la main sur l'écran (2026-10-19, D1), **imposés** —
+   * chaque recette doit tous les utiliser. Ils s'ajoutent aux graines tirées
+   * du stock, ils ne les remplacent pas (D4). Le prompt lit `raw` (la saisie
+   * telle quelle), jamais `terms`, réservé à la signature et au réservoir.
    */
-  ingredients?: readonly string[];
+  ingredients?: SuggestionIngredients;
 }
 
 /**

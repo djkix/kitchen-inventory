@@ -113,12 +113,21 @@ describe('suggestionQuerySchema', () => {
   it('rend les ingrédients dictés normalisés et triés (D3, D7)', () => {
     // Triés au schéma, donc une seule fois : la signature de l'orientation les
     // reprend tels quels, et deux saisies de même contenu sont la même demande.
-    expect(suggestionQuerySchema.parse({ ingredients: 'Merguez, Pommes de terre' }).ingredients).toEqual(['merguez', 'pommes de terre']);
-    expect(suggestionQuerySchema.parse({ ingredients: 'pommes de terre, merguez' }).ingredients).toEqual(['merguez', 'pommes de terre']);
+    expect(suggestionQuerySchema.parse({ ingredients: 'Merguez, Pommes de terre' }).ingredients?.terms).toEqual(['merguez', 'pommes de terre']);
+    expect(suggestionQuerySchema.parse({ ingredients: 'pommes de terre, merguez' }).ingredients?.terms).toEqual(['merguez', 'pommes de terre']);
   });
   it('traite une saisie vide comme une absence de contrainte, jamais comme une contrainte vide (D7)', () => {
-    expect(suggestionQuerySchema.parse({ ingredients: '  ' }).ingredients).toEqual([]);
+    expect(suggestionQuerySchema.parse({ ingredients: '  ' }).ingredients?.terms).toEqual([]);
+    // Une saisie faite de virgules seules n'est pas une contrainte non plus.
+    expect(suggestionQuerySchema.parse({ ingredients: ' , ,, ' }).ingredients?.terms).toEqual([]);
     expect(suggestionQuerySchema.parse({}).ingredients).toBeUndefined();
+  });
+  it('garde la saisie telle quelle à côté des termes normalisés (tour 1)', () => {
+    // Le prompt doit recevoir « crème fraîche » accentué : la normalisation
+    // sert la signature et le rapprochement, jamais le transport au modèle.
+    const parsed = suggestionQuerySchema.parse({ ingredients: 'Crème fraîche, Merguez' });
+    expect(parsed.ingredients?.raw).toBe('Crème fraîche, Merguez');
+    expect(parsed.ingredients?.terms).toEqual(['creme fraiche', 'merguez']);
   });
   it('borne la saisie à cinq ingrédients de trente caractères (D7)', () => {
     expect(suggestionQuerySchema.safeParse({ ingredients: 'a, b, c, d, e' }).success).toBe(true);

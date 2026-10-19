@@ -39,10 +39,40 @@ export function normalizeIngredientTerms(raw: string): string[] {
   return [...new Set(splitIngredientTerms(raw).map(normalizeProductName).filter((term) => term.length > 0))].sort();
 }
 
+/**
+ * Forme comparable d'un libellé ou d'un terme : normalisée, puis **tolérante
+ * au nombre** — un `s` ou un `x` final est retiré de chaque mot d'au moins
+ * quatre lettres (tour de correction 1 du 2026-10-19).
+ *
+ * Sans cela, « pomme de terre » ne trouvait pas « Pommes de terre nouvelles »,
+ * ni « oeuf » « Œufs » : l'exemple littéral de la demande. Selon que djkix
+ * tapait au singulier ou au pluriel, il déclenchait un appel payant au lieu de
+ * lire son réservoir, et voyait son propre ingrédient annoncé comme manquant.
+ *
+ * C'est une tolérance au nombre, **pas une lemmatisation** : « cheval » et
+ * « chevaux » restent étrangers l'un à l'autre, « journal »/« journaux » aussi.
+ * Le seuil de quatre lettres protège les mots courts dont le `s` ou le `x`
+ * final fait partie du mot (« os », « ananas » garde son sens une fois les
+ * deux côtés repliés de la même façon).
+ */
+function foldForComparison(value: string): string {
+  return (
+    normalizeProductName(value)
+      // Les ligatures survivent à la décomposition NFD de `normalizeProductName`
+      // (elles ne sont pas des lettres accentuées) : « Œufs » resterait donc
+      // étranger à « oeuf », tapé au clavier par tout le monde.
+      .replace(/œ/g, 'oe')
+      .replace(/æ/g, 'ae')
+      .split(' ')
+      .map((word) => (word.length > 3 ? word.replace(/[sx]$/, '') : word))
+      .join(' ')
+  );
+}
+
 /** Un libellé d'ingrédient de recette porte-t-il l'un des termes dictés (D5, D8) ? */
 export function labelMatchesTerms(label: string, terms: readonly string[]): boolean {
-  const normalized = normalizeProductName(label);
-  return terms.some((term) => normalized.includes(term));
+  const folded = foldForComparison(label);
+  return terms.some((term) => folded.includes(foldForComparison(term)));
 }
 
 /**
@@ -52,5 +82,7 @@ export function labelMatchesTerms(label: string, terms: readonly string[]): bool
  * coûte une recette un peu à côté, un faux négatif coûte un appel au modèle.
  */
 export function recipeUsesAllTerms(labels: readonly string[], terms: readonly string[]): boolean {
-  return terms.every((term) => labels.some((label) => normalizeProductName(label).includes(term)));
+  // Le test d'inclusion n'existe qu'en un seul endroit (`labelMatchesTerms`) :
+  // le recopier ici ferait diverger les deux lectures de D5 et D8.
+  return terms.every((term) => labels.some((label) => labelMatchesTerms(label, [term])));
 }

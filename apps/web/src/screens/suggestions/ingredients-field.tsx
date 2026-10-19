@@ -27,9 +27,13 @@ export function IngredientsField({ value, onChange }: { value: string; onChange:
       return;
     }
     setError(null);
-    // La saisie brute part telle quelle : c'est le serveur qui normalise et
-    // trie (D3), avec ce même schéma. L'écran n'en garde que l'affichage.
-    onChange(draft.trim());
+    // Une saisie qui ne porte aucun terme — vide, ou faite de virgules seules —
+    // est une absence de contrainte (D7, tour de correction 1) : l'envoyer
+    // telle quelle faisait expliquer une liste vide par une « combinaison trop
+    // rare », alors qu'aucune combinaison n'avait été demandée.
+    // La saisie brute part sinon telle quelle : c'est le serveur qui normalise
+    // et trie (D3), avec ce même schéma.
+    onChange(parsed.data.terms.length === 0 ? '' : draft.trim());
   };
 
   return (

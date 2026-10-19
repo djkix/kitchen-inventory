@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { DynamicModule, Global, Module, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { DISH_TYPES, SUGGESTION_REGION_LABELS_FR, suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
+import { DISH_TYPES, normalizeIngredientTerms, SUGGESTION_REGION_LABELS_FR, suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
 import { LoggerModule } from 'nestjs-pino';
 import type TestAgent from 'supertest/lib/agent.js';
@@ -20,6 +20,7 @@ import { createProduct, createStock } from '../../test/recipes.test-helpers.js';
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
 import { truncateAll } from '../../test/db.js';
 import type { PageRecipe } from './recipe-page.fetcher.js';
+import { buildSuggestionPrompt } from './prompt.js';
 import { SuggestionsModule } from './suggestions.module.js';
 import { SuggestionsService } from './suggestions.service.js';
 
@@ -1359,6 +1360,26 @@ describe('SuggestionsService (EF-26)', () => {
       ],
     };
 
+    /** Même forme que celle rendue par le schéma partagé : saisie brute + termes normalisés et triés. */
+    function dictated(raw: string): { raw: string; terms: string[] } {
+      return { raw, terms: normalizeIngredientTerms(raw) };
+    }
+
+    /**
+     * N'utilise qu'UN des deux termes dictés (tour de correction 1) : sans
+     * elle, muter `every` en `some` dans `recipeUsesAllTerms` ne faisait tomber
+     * aucun test — le jeu ne contenait que du tout ou rien, et c'est pourtant
+     * la régression la plus plausible de D1.
+     */
+    const UN_SEUL_TERME: ModelRecipe = {
+      ...SANS_MERGUEZ,
+      title: 'Pommes de terre sautées au thym',
+      ingredients: [
+        { label: 'Pommes de terre', quantity: 600, unit: 'GRAM' },
+        { label: 'Thym', quantity: null, unit: null },
+      ],
+    };
+
     async function seedStock(db: PrismaService): Promise<void> {
       const locationId = await seedLocation(db);
       await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
@@ -1375,7 +1396,7 @@ describe('SuggestionsService (EF-26)', () => {
       await seedPool(db, [{ recipe: SANS_MERGUEZ }]);
       http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-merguez.json'));
 
-      const query: SuggestionQuery = { refresh: false, ingredients: ['merguez', 'pommes de terre'] };
+      const query: SuggestionQuery = { refresh: false, ingredients: dictated('merguez, pommes de terre') };
       const first = await service.list(query);
       expect(first.items.length).toBeGreaterThanOrEqual(6);
       expect(first.fromCache).toBe(false);
@@ -1391,13 +1412,14 @@ describe('SuggestionsService (EF-26)', () => {
     it('ne rend que les recettes qui utilisent TOUS les ingrédients dictés (D1, D8)', async () => {
       const { service, db } = await createService();
       await seedStock(db);
-      await seedPool(db, [{ recipe: AVEC_MERGUEZ }, { recipe: SANS_MERGUEZ }]);
+      await seedPool(db, [{ recipe: AVEC_MERGUEZ }, { recipe: SANS_MERGUEZ }, { recipe: UN_SEUL_TERME }]);
       // Le réservoir filtré ne rend qu'une recette, donc sous le plancher : un
       // appel part, et ne rapporte rien ici. Ce qui est affiché vient du
       // réservoir filtré, et de lui seul.
       http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-vide.json'));
 
-      const result = await service.list({ refresh: false, ingredients: ['merguez', 'pommes de terre'] });
+      const result = await service.list({ refresh: false, ingredients: dictated('merguez, pommes de terre') });
+      // Ni la recette qui n'en utilise aucun, ni celle qui n'en utilise qu'un.
       expect(result.items.map((item) => item.title)).toEqual(['Poêlée de merguez et pommes de terre']);
     });
 
@@ -1409,14 +1431,14 @@ describe('SuggestionsService (EF-26)', () => {
       await seedStock(db);
       http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-vide.json'));
 
-      await service.list({ refresh: false, ingredients: ['merguez', 'pommes de terre'] });
+      await service.list({ refresh: false, ingredients: dictated('merguez, pommes de terre') });
       expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(1);
 
-      await service.list({ refresh: false, ingredients: ['courgette', 'feta'] });
+      await service.list({ refresh: false, ingredients: dictated('courgette, feta') });
       expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(2);
 
       // La même demande, elle, reste verrouillée : rien de neuf à demander.
-      const encore = await service.list({ refresh: false, ingredients: ['merguez', 'pommes de terre'] });
+      const encore = await service.list({ refresh: false, ingredients: dictated('merguez, pommes de terre') });
       expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(2);
       expect(encore.notice).toMatch(/déjà été cherchée récemment/);
     });
@@ -1426,16 +1448,42 @@ describe('SuggestionsService (EF-26)', () => {
       await seedStock(db);
       http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-merguez.json'));
 
-      await service.list({ refresh: false, ingredients: ['merguez', 'pommes de terre'] });
+      await service.list({ refresh: false, ingredients: dictated('merguez, pommes de terre') });
       const prompt = JSON.parse(String(http.calls[0]?.init?.body)).contents[0].parts[0].text as string;
 
       expect(prompt).toContain('Ingrédients imposés : merguez, pommes de terre');
+      // La consigne générale ne doit plus dire « utilisant si possible ces
+      // ingrédients » à une ligne de « doit les utiliser TOUS » : deux phrases
+      // contradictoires sur un référent devenu ambigu (tour 1).
+      expect(prompt).not.toContain('si possible');
       expect(prompt).toMatch(/doit les utiliser TOUS/);
       // Le stock reste envoyé, mais clairement du côté du « disponible ».
       expect(prompt).toContain('Tomate');
       expect(prompt).toMatch(/seulement disponibles/);
       // Les consignes existantes tiennent toujours.
       expect(prompt).toMatch(/nettement différentes les unes des autres/);
+    });
+
+    it('envoie au modèle la saisie telle qu’elle a été tapée, accents compris (tour 1)', () => {
+      // La normalisation sert la signature et le rapprochement au réservoir,
+      // jamais le transport : « crème fraîche » doit arriver accentué.
+      const prompt = buildSuggestionPrompt({ seeds: ['Tomate'], count: 12, ingredients: dictated('Crème fraîche, Merguez') });
+      expect(prompt).toContain('Crème fraîche, Merguez');
+      expect(prompt).not.toContain('creme fraiche');
+    });
+
+    it('dit que le repli de quota a perdu les ingrédients demandés (tour 1)', async () => {
+      // Repli : le réservoir entier, sans filtre d'orientation NI d'ingrédients.
+      // Sans cette phrase, djkix reçoit des recettes qui n'ont rien à voir
+      // avec ce qu'il vient de taper, et seul le quota lui est expliqué.
+      const { service, db } = await createService({ RECIPE_SUGGESTION_DAILY_QUOTA: '0' });
+      await seedStock(db);
+      await seedPool(db, [{ recipe: SANS_MERGUEZ }]);
+
+      const result = await service.list({ refresh: false, ingredients: dictated('merguez, pommes de terre') });
+      expect(result.notice).toMatch(/[Qq]uota journalier/);
+      expect(result.notice).toMatch(/ingrédients/i);
+      expect(result.items).toHaveLength(1);
     });
 
     it('n’annonce jamais comme manquant un ingrédient que l’on vient de déclarer (D5)', async () => {
@@ -1456,9 +1504,14 @@ describe('SuggestionsService (EF-26)', () => {
       ]);
       http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-vide.json'));
 
-      const result = await service.list({ refresh: false, ingredients: ['merguez'] });
+      const result = await service.list({ refresh: false, ingredients: dictated('merguez') });
       const item = result.items[0];
       expect(item?.missingLabels).toEqual(['Persil plat']);
+      // Et pas seulement dans la liste des manquants : l'ingrédient lui-même
+      // est marqué comme déclaré, pour que le tiroir cesse d'afficher
+      // « Merguez — Manquant » juste après qu'on l'ait tapé (tour 1).
+      expect(item?.ingredients.find((i) => i.label === 'Merguez')?.declared).toBe(true);
+      expect(item?.ingredients.find((i) => i.label === 'Persil plat')?.declared).toBe(false);
       // Le taux reste calculé sur le stock réel : une déclaration à l'écran ne
       // remplit pas le placard. Un chiffre prudent, pas un chiffre inventé.
       expect(item?.coverage).toBeLessThan(1);

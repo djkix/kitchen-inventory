@@ -84,7 +84,13 @@ export const suggestionIngredientsSchema = z
       ctx.addIssue({ code: 'custom', message: `${SUGGESTION_INGREDIENT_LENGTH_MAX} caractères au maximum par ingrédient` });
     }
   })
-  .transform(normalizeIngredientTerms);
+  // `raw` ET `terms` (tour de correction 1) : le modèle doit recevoir la
+  // saisie telle qu'elle a été tapée — « crème fraîche » accentué — tandis que
+  // la signature (D3) et le rapprochement au réservoir (D8) travaillent sur la
+  // forme normalisée. La normalisation sert la comparaison, jamais le
+  // transport.
+  .transform((raw) => ({ raw: raw.trim(), terms: normalizeIngredientTerms(raw) }));
+export type SuggestionIngredients = z.infer<typeof suggestionIngredientsSchema>;
 
 export const suggestionQuerySchema = z.object({
   region: suggestionRegionSchema.optional(),
@@ -285,6 +291,14 @@ export interface SuggestionIngredientDto {
   locationName: string | null;
   /** Clé de couleur de la pastille : la température de cet emplacement, `null` si non renseignée. */
   locationTemperature: 'ambient' | 'chilled' | 'frozen' | null;
+  /**
+   * Ingrédient que l'on vient de déclarer dans le champ de saisie (D5, tour de
+   * correction 1 du 2026-10-19). `state` continue de dire ce que le **stock**
+   * sait — la règle de couverture partagée n'a pas à connaître une déclaration
+   * invérifiable — mais l'écran ne doit jamais afficher « Merguez — Manquant »
+   * juste après que djkix ait tapé « merguez ».
+   */
+  declared: boolean;
 }
 
 export interface SuggestionDto {
