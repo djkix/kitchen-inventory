@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/djkix/kitchen-inventory/compare/v0.23.0...v0.24.0) (2026-10-20)
+
+
+### Features
+
+* **recipes:** la fiche recette passe en lecture seule (EF-23) ([c301873](https://github.com/djkix/kitchen-inventory/commit/c30187380853d063550f84ab442fd06093a964f3))
+
 ## [0.23.0](https://github.com/djkix/kitchen-inventory/compare/v0.22.0...v0.23.0) (2026-10-20)
 
 
