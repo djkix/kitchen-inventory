@@ -251,8 +251,9 @@ format propre à l'application** — l'application n'envoie jamais vers le site
 d'origine, pour une recette composée les étapes déjà produites sont reprises
 telles quelles. La difficulté est alors recalculée par le barème du foyer
 (elle peut changer d'un cran par rapport à celle affichée avant conservation).
-La recette entre dans **Mes recettes**, qui reprend le socle du foyer :
-cuisson, historique, notation par membre.
+La recette entre dans **Mes recettes**. Le socle du foyer — cuisson,
+historique, notation par membre — existe toujours côté serveur, mais la fiche
+est passée en lecture seule et ne l'atteint plus (voir plus bas).
 
 Gemini rend une durée de préparation et une durée de cuisson séparées (`null`
 quand la recette n'en a pas, comme une salade, ou que le modèle ne les
@@ -260,8 +261,8 @@ distingue pas — jamais un zéro qui se lirait « cuisson : 0 minute ») en plu
 de la durée totale affichée sur les cartes, et chaque étape de cuisson doit
 préciser température du four, intensité du feu et durée : une étape qui ne le
 ferait pas est jugée inexploitable. Les deux durées, une fois la recette
-conservée, s'affichent sur la fiche recette (à côté du temps actif et du
-repos) et sur la fiche d'une suggestion.
+conservée, s'affichent sur la fiche recette quand elles sont renseignées (à
+côté du temps actif et du repos) et sur la fiche d'une suggestion.
 
 **Favoris et note directe.** Une étoile à cocher (pleine contre vide, jamais la
 seule couleur, annoncée par `aria-pressed`) marque une recette comme favorite —
@@ -327,27 +328,38 @@ autant que par teinte — la couleur ne porte jamais seule l'information)
 désignant l'emplacement de son lot le plus proche de péremption : ambiant,
 frais ou congelé.
 
-En tête de fiche, la **durée totale** et la **difficulté** sont des blocs
-colorés, sur deux échelles distinctes (du céladon de l'accent à l'orange
-d'avertissement, selon que c'est court et facile ou long et exigeant) : la
-couleur ne porte jamais l'information seule, le texte (« 30 min », « Facile »)
-reste écrit en toutes lettres.
+En tête de fiche, un **seul bloc** rassemble les repères : la cuisine, la
+**durée totale** et la **difficulté** — des blocs colorés, sur deux échelles
+distinctes (du céladon de l'accent à l'orange d'avertissement, selon que c'est
+court et facile ou long et exigeant), la couleur ne portant jamais
+l'information seule, le texte (« 30 min », « Facile ») restant écrit en toutes
+lettres —, l'étoile de **favori**, le détail des durées (préparation, cuisson,
+temps actif, repos) et le **nombre de parts**. Les durées absentes **ne
+s'affichent pas** du tout : une recette sans repos n'affiche pas « Repos »,
+plutôt qu'un tiret à lire pour rien.
 
-Le **nombre de parts** est rangé dans le même bloc que les durées
-(préparation, cuisson, temps actif, repos) — « pour combien, et combien de
-temps » est une seule lecture. Il reste ajustable (champ
-numérique, initialisé aux portions de la recette) : le modifier recalcule
-aussitôt la quantité de chaque ligne et son état face au stock (une ligne
-tout juste suffisante à quatre parts peut devenir insuffisante à huit — voir
-la limite connue ci-dessous). C'est
-le **même nombre**, du premier coup d'œil jusqu'à la cuisson — jamais un
-second champ à tenir à côté : il préremplit « Portions réalisées » dans le
-tiroir de cuisson, et c'est aussi lui que reprend « J'ai fait cette
-recette » pour une réalisation sans décrément.
+Le **nombre de parts** reste ajustable (champ numérique, initialisé aux
+portions de la recette) : le modifier recalcule aussitôt la quantité de chaque
+ligne et son état face au stock (une ligne tout juste suffisante à quatre
+parts peut devenir insuffisante à huit — voir la limite connue ci-dessous).
+C'est sa seule fonction, et elle ne touche que l'affichage.
 
-Depuis la fiche recette, « Cuisiner » ouvre un tiroir de cuisson : portions
-réalisées ajustables (préremplies par le nombre de parts choisi sur la fiche),
-chaque ligne décrémentable cochée par défaut, choix du
+**La fiche est en lecture seule** depuis la 0.24.0 (demande du propriétaire,
+en connaissance de ce qu'elle perd). Hors l'étoile de favori, elle ne porte
+plus aucune action : ni « Cuisiner », ni « J'ai fait cette recette », ni
+« Modifier », « Archiver », « Restaurer » ou « Supprimer », et plus de bloc
+Historique ni de notation. Ces fonctions restent entières côté serveur —
+cuisson avec décrément du stock, réalisations, notation par membre, archivage,
+restauration, suppression, modification — et les écrans correspondants restent
+dans le dépôt, prêts à être réaffichés ; ce qui disparaît, c'est le chemin qui
+y menait depuis cet écran. L'écran de modification n'a plus de lien qui y
+mène : il n'est atteignable qu'en tapant son adresse. Sur « Mes recettes »,
+l'effacement par glissement (qui archive) et le bandeau de rappel de notation
+ne changent pas.
+
+La **cuisson**, qui ne se déclenche plus depuis la fiche mais reste servie par
+l'API, ouvre dans son tiroir : portions
+réalisées ajustables, chaque ligne décrémentable cochée par défaut, choix du
 produit retenu (celui qui périme le plus tôt, modifiable) pour toute ligne
 substituable ou visant directement une catégorie, et note facultative à cinq
 étoiles. La mise à l'échelle des quantités affichées (fiche comme tiroir) suit
@@ -359,20 +371,21 @@ n'émet aucun mouvement ; une ligne chiffrée qui ne résout aucun produit (cas
 catégorie sans choix) est signalée plutôt qu'ignorée en silence. Si le stock
 ne suffit pas, la quantité retirée est ramenée au disponible plutôt que de
 faire échouer la cuisson, et le tiroir le signale en clair ; cuisiner une
-recette archivée est refusé. « J'ai fait cette recette » reste disponible
-pour une réalisation sans aucun décrément. La
-fiche recette porte un bloc Historique (moyenne, nombre de réalisations,
+recette archivée est refusé. Une réalisation sans aucun décrément reste
+possible par l'API. Le bloc Historique (moyenne, nombre de réalisations,
 tendance, puis chaque réalisation avec qui a cuisiné et la note de chaque
-membre du foyer) : chaque membre note une réalisation de 1 à 5 étoiles, une
+membre du foyer) reste dans le dépôt : chaque membre note une réalisation de
+1 à 5 étoiles, une
 fois, modifiable pendant les **sept jours** qui suivent, puis en lecture
 seule — y compris une réalisation passée, directement depuis son bouton
-« Noter » dans l'historique, sans repasser par une cuisson. Sur l'écran Mes
+« Noter » dans l'historique, sans repasser par une cuisson — mais la fiche ne
+rend plus ce bloc. Sur l'écran Mes
 recettes, un bandeau invite à noter la dernière
 réalisation récente encore sans note (pas celle d'une recette depuis
 archivée) ; il se ferme pour la journée et se rouvre le lendemain tant qu'il
 reste quelque chose à noter. Une recette jamais cuisinée ne montre plus un
-historique vide sans explication : la fiche dit qu'aucune réalisation n'est
-enregistrée, et que la note directe, elle, reste possible dès maintenant.
+historique vide sans explication : le bloc dit qu'aucune réalisation n'est
+enregistrée.
 
 Une recette jamais cuisinée se supprime réellement ; une recette déjà
 réalisée ne se supprime pas (la suppression échoue avec le nombre de
@@ -382,8 +395,8 @@ listes ni les calculs sauf à la chercher explicitement. Une réalisation qui a
 décrémenté le stock ne se supprime jamais : la correction se fait depuis la
 fiche article, comme pour tout autre mouvement.
 
-Le formulaire (bouton « Modifier » sur la fiche d'une recette conservée)
-permet d'ajuster titre, cuisine (choisie ou créée à la volée), type de plat,
+Le formulaire de modification (`/recettes/:id/modifier`, plus relié à aucun
+bouton depuis le passage de la fiche en lecture seule) permet d'ajuster titre, cuisine (choisie ou créée à la volée), type de plat,
 régimes, portions, les quatre temps, étapes et ingrédients. Chaque ingrédient
 se rattache à un produit existant par la même recherche que le reste de
 l'application, à une catégorie, ou reste en texte libre. La difficulté suit
@@ -939,6 +952,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.24.0 | 2026-10-20 | **La fiche recette passe en lecture seule.** Les repères de tête n'en font plus qu'un : cuisine, durée totale, difficulté, étoile de favori, détail des durées (préparation, cuisson, temps actif, repos) et nombre de parts se lisent dans un seul bloc, au lieu de deux encadrés successifs. Une **durée absente ne s'affiche plus du tout** — une recette sans repos n'affiche pas « Repos » suivi d'un tiret. Le **nombre de parts** reste ajustable et continue de mettre les quantités des ingrédients à l'échelle : c'est désormais sa seule fonction. Disparaissent de l'écran : les boutons **« Cuisiner »** et **« J'ai fait cette recette »**, la rangée **« Modifier » / « Archiver » / « Supprimer » / « Restaurer »**, et le bloc **Historique** avec sa notation par réalisation. Conséquence assumée, demandée en connaissance de cause : on ne peut plus, depuis cette fiche, cuisiner avec décrément du stock, enregistrer une réalisation, noter, modifier, archiver, restaurer ni supprimer une recette, et l'écran de modification n'est plus relié à aucun bouton. Rien n'est retiré du serveur : toutes ces fonctions restent servies par l'API, avec leurs tests, et les composants correspondants (tiroir de cuisson, historique, tiroir de notation) restent dans le dépôt, prêts à être réaffichés. Sur « Mes recettes », l'effacement par glissement (qui archive) et le bandeau de rappel de notation ne changent pas. Aucune route, aucune migration |
 | 0.23.0 | 2026-10-20 | L'écran **Suggestions** reprend l'affichage de « Mes recettes » : les quatre sélecteurs d'orientation (type de plat, cuisine, durée, facilité), qui occupaient en permanence une moitié d'écran de téléphone avant la première recette, passent derrière un **bouton « Filtres »** unique posé à droite du champ d'ingrédients, portant le nombre d'orientations actives et ouvrant un panneau par le bas. Rien n'est retiré : les quatre sélecteurs et « Tout effacer » y vivent inchangés, chaque geste relance toujours une vraie recherche, le bouton « Chercher » du champ d'ingrédients garde sa place, et un retour arrière ferme le panneau au lieu de quitter l'écran |
 | 0.22.0 | 2026-10-19 | « Mes recettes » et la fiche recette reprises pour le téléphone, où l'application est utilisée en très grande majorité. Sur une suggestion, le bouton unique « Plus d'informations » fait place à **deux boutons**, « Je fais cette recette » et « Annuler » (détail plus bas) : l'ancien libellé promettait une lecture là où le geste enregistre définitivement la recette, et il a fait hésiter. Sur la liste, les onze contrôles de filtre qui occupaient en permanence le haut de l'écran passent derrière un **bouton « Filtres »** unique, posé à droite de la recherche, portant le nombre de filtres actifs et ouvrant un panneau par le bas : rien n'est retiré — les six sélecteurs et les cinq bascules y vivent inchangés —, c'est la place permanente qui disparaît, et la liste commence enfin en haut de l'écran. Le sélecteur **« Trier par » n'est plus affiché** : le tri reste mémorisé par utilisateur, par défaut la note, mais il ne prend plus de place (conséquence assumée : on ne peut plus en changer depuis cet écran). Une recette **s'efface d'un glissement vers la gauche** sur sa carte, qui découvre une action rouge, suivie d'une confirmation — effacer veut dire **archiver** : la recette quitte la liste, garde son historique et ses notes, et la bascule « Archivées » la retrouve entière, rien n'est supprimé de la base. Le glissement seul n'efface jamais, et comme il n'existe ni au clavier, ni au lecteur d'écran, ni à la souris, la même action se découvre aussi au focus et au survol ; chaque bouton est nommé par sa recette (« Supprimer Bibimbap simplifié »), jamais « Supprimer » seul au milieu d'une liste. Sur la fiche, les cinq étoiles de **note du foyer ne s'affichent plus** — elles prenaient trop de place ; la note reste en base, lisible sur les cartes de la liste et toujours le tri par défaut, et la notation après cuisson, par membre, reste intacte dans l'historique. Le **nombre de parts** rejoint le bloc des durées (préparation, cuisson, temps actif, repos), toujours ajustable et toujours le même nombre du premier coup d'œil jusqu'au tiroir de cuisson. **Durée totale et difficulté deviennent des blocs colorés**, sur deux échelles distinctes, avec des jetons du thème et jamais une couleur en dur : la couleur ne porte pas l'information seule, le texte reste écrit. Aucune route ni migration nouvelle — l'effacement utilise l'archivage qui existe depuis le socle du module recettes. Le tiroir d'une suggestion, donc : à gauche **« Je fais cette recette »**, qui conserve et mène droit à la fiche où se règle le nombre de parts ; à droite **« Annuler »**, qui ferme et revient aux suggestions sans rien enregistrer, et reste indisponible tant que la conservation est en cours. Enfin, le **geste « page précédente » ferme le tiroir ouvert** au lieu de quitter l'écran : un glissement vers la gauche depuis le tiroir d'une suggestion basculait sur « Mes recettes » dès qu'on y était passé avant. Rien dans l'application n'écoutait ce glissement — c'est le navigateur qui remontait l'historique, faute d'entrée posée à l'ouverture du tiroir. Le correctif vit dans le composant de tiroir partagé, donc les dix-sept tiroirs de l'application en bénéficient ; fermer par la croix, par Échap ou par Annuler retire l'entrée, pour qu'un Retour ne reste jamais sans effet, et une navigation volontaire (vers la fiche d'une recette conservée) n'est pas avalée au passage. Toute la pile de tiroirs se partage **une seule** entrée : un tiroir qui en remplace un autre — « Code-barres inconnu » puis « Nouveau produit », au scan — la reprend au lieu d'en poser une seconde, sans quoi le second se refermait aussitôt et la saisie manuelle devenait inatteignable. Enfin, l'effacement d'une recette se découvre réellement à la souris : le survol était confié à une règle CSS que rien ne garantissait, et le bouton, quoique présent, ne pouvait être cliqué ni par une souris ni par un outil de test |
 | 0.21.0 | 2026-10-19 | Le champ d'ingrédients de l'écran Suggestions passe aux **pastilles** et s'accompagne d'une autocomplétion depuis votre catalogue de produits. Chaque terme validé, par Entrée ou par une virgule, devient une pastille visible portant une croix pour la retirer : « poulet tomate » tapé sans virgule était jusqu'ici compris comme un seul ingrédient de ce nom, sans que rien à l'écran ne le dise — on lisait « Aucune recette avec ces ingrédients » après avoir payé l'appel au modèle. Dès les premières lettres, les produits du catalogue sont proposés sous le champ (« pou » → « Poulet fermier »), navigables aux flèches et fermés par Échap ; un terme choisi dans la liste porte exactement un libellé connu, donc le rapprochement ne dépend plus de l'orthographe. La saisie libre reste entière : « reste de merguez » n'est dans aucun catalogue et s'écrit comme avant. Le retour arrière sur un champ vide retire la dernière pastille, un terme tapé sans être validé part quand même avec la recherche, et les bornes (cinq ingrédients, trente caractères) sont refusées à l'écran, avec leur raison, au lieu d'être rejetées par le serveur. Ni l'API ni la base ne changent : les termes repartent dans la même chaîne séparée par des virgules. Les ingrédients dictés tapés d'un seul tenant, sans virgule — « poulet tomate » — retrouvent désormais les recettes qui contiennent les deux. Un terme multi-mots est d'abord cherché tel quel dans un libellé, puis mot à mot dans l'ensemble des ingrédients de la recette : l'écran annonçait « aucune recette » pour du poulet et de la tomate, après avoir payé l'appel au modèle dont les recettes venaient d'être écartées. La recherche web des recettes est désormais **éteinte par défaut**. Elle était activée depuis la 0.12.0 au motif que c'était la fonctionnalité demandée et non une option — mais elle est facturée à la requête, hors quota gratuit, et une clé sans facturation la refuse : allumée sur une instance non facturée, elle ne produit pas des recettes web, elle produit un écran vide. Le réglage de Réglages › Reconnaissance dit maintenant ce que son activation exige. Le choix d'un administrateur continue de primer sur cette valeur de départ. Un parcours bout en bout joue désormais ce champ dans un vrai navigateur : pastilles, retrait par la croix, autocomplétion du catalogue, recherche limitée aux recettes qui portent tous les termes, et l'explication affichée quand une combinaison ne rend rien |
