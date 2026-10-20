@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.3](https://github.com/djkix/kitchen-inventory/compare/v0.26.2...v0.26.3) (2026-10-20)
+
+
+### Bug Fixes
+
+* **suggestions:** borner la page demandée au plafond du schéma (EF-26) ([36e151d](https://github.com/djkix/kitchen-inventory/commit/36e151d8cec9e8dc46c1dd0863c5a9a4a420e5f4))
+
 ## [0.26.2](https://github.com/djkix/kitchen-inventory/compare/v0.26.1...v0.26.2) (2026-10-20)
 
 
