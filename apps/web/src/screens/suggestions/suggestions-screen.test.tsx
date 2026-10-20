@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiClientError } from '../../lib/api';
@@ -19,6 +19,17 @@ beforeEach(() => {
   // (tâche 2) : sans reset, un scénario hériterait de la réponse du précédent.
   resetDishTypeAnswerForTests();
 });
+
+/**
+ * Ouvre le panneau de filtres et rend le tiroir (2026-10-20) : les quatre
+ * sélecteurs d'orientation ne sont plus en place permanente, exactement comme
+ * sur « Mes recettes ». Tous les scénarios qui touchent une orientation
+ * passent désormais par ce geste.
+ */
+function openOrientationSheet() {
+  fireEvent.click(screen.getByRole('button', { name: /^Filtres/ }));
+  return screen.getByRole('dialog');
+}
 
 describe('SuggestionsErrorState', () => {
   it('annonce le stock insuffisant sur son code, pas sur le statut 409', () => {
@@ -218,7 +229,7 @@ describe('SuggestionsScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN' });
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Type de plat' }), { target: { value: 'DESSERT' } });
+    fireEvent.change(within(openOrientationSheet()).getByRole('combobox', { name: 'Type de plat' }), { target: { value: 'DESSERT' } });
 
     // Une vraie relance, pas un filtre : la nouvelle orientation part dans la requête.
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'DESSERT' });
@@ -428,7 +439,7 @@ describe('SuggestionsScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Chercher de nouvelles recettes' }));
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(1);
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'asiatique' } });
+    fireEvent.change(within(openOrientationSheet()).getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'asiatique' } });
 
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN', region: 'asiatique', refresh: undefined });
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(0);
@@ -514,7 +525,7 @@ describe('SuggestionsScreen', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Charger plus (12 sur 37)' }));
       expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.limit).toBe(24);
 
-      fireEvent.change(screen.getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'asiatique' } });
+      fireEvent.change(within(openOrientationSheet()).getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'asiatique' } });
 
       expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.limit).toBe(12);
     });
@@ -539,7 +550,10 @@ describe('SuggestionsScreen', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
 
-    expect(screen.getByText('1 orientation')).toBeTruthy();
+    // Le compte est d'abord lisible sur le bouton, panneau fermé — sinon une
+    // orientation active deviendrait invisible dès le panneau refermé.
+    expect(screen.getByRole('button', { name: 'Filtres (1 actif)' })).toBeTruthy();
+    expect(within(openOrientationSheet()).getByText('1 orientation')).toBeTruthy();
     expect(screen.queryByText('Aucune orientation')).toBeNull();
   });
 
@@ -570,6 +584,8 @@ describe('SuggestionsScreen', () => {
     expect(screen.queryByRole('combobox', { name: 'Cuisine' })).toBeNull();
     expect(screen.queryByRole('combobox', { name: 'Durée' })).toBeNull();
     expect(screen.queryByRole('combobox', { name: 'Facilité' })).toBeNull();
+    // Et pas même le bouton qui les cache : la question bloque tout (A2).
+    expect(screen.queryByRole('button', { name: /^Filtres/ })).toBeNull();
 
     // `useSuggestionsQuery` n'a encore reçu aucune orientation de type de plat.
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({});
@@ -597,7 +613,7 @@ describe('SuggestionsScreen', () => {
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'DESSERT' });
     // La question a disparu, la barre de filtres (désormais utile) est affichée.
     expect(screen.queryByRole('heading', { name: /Que cherchez-vous/i })).toBeNull();
-    expect(screen.getByRole('combobox', { name: 'Cuisine' })).toBeTruthy();
+    expect(within(openOrientationSheet()).getByRole('combobox', { name: 'Cuisine' })).toBeTruthy();
   });
 
   /** Piège signalé par la tâche : un rafraîchissement de la fournée ne doit pas reposer la question. */
@@ -850,5 +866,124 @@ describe('SuggestionsScreen, ingrédients dictés (2026-10-19)', () => {
     mountWith([]);
     expect(screen.queryByText(/combinaison/i)).toBeNull();
     expect(screen.getByText(/Changez d’orientation/i)).toBeTruthy();
+  });
+});
+
+/**
+ * djkix, 2026-10-20 : « j'aime beaucoup l'affichage barre de recherche /
+ * filtre sur l'onglet Mes Recettes, fais la même chose pour la partie
+ * Suggestion ». Les quatre sélecteurs d'orientation occupaient une moitié
+ * d'écran de téléphone avant la première recette ; ils passent derrière un
+ * bouton unique, posé sur la ligne du champ d'ingrédients. Rien n'est retiré,
+ * c'est la place permanente qui disparaît — même geste, mêmes libellés et
+ * même nom accessible que sur « Mes recettes » (D2 du 2026-10-19).
+ */
+describe('SuggestionsScreen, filtres derrière un bouton (2026-10-20)', () => {
+  function mount() {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      data: { notice: null, items: [], poolCount: 0, poolTotal: 0 },
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+  }
+
+  it('cache les quatre sélecteurs et « Tout effacer » derrière le bouton', () => {
+    mount();
+
+    for (const name of ['Type de plat', 'Cuisine', 'Durée', 'Facilité']) {
+      expect(screen.queryByRole('combobox', { name })).toBeNull();
+    }
+    expect(screen.queryByRole('button', { name: 'Tout effacer' })).toBeNull();
+
+    const sheet = openOrientationSheet();
+
+    for (const name of ['Type de plat', 'Cuisine', 'Durée', 'Facilité']) {
+      expect(within(sheet).getByRole('combobox', { name })).toBeTruthy();
+    }
+    expect(within(sheet).getByRole('button', { name: 'Tout effacer' })).toBeTruthy();
+  });
+
+  // Même nom accessible que son jumeau : sans le nombre, une orientation
+  // restée active deviendrait invisible une fois le panneau refermé.
+  it('annonce le nombre d’orientations actives dans son nom accessible', () => {
+    mount();
+
+    // Le type de plat répondu compte déjà pour une.
+    expect(screen.getByRole('button', { name: 'Filtres (1 actif)' })).toBeTruthy();
+
+    fireEvent.change(within(openOrientationSheet()).getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'asiatique' } });
+
+    expect(screen.getByRole('button', { name: 'Filtres (2 actifs)' })).toBeTruthy();
+  });
+
+  /**
+   * Le piège de ce déplacement : un filtre rangé dans un panneau ressemble à
+   * un filtrage local de ce qui est déjà affiché. Il n'en est pas un — chaque
+   * geste relance une vraie recherche ciblée (`orientation-bar.tsx`), et le
+   * compteur de relances repart de zéro sans que `refresh` reste collé.
+   */
+  it('un filtre choisi dans le panneau relance toujours une recherche', () => {
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Chercher de nouvelles recettes' }));
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(1);
+
+    fireEvent.change(within(openOrientationSheet()).getByRole('combobox', { name: 'Facilité' }), { target: { value: 'EASY' } });
+
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN', difficulty: 'EASY', refresh: undefined });
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(0);
+  });
+
+  it('« Tout effacer » depuis le panneau relance aussi une recherche', () => {
+    mount();
+    fireEvent.change(within(openOrientationSheet()).getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'asiatique' } });
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toMatchObject({ region: 'asiatique' });
+
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Tout effacer' }));
+
+    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({
+      dishType: undefined,
+      region: undefined,
+      maxMinutes: undefined,
+      difficulty: undefined,
+      refresh: undefined,
+    });
+  });
+
+  /**
+   * Le tiroir empile une entrée d'historique depuis le 2026-10-19 : le
+   * panneau de filtres en hérite, et c'est voulu — un retour arrière doit le
+   * fermer, pas quitter l'écran Suggestions.
+   */
+  it('se ferme sur un retour arrière, sans quitter l’écran', async () => {
+    mount();
+    openOrientationSheet();
+
+    window.history.back();
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    // L'écran est toujours là, et le bouton aussi.
+    expect(screen.getByRole('button', { name: /^Filtres/ })).toBeTruthy();
+  });
+
+  // Le bouton « Chercher » du champ d'ingrédients garde sa place et son rôle :
+  // les deux contrôles cohabitent sur la même ligne, et sont distincts.
+  it('laisse « Chercher » au champ d’ingrédients', () => {
+    mount();
+
+    expect(screen.getByRole('button', { name: 'Chercher' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Filtres/ })).toBeTruthy();
   });
 });

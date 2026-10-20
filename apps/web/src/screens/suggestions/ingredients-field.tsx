@@ -1,5 +1,5 @@
 import { splitIngredientTerms, suggestionIngredientsSchema } from '@kitchen/shared';
-import { useId, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useId, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useDebouncedValue } from '../../hooks/use-debounced-value';
 import { useProductsQuery } from '../../lib/queries';
 
@@ -29,7 +29,20 @@ import { useProductsQuery } from '../../lib/queries';
  * `packages/shared` et sont vérifiées ici **avant** l'envoi, pour dire
  * pourquoi un terme est refusé au lieu de laisser le serveur rejeter.
  */
-export function IngredientsField({ value, onChange }: { value: string; onChange: (raw: string) => void }) {
+export function IngredientsField({
+  value,
+  onChange,
+  trailing,
+}: {
+  value: string;
+  onChange: (raw: string) => void;
+  /**
+   * Contrôle posé à droite de « Chercher », sur la même ligne (2026-10-20) :
+   * le bouton « Filtres » de l'écran Suggestions. Une place, pas une
+   * responsabilité — ce champ ignore ce qu'on y met.
+   */
+  trailing?: ReactNode;
+}) {
   const [terms, setTerms] = useState<string[]>(() => splitIngredientTerms(value));
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -219,6 +232,7 @@ export function IngredientsField({ value, onChange }: { value: string; onChange:
         <button type="submit" className="min-h-touch shrink-0 rounded-xl bg-accent px-3 text-[14px] font-semibold text-ink">
           Chercher
         </button>
+        {trailing}
       </div>
       {error && (
         <p role="alert" className="text-[13px] text-danger">
