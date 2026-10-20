@@ -196,7 +196,11 @@ export function IngredientsField({
             // `search` : le clavier du téléphone affiche alors une touche de
             // validation explicite, seul moyen de soumettre sans bouton visible.
             enterKeyHint="search"
-            placeholder={terms.length > 0 ? 'autre ingrédient' : 'pommes de terre, merguez'}
+            // « ingrédients » plutôt qu'un exemple nommé (choix de djkix,
+            // 2026-10-20) : à environ 185 px de large sur un téléphone, un
+            // exemple à deux aliments se faisait couper en plein milieu, et un
+            // exemple tronqué enseigne la syntaxe de travers.
+            placeholder={terms.length > 0 ? 'autre ingrédient' : 'ingrédients'}
             className="min-h-touch w-full truncate rounded-xl border border-line bg-surface px-3 text-[14px] text-fg focus:border-accent focus:outline-none"
           />
           {open && (
