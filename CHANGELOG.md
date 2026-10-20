@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.2](https://github.com/djkix/kitchen-inventory/compare/v0.26.1...v0.26.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **suggestions:** réarmer le défilement infini, et dire le plafond (EF-26) ([129cc29](https://github.com/djkix/kitchen-inventory/commit/129cc296b3f5c00a619e78d444e0dee0148c18ec))
+
 ## [0.26.1](https://github.com/djkix/kitchen-inventory/compare/v0.26.0...v0.26.1) (2026-10-20)
 
 
