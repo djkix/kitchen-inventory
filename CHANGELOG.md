@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.0](https://github.com/djkix/kitchen-inventory/compare/v0.24.0...v0.25.0) (2026-10-20)
+
+
+### Features
+
+* **recipes:** le nombre de parts au gabarit des durées, borné à deux chiffres ([dcd8c51](https://github.com/djkix/kitchen-inventory/commit/dcd8c51a398d861d76b299fa97468c5a01145275))
+* **suggestions:** « ingrédients » comme texte d'aide du champ ([76e715d](https://github.com/djkix/kitchen-inventory/commit/76e715db66dd9d775ec3ce3832aaf821a96d5258))
+
 ## [0.24.0](https://github.com/djkix/kitchen-inventory/compare/v0.23.0...v0.24.0) (2026-10-20)
 
 
