@@ -71,7 +71,13 @@ export function SuggestionsScreen() {
   // l'observateur en boucle.
   const loadMore = useCallback(() => {
     setRelaunch(0);
-    setLimit((size) => size + SUGGESTION_PAGE_SIZE);
+    // Borné au plafond du schéma partagé (2026-10-20). Sans ce `Math.min`, le
+    // défilement finissait par demander plus que `SUGGESTION_PAGE_MAX`, que Zod
+    // refuse : le serveur rendait « corps de requête invalide », l'écran
+    // affichait une erreur, et son bouton « Réessayer » rejouait la même
+    // requête invalide — une boucle dont on ne sortait pas. Le plafond était
+    // écrit côté serveur et ignoré côté écran.
+    setLimit((size) => Math.min(size + SUGGESTION_PAGE_SIZE, SUGGESTION_PAGE_MAX));
   }, []);
   /**
    * Taille de la page demandée au serveur (2026-10-19). « Plus je fais de
@@ -442,7 +448,9 @@ function SuggestionsResult({
             Charger ne coûte jamais un appel au modèle : c'est une relecture du
             réservoir, bornée à soixante recettes par orientation.
           */}
-          {batch.items.length < batch.poolCount && (
+          {/* Plus de sentinelle une fois le plafond atteint : elle redemanderait
+              une page que le schéma refuse. */}
+          {batch.items.length < batch.poolCount && batch.items.length < SUGGESTION_PAGE_MAX && (
             <>
               {/*
                 `armedFor` réarme l'observateur à chaque page reçue. Sans lui,
