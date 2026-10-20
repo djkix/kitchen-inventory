@@ -290,6 +290,81 @@ describe('SuggestionsScreen', () => {
    * déclencher l'entrée en vue à la main, sinon la sentinelle est inerte et le
    * test ne prouverait rien.
    */
+  /**
+   * djkix, 2026-10-20 : deux cents recettes au réservoir, douze à l'écran, et
+   * le défilement ne chargeait rien. L'effet de la sentinelle ne dépendait que
+   * de `onVisible`, qui est stable : débranché après le premier déclenchement,
+   * l'observateur ne se rebranchait jamais. Au mieux une page de plus, puis
+   * plus rien. Ce test fait entrer le bas de liste en vue DEUX fois.
+   */
+  it('continue de charger page après page, pas une seule fois', () => {
+    const observers: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = [];
+    class FakeObserver {
+      constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
+        observers.push(callback);
+      }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('IntersectionObserver', FakeObserver);
+
+    // La doublure suit la page demandée : sans cela la liste ne grandit pas,
+    // la sentinelle n'est jamais réarmée, et le test passerait sans rien prouver.
+    vi.mocked(useSuggestionsQuery).mockImplementation((_orientation, options) => {
+      const limit = options?.limit ?? 12;
+      return {
+        isPending: false,
+        isError: false,
+        isFetching: false,
+        data: {
+          notice: null,
+          poolCount: 200,
+          poolTotal: 207,
+          items: Array.from({ length: limit }, (_value, index) => ({
+            id: `s${index}`,
+            title: `Recette ${index}`,
+            dishType: 'MAIN',
+            origin: 'italienne',
+            region: 'mediterraneenne',
+            totalMinutes: 25,
+            difficulty: 'EASY',
+            provenance: 'web',
+            verified: true,
+            sourceUrl: 'https://exemple.test/x',
+            coverage: 1,
+            group: 'ready',
+            missingLabels: [],
+            ingredients: [],
+          })),
+        },
+        error: null,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSuggestionsQuery>;
+    });
+
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+
+    const limitOf = () => vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.limit ?? 12;
+    const fire = () => act(() => observers.splice(0).forEach((notify) => notify([{ isIntersecting: true }])));
+
+    fire();
+    const apresUne = limitOf();
+    expect(apresUne).toBeGreaterThan(12);
+
+    fire();
+    expect(limitOf()).toBeGreaterThan(apresUne);
+
+    vi.unstubAllGlobals();
+  });
+
   it('demande la page suivante dès que le bas de liste entre en vue', () => {
     const observers: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = [];
     class FakeObserver {
