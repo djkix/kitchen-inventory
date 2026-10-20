@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/djkix/kitchen-inventory/compare/v0.25.0...v0.26.0) (2026-10-20)
+
+
+### Features
+
+* **recipes:** fiche sans nom de cuisine ni titre « Ingrédients » ([3655212](https://github.com/djkix/kitchen-inventory/commit/3655212288d26b2bdccb5058f454e9ddf6351bb9))
+
 ## [0.25.0](https://github.com/djkix/kitchen-inventory/compare/v0.24.0...v0.25.0) (2026-10-20)
 
 
