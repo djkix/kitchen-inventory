@@ -173,6 +173,15 @@ describe('RecipeScreen', () => {
     expect(screen.queryByText('200 g')).toBeNull();
   });
 
+  // 2026-10-20 : titre « Ingrédients » et nom de cuisine retirés pour gagner de
+  // la place. Le nom de la section doit survivre pour un lecteur d'écran, qui
+  // ne devine pas qu'une liste sans titre porte des ingrédients.
+  it('garde la section des ingrédients nommée, sans titre visible', () => {
+    renderRecipeScreen();
+    expect(screen.getByRole('region', { name: 'Ingrédients' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Ingrédients' })).toBeNull();
+  });
+
   // 2026-10-20 : le champ habillé était deux fois plus haut que les durées et
   // cassait la ligne pour un seul chiffre. Même gabarit qu'elles désormais, et
   // deux chiffres au plus.

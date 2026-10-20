@@ -147,7 +147,6 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
         */}
         <section role="group" aria-label="Résumé de la recette" className="flex flex-col gap-3 rounded-card bg-surface px-4 py-3 text-[14px]">
           <div className="flex flex-wrap items-center gap-2">
-            {recipe.cuisineName && <span className="text-muted">{recipe.cuisineName}</span>}
             {time && <span className={cn('tnum rounded-md px-2 py-1 font-medium', timeLook(recipe.totalMinutes))}>{time}</span>}
             <span className={cn('rounded-md px-2 py-1 font-medium', DIFFICULTY_LOOK[recipe.difficulty])}>
               {DIFFICULTY_LABELS_FR[recipe.difficulty]}
@@ -186,8 +185,13 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
           </div>
         </section>
 
-        <section>
-          <h2 className="mb-2 px-1 text-[13px] font-semibold text-muted">Ingrédients</h2>
+        {/*
+          Sans titre visible (demande de Franck, 2026-10-20) : une liste
+          d'ingrédients se reconnaît sans qu'on la nomme, et la ligne gagnée
+          profite au contenu. Le nom reste porté par `aria-label` — un lecteur
+          d'écran, lui, ne voit pas que ce sont des ingrédients.
+        */}
+        <section aria-label="Ingrédients">
           <ul className="flex flex-col divide-y divide-line rounded-card bg-surface">
             {scaledIngredients.map((ingredient) => (
               <IngredientRow key={ingredient.id} ingredient={ingredient} />
