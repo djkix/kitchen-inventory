@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/djkix/kitchen-inventory/compare/v0.22.0...v0.23.0) (2026-10-20)
+
+
+### Features
+
+* **suggestions:** les filtres derrière un bouton, comme « Mes recettes » (EF-25, EF-26) ([6d24ca0](https://github.com/djkix/kitchen-inventory/commit/6d24ca009f66fb8985da343fb98863f32b1d3397))
+
 ## [0.22.0](https://github.com/djkix/kitchen-inventory/compare/v0.21.0...v0.22.0) (2026-10-19)
 
 
