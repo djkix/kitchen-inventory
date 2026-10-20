@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.1](https://github.com/djkix/kitchen-inventory/compare/v0.26.0...v0.26.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **suggestions:** « Charger plus » hors écran, atteignable au clavier ([392f639](https://github.com/djkix/kitchen-inventory/commit/392f63934582377bb9afe52fa5d85f858f47cf77))
+
 ## [0.26.0](https://github.com/djkix/kitchen-inventory/compare/v0.25.0...v0.26.0) (2026-10-20)
 
 
