@@ -442,10 +442,20 @@ function SuggestionsResult({
           {batch.items.length < batch.poolCount && (
             <>
               <LoadMoreSentinel onVisible={onLoadMore} />
+              {/*
+                Invisible à l'œil, atteignable à la tabulation (2026-10-20).
+                Il était rendu en clair comme filet pour le clavier et les
+                lecteurs d'écran, en pariant qu'on ne le verrait jamais — faux :
+                il reste affiché tant qu'il y a des pages à charger, donc tout
+                le temps. Le masquer purement le retirerait aussi du clavier,
+                où la sentinelle ne se déclenche pas. Il est donc hors écran
+                jusqu'à ce qu'il reçoive le focus, où il reprend sa place : le
+                motif des liens d'évitement.
+              */}
               <button
                 type="button"
                 onClick={onLoadMore}
-                className="min-h-touch w-full rounded-xl bg-accent px-4 text-[15px] font-semibold text-ink"
+                className="sr-only focus:not-sr-only focus:min-h-touch focus:w-full focus:rounded-xl focus:bg-accent focus:px-4 focus:text-[15px] focus:font-semibold focus:text-ink"
               >
                 Charger plus (<span className="tnum">{batch.items.length}</span> sur <span className="tnum">{batch.poolCount}</span>)
               </button>
