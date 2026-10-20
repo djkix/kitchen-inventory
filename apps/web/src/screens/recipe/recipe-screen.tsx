@@ -1,29 +1,19 @@
-import { DIFFICULTY_LABELS_FR, scaleIngredients, servingsRatio, type Difficulty, type RecipeDto, type RecipeLogDto } from '@kitchen/shared';
-import { useQueryClient } from '@tanstack/react-query';
+import { DIFFICULTY_LABELS_FR, scaleIngredients, servingsRatio, type Difficulty, type RecipeDto } from '@kitchen/shared';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
-import { Button } from '../../components/ui/button';
 import { ErrorState } from '../../components/ui/empty-state';
 import { FavoriteStar } from '../../components/ui/favorite-star';
 import { Input } from '../../components/ui/input';
 import { Skeleton } from '../../components/ui/skeleton';
-import { Sheet } from '../../components/ui/sheet';
 import { useToast } from '../../components/ui/toast';
-import { useAuth } from '../../hooks/use-auth';
-import { errorMessage, isApiError, newClientOpId } from '../../lib/api';
-import { queryKeys, useRecipeDirectPatch, useRecipeLogsInfiniteQuery, useRecipeQuery } from '../../lib/queries';
+import { errorMessage, isApiError } from '../../lib/api';
+import { useRecipeDirectPatch, useRecipeQuery } from '../../lib/queries';
 import { cn } from '../../lib/cn';
 import { formatMinutes } from '../../lib/quantity-ui';
-import { recipesApi } from '../../lib/recipes-api';
-import { CookSheet } from './cook-sheet';
-import { HistoryPanel } from './history-panel';
 import { IngredientRow } from './ingredient-row';
-import { RatingSheet } from '../recipes/rating-reminder';
 
-type ConfirmTarget = { kind: 'delete-recipe' } | { kind: 'delete-log'; log: RecipeLogDto };
-
-/** Parts acceptées (`recipeDetailQuerySchema`, `cookRecipeSchema`, section 15) : mêmes bornes côté écran que côté serveur. */
+/** Parts acceptées (`recipeDetailQuerySchema`, section 15) : mêmes bornes côté écran que côté serveur. */
 const MIN_SERVINGS = 1;
 const MAX_SERVINGS = 50;
 
@@ -46,7 +36,16 @@ function timeLook(totalMinutes: number | null): string {
   return 'bg-warn-deep text-warn';
 }
 
-/** Fiche recette (section 14/15) : ingrédients face au stock réel, étapes, temps et historique des réalisations. */
+/**
+ * Fiche recette (section 14/15), en lecture seule depuis le 2026-10-20
+ * (demande de Franck) : repères, ingrédients face au stock réel, étapes.
+ *
+ * Ce qu'elle ne fait plus : cuisiner avec décrément du stock, enregistrer une
+ * réalisation, noter, modifier, archiver, restaurer ou supprimer. Ces
+ * fonctions restent entières côté serveur, et leurs composants
+ * (`CookSheet`, `HistoryPanel`, `RatingSheet`) restent dans le dépôt, prêts à
+ * être réaffichés — ils ne sont simplement plus rendus ici.
+ */
 export function RecipeScreen() {
   const { id } = useParams<{ id: string }>();
   // Parts choisies à l'écran (EF-26) : `undefined` tant que Franck n'y a pas
@@ -77,23 +76,15 @@ export function RecipeScreen() {
 
 interface RecipeDetailsProps {
   recipe: RecipeDto;
-  /** Parts actuellement sélectionnées (EF-26) : du sélecteur à la cuisson, un seul nombre tenu du début à la fin (F4). */
+  /** Parts actuellement sélectionnées (EF-26) : elles mettent les quantités des ingrédients à l'échelle. */
   servings: number;
   onServingsChange: (servings: number) => void;
 }
 
 function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProps) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const toast = useToast();
-  const auth = useAuth();
-  const logs = useRecipeLogsInfiniteQuery(recipe.id);
   const patchRecipe = useRecipeDirectPatch();
-
-  const [ratingLog, setRatingLog] = useState<RecipeLogDto | null>(null);
-  const [confirm, setConfirm] = useState<ConfirmTarget | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [cooking, setCooking] = useState(false);
+  const [busy, setBusy] = useState(false);
   // Brouillon du champ « Nombre de parts » (EF-26) : `''` tant que Franck n'a
   // pas tapé, même geste que les autres champs décimaux de l'application
   // (clavier décimal français, virgule acceptée en silence).
@@ -105,107 +96,26 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   useEffect(() => setRawServings(String(recipe.servings)), [recipe.id, recipe.servings]);
 
   const archived = recipe.archivedAt !== null;
-  const hasHistory = recipe.stats.timesCooked > 0;
-  const items = useMemo(() => logs.data?.pages.flatMap((page) => page.items) ?? [], [logs.data]);
-
-  const refreshRecipe = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.recipe(recipe.id) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.recipeLogs(recipe.id) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.recipesAll }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.pendingRating }),
-    ]);
-  };
-
-  const logCooked = async () => {
-    setBusy('log');
-    try {
-      // Même nombre de parts que celui choisi à l'écran (F4) : ce bouton
-      // n'ouvre pas de second champ, il reprend donc celui déjà affiché.
-      await recipesApi.logCooked(recipe.id, { servingsCooked: servings, clientOpId: newClientOpId() });
-      toast.show({ message: 'Réalisation enregistrée', tone: 'success', durationMs: 3000 });
-      await refreshRecipe();
-    } catch (error) {
-      toast.show({ message: errorMessage(error, 'Impossible d’enregistrer cette réalisation'), tone: 'danger' });
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const archive = async () => {
-    setBusy('archive');
-    try {
-      await recipesApi.archiveRecipe(recipe.id);
-      toast.show({ message: 'Recette archivée', tone: 'success', durationMs: 3000 });
-      await refreshRecipe();
-    } catch (error) {
-      toast.show({ message: errorMessage(error, 'Archivage impossible'), tone: 'danger' });
-    } finally {
-      setBusy(null);
-    }
-  };
 
   /**
-   * Favori et note directe (A2, A3, D1) : `useRecipeDirectPatch` écrit déjà
-   * le cache avant même l'appel réseau — la fiche se met à jour d'elle-même
-   * (elle lit `recipe` via `useRecipeQuery`, abonné au même cache), aucun
-   * état local ni `refreshRecipe` à prévoir ici. `busy` empêche seulement un
-   * double envoi, il ne retarde pas l'affichage.
+   * Favori (A2, D1) : `useRecipeDirectPatch` écrit déjà le cache avant même
+   * l'appel réseau — la fiche se met à jour d'elle-même (elle lit `recipe` via
+   * `useRecipeQuery`, abonné au même cache), aucun état local à prévoir ici.
+   * `busy` empêche seulement un double envoi, il ne retarde pas l'affichage.
    */
   const toggleFavorite = async () => {
-    setBusy('favorite');
+    setBusy(true);
     try {
       await patchRecipe(recipe.id, { favorite: !recipe.favorite });
     } catch (error) {
       toast.show({ message: errorMessage(error, 'Impossible de mettre à jour le favori'), tone: 'danger' });
     } finally {
-      setBusy(null);
-    }
-  };
-
-  const restore = async () => {
-    setBusy('restore');
-    try {
-      await recipesApi.restoreRecipe(recipe.id);
-      toast.show({ message: 'Recette restaurée', tone: 'success', durationMs: 3000 });
-      await refreshRecipe();
-    } catch (error) {
-      toast.show({ message: errorMessage(error, 'Restauration impossible'), tone: 'danger' });
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (!confirm) return;
-    setBusy('delete');
-    try {
-      if (confirm.kind === 'delete-recipe') {
-        await recipesApi.removeRecipe(recipe.id);
-        toast.show({ message: 'Recette supprimée', tone: 'success', durationMs: 3000 });
-        setConfirm(null);
-        navigate('/recettes/bibliotheque', { replace: true });
-        return;
-      }
-      await recipesApi.removeLog(confirm.log.id);
-      toast.show({ message: 'Réalisation supprimée', tone: 'success', durationMs: 3000 });
-      setConfirm(null);
-      await refreshRecipe();
-    } catch (error) {
-      // Refus métier (A20, A26) : le message de l'API pointe déjà vers la bonne action (archiver, ou corriger le stock manuellement).
-      toast.show({ message: errorMessage(error, 'Suppression impossible'), tone: 'danger', durationMs: 6000 });
-      setConfirm(null);
-    } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
 
   const time = formatMinutes(recipe.totalMinutes);
-  const mine = ratingLog?.ratings.find((rating) => rating.userId === auth.user?.id) ?? null;
 
-  // Un seul nombre de parts du début à la fin (F4) : ce ratio sert à la fois
-  // à l'affichage des quantités de la fiche et à l'initialisation du tiroir
-  // de cuisson, jamais recalculé deux fois avec deux formules différentes.
   const ratio = servingsRatio(servings, recipe.servings);
   const scaledIngredients = useMemo(() => scaleIngredients(recipe.ingredients, ratio), [recipe.ingredients, ratio]);
 
@@ -219,53 +129,45 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
     <>
       <ScreenHeader title={recipe.title} back="/recettes/bibliotheque" subtitle={archived ? 'Archivée' : undefined} />
 
-      <div className="flex flex-col gap-5 px-4 pb-32">
+      <div className="flex flex-col gap-5 px-4 pb-8">
         {/*
-          D9 : durée et difficulté deviennent des blocs colorés, sur deux
-          échelles distinctes (plus c'est long ou exigeant, plus la teinte
-          alerte). La couleur ne porte JAMAIS l'information seule — le texte
-          reste lu, pour le daltonisme comme pour le mode sombre. Les teintes
-          viennent des jetons du thème (`styles.css`), jamais d'une couleur en
-          dur : une pastille codée en dur a déjà disparu dans son conteneur ici.
+          2026-10-20 : un seul bloc en tête, le détail des durées ayant rejoint
+          les repères — « pour combien, et combien de temps » se lit d'un coup.
+          Seules les durées renseignées s'affichent : un tiret à lire n'apprend
+          rien. D9 : durée totale et difficulté sont des blocs colorés sur deux
+          échelles distinctes. La couleur ne porte JAMAIS l'information seule —
+          le texte reste lu, pour le daltonisme comme pour le mode sombre. Les
+          teintes viennent des jetons du thème (`styles.css`), jamais d'une
+          couleur en dur : une pastille codée en dur a déjà disparu dans son
+          conteneur ici.
         */}
-        <section className="flex flex-wrap items-center gap-2 text-[14px]">
-          {recipe.cuisineName && <span className="text-muted">{recipe.cuisineName}</span>}
-          {time && <span className={cn('tnum rounded-md px-2 py-1 font-medium', timeLook(recipe.totalMinutes))}>{time}</span>}
-          <span className={cn('rounded-md px-2 py-1 font-medium', DIFFICULTY_LOOK[recipe.difficulty])}>
-            {DIFFICULTY_LABELS_FR[recipe.difficulty]}
-            {recipe.difficultyOverride && ' (corrigée)'}
-          </span>
-          <FavoriteStar
-            favorite={recipe.favorite}
-            recipeTitle={recipe.title}
-            onToggle={() => void toggleFavorite()}
-            disabled={busy === 'favorite'}
-            className="ml-auto"
-          />
-        </section>
+        <section role="group" aria-label="Résumé de la recette" className="flex flex-col gap-3 rounded-card bg-surface px-4 py-3 text-[14px]">
+          <div className="flex flex-wrap items-center gap-2">
+            {recipe.cuisineName && <span className="text-muted">{recipe.cuisineName}</span>}
+            {time && <span className={cn('tnum rounded-md px-2 py-1 font-medium', timeLook(recipe.totalMinutes))}>{time}</span>}
+            <span className={cn('rounded-md px-2 py-1 font-medium', DIFFICULTY_LOOK[recipe.difficulty])}>
+              {DIFFICULTY_LABELS_FR[recipe.difficulty]}
+              {recipe.difficultyOverride && ' (corrigée)'}
+            </span>
+            <FavoriteStar favorite={recipe.favorite} recipeTitle={recipe.title} onToggle={() => void toggleFavorite()} disabled={busy} className="ml-auto" />
+          </div>
 
-        {/*
-          D8 : le nombre de parts rejoint préparation et cuisson — « pour
-          combien, et combien de temps » est une seule lecture, et le champ
-          n'est plus isolé au milieu de la fiche. Il reste ajustable, et ce même
-          nombre prérègle le tiroir de cuisson (F4) : un seul nombre du début à
-          la fin.
-        */}
-        <section role="group" aria-label="Durées et parts" className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-card bg-surface px-4 py-3 text-[14px]">
-          <TimeField label="Préparation" minutes={recipe.prepMinutes} />
-          <TimeField label="Cuisson" minutes={recipe.cookMinutes} />
-          <TimeField label="Temps actif" minutes={recipe.activeTime} />
-          <TimeField label="Repos" minutes={recipe.restMinutes} />
-          <Input
-            label="Nombre de parts"
-            // Champ texte et non « number » : le clavier décimal français
-            // produit une virgule, qu'un champ numérique rejette en silence.
-            type="text"
-            inputMode="numeric"
-            value={rawServings}
-            onChange={(event) => onServingsTyped(event.target.value)}
-            className="w-24"
-          />
+          <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+            <TimeField label="Préparation" minutes={recipe.prepMinutes} />
+            <TimeField label="Cuisson" minutes={recipe.cookMinutes} />
+            <TimeField label="Temps actif" minutes={recipe.activeTime} />
+            <TimeField label="Repos" minutes={recipe.restMinutes} />
+            <Input
+              label="Nombre de parts"
+              // Champ texte et non « number » : le clavier décimal français
+              // produit une virgule, qu'un champ numérique rejette en silence.
+              type="text"
+              inputMode="numeric"
+              value={rawServings}
+              onChange={(event) => onServingsTyped(event.target.value)}
+              className="w-24"
+            />
+          </div>
         </section>
 
         <section>
@@ -288,93 +190,19 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
             ))}
           </ol>
         </section>
-
-        <div className="flex flex-wrap gap-2 px-1">
-          <Button size="sm" variant="outline" onClick={() => navigate(`/recettes/${recipe.id}/modifier`)}>
-            Modifier
-          </Button>
-          {archived ? (
-            <Button size="sm" variant="outline" loading={busy === 'restore'} onClick={() => void restore()}>
-              Restaurer
-            </Button>
-          ) : hasHistory ? (
-            <Button size="sm" variant="outline" loading={busy === 'archive'} onClick={() => void archive()}>
-              Archiver
-            </Button>
-          ) : (
-            <Button size="sm" variant="outline" className="text-danger" onClick={() => setConfirm({ kind: 'delete-recipe' })}>
-              Supprimer
-            </Button>
-          )}
-        </div>
-
-        <HistoryPanel
-          stats={recipe.stats}
-          logs={items}
-          currentUserId={auth.user?.id ?? null}
-          hasNextPage={Boolean(logs.hasNextPage)}
-          isFetchingNextPage={logs.isFetchingNextPage}
-          onLoadMore={() => void logs.fetchNextPage()}
-          onRate={setRatingLog}
-          onDelete={(log) => setConfirm({ kind: 'delete-log', log })}
-          deletingLogId={busy === 'delete' && confirm?.kind === 'delete-log' ? confirm.log.id : null}
-        />
       </div>
-
-      {!archived && (
-        <div className="safe-bottom fixed inset-x-0 bottom-[calc(var(--spacing-nav)+env(safe-area-inset-bottom,0px))] z-20 mx-auto max-w-lg bg-gradient-to-t from-ink via-ink/95 to-transparent px-4 pb-3 pt-6">
-          <div className="flex gap-2">
-            <Button size="lg" className="flex-1" onClick={() => setCooking(true)}>
-              Cuisiner
-            </Button>
-            <Button variant="primary" size="lg" className="flex-1" loading={busy === 'log'} onClick={() => void logCooked()}>
-              J’ai fait cette recette
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <CookSheet open={cooking} recipe={recipe} initialServings={servings} onClose={() => setCooking(false)} onCooked={() => void refreshRecipe()} />
-
-      <RatingSheet
-        open={ratingLog !== null}
-        logId={ratingLog?.id ?? null}
-        recipeTitle={recipe.title}
-        initialStars={mine?.stars ?? null}
-        initialComment={mine?.comment ?? null}
-        onClose={() => setRatingLog(null)}
-        onRated={() => void refreshRecipe()}
-      />
-
-      <Sheet
-        open={confirm !== null}
-        onClose={() => (busy === 'delete' ? undefined : setConfirm(null))}
-        locked={busy === 'delete'}
-        title={confirm?.kind === 'delete-recipe' ? 'Supprimer cette recette ?' : 'Supprimer cette réalisation ?'}
-        description={
-          confirm?.kind === 'delete-recipe'
-            ? 'Cette action est définitive.'
-            : 'Cette action est définitive. Si cette réalisation a décrémenté le stock, la suppression sera refusée.'
-        }
-      >
-        <div className="flex gap-2">
-          <Button block variant="secondary" onClick={() => setConfirm(null)} disabled={busy === 'delete'}>
-            Annuler
-          </Button>
-          <Button block variant="danger" loading={busy === 'delete'} onClick={() => void confirmDelete()}>
-            Supprimer
-          </Button>
-        </div>
-      </Sheet>
     </>
   );
 }
 
+/** Une durée du détail : absente, elle ne s'affiche pas du tout (demande de Franck, 2026-10-20). */
 function TimeField({ label, minutes }: { label: string; minutes: number | null }) {
+  const value = formatMinutes(minutes);
+  if (value === null) return null;
   return (
     <div>
       <p className="text-muted">{label}</p>
-      <p className="tnum font-medium">{formatMinutes(minutes) ?? '—'}</p>
+      <p className="tnum font-medium">{value}</p>
     </div>
   );
 }
