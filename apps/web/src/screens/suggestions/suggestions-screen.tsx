@@ -1,4 +1,4 @@
-import { SUGGESTION_PAGE_SIZE, type SuggestionDto } from '@kitchen/shared';
+import { SUGGESTION_PAGE_MAX, SUGGESTION_PAGE_SIZE, type SuggestionDto } from '@kitchen/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
@@ -324,7 +324,7 @@ export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRe
  * suivant si la liste n'est toujours pas complète : sans cela, une sentinelle
  * restée visible pendant le chargement redemanderait la même page en boucle.
  */
-function LoadMoreSentinel({ onVisible }: { onVisible: () => void }) {
+function LoadMoreSentinel({ onVisible, armedFor }: { onVisible: () => void; armedFor: number }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -333,6 +333,9 @@ function LoadMoreSentinel({ onVisible }: { onVisible: () => void }) {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
+          // Débranché aussitôt : une sentinelle restée visible pendant le
+          // chargement redemanderait la même page en boucle. Il est réarmé par
+          // `armedFor` dès que la page suivante est arrivée.
           observer.disconnect();
           onVisible();
         }
@@ -341,7 +344,7 @@ function LoadMoreSentinel({ onVisible }: { onVisible: () => void }) {
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [onVisible]);
+  }, [onVisible, armedFor]);
 
   return <div ref={ref} aria-hidden className="h-px w-full" />;
 }
@@ -441,7 +444,15 @@ function SuggestionsResult({
           */}
           {batch.items.length < batch.poolCount && (
             <>
-              <LoadMoreSentinel onVisible={onLoadMore} />
+              {/*
+                `armedFor` réarme l'observateur à chaque page reçue. Sans lui,
+                l'effet ne dépendait que de `onVisible`, qui est stable : une
+                fois débranché après le premier déclenchement, il ne se
+                rebranchait jamais. La liste chargeait donc UNE page de plus,
+                puis plus rien — défaut constaté par Franck le 2026-10-20 sur un
+                réservoir de deux cents recettes.
+              */}
+              <LoadMoreSentinel onVisible={onLoadMore} armedFor={batch.items.length} />
               {/*
                 Invisible à l'œil, atteignable à la tabulation (2026-10-20).
                 Il était rendu en clair comme filet pour le clavier et les
@@ -465,6 +476,19 @@ function SuggestionsResult({
             <span className="tnum">{batch.poolCount}</span> recette{batch.poolCount > 1 ? 's' : ''} connue{batch.poolCount > 1 ? 's' : ''} pour cette
             orientation · <span className="tnum">{batch.poolTotal}</span> en tout
           </p>
+          {/*
+            Le plafond se dit, il ne s'applique pas en silence (2026-10-20) : sur
+            un réservoir de deux cents recettes, le défilement s'arrêtait net à
+            soixante sans que rien n'explique pourquoi — on pouvait croire à une
+            panne, ce que Franck a d'ailleurs cru. Le plafond existe parce que
+            chaque recette affichée coûte un rapprochement de tous ses
+            ingrédients contre le catalogue de produits.
+          */}
+          {batch.items.length >= SUGGESTION_PAGE_MAX && batch.items.length < batch.poolCount && (
+            <p role="status" className="text-center text-[13px] text-muted">
+              Affichage limité à <span className="tnum">{SUGGESTION_PAGE_MAX}</span> recettes à la fois. Affinez l'orientation pour voir les autres.
+            </p>
+          )}
           <button
             type="button"
             onClick={onRefresh}
