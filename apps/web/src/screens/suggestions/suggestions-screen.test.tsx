@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SUGGESTION_PAGE_MAX } from '@kitchen/shared';
 import { ApiClientError } from '../../lib/api';
 import { useSuggestionsQuery } from '../../lib/queries';
 import { resetDishTypeAnswerForTests } from './dish-type-question';
@@ -297,6 +298,77 @@ describe('SuggestionsScreen', () => {
    * l'observateur ne se rebranchait jamais. Au mieux une page de plus, puis
    * plus rien. Ce test fait entrer le bas de liste en vue DEUX fois.
    */
+  /**
+   * Franck, 2026-10-20 : « j'ai une erreur quand je scrolle : corps de requête
+   * invalide, avec un bouton réessayer mais ça tourne en boucle ». Le compteur
+   * de page n'était borné nulle part : passé soixante, le schéma partagé
+   * refusait la requête, et « Réessayer » rejouait la même requête invalide.
+   */
+  it('ne demande jamais plus que le plafond du schéma', () => {
+    const observers: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = [];
+    class FakeObserver {
+      constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
+        observers.push(callback);
+      }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('IntersectionObserver', FakeObserver);
+
+    vi.mocked(useSuggestionsQuery).mockImplementation((_orientation, options) => {
+      const limit = options?.limit ?? 12;
+      return {
+        isPending: false,
+        isError: false,
+        isFetching: false,
+        data: {
+          notice: null,
+          poolCount: 200,
+          poolTotal: 207,
+          items: Array.from({ length: limit }, (_value, index) => ({
+            id: `s${index}`,
+            title: `Recette ${index}`,
+            dishType: 'MAIN',
+            origin: 'italienne',
+            region: 'mediterraneenne',
+            totalMinutes: 25,
+            difficulty: 'EASY',
+            provenance: 'web',
+            verified: true,
+            sourceUrl: 'https://exemple.test/x',
+            coverage: 1,
+            group: 'ready',
+            missingLabels: [],
+            ingredients: [],
+          })),
+        },
+        error: null,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSuggestionsQuery>;
+    });
+
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
+
+    // Bien plus de déclenchements qu'il n'en faut pour atteindre le plafond.
+    for (let tour = 0; tour < 12; tour += 1) {
+      act(() => observers.splice(0).forEach((notify) => notify([{ isIntersecting: true }])));
+    }
+
+    const limits = vi.mocked(useSuggestionsQuery).mock.calls.map((call) => call[1]?.limit ?? 12);
+    expect(Math.max(...limits)).toBe(SUGGESTION_PAGE_MAX);
+    expect(screen.getByText(/Affichage limité à/)).toBeTruthy();
+
+    vi.unstubAllGlobals();
+  });
+
   it('continue de charger page après page, pas une seule fois', () => {
     const observers: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = [];
     class FakeObserver {
