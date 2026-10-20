@@ -4,7 +4,6 @@ import { useParams } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { ErrorState } from '../../components/ui/empty-state';
 import { FavoriteStar } from '../../components/ui/favorite-star';
-import { Input } from '../../components/ui/input';
 import { Skeleton } from '../../components/ui/skeleton';
 import { useToast } from '../../components/ui/toast';
 import { errorMessage, isApiError } from '../../lib/api';
@@ -15,7 +14,12 @@ import { IngredientRow } from './ingredient-row';
 
 /** Parts acceptées (`recipeDetailQuerySchema`, section 15) : mêmes bornes côté écran que côté serveur. */
 const MIN_SERVINGS = 1;
-const MAX_SERVINGS = 50;
+// Vingt parts au plus sur cet écran (demande de Franck, 2026-10-20), là où le
+// serveur en accepte cinquante : deux chiffres suffisent à un foyer, et le
+// champ tient alors sur la même ligne que les durées. Une recette déjà
+// enregistrée au-delà reste affichée telle quelle, elle ne peut simplement
+// plus être portée plus haut depuis ici.
+const MAX_SERVINGS = 20;
 
 /**
  * Échelle de difficulté (D9) : du céladon de l'accent — la couleur de ce qui
@@ -85,7 +89,7 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   const toast = useToast();
   const patchRecipe = useRecipeDirectPatch();
   const [busy, setBusy] = useState(false);
-  // Brouillon du champ « Nombre de parts » (EF-26) : `''` tant que Franck n'a
+  // Brouillon du champ « Parts » (EF-26) : `''` tant que Franck n'a
   // pas tapé, même geste que les autres champs décimaux de l'application
   // (clavier décimal français, virgule acceptée en silence).
   // Le champ EST sa propre valeur, jamais un repli sur le nombre courant : avec
@@ -157,16 +161,28 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
             <TimeField label="Cuisson" minutes={recipe.cookMinutes} />
             <TimeField label="Temps actif" minutes={recipe.activeTime} />
             <TimeField label="Repos" minutes={recipe.restMinutes} />
-            <Input
-              label="Nombre de parts"
-              // Champ texte et non « number » : le clavier décimal français
-              // produit une virgule, qu'un champ numérique rejette en silence.
-              type="text"
-              inputMode="numeric"
-              value={rawServings}
-              onChange={(event) => onServingsTyped(event.target.value)}
-              className="w-24"
-            />
+            {/*
+              Même gabarit que les durées ci-dessus (2026-10-20) : étiquette
+              muette au-dessus, valeur en dessous, alignées sur la même ligne de
+              base. Le champ habillé qui occupait cette place était deux fois
+              plus haut que ses voisins et cassait la ligne pour un seul chiffre.
+              Champ texte et non « number » : le clavier décimal français produit
+              une virgule, qu'un champ numérique rejette en silence.
+            */}
+            <div>
+              <label htmlFor="servings" className="text-muted">
+                Parts
+              </label>
+              <input
+                id="servings"
+                type="text"
+                inputMode="numeric"
+                maxLength={2}
+                value={rawServings}
+                onChange={(event) => onServingsTyped(event.target.value)}
+                className="tnum block w-10 border-b border-line bg-transparent font-medium text-fg focus:border-accent focus:outline-none"
+              />
+            </div>
           </div>
         </section>
 
