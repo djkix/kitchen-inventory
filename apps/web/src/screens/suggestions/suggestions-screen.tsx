@@ -2,14 +2,15 @@ import { SUGGESTION_PAGE_SIZE, type SuggestionDto } from '@kitchen/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
-import { Spinner } from '../../components/ui/button';
+import { Button, Spinner } from '../../components/ui/button';
 import { EmptyState, ErrorState } from '../../components/ui/empty-state';
+import { Sheet } from '../../components/ui/sheet';
 import { isApiError } from '../../lib/api';
 import { useSuggestionsQuery } from '../../lib/queries';
 import type { SuggestionOrientation } from '../../lib/suggestions-api';
 import { DishTypeQuestion, useDishTypeAnswer } from './dish-type-question';
 import { IngredientsField } from './ingredients-field';
-import { OrientationBar } from './orientation-bar';
+import { countActiveOrientation, OrientationBar } from './orientation-bar';
 import { SuggestionCard, suggestionAccessibleName } from './suggestion-card';
 import { SuggestionSheet } from './suggestion-sheet';
 import { RecipeTabSwitch } from '../recipes/recipe-tab-switch';
@@ -81,10 +82,21 @@ export function SuggestionsScreen() {
    * allonge la liste, bornée par le schéma partagé (`SUGGESTION_PAGE_MAX`).
    */
   const [limit, setLimit] = useState(SUGGESTION_PAGE_SIZE);
+  /**
+   * Panneau de filtres (Franck, 2026-10-20 : « j'aime beaucoup l'affichage
+   * barre de recherche / filtre sur l'onglet Mes Recettes, fais la même chose
+   * pour la partie Suggestion »). Les quatre sélecteurs d'orientation vivent
+   * désormais derrière un bouton, comme les onze contrôles de « Mes recettes »
+   * depuis la décision D2 du 2026-10-19 : rien n'est retiré, c'est la moitié
+   * d'écran de téléphone qu'ils occupaient avant la première recette qui
+   * disparaît.
+   */
+  const [filtersOpen, setFiltersOpen] = useState(false);
   // Pas d'appel tant que la question n'a pas de réponse (voir `useSuggestionsQuery`).
   const suggestions = useSuggestionsQuery(orientation, { enabled: answeredDishType !== null, relaunch, limit });
   // Suggestion ouverte dans la fiche de conservation (tâche 12) ; `null` quand le tiroir est fermé.
   const [selected, setSelected] = useState<SuggestionDto | null>(null);
+  const activeOrientation = countActiveOrientation(orientation);
 
   if (!answeredDishType) {
     return (
@@ -120,20 +132,59 @@ export function SuggestionsScreen() {
           setLimit(SUGGESTION_PAGE_SIZE);
           setOrientation((current) => ({ ...current, ingredients: raw === '' ? undefined : raw, refresh: undefined }));
         }}
+        /*
+          Un seul contrôle de plus sur la ligne du champ, portant le nombre
+          d'orientations actives — jumeau de celui de « Mes recettes », mêmes
+          libellé, variante et nom accessible : deux écrans jumeaux ne doivent
+          pas avoir deux dialectes. Sans ce nombre, le type de plat répondu et
+          la cuisine choisie deviendraient invisibles le panneau refermé.
+          « Chercher » garde sa place et son rôle juste à sa gauche.
+        */
+        trailing={
+          <Button
+            variant={activeOrientation > 0 ? 'primary' : 'outline'}
+            className="shrink-0"
+            aria-label={activeOrientation > 0 ? `Filtres (${activeOrientation} actif${activeOrientation > 1 ? 's' : ''})` : 'Filtres'}
+            onClick={() => setFiltersOpen(true)}
+          >
+            Filtres
+            {activeOrientation > 0 && (
+              <span className="tnum" aria-hidden>
+                ({activeOrientation})
+              </span>
+            )}
+          </Button>
+        }
       />
 
-      <OrientationBar
-        value={orientation}
-        onChange={(next) => {
-          // Une orientation différente est déjà une nouvelle recherche : le
-          // compteur de relances repart de zéro, sans quoi il resterait collé
-          // exactement comme le faisait `refresh: true` avant lui.
-          setRelaunch(0);
-          // Une autre orientation est une autre liste : la page repart au début.
-          setLimit(SUGGESTION_PAGE_SIZE);
-          setOrientation(next);
-        }}
-      />
+      {/*
+        Le tiroir empile une entrée d'historique à l'ouverture (`sheet.tsx`,
+        2026-10-19) : un retour arrière ferme le panneau au lieu de quitter
+        l'écran. Hérité tel quel, c'est voulu.
+
+        La barre elle-même ne change pas : chaque geste y relance une vraie
+        recherche ciblée, jamais un filtrage de ce qui est déjà affiché — un
+        contrôle rangé dans un panneau n'en devient pas un filtre local.
+      */}
+      <Sheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filtres" description="Les choix sont appliqués immédiatement.">
+        <div className="flex flex-col gap-3">
+          <OrientationBar
+            value={orientation}
+            onChange={(next) => {
+              // Une orientation différente est déjà une nouvelle recherche : le
+              // compteur de relances repart de zéro, sans quoi il resterait collé
+              // exactement comme le faisait `refresh: true` avant lui.
+              setRelaunch(0);
+              // Une autre orientation est une autre liste : la page repart au début.
+              setLimit(SUGGESTION_PAGE_SIZE);
+              setOrientation(next);
+            }}
+          />
+          <Button block variant="primary" onClick={() => setFiltersOpen(false)}>
+            Voir les recettes
+          </Button>
+        </div>
+      </Sheet>
 
       {suggestions.isPending ? (
         <WaitingState />

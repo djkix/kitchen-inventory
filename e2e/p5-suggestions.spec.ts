@@ -96,9 +96,16 @@ import { emptySuggestionPool, seedReadWebRecipes, suggestionCalls } from './supp
  * - `getByRole('dialog', { name: <titre> })` et le bouton « Plus
  *   d'informations » (qui conserve directement, ce n'est pas une consultation
  *   suivie d'une conservation séparée) — `suggestion-sheet.tsx`.
- * - `getByRole('combobox', { name: 'Cuisine' })` avec `selectOption` — barre
- *   de filtres (décision D5 du 2026-10-11, `orientation-bar.tsx`) : quatre
- *   `<select>` natifs, plus aucune pastille de région.
+ * - `getByRole('button', { name: /^Filtres/ })` puis `getByRole('dialog')` —
+ *   depuis le 2026-10-20, les quatre `<select>` d'orientation vivent derrière
+ *   ce bouton, dans un tiroir, comme les onze contrôles de « Mes recettes »
+ *   (`suggestions-screen.tsx`). Le bouton porte le nombre d'orientations
+ *   actives dans son `aria-label` (« Filtres (1 actif) »), d'où le `/^Filtres/`
+ *   quand ce nombre n'est pas l'objet du test.
+ * - `getByRole('combobox', { name: 'Cuisine' })` avec `selectOption`, pris
+ *   DANS ce tiroir — barre d'orientation (décision D5 du 2026-10-11,
+ *   `orientation-bar.tsx`) : quatre `<select>` natifs, plus aucune pastille
+ *   de région. Le geste relance une vraie recherche, tiroir ouvert ou non.
  * - `getByRole('button', { name: 'Chercher de nouvelles recettes' })` —
  *   action de l'`EmptyState` de `suggestions-screen.tsx`, présente
  *   uniquement dans l'état vide (lot du 2026-10-15).
@@ -300,9 +307,21 @@ test('une orientation que le réservoir ne couvre pas relance une vraie recherch
   // sous le plancher de `SUGGESTION_POOL_FLOOR` (6) et jamais demandée
   // jusqu'ici : la recherche doit donc vraiment partir, plutôt que de filtrer
   // ce qui est déjà affiché.
+  //
+  // Les quatre sélecteurs vivent derrière le bouton « Filtres » depuis le
+  // 2026-10-20 : ouvrir le tiroir ne coûte aucun appel, c'est le choix dans
+  // le `<select>` qui relance — et ce parcours existe précisément pour le
+  // prouver. L'ouverture est donc hors de `waitForSuggestionsResponse`.
+  await page.getByRole('button', { name: /^Filtres/ }).click();
+  const orientation = page.getByRole('dialog');
   const second = await waitForSuggestionsResponse(page, () =>
-    page.getByRole('combobox', { name: 'Cuisine' }).selectOption({ label: 'Européenne' }),
+    orientation.getByRole('combobox', { name: 'Cuisine' }).selectOption({ label: 'Européenne' }),
   );
+
+  // Le tiroir se referme par son bouton, et le nombre d'orientations actives
+  // reste lisible sur le bouton (type de plat + cuisine).
+  await orientation.getByRole('button', { name: 'Voir les recettes' }).click();
+  await expect(page.getByRole('button', { name: 'Filtres (2 actifs)' })).toBeVisible();
 
   // La preuve porte sur l'appel réellement servi par la doublure — la fixture
   // rend le même contenu quelle que soit l'orientation, le contenu reçu ne

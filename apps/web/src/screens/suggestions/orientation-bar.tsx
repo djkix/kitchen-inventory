@@ -58,6 +58,12 @@ const SELECT_CLASS =
  * plus de prop locale séparée) et se comporte exactement comme les trois
  * autres.
  *
+ * Depuis le 2026-10-20, la barre ne vit plus en place permanente : elle est le
+ * contenu du panneau « Filtres » de l'écran Suggestions, ouvert par le bouton
+ * posé sur la ligne du champ d'ingrédients — même geste que « Mes recettes »
+ * (D2 du 2026-10-19). Rien n'y est retiré ni changé : le tiroir pose ses
+ * propres marges, cette barre n'en porte donc plus.
+ *
  * Quatre `<select>` natifs sur deux lignes de deux (D5, 2026-10-11) plutôt que
  * les quatre rangées de pastilles d'origine, qui prenaient la moitié d'un
  * écran de téléphone. Natif, pas un menu reconstruit en React : au téléphone,
@@ -117,7 +123,7 @@ export function OrientationBar({ value, onChange }: OrientationBarProps) {
   };
 
   return (
-    <div className="flex flex-col gap-2 px-4 pb-3">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[13px] text-muted">
           {activeCount > 0 ? `${activeCount} orientation${activeCount > 1 ? 's' : ''}` : 'Aucune orientation'}
