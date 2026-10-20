@@ -133,7 +133,7 @@ describe('RecipeScreen', () => {
     renderRecipeScreen();
 
     const bloc = screen.getByRole('group', { name: 'Résumé de la recette' });
-    expect(bloc.contains(screen.getByLabelText('Nombre de parts'))).toBe(true);
+    expect(bloc.contains(screen.getByLabelText('Parts'))).toBe(true);
     expect(bloc.contains(screen.getByText('Préparation'))).toBe(true);
     expect(bloc.contains(screen.getByText('Facile'))).toBe(true);
     expect(bloc.contains(screen.getByRole('button', { name: `Favori : ${recipe.title}` }))).toBe(true);
@@ -167,10 +167,25 @@ describe('RecipeScreen', () => {
 
     expect(screen.getByText('200 g')).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText('Nombre de parts'), { target: { value: '8' } });
+    fireEvent.change(screen.getByLabelText('Parts'), { target: { value: '8' } });
 
     expect(screen.getByText('400 g')).toBeTruthy();
     expect(screen.queryByText('200 g')).toBeNull();
+  });
+
+  // 2026-10-20 : le champ habillé était deux fois plus haut que les durées et
+  // cassait la ligne pour un seul chiffre. Même gabarit qu'elles désormais, et
+  // deux chiffres au plus.
+  it('borne les parts à deux chiffres et refuse au-delà de vingt', () => {
+    renderRecipeScreen();
+    const champ = screen.getByLabelText('Parts') as HTMLInputElement;
+    expect(champ.maxLength).toBe(2);
+
+    fireEvent.change(champ, { target: { value: '25' } });
+    // La saisie reste à l'écran — on n'efface jamais sous les doigts — mais
+    // elle ne part pas au serveur.
+    expect(champ.value).toBe('25');
+    expect(screen.queryByText('Pour 25 parts')).toBeNull();
   });
 
   it('laisse remplacer le nombre de parts, pas seulement y ajouter des chiffres', () => {
@@ -178,7 +193,7 @@ describe('RecipeScreen', () => {
     // réaffichait aussitôt l'ancien chiffre, donc taper « 2 » sur « 4 » donnait
     // « 42 » et jamais « 2 ». Rencontré par djkix le 2026-10-08.
     renderRecipeScreen();
-    const champ = screen.getByLabelText('Nombre de parts') as HTMLInputElement;
+    const champ = screen.getByLabelText('Parts') as HTMLInputElement;
     expect(champ.value).toBe('4');
 
     fireEvent.change(champ, { target: { value: '' } });
