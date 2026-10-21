@@ -2,7 +2,18 @@ import type { HttpClient } from '../../common/http-client.js';
 import { parseSuggestion, userPrompt, VISION_SYSTEM_PROMPT } from './prompt.js';
 import { ProviderError, type RecognitionInput, type RecognitionOutput, type RecognitionProvider } from './recognition-provider.js';
 
-const DEFAULT_MODEL = 'gemini-3.5-flash';
+/**
+ * Modèle de la photo quand ni `VISION_MODEL` ni le choix de Réglages ne
+ * tranchent. Porté à `gemini-3.8-flash` le 2026-10-21 (demande de djkix) :
+ * disponible depuis le 2 septembre 2026, il lit une étiquette au moins aussi
+ * bien que la 3.5. Son tarif n'est pas encore dans `PRICES_USD_PER_MTOK` — le
+ * repli par famille le facture au tarif Flash, ce pour quoi il a été écrit.
+ *
+ * Les recettes gardent Flash-Lite (voir `gemini-suggestion.provider.ts`) :
+ * elles consomment bien plus de jetons de sortie, et Flash-Lite porte sur le
+ * palier gratuit un quota journalier nettement plus large.
+ */
+const DEFAULT_MODEL = 'gemini-3.8-flash';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
 
 /**
@@ -61,6 +72,75 @@ export function priceFor(model: string): { input: number; output: number; audio:
   if (model.includes('flash')) return PRICES_USD_PER_MTOK['gemini-3.5-flash'];
   if (model.includes('pro')) return PRICES_USD_PER_MTOK['gemini-3.5-pro'];
   return undefined;
+}
+
+/** Ce qu'un 429 de Gemini saturé nous apprend : quelle limite, et pour combien de temps. */
+export interface QuotaRefusal {
+  /** `minute` et `day` sont les deux quotas distincts de l'API ; `unknown` quand le corps est muet. */
+  scope: 'minute' | 'day' | 'unknown';
+  /** Secondes à attendre, arrondies au supérieur. `null` quand Google n'en annonce pas. */
+  retryAfterSeconds: number | null;
+}
+
+interface RpcDetail {
+  '@type'?: string;
+  retryDelay?: string;
+  violations?: Array<{ quotaId?: string }>;
+}
+
+/**
+ * Décode le refus plutôt que de deviner les limites.
+ *
+ * Aucune API ne permet de lire les quotas d'un projet, et les recopier dans le
+ * code les ferait diverger en silence — c'est précisément ce qui a rendu le
+ * plafond de dépense inopérant du 2026-10-15 au 2026-10-21. Le corps du 429,
+ * lui, dit la vérité du moment : `QuotaFailure.violations[].quotaId` nomme la
+ * limite franchie, `RetryInfo.retryDelay` donne la reprise.
+ *
+ * Ne jette jamais : un corps illisible rend `unknown`, et l'appelant retombe
+ * sur le message générique.
+ */
+export function parseQuotaRefusal(body: unknown): QuotaRefusal {
+  const details = (body as { error?: { details?: RpcDetail[] } } | null)?.error?.details;
+  if (!Array.isArray(details)) return { scope: 'unknown', retryAfterSeconds: null };
+
+  const quotaIds = details.flatMap((d) => (d.violations ?? []).map((v) => v.quotaId ?? ''));
+  // Google nomme ses quotas « …PerMinutePerProjectPerModel », « …PerDay… ».
+  const scope = quotaIds.some((id) => /PerMinute/i.test(id))
+    ? 'minute'
+    : quotaIds.some((id) => /PerDay/i.test(id))
+      ? 'day'
+      : 'unknown';
+
+  const delay = details.find((d) => typeof d.retryDelay === 'string')?.retryDelay;
+  const seconds = delay === undefined ? null : Number.parseFloat(delay);
+  // Arrondi au supérieur : annoncer « 0 seconde » pour un délai de 0,5 s ferait
+  // réessayer trop tôt, donc refuser une seconde fois.
+  const retryAfterSeconds = seconds === null || Number.isNaN(seconds) ? null : Math.ceil(seconds);
+
+  return { scope, retryAfterSeconds };
+}
+
+/** Message français d'un refus de quota, dit à l'utilisateur tel quel. */
+export function quotaRefusalMessage(refusal: QuotaRefusal): string {
+  if (refusal.scope === 'day') return 'Le quota Gemini du jour est épuisé. Il repart à minuit, heure du Pacifique.';
+  if (refusal.scope === 'minute') {
+    const s = refusal.retryAfterSeconds;
+    if (s === null) return 'Trop de demandes coup sur coup. Patientez un instant avant de réessayer.';
+    return `Trop de demandes coup sur coup. Réessayez dans ${s} seconde${s > 1 ? 's' : ''}.`;
+  }
+  return 'Quota Gemini atteint';
+}
+
+/**
+ * Lit le corps d'un 429 et jette le refus dit juste. Partagée par les trois
+ * appelants de l'API (photo, suggestions, réécriture) : la même ligne y était
+ * recopiée, et chacune jetait « Quota Gemini atteint » sans distinguer la
+ * minute de la journée — deux situations qui n'appellent pas le même geste.
+ */
+export async function throwQuotaRefusal(response: Response): Promise<never> {
+  const body: unknown = await response.json().catch(() => null);
+  throw new ProviderError(quotaRefusalMessage(parseQuotaRefusal(body)));
 }
 
 export interface GeminiResponse {
@@ -145,7 +225,7 @@ export class GeminiProvider implements RecognitionProvider {
       throw new ProviderError('Fournisseur de vision Gemini injoignable', error);
     }
     if (response.status === 401 || response.status === 403) throw new ProviderError('Clé API Gemini refusée');
-    if (response.status === 429) throw new ProviderError('Quota Gemini atteint');
+    if (response.status === 429) await throwQuotaRefusal(response);
     if (!response.ok) throw new ProviderError(`Fournisseur de vision Gemini en erreur (${response.status})`);
 
     const raw = (await response.json()) as GeminiResponse;
