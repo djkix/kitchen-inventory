@@ -36,6 +36,33 @@ export const PRICES_USD_PER_MTOK: Record<string, { input: number; output: number
   'gemini-2.5-pro': { input: 1.25, output: 10, audio: 2.5 },
 };
 
+/**
+ * Prix d'un modèle, par nom exact puis par famille.
+ *
+ * Le sélecteur de Réglages propose tout modèle Gemini de la famille Flash que
+ * la clé déclare, filtre volontairement ouvert pour qu'une nouvelle génération
+ * apparaisse sans toucher au code. La table ci-dessus, elle, est une liste
+ * fermée de noms exacts : les deux ne pouvaient que diverger. C'est arrivé avec
+ * `gemini-flash-latest`, choisi le 2026-10-15 et absent de la table — tous les
+ * appels ont été journalisés à `costCents: null` et le plafond mensuel a compté
+ * zéro, en silence, jusqu'au 2026-10-21.
+ *
+ * Le repli par famille suppose qu'une génération ne change pas de tarif, ce que
+ * `gemini-2.5-flash` et `gemini-3.5-flash` vérifient aujourd'hui. Si Google
+ * renchérit une nouvelle génération, le compte sera bas d'autant — mais bas,
+ * pas nul, et l'écart se voit au journal. L'ordre compte : « flash-lite » avant
+ * « flash », sinon un modèle « lite » serait facturé au tarif Flash.
+ */
+export function priceFor(model: string): { input: number; output: number; audio: number } | undefined {
+  const exact = PRICES_USD_PER_MTOK[model];
+  if (exact) return exact;
+  if (!model.startsWith('gemini-')) return undefined;
+  if (model.includes('flash-lite')) return PRICES_USD_PER_MTOK['gemini-3.5-flash-lite'];
+  if (model.includes('flash')) return PRICES_USD_PER_MTOK['gemini-3.5-flash'];
+  if (model.includes('pro')) return PRICES_USD_PER_MTOK['gemini-3.5-pro'];
+  return undefined;
+}
+
 export interface GeminiResponse {
   candidates?: Array<{
     content?: { parts?: Array<{ text?: string }> };
@@ -141,7 +168,7 @@ export class GeminiProvider implements RecognitionProvider {
 export function unpricedModelWarning(provider: string, model: string | undefined, variable = 'VISION_MODEL'): string | null {
   // La table ne couvre que Gemini ; les autres fournisseurs ont leur propre
   // barème, avec repli sur leur modèle par défaut.
-  if (provider !== 'gemini' || !model || PRICES_USD_PER_MTOK[model]) return null;
+  if (provider !== 'gemini' || !model || priceFor(model)) return null;
   return `Modèle « ${model} » (${variable}) absent de la table de prix : aucun appel ne sera chiffré et le plafond mensuel (VISION_MONTHLY_CAP_CENTS) ne comptera rien. Modèles tarifés : ${Object.keys(PRICES_USD_PER_MTOK).join(', ')}.`;
 }
 
@@ -166,7 +193,7 @@ export function unpricedModelWarning(provider: string, model: string | undefined
  * écrites continuent d'être comptés au tarif texte.
  */
 export function estimateCostCents(model: string, usage: GeminiResponse['usageMetadata'], searchQueries = 0, hasAudio = false): number | null {
-  const price = PRICES_USD_PER_MTOK[model];
+  const price = priceFor(model);
   // Un modèle hors table laisse quand même compter les recherches : mieux vaut
   // un coût partiel qu'aucun coût, puisque c'est le plafond qui est en jeu.
   if (!usage && searchQueries === 0) return null;

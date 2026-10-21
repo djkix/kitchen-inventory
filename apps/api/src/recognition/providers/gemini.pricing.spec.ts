@@ -154,3 +154,49 @@ describe('ventilation présente mais muette sur l’audio (D7, tour 1)', () => {
     expect(cost).toBeCloseTo(((1000 * price.input) / 1_000_000) * 100, 8);
   });
 });
+
+/**
+ * Le sélecteur de Réglages propose tout modèle Gemini de la famille Flash servi
+ * par la clé — filtre volontairement ouvert, pour qu'une nouvelle génération
+ * apparaisse sans toucher au code. La table de prix, elle, était une liste
+ * fermée de noms exacts. `gemini-flash-latest`, choisi le 2026-10-15, n'y
+ * figurait pas : tous les appels étaient journalisés à `costCents: null` et le
+ * plafond mensuel comptait zéro, en silence.
+ */
+describe('alias de modèle absents de la table (2026-10-21)', () => {
+  const usage = { promptTokenCount: 1000, candidatesTokenCount: 500 };
+
+  it('chiffre un alias Flash au tarif Flash', () => {
+    const price = PRICES_USD_PER_MTOK['gemini-3.5-flash']!;
+    expect(estimateCostCents('gemini-flash-latest', usage)).toBeCloseTo(
+      ((1000 * price.input + 500 * price.output) / 1_000_000) * 100,
+      8,
+    );
+  });
+
+  it('chiffre un alias Flash-Lite au tarif Flash-Lite, pas au tarif Flash', () => {
+    const lite = PRICES_USD_PER_MTOK['gemini-3.5-flash-lite']!;
+    const flash = PRICES_USD_PER_MTOK['gemini-3.5-flash']!;
+    const cost = estimateCostCents('gemini-flash-lite-latest', usage);
+    expect(cost).toBeCloseTo(((1000 * lite.input + 500 * lite.output) / 1_000_000) * 100, 8);
+    expect(cost).not.toBeCloseTo(((1000 * flash.input + 500 * flash.output) / 1_000_000) * 100, 8);
+  });
+
+  it('chiffre une génération future non encore tarifée', () => {
+    expect(estimateCostCents('gemini-4-flash', usage)).toBeGreaterThan(0);
+  });
+
+  it('applique aussi le repli au tarif audio', () => {
+    const price = PRICES_USD_PER_MTOK['gemini-3.5-flash']!;
+    const cost = estimateCostCents('gemini-flash-latest', { promptTokenCount: 1000, candidatesTokenCount: 0 }, 0, true);
+    expect(cost).toBeCloseTo(((1000 * price.audio) / 1_000_000) * 100, 8);
+  });
+
+  it('ne chiffre toujours rien pour un modèle hors famille connue', () => {
+    expect(estimateCostCents('mistral-large', usage)).toBeNull();
+  });
+
+  it('l’avertissement de démarrage se tait pour un alias désormais tarifé', () => {
+    expect(unpricedModelWarning('gemini', 'gemini-flash-latest')).toBeNull();
+  });
+});
