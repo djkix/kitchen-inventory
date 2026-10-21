@@ -71,6 +71,18 @@ mieux vaut surestimer un plafond de protection que le laisser mentir.
 explicite au-delà. Un enregistrement sans borne est une facture sans borne, et
 une requête qu'un reverse proxy coupera de toute façon.
 
+*Précisé au tour de correction 1 (2026-10-21), après implémentation.* Les deux
+bornes ne sont pas tenues par le même acteur, et il faut le dire : **soixante
+secondes** est une garantie d'**écran** — l'enregistreur s'arrête tout seul —,
+**quatre mébioctets** et la liste des formats sont les garanties du
+**serveur**, parce que ce sont les seules choses qu'il puisse vérifier sans
+décoder l'audio. Le poids ne borne **pas** la dépense : les jetons audio se
+comptent à la seconde, et quatre mébioctets valent une minute d'AAC à
+256 kbit/s comme une heure et demie d'Opus à 6 kbit/s. Ce qui borne réellement
+la dépense, c'est le **quota journalier** et le **plafond mensuel** — ce qui
+fait de l'exactitude du chiffrage (D7) la condition de cette décision-ci, et
+non un sujet séparé.
+
 **D9 — Le micro refusé se dit.** Autorisation refusée, micro absent,
 enregistrement vide, modèle qui n'a rien compris : chacun a son message en
 français. Jamais un bouton qui ne réagit pas.

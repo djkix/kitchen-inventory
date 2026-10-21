@@ -92,22 +92,31 @@ export class GeminiSuggestionProvider {
     if (!this.options.apiKey) throw new ProviderError('Fournisseur de suggestions désactivé');
     const model = req.model ?? this.model;
     const started = Date.now();
-    const raw = await this.call(
+    // `post` seul, puis `assertUsable` APRÈS avoir inscrit la tentative (tour
+    // de correction 1) : une réponse 200 que le modèle refuse ensuite
+    // (`blockReason`, `MAX_TOKENS`) a bel et bien été facturée par Google.
+    // Lever avant de la chiffrer la faisait journaliser à `costCents: null`,
+    // donc échapper au plafond mensuel — et un appel audio est le plus cher
+    // du produit.
+    const raw = await this.post(
       [{ inlineData: { mimeType: req.mimeType, data: req.audio.toString('base64') } }, { text: buildVoicePrompt(req) }],
       model,
       req.webSearch !== false,
     );
     const attempts: SuggestionAttempt[] = [
-      // `hasAudio` : sans ventilation par modalité, tout l'entrant est facturé
-      // au tarif audio (D7). Un plafond qui surestime reste un plafond.
+      // `hasAudio` : sans ventilation par modalité qui mentionne l'audio, tout
+      // l'entrant est facturé au tarif audio (D7). Un plafond qui surestime
+      // reste un plafond.
       { raw, costCents: estimateCostCents(model, raw.usageMetadata, countSearchQueries(raw), true), latencyMs: Date.now() - started },
     ];
     try {
+      assertUsable(raw, 'la demande parlée');
       const batch = parseVoiceBatch(extractText(raw));
       return { heard: batch.heard, recipes: batch.recipes.slice(0, req.count), attempts, model };
     } catch (error) {
-      if (!(error instanceof InvalidBatchJsonError)) throw error;
-      throw new SuggestionProviderError('Le fournisseur de suggestions n’a pas renvoyé de JSON exploitable pour la demande parlée', attempts, error);
+      if (!(error instanceof InvalidBatchJsonError) && !(error instanceof ProviderError)) throw error;
+      const message = error instanceof ProviderError ? error.message : 'Le fournisseur de suggestions n’a pas renvoyé de JSON exploitable pour la demande parlée';
+      throw new SuggestionProviderError(message, attempts, error);
     }
   }
 
@@ -122,7 +131,15 @@ export class GeminiSuggestionProvider {
     return { recipes: batch.recipes.slice(0, count), attempts, model };
   }
 
+  /** Appel complet du chemin écrit : transport, puis contrôle de la réponse. Inchangé. */
   private async call(parts: GeminiPart[], model: string, webSearch: boolean): Promise<GeminiResponse> {
+    const raw = await this.post(parts, model, webSearch);
+    assertUsable(raw, 'suggestions');
+    return raw;
+  }
+
+  /** Transport seul : erreurs de réseau et de statut. Ce qui en sort a été facturé. */
+  private async post(parts: GeminiPart[], model: string, webSearch: boolean): Promise<GeminiResponse> {
     const base = (this.options.baseURL ?? DEFAULT_BASE_URL).replace(/\/$/, '');
     let response: Response;
     try {
@@ -152,18 +169,25 @@ export class GeminiSuggestionProvider {
     if (response.status === 429) throw new ProviderError('Quota Gemini atteint');
     if (!response.ok) throw new ProviderError(`Fournisseur de suggestions Gemini en erreur (${response.status})`);
 
-    const raw = (await response.json()) as GeminiResponse;
-    if (raw.promptFeedback?.blockReason) throw new ProviderError('Gemini a refusé la demande de suggestions');
-    const candidate = raw.candidates?.[0];
-    if (!candidate) throw new ProviderError('Gemini n’a pas produit de réponse (aucun candidat)');
-    // Une réponse coupée par la limite de jetons est tronquée au milieu du JSON : ce n'est pas
-    // du JSON mal formé à reprendre avec un rappel de format (qui redemanderait le même volume
-    // dans le même budget, et tronquerait de nouveau), mais un échec de budget à signaler tel quel.
-    if (candidate.finishReason === 'MAX_TOKENS') throw new ProviderError('Réponse du fournisseur de suggestions tronquée par la limite de jetons');
-    if (candidate.finishReason && candidate.finishReason !== 'STOP') {
-      throw new ProviderError(`Gemini n’a pas produit de réponse (${candidate.finishReason})`);
-    }
-    return raw;
+    return (await response.json()) as GeminiResponse;
+  }
+}
+
+/**
+ * Contrôles portant sur une réponse déjà reçue — donc déjà payée. Séparés du
+ * transport pour que l'appelant puisse inscrire la tentative avant de lever
+ * (tour de correction 1).
+ */
+function assertUsable(raw: GeminiResponse, sujet: string): void {
+  if (raw.promptFeedback?.blockReason) throw new ProviderError(`Gemini a refusé ${sujet === 'suggestions' ? 'la demande de suggestions' : sujet}`);
+  const candidate = raw.candidates?.[0];
+  if (!candidate) throw new ProviderError('Gemini n’a pas produit de réponse (aucun candidat)');
+  // Une réponse coupée par la limite de jetons est tronquée au milieu du JSON : ce n'est pas
+  // du JSON mal formé à reprendre avec un rappel de format (qui redemanderait le même volume
+  // dans le même budget, et tronquerait de nouveau), mais un échec de budget à signaler tel quel.
+  if (candidate.finishReason === 'MAX_TOKENS') throw new ProviderError('Réponse du fournisseur de suggestions tronquée par la limite de jetons');
+  if (candidate.finishReason && candidate.finishReason !== 'STOP') {
+    throw new ProviderError(`Gemini n’a pas produit de réponse (${candidate.finishReason})`);
   }
 }
 

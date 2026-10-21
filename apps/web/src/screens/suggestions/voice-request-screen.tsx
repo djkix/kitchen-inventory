@@ -106,8 +106,20 @@ export function VoiceRequestScreen() {
       )}
 
       {/* Les refus du serveur sont dits par le même composant que l'écran
-          Suggestions : quota, fournisseur absent, demande non comprise. */}
-      {ask.isError && <SuggestionsErrorState error={ask.error} onRetry={() => ask.reset()} />}
+          Suggestions : quota, fournisseur absent, demande non comprise.
+
+          Sans bouton « Réessayer » (tour de correction 1) : il ne rejouait
+          rien — il effaçait l'erreur — et il ne le pourrait pas, puisque
+          l'audio n'est conservé nulle part (D6). Ce qu'il faut refaire, c'est
+          l'enregistrement, et c'est ce que la phrase ci-dessous dit. */}
+      {ask.isError && (
+        <>
+          <SuggestionsErrorState error={ask.error} />
+          <p className="mx-4 mb-6 text-center text-[13px] text-muted">
+            L’enregistrement n’est pas conservé : appuyez de nouveau sur « Parler » pour refaire votre demande.
+          </p>
+        </>
+      )}
 
       {batch && !ask.isPending && <VoiceResult batch={batch} onSelect={setSelected} />}
 

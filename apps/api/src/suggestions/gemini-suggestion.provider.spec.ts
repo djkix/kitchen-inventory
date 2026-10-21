@@ -272,6 +272,33 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
     await expect(provider.suggestFromVoice(VOICE_REQUEST)).rejects.toMatchObject({ attempts: [expect.objectContaining({ costCents: expect.any(Number) })] });
   });
 
+  it('facture une réponse 200 que le modèle refuse ensuite (tour de correction 1)', async () => {
+    // `blockReason` et `MAX_TOKENS` arrivent dans une réponse 200 : Google l'a
+    // facturée. Lever sans l'inscrire la faisait journaliser `costCents: null`,
+    // donc échapper au plafond mensuel — sur l'appel le plus cher du produit.
+    http.on('generateContent', () =>
+      json({ promptFeedback: { blockReason: 'SAFETY' }, usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 0 } }),
+    );
+    await expect(provider.suggestFromVoice(VOICE_REQUEST)).rejects.toMatchObject({
+      attempts: [expect.objectContaining({ costCents: expect.any(Number) })],
+    });
+
+    http.reset();
+    http.on('generateContent', () =>
+      json({
+        candidates: [{ content: { parts: [{ text: '{ "heard"' }] }, finishReason: 'MAX_TOKENS' }],
+        usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 8192 },
+      }),
+    );
+    let billed: number | null | undefined;
+    try {
+      await provider.suggestFromVoice(VOICE_REQUEST);
+    } catch (error) {
+      billed = (error as SuggestionProviderError).attempts[0]?.costCents;
+    }
+    expect(billed).toBeGreaterThan(0);
+  });
+
   it('est désactivé sans clé, et n’envoie rien', async () => {
     const disabled = new GeminiSuggestionProvider({ httpClient: http.client });
     await expect(disabled.suggestFromVoice(VOICE_REQUEST)).rejects.toThrow(ProviderError);

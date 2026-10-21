@@ -175,9 +175,18 @@ export function estimateCostCents(model: string, usage: GeminiResponse['usageMet
   if (usage && price) {
     const promptTokens = usage.promptTokenCount ?? 0;
     const details = usage.promptTokensDetails ?? [];
-    const declaredAudio = details.filter((d) => d.modality?.toUpperCase() === 'AUDIO').reduce((sum, d) => sum + (d.tokenCount ?? 0), 0);
-    // Repli de D7 : pas de ventilation sur un appel audio, tout au tarif audio.
-    const audioTokens = details.length > 0 ? Math.min(declaredAudio, promptTokens) : hasAudio ? promptTokens : 0;
+    const audioDetails = details.filter((d) => d.modality?.toUpperCase() === 'AUDIO');
+    const declaredAudio = audioDetails.reduce((sum, d) => sum + (d.tokenCount ?? 0), 0);
+    /**
+     * Repli de D7, sur la bonne condition (tour de correction 1) : ce qui
+     * compte n'est pas qu'une ventilation existe, mais qu'elle **dise quelque
+     * chose de l'audio**. Une ventilation qui ne porte qu'une ligne `TEXT`
+     * sur un appel audio ne renseigne rien — la facturer au tarif texte
+     * sous-compterait d'un facteur trois, en silence, ce que D7 interdit
+     * précisément. Sans ligne `AUDIO`, tout l'entrant passe donc au tarif
+     * audio, exactement comme si l'API n'avait rien ventilé.
+     */
+    const audioTokens = audioDetails.length > 0 ? Math.min(declaredAudio, promptTokens) : hasAudio ? promptTokens : 0;
     const textTokens = Math.max(0, promptTokens - audioTokens);
     tokensUsd = (textTokens * price.input + audioTokens * price.audio + (usage.candidatesTokenCount ?? 0) * price.output) / 1_000_000;
   }

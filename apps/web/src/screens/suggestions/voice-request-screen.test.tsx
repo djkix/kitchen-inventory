@@ -163,6 +163,10 @@ describe('VoiceRequestScreen (demande parlée, 2026-10-21)', () => {
     renderScreen();
     onRecorded(recording(4096));
     await waitFor(() => expect(screen.getByText(/Quota journalier de suggestions atteint/)).toBeTruthy());
+    // Pas de « Réessayer » : il ne rejouerait rien, l'audio n'est pas
+    // conservé (D6, tour de correction 1). L'écran dit ce qu'il faut refaire.
+    expect(screen.queryByRole('button', { name: 'Réessayer' })).toBeNull();
+    expect(screen.getByText(/appuyez de nouveau sur « Parler »/i)).toBeTruthy();
   });
 
   it('dit que le modèle n’a rien compris (D9)', async () => {
