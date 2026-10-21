@@ -68,6 +68,29 @@ describe('SettingsScreen', () => {
     expect(ouvertes.some((t) => t.includes('Comptes'))).toBe(true);
   });
 
+  /**
+   * Le défaut exact qu'il s'agit d'empêcher : liée directement à « il reste une
+   * demande », la section se refermait à la validation de la dernière — sous le
+   * doigt de qui venait de valider, au moment où il regardait le résultat.
+   */
+  it('reste ouverte après la validation de la dernière demande', () => {
+    comptes.pending = true;
+    const { rerender } = renderScreen();
+    comptes.pending = false;
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <SettingsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const comptesSection = screen
+      .getAllByRole('group')
+      .filter((d): d is HTMLDetailsElement => d instanceof HTMLDetailsElement)
+      .find((d) => (d.querySelector('summary')?.textContent ?? '').includes('Comptes'));
+    expect(comptesSection?.open).toBe(true);
+  });
+
   it('résume chaque section sans qu’on ait à la déplier', () => {
     comptes.pending = true;
     renderScreen();

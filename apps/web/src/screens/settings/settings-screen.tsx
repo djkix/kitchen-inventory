@@ -140,15 +140,32 @@ function AlertBadge() {
  */
 function AccountsAccordion() {
   const auth = useAuth();
-  const accounts = useAccountsQuery();
+  // Le retour précède toute requête : la liste des comptes vaudrait un 403 à
+  // un membre. D'où la coupure en deux composants.
   if (!auth.isAdmin) return null;
-  // Une demande en attente est la seule chose de cet écran qui réclame une
-  // action : la section s'ouvre d'elle-même tant qu'il en reste une. La
-  // replier derrière un geste de plus, c'est la laisser dormir — un parcours
-  // bout en bout l'a montré le jour même de la refonte.
+  return <AdminAccountsAccordion />;
+}
+
+function AdminAccountsAccordion() {
+  const accounts = useAccountsQuery();
   const pending = (accounts.data ?? []).some((a) => a.status === 'PENDING');
+  /**
+   * Une demande en attente est la seule chose de cet écran qui réclame une
+   * action : la section s'ouvre d'elle-même quand il en arrive une, sinon elle
+   * dormirait derrière un repli (trouvé par le parcours P6, le jour de la
+   * refonte).
+   *
+   * L'ouverture est **à sens unique**. Liée directement à `pending`, elle se
+   * refermait à la validation de la dernière demande — c'est-à-dire sous le
+   * doigt de qui venait de valider, au moment précis où il regardait le
+   * résultat. Une section se referme parce qu'on la referme.
+   */
+  const [opened, setOpened] = useState(false);
+  useEffect(() => {
+    if (pending) setOpened(true);
+  }, [pending]);
   return (
-    <AccordionSection title="Comptes" badge={<AccountsBadge />} defaultOpen={pending}>
+    <AccordionSection title="Comptes" badge={<AccountsBadge />} defaultOpen={opened}>
       <AccountsSection />
     </AccordionSection>
   );
