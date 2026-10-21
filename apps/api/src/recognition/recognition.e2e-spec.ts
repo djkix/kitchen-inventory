@@ -245,6 +245,15 @@ describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
     expect(log.costCents?.toNumber()).toBeGreaterThan(0);
     const stats = await agent.get('/api/v1/recognition/stats').expect(200);
     expect(stats.body).toMatchObject({ visionCallsToday: 1, provider: 'gemini' });
+    // Compteur indicatif du 2026-10-21 : ce que Google compte, lui, ne
+    // distingue ni le scan ni les recettes. Sans limite renseignée, on rend le
+    // compte seul plutôt qu'un rapport à une valeur inventée.
+    expect(stats.body).toMatchObject({
+      providerCallsToday: 1,
+      providerCallsLastMinute: 1,
+      providerDailyLimit: null,
+      providerMinuteLimit: null,
+    });
   });
 
   it('traite un blocage de sécurité ou une clé refusée comme un échec de fournisseur', async () => {

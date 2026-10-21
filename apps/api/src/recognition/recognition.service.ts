@@ -9,6 +9,7 @@ import { ProductsService } from '../products/products.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { OpenFoodFactsClient } from './open-food-facts.client.js';
 import { ProviderError, RECOGNITION_PROVIDER, type RecognitionProvider } from './providers/recognition-provider.js';
+import { withQuotaFallback } from './providers/gemini.provider.js';
 
 const OFF_PROVIDER = 'open_food_facts';
 
@@ -95,7 +96,14 @@ export class RecognitionService {
       // Le modèle est relu à chaque appel : un changement dans les réglages
       // vaut immédiatement, sans redémarrage du conteneur.
       const model = await this.settings.visionModel();
-      const output = await this.provider.recognize({ image, mimeType, hint, model });
+      // Repli sur un second modèle quand le quota du premier est épuisé : les
+      // quotas de Gemini se comptent par modèle, donc basculer rouvre un
+      // réservoir intact. Une seule reprise, et le modèle retenu est rendu à
+      // l'appelant pour que l'écran puisse le dire.
+      const fallback = await this.settings.fallbackModel();
+      const { result: output, modelUsed, fellBack } = await withQuotaFallback(model, fallback, (m) =>
+        this.provider.recognize({ image, mimeType, hint, model: m }),
+      );
       const latencyMs = Date.now() - started;
       const log = await this.prisma.recognitionLog.create({
         data: {
@@ -109,7 +117,7 @@ export class RecognitionService {
           succeeded: output.suggestion.confidence >= VISION_REJECT_THRESHOLD,
         },
       });
-      this.logger.log({ provider: this.provider.name, latencyMs, costCents: output.costCents, confidence: output.suggestion.confidence }, 'Appel au fournisseur de vision');
+      this.logger.log({ provider: this.provider.name, latencyMs, costCents: output.costCents, confidence: output.suggestion.confidence, model: modelUsed, fellBack }, 'Appel au fournisseur de vision');
       const category = output.suggestion.category ? await this.matchCategory(output.suggestion.category) : null;
       return {
         suggestion: output.suggestion,
@@ -119,6 +127,9 @@ export class RecognitionService {
         categoryId: category,
         needsReview: output.suggestion.confidence < VISION_REVIEW_THRESHOLD,
         rejected: output.suggestion.confidence < VISION_REJECT_THRESHOLD,
+        // Dit à l'écran quand il a fallu basculer : sinon on lirait un
+        // résultat d'un autre modèle sans savoir pourquoi il a changé.
+        ...(fellBack && modelUsed !== undefined ? { fallbackModelUsed: modelUsed } : {}),
       };
     } catch (error) {
       const latencyMs = Date.now() - started;
@@ -166,6 +177,13 @@ export class RecognitionService {
       this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, purpose: 'VISION', succeeded: false, correctedTo: null, imagePath: { not: null } } }),
     ]);
     const cacheHits = await this.prisma.recognitionLog.count({ where: { createdAt: { gte: thirtyDaysAgo }, provider: 'cache', purpose: 'VISION' } });
+    // Ce que Google compte, lui, ne distingue ni le scan ni les recettes : un
+    // appel est un appel. Le cache est exclu — il n'est jamais parti chez le
+    // fournisseur, c'est tout son intérêt.
+    const [providerCallsToday, providerCallsLastMinute] = await Promise.all([
+      this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, createdAt: { gte: dayStart } } }),
+      this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, createdAt: { gte: new Date(now.getTime() - 60_000) } } }),
+    ]);
     const attempts = recent.length + cacheHits;
     const automatic = cacheHits + recent.filter((r) => r.succeeded).length;
     return {
@@ -178,6 +196,10 @@ export class RecognitionService {
       cacheShare30d: attempts > 0 ? Math.round((cacheHits / attempts) * 1000) / 1000 : null,
       pendingIdentification,
       provider: this.provider.name,
+      providerCallsToday,
+      providerCallsLastMinute,
+      providerDailyLimit: this.config.GEMINI_RPD ?? null,
+      providerMinuteLimit: this.config.GEMINI_RPM ?? null,
     };
   }
 

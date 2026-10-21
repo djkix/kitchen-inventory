@@ -140,7 +140,53 @@ export function quotaRefusalMessage(refusal: QuotaRefusal): string {
  */
 export async function throwQuotaRefusal(response: Response): Promise<never> {
   const body: unknown = await response.json().catch(() => null);
-  throw new ProviderError(quotaRefusalMessage(parseQuotaRefusal(body)));
+  const refusal = parseQuotaRefusal(body);
+  throw new QuotaRefusalError(quotaRefusalMessage(refusal), refusal);
+}
+
+/**
+ * Refus de quota, distingué des autres pannes du fournisseur : c'est le seul
+ * cas où reprendre sur un autre modèle a un sens, les quotas étant comptés
+ * par modèle. Une clé refusée ou un modèle inexistant échoueraient à
+ * l'identique sur le repli, et le reprendre coûterait un second appel pour
+ * rien.
+ */
+export class QuotaRefusalError extends ProviderError {
+  constructor(
+    message: string,
+    public readonly refusal: QuotaRefusal,
+  ) {
+    super(message);
+    this.name = 'QuotaRefusalError';
+  }
+}
+
+/**
+ * Un appel, puis **une seule** reprise sur le modèle de repli si — et seulement
+ * si — le refus est un quota épuisé. Les quotas de Gemini étant comptés par
+ * modèle, basculer rouvre un réservoir intact ; c'est le seul refus pour lequel
+ * cela a un sens. Une clé refusée, un modèle inexistant ou une coupure réseau
+ * échoueraient à l'identique sur le repli, et le reprendre coûterait un second
+ * appel pour rien.
+ *
+ * Jamais de cascade : le refus du repli remonte tel quel. Transformer un refus
+ * en six appels facturés serait pire que le refus.
+ *
+ * Rend le modèle réellement utilisé, pour que l'écran puisse le dire — une
+ * application qui change de modèle en silence fait lire un résultat sans qu'on
+ * sache d'où il vient.
+ */
+export async function withQuotaFallback<T>(
+  primary: string | undefined,
+  fallback: string | undefined,
+  run: (model: string | undefined) => Promise<T>,
+): Promise<{ result: T; modelUsed: string | undefined; fellBack: boolean }> {
+  try {
+    return { result: await run(primary), modelUsed: primary, fellBack: false };
+  } catch (error) {
+    if (!(error instanceof QuotaRefusalError) || fallback === undefined || fallback === primary) throw error;
+    return { result: await run(fallback), modelUsed: fallback, fellBack: true };
+  }
 }
 
 export interface GeminiResponse {

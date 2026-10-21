@@ -21,6 +21,17 @@ const configSchema = z.object({
   // photo : celle-ci lit des étiquettes, celles-là cherchent sur le web. Défaut
   // `gemini-3.5-flash-lite`, le moins cher des modèles utilisables ici.
   SUGGESTION_MODEL: z.string().optional(),
+  /** Modèle essayé une fois quand Gemini refuse pour quota ; vide = pas de repli. */
+  FALLBACK_MODEL: z.string().optional(),
+  /**
+   * Limites du projet Google, telles que la console les annonce
+   * (aistudio.google.com/rate-limit). Purement indicatives : elles ne bloquent
+   * rien, elles servent à afficher « 15 / 500 » au lieu de « 15 ». Laissées
+   * vides, l'écran n'affiche que le compte — mieux vaut pas de rapport qu'un
+   * rapport à une valeur fausse.
+   */
+  GEMINI_RPD: z.coerce.number().int().min(0).optional(),
+  GEMINI_RPM: z.coerce.number().int().min(0).optional(),
   // Recherche web réelle pour les suggestions. Valeur de départ : un
   // administrateur la remplace depuis Réglages, et son choix prime.
   SUGGESTION_WEB_SEARCH: z

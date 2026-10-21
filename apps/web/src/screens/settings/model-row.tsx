@@ -6,7 +6,7 @@ import { queryKeys, useAvailableModelsQuery, useSettingsQuery } from '../../lib/
 import type { Settings } from '@kitchen/shared';
 
 /** Clés de `Settings` qui désignent un modèle : les seules que cette ligne sait écrire. */
-type ModelKey = 'visionModel' | 'suggestionModel';
+type ModelKey = 'visionModel' | 'suggestionModel' | 'fallbackModel';
 
 /**
  * Choix du modèle d'un usage (reconnaissance photo, recettes), réservé aux
