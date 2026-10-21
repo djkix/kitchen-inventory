@@ -1698,6 +1698,21 @@ describe('SuggestionsService (EF-26)', () => {
       expect(log.costCents?.toNumber()).toBeCloseTo(attendu, 6);
     });
 
+    it('inscrit le coût d’une réponse 200 refusée par le modèle (tour de correction 1)', async () => {
+      // Payée par Google, donc comptée dans le plafond mensuel : une ligne de
+      // journal à `costCents: null` l'en aurait sortie en silence.
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () =>
+        json({ promptFeedback: { blockReason: 'SAFETY' }, usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 0 } }),
+      );
+
+      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 502 });
+      const log = await db.recognitionLog.findFirstOrThrow({ where: { purpose: 'RECIPE_SUGGESTION' } });
+      expect(log.succeeded).toBe(false);
+      expect(log.costCents?.toNumber()).toBeGreaterThan(0);
+    });
+
     it('refuse un enregistrement hors bornes sans rien dépenser (D8)', async () => {
       const { service, db } = await createService();
       await seedStock(db);

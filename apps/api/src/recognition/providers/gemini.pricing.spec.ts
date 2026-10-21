@@ -117,3 +117,40 @@ describe('coût de l’entrée audio (D7, 2026-10-21)', () => {
     expect(cost).toBeCloseTo(((700 * price.input + 300 * price.audio) / 1_000_000) * 100, 8);
   });
 });
+
+/**
+ * Le trou relevé en revue (tour de correction 1) : la ventilation existe,
+ * mais elle ne dit rien de l'audio. C'est le cas le plus probable des deux —
+ * une API qui renvoie ce champ le renvoie en général rempli de quelque chose.
+ */
+describe('ventilation présente mais muette sur l’audio (D7, tour 1)', () => {
+  it('facture au tarif audio une ventilation qui ne porte aucune ligne AUDIO', () => {
+    const price = PRICES_USD_PER_MTOK['gemini-3.5-flash-lite']!;
+    const cost = estimateCostCents(
+      'gemini-3.5-flash-lite',
+      { promptTokenCount: 1000, candidatesTokenCount: 0, promptTokensDetails: [{ modality: 'TEXT', tokenCount: 1000 }] },
+      0,
+      true,
+    );
+    expect(cost).toBeCloseTo(((1000 * price.audio) / 1_000_000) * 100, 8);
+    // Le défaut exact qu'il s'agit d'empêcher : le tiers du prix, sans un mot.
+    expect(cost).not.toBeCloseTo(((1000 * price.input) / 1_000_000) * 100, 8);
+  });
+
+  it('reconnaît la ligne audio quelle que soit la casse rendue par l’API', () => {
+    const price = PRICES_USD_PER_MTOK['gemini-3.5-flash-lite']!;
+    const cost = estimateCostCents(
+      'gemini-3.5-flash-lite',
+      { promptTokenCount: 1000, candidatesTokenCount: 0, promptTokensDetails: [{ modality: 'audio', tokenCount: 200 }] },
+      0,
+      true,
+    );
+    expect(cost).toBeCloseTo(((800 * price.input + 200 * price.audio) / 1_000_000) * 100, 8);
+  });
+
+  it('ne facture toujours pas au tarif audio un appel qui n’en porte pas', () => {
+    const price = PRICES_USD_PER_MTOK['gemini-3.5-flash-lite']!;
+    const cost = estimateCostCents('gemini-3.5-flash-lite', { promptTokenCount: 1000, promptTokensDetails: [{ modality: 'TEXT', tokenCount: 1000 }] });
+    expect(cost).toBeCloseTo(((1000 * price.input) / 1_000_000) * 100, 8);
+  });
+});

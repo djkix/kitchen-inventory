@@ -81,22 +81,35 @@ export function useVoiceRecorder(onRecorded: (recording: VoiceRecording) => void
   const recorderRef = useRef<MediaRecorder | null>(null);
   const supported = typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia) && typeof MediaRecorder !== 'undefined';
 
+  /**
+   * `stop()` sur un enregistreur déjà arrêté lève `InvalidStateError` : le
+   * garde n'est pas décoratif, l'arrêt automatique et l'appui sur
+   * « Terminer » peuvent tomber dans le même intervalle.
+   */
   const stop = useCallback(() => {
-    recorderRef.current?.stop();
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
   }, []);
 
-  // Le compteur sert les deux bornes à la fois : ce que l'écran affiche, et
-  // l'arrêt automatique à `VOICE_MAX_SECONDS` (D8).
+  // Le compteur ne fait que compter.
   useEffect(() => {
     if (state !== 'recording') return;
-    const timer = setInterval(() => {
-      setSeconds((value) => {
-        if (value + 1 >= VOICE_MAX_SECONDS) stop();
-        return value + 1;
-      });
-    }, 1000);
+    const timer = setInterval(() => setSeconds((value) => value + 1), 1000);
     return () => clearInterval(timer);
-  }, [state, stop]);
+  }, [state]);
+
+  /**
+   * Arrêt automatique à `VOICE_MAX_SECONDS` (D8), dans un effet et **jamais
+   * dans l'updater de `setSeconds`** (tour de correction 1). React appelle un
+   * updater plusieurs fois (StrictMode, rendu concurrent) et ne lui permet
+   * aucun effet de bord : un second tick avant `onstop` y relançait `stop()`,
+   * donc un `InvalidStateError` levé pendant le rendu — écran blanc à la
+   * soixantième seconde, c'est-à-dire exactement dans le cas que la borne est
+   * censée protéger.
+   */
+  useEffect(() => {
+    if (state === 'recording' && seconds >= VOICE_MAX_SECONDS) stop();
+  }, [state, seconds, stop]);
 
   // Le micro reste allumé tant que les pistes ne sont pas arrêtées : la
   // pastille rouge du navigateur resterait affichée après coup.

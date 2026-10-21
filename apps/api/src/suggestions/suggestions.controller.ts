@@ -36,8 +36,16 @@ export class SuggestionsController {
    * Demande parlée (spécification du 2026-10-21) : l'enregistrement monte en
    * multipart, le modèle le transcrit et propose dans le même appel (D2).
    *
-   * Route payante et soumise au quota, comme `scan/image` : limitée par
-   * adresse pour la même raison (section 10).
+   * Route payante et soumise au quota, comme `scan/image`, et limitée par
+   * adresse — **cinq par minute, pas vingt** (tour de correction 1). Vingt
+   * ne mordait jamais : `RECIPE_SUGGESTION_DAILY_QUOTA` vaut vingt par jour,
+   * le quota fermait donc toujours la porte le premier. Le garde-fou n'est
+   * pas inutile pour autant : un refus pour borne ou pour format
+   * n'incrémente aucun quota, si bien qu'un flot de corps de quatre
+   * mébioctets serait accepté, mis en mémoire et analysé par `multer` sans
+   * qu'aucun compteur ne bouge. C'est ce chemin-là que cinq par minute
+   * protègent — pas la dépense, que le quota journalier et le plafond
+   * mensuel tiennent déjà.
    *
    * La borne de `multer` est posée **au-dessus** de `VOICE_MAX_BYTES` : c'est
    * le service qui refuse, avec la règle partagée et une phrase en français
@@ -48,7 +56,7 @@ export class SuggestionsController {
    * (contrairement à la photo du scan), il traverse le service et disparaît
    * (D6).
    */
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('voice')
   @HttpCode(200)
   @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: VOICE_MAX_BYTES + 1024, files: 1 } }))

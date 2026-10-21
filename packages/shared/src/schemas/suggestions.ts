@@ -377,11 +377,19 @@ export interface SuggestionBatchDto {
 export const VOICE_MAX_SECONDS = 60;
 
 /**
- * Taille maximale transmise (D8), et **seule borne que le serveur puisse
- * vérifier** : mesurer une durée exigerait de décoder l'audio, alors que le
- * poids borne la dépense quel que soit le codec. L'écran arrête donc
- * l'enregistrement à `VOICE_MAX_SECONDS`, le serveur refuse au poids, et un
- * client modifié ne peut pas faire payer davantage que ce poids.
+ * Taille maximale transmise (D8).
+ *
+ * Ce que cette borne garantit, et ce qu'elle ne garantit pas (tour de
+ * correction 1) : le serveur borne le **poids** et le **format**, parce que
+ * ce sont les deux seules choses qu'il puisse vérifier sans décoder l'audio.
+ * Le poids ne borne **pas** la dépense : les jetons audio se comptent à la
+ * seconde, et quatre mébioctets valent une minute d'AAC à 256 kbit/s comme
+ * une heure et demie d'Opus à 6 kbit/s. L'arrêt à `VOICE_MAX_SECONDS` est une
+ * garantie d'**écran**, qu'un client modifié peut ignorer. Ce qui borne
+ * réellement la dépense, c'est `RECIPE_SUGGESTION_DAILY_QUOTA` et
+ * `VISION_MONTHLY_CAP_CENTS` — d'où l'exigence que le chiffrage d'un appel
+ * audio soit exact (D7), les deux protections ne valant que l'une par
+ * l'autre.
  *
  * Pourquoi quatre mébioctets : une minute d'Opus (ce que produit Chrome sur
  * Android, autour de 24 kbit/s) pèse environ 200 Ko, une minute d'AAC (Safari,

@@ -294,7 +294,7 @@ function WaitingState() {
 }
 
 /** Exporté pour être testé isolément, sans dépendre d'un réseau simulé (section « aucun test ne dépend du réseau »). */
-export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   if (isApiError(error, 'provider_disabled')) {
     return (
       <EmptyState
