@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.27.0](https://github.com/djkix/kitchen-inventory/compare/v0.26.3...v0.27.0) (2026-10-21)
+
+
+### Features
+
+* **suggestions:** demande parlée, Gemini écoute et propose (EF-25, EF-26) ([52d250d](https://github.com/djkix/kitchen-inventory/commit/52d250de46ab71ae3ace29fa98f26fb91b57cba8))
+
+
+### Bug Fixes
+
+* **suggestions:** chiffrage audio exact et bornes dites juste (EF-25, EF-26) ([201f285](https://github.com/djkix/kitchen-inventory/commit/201f2856d3be47144ad177c35c35de6bee40f59e))
+
 ## [0.26.3](https://github.com/djkix/kitchen-inventory/compare/v0.26.2...v0.26.3) (2026-10-20)
 
 
