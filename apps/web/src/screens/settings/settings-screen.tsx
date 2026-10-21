@@ -140,9 +140,15 @@ function AlertBadge() {
  */
 function AccountsAccordion() {
   const auth = useAuth();
+  const accounts = useAccountsQuery();
   if (!auth.isAdmin) return null;
+  // Une demande en attente est la seule chose de cet écran qui réclame une
+  // action : la section s'ouvre d'elle-même tant qu'il en reste une. La
+  // replier derrière un geste de plus, c'est la laisser dormir — un parcours
+  // bout en bout l'a montré le jour même de la refonte.
+  const pending = (accounts.data ?? []).some((a) => a.status === 'PENDING');
   return (
-    <AccordionSection title="Comptes" badge={<AccountsBadge />}>
+    <AccordionSection title="Comptes" badge={<AccountsBadge />} defaultOpen={pending}>
       <AccountsSection />
     </AccordionSection>
   );
