@@ -1134,3 +1134,32 @@ describe('SuggestionsScreen, filtres derrière un bouton (2026-10-20)', () => {
     expect(screen.getByRole('button', { name: /^Filtres/ })).toBeTruthy();
   });
 });
+
+/**
+ * Entrée de la demande parlée (spécification du 2026-10-21, D3) : un parcours
+ * à part, atteint depuis l'en-tête. Le champ à pastilles, lui, ne change pas.
+ */
+describe('Entrée de la demande parlée (D3)', () => {
+  it('offre un lien vers l’écran de demande parlée, dès la question de type de plat', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({ isPending: false, isError: false, isFetching: false, data: undefined } as never);
+    render(
+      <MemoryRouter>
+        <SuggestionsScreen />
+      </MemoryRouter>,
+    );
+    const lien = screen.getByRole('link', { name: /demande parlée/i });
+    expect(lien.getAttribute('href')).toBe('/recettes/parler');
+  });
+
+  it('n’ajoute aucun contrôle au champ d’ingrédients, qui reste inchangé', () => {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({ isPending: false, isError: false, isFetching: false, data: undefined } as never);
+    render(
+      <MemoryRouter>
+        <SuggestionsScreen />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getAllByRole('button')[0]!);
+    // La ligne du champ ne porte toujours que « Chercher » et « Filtres ».
+    expect(screen.queryByRole('button', { name: /micro|parler/i })).toBeNull();
+  });
+});

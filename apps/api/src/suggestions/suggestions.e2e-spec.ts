@@ -2,7 +2,16 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { DynamicModule, Global, Module, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { DISH_TYPES, normalizeIngredientTerms, SUGGESTION_REGION_LABELS_FR, suggestionIdentity, type ModelRecipe, type SuggestionQuery } from '@kitchen/shared';
+import {
+  DISH_TYPES,
+  normalizeIngredientTerms,
+  SUGGESTION_REGION_LABELS_FR,
+  suggestionIdentity,
+  VOICE_MAX_BYTES,
+  VOICE_MIN_BYTES,
+  type ModelRecipe,
+  type SuggestionQuery,
+} from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
 import { LoggerModule } from 'nestjs-pino';
 import type TestAgent from 'supertest/lib/agent.js';
@@ -20,11 +29,28 @@ import { createProduct, createStock } from '../../test/recipes.test-helpers.js';
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
 import { truncateAll } from '../../test/db.js';
 import type { PageRecipe } from './recipe-page.fetcher.js';
+import { PRICES_USD_PER_MTOK } from '../recognition/providers/gemini.provider.js';
 import { buildSuggestionPrompt } from './prompt.js';
 import { SuggestionsModule } from './suggestions.module.js';
 import { SuggestionsService } from './suggestions.service.js';
 
 const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
+
+/** Composition déposée au réservoir par les scénarios de demande parlée (2026-10-21). */
+const COMPOSITION_VOCALE: ModelRecipe = {
+  title: 'Déjà connue',
+  origin: 'Composition',
+  region: 'mediterraneenne',
+  totalMinutes: 25,
+  prepMinutes: 10,
+  cookMinutes: 15,
+  difficulty: 'EASY',
+  dishType: 'MAIN',
+  provenance: 'ai',
+  sourceUrl: null,
+  steps: ['Mélanger.'],
+  ingredients: [{ label: 'Pâtes', quantity: 300, unit: 'GRAM' }],
+};
 
 /**
  * Contexte Nest minimal (sans HTTP) pour tester `SuggestionsService` seule, sans
@@ -1520,6 +1546,206 @@ describe('SuggestionsService (EF-26)', () => {
     });
   });
 
+  /**
+   * Demande parlée (spécification du 2026-10-21). Aucun de ces cas n'envoie
+   * d'audio réel : ce qui est en jeu ici n'est pas le son mais le croisement
+   * avec le stock, le quota, le journal et les bornes.
+   */
+  describe('listFromVoice (demande parlée, 2026-10-21)', () => {
+    const AUDIO = Buffer.alloc(VOICE_MIN_BYTES + 1, 7);
+    const MIME = 'audio/webm';
+
+    async function seedStock(db: PrismaService): Promise<void> {
+      const locationId = await seedLocation(db);
+      await seedProduct(db, locationId, { name: 'Pâtes', quantity: 500, unit: 'GRAM' });
+      await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+    }
+
+    it('rend les recettes et ce que le modèle a entendu (D2, D4)', async () => {
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+
+      const result = await service.listFromVoice(AUDIO, MIME);
+      expect(result.heard.ingredients).toEqual(['poulet', 'sauce tomate']);
+      expect(result.heard.orientation).toBe('plat italien');
+      expect(result.items.length).toBeGreaterThan(0);
+      expect(result.fromCache).toBe(false);
+    });
+
+    it('croise la parole avec le stock réel : l’audio part, le stock aussi', async () => {
+      // C'est la seule chose que l'application Gemini ne sait pas faire, et
+      // toute la valeur de la fonctionnalité.
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+
+      await service.listFromVoice(AUDIO, MIME);
+      const parts = JSON.parse(String(http.calls[0]?.init?.body)).contents[0].parts;
+      expect(parts[0].inlineData.mimeType).toBe(MIME);
+      expect(parts[1].text).toContain('Tomate');
+    });
+
+    it('ne dit jamais manquant un ingrédient entendu, et garde la couverture sur le stock (D4, D5 du 2026-10-19)', async () => {
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+
+      const result = await service.listFromVoice(AUDIO, MIME);
+      const item = result.items[0];
+      expect(item?.missingLabels).not.toContain('Blanc de poulet');
+      expect(item?.missingLabels).not.toContain('Sauce tomate');
+      expect(item?.ingredients.find((i) => i.label === 'Blanc de poulet')?.declared).toBe(true);
+      expect(item?.ingredients.find((i) => i.label === 'Pâtes')?.declared).toBe(false);
+      // La règle de couverture partagée n'est pas touchée : elle ne connaît
+      // que le stock, et une déclaration ne remplit pas le placard.
+      expect(item?.coverage).toBeLessThan(1);
+    });
+
+    it('fait entrer les recettes au réservoir : rien de payé n’est jeté (D5)', async () => {
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+
+      const result = await service.listFromVoice(AUDIO, MIME);
+      const rows = await db.suggestionPoolRecipe.findMany();
+      expect(rows).toHaveLength(3);
+      // Le réservoir est commun aux deux chemins : ce sont bien les lignes du
+      // réservoir qui sont rendues à l'écran, et elles y restent ensuite.
+      expect(rows.map((row) => row.identity).sort()).toEqual(result.items.map((item) => item.id).sort());
+      expect(rows.map((row) => (row.payload as { title: string }).title)).toContain('Poulet à la tomate 1');
+    });
+
+    it('appelle toujours le modèle, même quand le réservoir déborde (D5)', async () => {
+      // Une phrase est unique : il n'y a rien à retrouver au réservoir.
+      const { service, db } = await createService();
+      await seedStock(db);
+      await seedPool(
+        db,
+        Array.from({ length: 10 }, (_, i) => ({
+          recipe: { ...COMPOSITION_VOCALE, title: `Déjà connue ${i}` },
+        })),
+      );
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+
+      await service.listFromVoice(AUDIO, MIME);
+      expect(http.calls).toHaveLength(1);
+    });
+
+    it('consomme un appel du quota journalier, et le refuse une fois atteint (D5)', async () => {
+      const { service, db } = await createService({ RECIPE_SUGGESTION_DAILY_QUOTA: '1' });
+      await seedStock(db);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+
+      await service.listFromVoice(AUDIO, MIME);
+      expect(await db.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION' } })).toBe(1);
+
+      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 429, code: 'rate_limited' });
+      // Refusé AVANT de dépenser : un quota atteint ne doit pas envoyer l'audio.
+      expect(http.calls).toHaveLength(1);
+    });
+
+    it('entre dans le plafond mensuel partagé avec le scan photo (D5)', async () => {
+      const { service, db } = await createService({ VISION_MONTHLY_CAP_CENTS: '1' });
+      await seedStock(db);
+      // Une dépense déjà inscrite au titre du scan photo suffit à fermer la porte.
+      await db.recognitionLog.create({
+        data: { provider: 'gemini', purpose: 'VISION', succeeded: true, costCents: new Prisma.Decimal(5), latencyMs: 10, rawResult: {} },
+      });
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+
+      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 429, code: 'rate_limited' });
+      expect(http.calls).toHaveLength(0);
+    });
+
+    it('journalise l’appel sans qu’un seul octet d’audio n’y arrive (D6)', async () => {
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+
+      await service.listFromVoice(AUDIO, MIME);
+      const log = await db.recognitionLog.findFirstOrThrow({ where: { purpose: 'RECIPE_SUGGESTION' } });
+      const serialized = JSON.stringify(log.rawResult);
+      expect(serialized).not.toContain(AUDIO.toString('base64'));
+      // Pas davantage un fragment : vingt caractères de base64 ne se croisent pas par hasard.
+      expect(serialized).not.toContain(AUDIO.toString('base64').slice(0, 20));
+      expect(log.costCents).not.toBeNull();
+    });
+
+    it('ne laisse pas d’audio dans le journal quand l’appel échoue (D6)', async () => {
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () => json({ error: 'boum' }, 500));
+
+      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 502 });
+      const logs = await db.recognitionLog.findMany();
+      for (const log of logs) {
+        expect(JSON.stringify(log.rawResult)).not.toContain(AUDIO.toString('base64').slice(0, 20));
+      }
+    });
+
+    it('facture l’appel au tarif audio (D7)', async () => {
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+
+      await service.listFromVoice(AUDIO, MIME);
+      const log = await db.recognitionLog.findFirstOrThrow({ where: { purpose: 'RECIPE_SUGGESTION' } });
+      // La fixture rend 900 jetons d'entrée et 70 de sortie sans ventilation
+      // par modalité : tout l'entrant passe au tarif audio (repli de D7).
+      const price = PRICES_USD_PER_MTOK['gemini-3.5-flash-lite']!;
+      const attendu = Math.round(((900 * price.audio + 70 * price.output) / 1_000_000) * 100 * 10_000) / 10_000;
+      expect(log.costCents?.toNumber()).toBeCloseTo(attendu, 6);
+    });
+
+    it('refuse un enregistrement hors bornes sans rien dépenser (D8)', async () => {
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+
+      // Vide, trop gros, mauvais format : trois refus, aucun appel.
+      await expect(service.listFromVoice(Buffer.alloc(10), MIME)).rejects.toMatchObject({ status: 400, code: 'validation_failed' });
+      await expect(service.listFromVoice(Buffer.alloc(VOICE_MAX_BYTES + 1), MIME)).rejects.toMatchObject({ status: 400 });
+      await expect(service.listFromVoice(AUDIO, 'video/mp4')).rejects.toMatchObject({ status: 400 });
+      expect(http.calls).toHaveLength(0);
+    });
+
+    it('dit en français que le modèle n’a rien compris, sans jeter ce qui est payé (D9)', async () => {
+      const { service, db } = await createService();
+      await seedStock(db);
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-muet.json'));
+
+      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 422, code: 'business_rule' });
+      try {
+        await service.listFromVoice(AUDIO, MIME);
+      } catch (error) {
+        expect(String((error as Error).message)).toMatch(/compris/i);
+      }
+      // L'appel est payé : les recettes rendues entrent quand même au réservoir (D5).
+      expect(await db.suggestionPoolRecipe.count()).toBeGreaterThan(0);
+      // Et il est journalisé, donc décompté du quota.
+      expect(await db.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION' } })).toBe(2);
+    });
+
+    it('refuse quand aucun fournisseur n’est configuré, sans toucher au stock', async () => {
+      const { service, db } = await createService({ VISION_PROVIDER: 'none', VISION_API_KEY: '' });
+      await seedStock(db);
+      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 422, code: 'provider_disabled' });
+      expect(http.calls).toHaveLength(0);
+    });
+
+    it('fonctionne sur un placard vide : la parole se suffit à elle-même', async () => {
+      // Contrairement à la recherche écrite, qui tire son point de départ du
+      // stock et refuse en 409 quand il est vide, une demande parlée porte
+      // déjà ses ingrédients.
+      const { service } = await createService();
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+
+      const result = await service.listFromVoice(AUDIO, MIME);
+      expect(result.items.length).toBeGreaterThan(0);
+    });
+  });
+
 });
 
 describe('GET /suggestions (EF-26, tâche 7)', () => {
@@ -1659,5 +1885,66 @@ describe('POST /suggestions/keep (EF-25, EF-26, tâche 9)', () => {
   it('rend 404 quand l’identité n’est pas au réservoir', async () => {
     const res = await agent.post('/api/v1/suggestions/keep').send({ batchId: '', suggestionId: 'deadbeef' }).expect(404);
     expect(res.body.error.message).toBe('Suggestion introuvable');
+  });
+});
+
+/**
+ * Demande parlée vue depuis le fil (spécification du 2026-10-21). L'audio
+ * téléversé n'est pas de la parole : aucun test n'en envoie, et aucun n'en a
+ * besoin — ce qui est vérifié ici, c'est la route, ses refus et sa réponse.
+ */
+describe('POST /suggestions/voice (EF-25, EF-26, 2026-10-21)', () => {
+  let t: TestApp;
+  let agent: TestAgent;
+  let http: FakeHttp;
+  const AUDIO = Buffer.alloc(VOICE_MIN_BYTES + 1, 7);
+
+  beforeAll(async () => {
+    http = new FakeHttp();
+    t = await createTestApp({ VISION_PROVIDER: 'gemini', VISION_API_KEY: 'AIza-test' }, http.client);
+  });
+  beforeEach(async () => {
+    await t.reset();
+    http.reset();
+    agent = t.agent();
+    await t.signIn(agent, ADMIN);
+  });
+  afterAll(() => t.close());
+
+  it('exige une session', async () => {
+    const res = await t.api.post('/api/v1/suggestions/voice').attach('audio', AUDIO, { filename: 'demande.webm', contentType: 'audio/webm' }).expect(401);
+    expect(res.body.error.code).toBe('unauthenticated');
+  });
+
+  it('rend les recettes et la lecture du modèle', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    const res = await agent.post('/api/v1/suggestions/voice').attach('audio', AUDIO, { filename: 'demande.webm', contentType: 'audio/webm' }).expect(200);
+    expect(res.body.heard.ingredients).toEqual(['poulet', 'sauce tomate']);
+    expect(res.body.items.length).toBeGreaterThan(0);
+  });
+
+  it('refuse une requête sans enregistrement, en français', async () => {
+    const res = await agent.post('/api/v1/suggestions/voice').expect(400);
+    expect(res.body.error.code).toBe('validation_failed');
+    expect(res.body.error.message).toMatch(/enregistrement/i);
+    expect(http.calls).toHaveLength(0);
+  });
+
+  it('refuse un format que le modèle ne sait pas lire (D8)', async () => {
+    const res = await agent
+      .post('/api/v1/suggestions/voice')
+      .attach('audio', AUDIO, { filename: 'demande.mp4', contentType: 'video/mp4' })
+      .expect(400);
+    expect(res.body.error.message).toMatch(/format/i);
+    expect(http.calls).toHaveLength(0);
+  });
+
+  it('refuse un enregistrement vide (D9)', async () => {
+    const res = await agent
+      .post('/api/v1/suggestions/voice')
+      .attach('audio', Buffer.alloc(10), { filename: 'vide.webm', contentType: 'audio/webm' })
+      .expect(400);
+    expect(res.body.error.message).toMatch(/vide/i);
+    expect(http.calls).toHaveLength(0);
   });
 });

@@ -107,7 +107,7 @@ export function SuggestionsScreen() {
   if (!answeredDishType) {
     return (
       <>
-        <ScreenHeader title="Suggestions" subtitle="À partir de votre stock" />
+        <ScreenHeader title="Suggestions" subtitle="À partir de votre stock" actions={<VoiceRequestLink />} />
         <RecipeTabSwitch />
         <DishTypeQuestion
           onSelect={(type) => {
@@ -123,7 +123,7 @@ export function SuggestionsScreen() {
 
   return (
     <>
-      <ScreenHeader title="Suggestions" subtitle="À partir de votre stock" />
+      <ScreenHeader title="Suggestions" subtitle="À partir de votre stock" actions={<VoiceRequestLink />} />
 
       <RecipeTabSwitch />
 
@@ -235,6 +235,38 @@ export function SuggestionsScreen() {
   );
 }
 
+/**
+ * Entrée de la demande parlée (spécification du 2026-10-21, D3). Un parcours
+ * à part, donc un lien vers son écran — jamais un second mode de ce champ-ci,
+ * qui reste strictement inchangé.
+ *
+ * Dans l'en-tête, et pas dans le corps de l'écran : djkix a demandé trois
+ * fois d'alléger cette page, et la zone d'actions de l'en-tête était vide.
+ * Une icône de 44 px n'y prend la place de rien.
+ */
+function VoiceRequestLink() {
+  return (
+    <Link
+      to="/recettes/parler"
+      aria-label="Demande parlée"
+      className="inline-flex size-touch items-center justify-center rounded-xl text-accent active:bg-raised"
+    >
+      <MicIcon />
+    </Link>
+  );
+}
+
+/** Micro : dessiné ici plutôt qu'ajouté à la bibliothèque d'icônes, un seul appelant. */
+function MicIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0" />
+      <path d="M12 18v3" />
+    </svg>
+  );
+}
+
 function RefetchingBanner() {
   return (
     <div role="status" aria-live="polite" className="mx-4 mb-3 flex items-center gap-2 text-[13px] text-muted">
@@ -289,6 +321,16 @@ export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRe
         description="Il n’y a pas encore assez d’ingrédients identifiés dans le stock pour composer une recherche de recettes."
       />
     );
+  }
+
+  /**
+   * Demande parlée (2026-10-21, D9) : le modèle a répondu, mais n'a rien tiré
+   * de l'enregistrement. Ce n'est ni une panne ni un quota, et le titre
+   * générique « la recherche a échoué » ferait chercher une cause technique
+   * là où il suffit de reformuler.
+   */
+  if (isApiError(error, 'business_rule')) {
+    return <ErrorState title="Demande non comprise" message={error.message} onRetry={onRetry} />;
   }
 
   if (isApiError(error, 'rate_limited')) {

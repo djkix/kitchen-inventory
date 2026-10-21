@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
-import { buildSuggestionPrompt, KNOWN_TITLES_CAP } from './prompt.js';
+import { PRICES_USD_PER_MTOK } from '../recognition/providers/gemini.provider.js';
+import { buildSuggestionPrompt, buildVoicePrompt, KNOWN_TITLES_CAP } from './prompt.js';
 import type { SuggestionProviderError, SuggestionRequest } from './suggestion-provider.js';
 
 const BASE_REQUEST: SuggestionRequest = { seeds: ['tomate', 'pâtes', 'basilic'], count: 12 };
@@ -209,5 +210,93 @@ describe('buildSuggestionPrompt, diversité des propositions (2026-10-19)', () =
     const prompt = buildSuggestionPrompt({ ...BASE_REQUEST, region: 'asiatique', difficulty: 'EASY' });
     expect(prompt).toContain('vers la cuisine Asiatique');
     expect(prompt).toContain('nettement différentes');
+  });
+});
+
+/**
+ * Demande parlée (spécification du 2026-10-21). Aucun test n'envoie d'audio
+ * réel : un `Buffer` d'octets quelconques suffit à vérifier ce qui est en jeu
+ * — ce qui part dans la requête, ce qui en revient, et ce que ça coûte.
+ */
+describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
+  let http: FakeHttp;
+  let provider: GeminiSuggestionProvider;
+  const AUDIO = Buffer.from('des-octets-qui-ne-sont-pas-de-la-parole');
+  const VOICE_REQUEST = { seeds: ['tomate', 'pâtes'], count: 12, audio: AUDIO, mimeType: 'audio/webm' };
+
+  beforeEach(() => {
+    http = new FakeHttp();
+    provider = new GeminiSuggestionProvider({ apiKey: 'test-key', httpClient: http.client });
+  });
+
+  it('rend la lecture du modèle ET les recettes en un seul appel (D2, D4)', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    const result = await provider.suggestFromVoice(VOICE_REQUEST);
+    expect(result.heard.ingredients).toEqual(['poulet', 'sauce tomate']);
+    expect(result.heard.orientation).toBe('plat italien');
+    expect(result.recipes.length).toBeGreaterThan(0);
+    expect(http.calls).toHaveLength(1);
+  });
+
+  it('envoie l’audio en pièce jointe, avec son type', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    await provider.suggestFromVoice(VOICE_REQUEST);
+    const parts = requestBody(http).contents[0].parts;
+    expect(parts[0].inlineData.mimeType).toBe('audio/webm');
+    expect(parts[0].inlineData.data).toBe(AUDIO.toString('base64'));
+    // La consigne de lecture part avec l'audio, dans le même appel.
+    expect(parts[1].text).toMatch(/heard/);
+  });
+
+  it('facture l’appel au tarif audio quand la ventilation est absente (D7)', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    const voice = await provider.suggestFromVoice(VOICE_REQUEST);
+    // `geminiFixture` rend 900 jetons d'entrée et 70 de sortie, sans
+    // ventilation : le repli de D7 les facture tous au tarif audio.
+    const price = PRICES_USD_PER_MTOK['gemini-3.5-flash-lite']!;
+    const expected = Math.round(((900 * price.audio + 70 * price.output) / 1_000_000) * 100 * 10_000) / 10_000;
+    expect(voice.attempts[0]?.costCents).toBe(expected);
+    // Et c'est bien plus que ce qu'un appel écrit de même volume aurait coûté.
+    const written = await provider.suggest(BASE_REQUEST);
+    expect(voice.attempts[0]!.costCents!).toBeGreaterThan(written.attempts[0]!.costCents!);
+  });
+
+  it('échoue sans reprise quand la réponse est illisible : une reprise renverrait l’audio', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-invalide.json'));
+    await expect(provider.suggestFromVoice(VOICE_REQUEST)).rejects.toThrow(ProviderError);
+    expect(http.calls).toHaveLength(1);
+  });
+
+  it('porte la tentative facturée sur l’erreur, pour qu’elle soit journalisée', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-invalide.json'));
+    await expect(provider.suggestFromVoice(VOICE_REQUEST)).rejects.toMatchObject({ attempts: [expect.objectContaining({ costCents: expect.any(Number) })] });
+  });
+
+  it('est désactivé sans clé, et n’envoie rien', async () => {
+    const disabled = new GeminiSuggestionProvider({ httpClient: http.client });
+    await expect(disabled.suggestFromVoice(VOICE_REQUEST)).rejects.toThrow(ProviderError);
+    expect(http.calls).toHaveLength(0);
+  });
+});
+
+describe('buildVoicePrompt (D2, D4)', () => {
+  const req = { seeds: ['tomate', 'pâtes'], count: 12, audio: Buffer.alloc(0), mimeType: 'audio/webm' };
+
+  it('demande la lecture de la phrase et les recettes dans le même objet JSON', () => {
+    const prompt = buildVoicePrompt(req);
+    expect(prompt).toMatch(/heard/);
+    expect(prompt).toMatch(/ingredients/);
+    expect(prompt).toMatch(/orientation/);
+    expect(prompt).toMatch(/recipes/);
+  });
+
+  it('croise la parole avec le stock réel, qui est toute la valeur de la fonction', () => {
+    const prompt = buildVoicePrompt(req);
+    expect(prompt).toContain('tomate, pâtes');
+    expect(prompt).toMatch(/enregistrement|audio|parl/i);
+  });
+
+  it('garde la consigne de diversité des propositions', () => {
+    expect(buildVoicePrompt(req)).toContain('nettement différentes');
   });
 });

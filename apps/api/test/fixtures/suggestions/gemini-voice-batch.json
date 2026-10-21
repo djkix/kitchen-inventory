@@ -1,0 +1,110 @@
+{
+  "heard": {
+    "ingredients": [
+      "poulet",
+      "sauce tomate"
+    ],
+    "orientation": "plat italien"
+  },
+  "recipes": [
+    {
+      "title": "Poulet à la tomate 1",
+      "origin": "Composition",
+      "region": "mediterraneenne",
+      "totalMinutes": 25,
+      "prepMinutes": 10,
+      "cookMinutes": 15,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Faire revenir le poulet 1 à feu vif pendant 5 minutes.",
+        "Ajouter la sauce tomate et laisser mijoter 15 minutes à feu doux."
+      ],
+      "ingredients": [
+        {
+          "label": "Blanc de poulet",
+          "quantity": 400,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Sauce tomate",
+          "quantity": 200,
+          "unit": "MILLILITER"
+        },
+        {
+          "label": "Pâtes",
+          "quantity": 300,
+          "unit": "GRAM"
+        }
+      ]
+    },
+    {
+      "title": "Poulet à la tomate 2",
+      "origin": "Composition",
+      "region": "mediterraneenne",
+      "totalMinutes": 25,
+      "prepMinutes": 10,
+      "cookMinutes": 15,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Faire revenir le poulet 2 à feu vif pendant 5 minutes.",
+        "Ajouter la sauce tomate et laisser mijoter 15 minutes à feu doux."
+      ],
+      "ingredients": [
+        {
+          "label": "Blanc de poulet",
+          "quantity": 400,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Sauce tomate",
+          "quantity": 200,
+          "unit": "MILLILITER"
+        },
+        {
+          "label": "Pâtes",
+          "quantity": 300,
+          "unit": "GRAM"
+        }
+      ]
+    },
+    {
+      "title": "Poulet à la tomate 3",
+      "origin": "Composition",
+      "region": "mediterraneenne",
+      "totalMinutes": 25,
+      "prepMinutes": 10,
+      "cookMinutes": 15,
+      "difficulty": "EASY",
+      "dishType": "MAIN",
+      "provenance": "ai",
+      "sourceUrl": null,
+      "steps": [
+        "Faire revenir le poulet 3 à feu vif pendant 5 minutes.",
+        "Ajouter la sauce tomate et laisser mijoter 15 minutes à feu doux."
+      ],
+      "ingredients": [
+        {
+          "label": "Blanc de poulet",
+          "quantity": 400,
+          "unit": "GRAM"
+        },
+        {
+          "label": "Sauce tomate",
+          "quantity": 200,
+          "unit": "MILLILITER"
+        },
+        {
+          "label": "Pâtes",
+          "quantity": 300,
+          "unit": "GRAM"
+        }
+      ]
+    }
+  ]
+}

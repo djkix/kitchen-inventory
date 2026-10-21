@@ -357,3 +357,127 @@ export interface SuggestionBatchDto {
   poolCount: number;
   poolTotal: number;
 }
+
+/* ------------------------------------------------------------------ *
+ * Demande parlée (spécification du 2026-10-21)                        *
+ * ------------------------------------------------------------------ */
+
+/**
+ * Durée maximale d'un enregistrement (D8).
+ *
+ * Pourquoi soixante secondes : la phrase qui a motivé la fonctionnalité —
+ * « il me reste du poulet, et un peu de sauce tomate, je veux faire un plat
+ * italien, qu'est-ce que tu me proposes » — se dit en douze secondes. Soixante
+ * laissent quatre fois cette marge, donc toute la place aux hésitations et à
+ * une liste de restes un peu longue. Au-delà, ce n'est plus une demande mais
+ * un bouton qu'on a oublié de relâcher : un enregistrement sans borne est une
+ * facture sans borne, et une requête qu'un reverse proxy coupera de toute
+ * façon.
+ */
+export const VOICE_MAX_SECONDS = 60;
+
+/**
+ * Taille maximale transmise (D8), et **seule borne que le serveur puisse
+ * vérifier** : mesurer une durée exigerait de décoder l'audio, alors que le
+ * poids borne la dépense quel que soit le codec. L'écran arrête donc
+ * l'enregistrement à `VOICE_MAX_SECONDS`, le serveur refuse au poids, et un
+ * client modifié ne peut pas faire payer davantage que ce poids.
+ *
+ * Pourquoi quatre mébioctets : une minute d'Opus (ce que produit Chrome sur
+ * Android, autour de 24 kbit/s) pèse environ 200 Ko, une minute d'AAC (Safari,
+ * jusqu'à 256 kbit/s) environ 2 Mo. Quatre laissent passer le pire cas réel
+ * avec de la marge, et restent sous la limite de corps de requête par défaut
+ * des reverse proxies courants.
+ */
+export const VOICE_MAX_BYTES = 4 * 1024 * 1024;
+
+/**
+ * En dessous, il n'y a pas de parole : un conteneur audio vide pèse déjà
+ * quelques centaines d'octets, un kibioctet représente moins d'un tiers de
+ * seconde même au débit le plus bas. Payer un appel pour cela est une perte
+ * sèche, et l'utilisateur mérite d'apprendre que son micro n'a rien capté
+ * (D9) plutôt que d'attendre une réponse vide.
+ */
+export const VOICE_MIN_BYTES = 1024;
+
+/** Nombre d'ingrédients retenus de la lecture du modèle : au-delà, ce n'est plus une phrase. */
+export const VOICE_HEARD_INGREDIENTS_MAX = 20;
+
+/**
+ * Types audio acceptés. `audio/webm` (Chrome) et `audio/mp4` (Safari) sont ce
+ * que `MediaRecorder` produit réellement sur téléphone ; les autres sont
+ * acceptés parce qu'ils ne coûtent rien à laisser passer et que Google les
+ * documente. Le type est transmis tel quel au modèle.
+ */
+export const VOICE_AUDIO_MIME_TYPES = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/aac', 'audio/wav', 'audio/x-wav', 'audio/flac'] as const;
+
+/** `audio/webm;codecs=opus` est un `audio/webm` : le paramètre de codec et la casse ne changent pas le type. */
+export function isSupportedVoiceMimeType(mimeType: string): boolean {
+  const base = mimeType.split(';')[0]?.trim().toLowerCase() ?? '';
+  return (VOICE_AUDIO_MIME_TYPES as readonly string[]).includes(base);
+}
+
+/**
+ * Refus d'un enregistrement, en français, ou `null` s'il est acceptable (D8,
+ * D9). Une seule implémentation pour l'écran et pour le serveur : le client
+ * n'est jamais une garantie — le serveur refait le contrôle — mais les deux
+ * doivent refuser pour la même raison et avec la même phrase.
+ */
+export function voiceAudioRejection(byteLength: number, mimeType: string): string | null {
+  if (!isSupportedVoiceMimeType(mimeType)) return 'Format audio non pris en charge par le modèle.';
+  if (byteLength < VOICE_MIN_BYTES) return 'Enregistrement vide : le micro n’a rien capté.';
+  if (byteLength > VOICE_MAX_BYTES) {
+    return `Enregistrement trop long : ${VOICE_MAX_SECONDS} secondes au maximum. Reformulez votre demande plus brièvement.`;
+  }
+  return null;
+}
+
+/**
+ * Ce que le modèle dit avoir entendu (D4) : les ingrédients nommés et
+ * l'orientation déduite. Tolérant par construction — une lecture absente ou
+ * bancale ne doit jamais faire perdre les recettes du même appel, déjà
+ * payées. C'est le service qui tranche qu'une lecture entièrement vide vaut
+ * « je n'ai rien compris » (D9).
+ */
+const voiceHeardSchema = z
+  .object({
+    ingredients: z.array(z.string()).optional(),
+    orientation: z.string().nullish(),
+  })
+  .optional()
+  .transform((heard) => ({
+    ingredients: (heard?.ingredients ?? [])
+      .map((term) => term.trim())
+      .filter((term) => term.length > 0)
+      .slice(0, VOICE_HEARD_INGREDIENTS_MAX),
+    orientation: heard?.orientation?.trim() ? heard.orientation.trim() : null,
+  }));
+export type VoiceHeard = z.infer<typeof voiceHeardSchema>;
+
+/**
+ * Réponse attendue d'un appel parlé : la lecture **et** les recettes, en un
+ * seul appel (D2). Les recettes passent par `modelBatchSchema`, jamais par une
+ * seconde règle : même validation recette par recette, même rejet d'un lot
+ * dont rien ne tient debout.
+ */
+export const voiceModelBatchSchema = z
+  .object({ heard: voiceHeardSchema, recipes: z.array(z.unknown()) })
+  .transform((batch, ctx) => {
+    const parsed = modelBatchSchema.safeParse({ recipes: batch.recipes });
+    if (!parsed.success) {
+      ctx.addIssue({ code: 'custom', message: 'Aucune recette exploitable dans la réponse du modèle', path: ['recipes'] });
+      return z.NEVER;
+    }
+    return { heard: batch.heard, recipes: parsed.data.recipes };
+  });
+export type VoiceModelBatch = z.infer<typeof voiceModelBatchSchema>;
+
+/**
+ * Ce que l'écran de demande parlée reçoit : une fournée ordinaire, plus la
+ * lecture que le modèle a faite de la phrase (D2). Elle est affichée avec les
+ * résultats pour qu'un contresens se voie — c'est la contrepartie assumée de
+ * l'absence d'étape de confirmation.
+ */
+export interface VoiceSuggestionBatchDto extends SuggestionBatchDto {
+  heard: VoiceHeard;
+}

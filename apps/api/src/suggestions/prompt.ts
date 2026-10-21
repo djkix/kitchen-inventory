@@ -1,5 +1,15 @@
-import { DIFFICULTY_LABELS_FR, DISH_TYPE_LABELS_FR, DISH_TYPES, modelBatchSchema, SUGGESTION_REGION_LABELS_FR, UNITS, type ModelBatch } from '@kitchen/shared';
-import type { SuggestionRequest } from './suggestion-provider.js';
+import {
+  DIFFICULTY_LABELS_FR,
+  DISH_TYPE_LABELS_FR,
+  DISH_TYPES,
+  modelBatchSchema,
+  SUGGESTION_REGION_LABELS_FR,
+  UNITS,
+  voiceModelBatchSchema,
+  type ModelBatch,
+  type VoiceModelBatch,
+} from '@kitchen/shared';
+import type { SuggestionRequest, VoiceSuggestionRequest } from './suggestion-provider.js';
 
 /** Système : cadre le rôle, rappelé à chaque appel (nouveau ou reprise). */
 export const SUGGESTION_SYSTEM_PROMPT = `Tu proposes des recettes de cuisine à partir d'ingrédients disponibles dans un foyer.
@@ -103,19 +113,82 @@ export function buildSuggestionPrompt(req: SuggestionRequest, options: { retry?:
   if (knownTitles.length > 0) {
     lines.push(`Ne propose aucune de ces recettes, déjà connues de l'application, ni une simple variante de l'une d'elles : ${knownTitles.map((title) => `« ${title} »`).join(', ')}.`);
   }
-  lines.push(
-    'Réponds par un objet JSON unique de la forme { "recipes": [ ... ] }.',
-    'Chaque recette porte : title, origin (nom du site ou "Composition" pour une création), region (une valeur parmi : ' +
-      Object.keys(SUGGESTION_REGION_LABELS_FR).join(', ') +
-      '), totalMinutes (entier), prepMinutes et cookMinutes (entiers en minutes, ou null si la recette n\'a pas cette étape ou que tu ne la distingues pas), difficulty (une valeur parmi VERY_EASY, EASY, INTERMEDIATE, HARD), dishType (une valeur parmi ' +
-      DISH_TYPES.join(', ') +
-      '), provenance ("web" ou "ai"), sourceUrl (URL https pour "web", null pour "ai"), steps (liste d\'étapes, au moins une pour "ai"), ingredients (liste de { label, quantity, unit }, quantity et unit pouvant être null, unit parmi : ' +
-      UNITS.join(', ') +
-      ').',
-    'Aucun texte, aucune explication, aucune clôture de bloc de code autour de cet objet JSON.',
-  );
+  lines.push('Réponds par un objet JSON unique de la forme { "recipes": [ ... ] }.', recipeFieldsLine(), FORMAT_TAIL);
   if (options.retry) lines.push(SUGGESTION_FORMAT_REMINDER);
   return lines.join('\n');
+}
+
+/**
+ * Description des champs d'une recette, partagée par la demande écrite et la
+ * demande parlée (2026-10-21) : un seul endroit à tenir à jour, sans quoi les
+ * deux chemins divergeraient dès le premier champ ajouté au schéma.
+ */
+function recipeFieldsLine(): string {
+  return (
+    'Chaque recette porte : title, origin (nom du site ou "Composition" pour une création), region (une valeur parmi : ' +
+    Object.keys(SUGGESTION_REGION_LABELS_FR).join(', ') +
+    "), totalMinutes (entier), prepMinutes et cookMinutes (entiers en minutes, ou null si la recette n'a pas cette étape ou que tu ne la distingues pas), difficulty (une valeur parmi VERY_EASY, EASY, INTERMEDIATE, HARD), dishType (une valeur parmi " +
+    DISH_TYPES.join(', ') +
+    '), provenance ("web" ou "ai"), sourceUrl (URL https pour "web", null pour "ai"), steps (liste d\'étapes, au moins une pour "ai"), ingredients (liste de { label, quantity, unit }, quantity et unit pouvant être null, unit parmi : ' +
+    UNITS.join(', ') +
+    ').'
+  );
+}
+
+const FORMAT_TAIL = 'Aucun texte, aucune explication, aucune clôture de bloc de code autour de cet objet JSON.';
+
+/**
+ * Demande parlée (spécification du 2026-10-21, D2 et D4) : un seul appel, qui
+ * porte l'enregistrement, et qui rend à la fois ce que le modèle a entendu et
+ * les recettes. Il n'y a pas d'étape de confirmation — c'est le choix de
+ * djkix — donc la lecture revient avec les résultats pour qu'un contresens
+ * se voie.
+ *
+ * Le stock réel part dans le même prompt : croiser la parole avec ce que le
+ * placard contient est précisément ce que l'application Gemini ne sait pas
+ * faire, et toute la valeur de la fonctionnalité.
+ */
+export function buildVoicePrompt(req: VoiceSuggestionRequest): string {
+  const webSearch = req.webSearch !== false;
+  const webCount = Math.max(0, req.count - Math.round(req.count / 3));
+  const aiCount = req.count - webCount;
+  const stockLine = req.seeds.join(', ') || 'aucun en particulier';
+  const lines: string[] = [
+    "L'enregistrement audio joint est une demande parlée : une personne dit ce qu'elle a sous la main et le genre de plat qu'elle veut.",
+    'Écoute-le, puis relève les ingrédients qu’elle nomme et l’orientation qu’elle demande (type de plat, cuisine, durée, envie — une phrase courte en français, ou null si elle n’en exprime aucune).',
+    `Ingrédients déjà présents dans son stock, à utiliser en complément de ce qu’elle a dit si cela sert la recette : ${stockLine}.`,
+    "Chaque recette doit utiliser les ingrédients entendus dans l'enregistrement, et respecter l'orientation demandée.",
+  ];
+  if (webSearch) {
+    lines.push(
+      `Propose au total ${req.count} recettes : environ ${webCount} trouvées par recherche web réelle (avec leur URL source en https), et environ ${aiCount} composées par toi (sans URL).`,
+      'Ajuste ce dosage si la recherche web ne renvoie pas assez de résultats pertinents : complète alors par des compositions.',
+    );
+  } else {
+    lines.push(`Propose au total ${req.count} recettes, toutes composées par toi : provenance "ai" et sourceUrl null pour chacune.`);
+  }
+  lines.push(
+    SUGGESTION_DIVERSITY_RULE,
+    'Réponds par un objet JSON unique de la forme { "heard": { "ingredients": [ ... ], "orientation": "…" ou null }, "recipes": [ ... ] }.',
+    "« heard.ingredients » ne contient que ce que tu as réellement entendu nommer, jamais les ingrédients du stock ci-dessus.",
+    recipeFieldsLine(),
+    FORMAT_TAIL,
+  );
+  return lines.join('\n');
+}
+
+/** Lecture et recettes d'une demande parlée. Même intransigeance que `parseModelBatch` : rien n'est deviné. */
+export function parseVoiceBatch(text: string): VoiceModelBatch {
+  const stripped = stripJsonFences(text);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stripped);
+  } catch {
+    throw new InvalidBatchJsonError('JSON du fournisseur de suggestions illisible');
+  }
+  const result = voiceModelBatchSchema.safeParse(parsed);
+  if (!result.success) throw new InvalidBatchJsonError('Réponse parlée du fournisseur de suggestions non conforme au schéma');
+  return result.data;
 }
 
 /**

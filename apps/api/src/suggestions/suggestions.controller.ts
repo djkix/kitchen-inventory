@@ -1,5 +1,17 @@
-import { Controller, Get, Post } from '@nestjs/common';
-import { keepSuggestionSchema, suggestionQuerySchema, type KeepSuggestionInput, type RecipeDto, type SuggestionBatchDto, type SuggestionQuery } from '@kitchen/shared';
+import { Controller, Get, HttpCode, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
+import {
+  keepSuggestionSchema,
+  suggestionQuerySchema,
+  VOICE_MAX_BYTES,
+  type KeepSuggestionInput,
+  type RecipeDto,
+  type SuggestionBatchDto,
+  type SuggestionQuery,
+  type VoiceSuggestionBatchDto,
+} from '@kitchen/shared';
+import { ApiError } from '../common/api-error.js';
 import { CurrentUser, type RequestUser } from '../auth/request-user.js';
 import { ZodBody, ZodQuery } from '../common/zod-validation.pipe.js';
 import { SuggestionsService } from './suggestions.service.js';
@@ -18,6 +30,31 @@ export class SuggestionsController {
   @Get()
   list(@ZodQuery(suggestionQuerySchema) query: SuggestionQuery): Promise<SuggestionBatchDto> {
     return this.suggestions.list(query);
+  }
+
+  /**
+   * Demande parlée (spécification du 2026-10-21) : l'enregistrement monte en
+   * multipart, le modèle le transcrit et propose dans le même appel (D2).
+   *
+   * Route payante et soumise au quota, comme `scan/image` : limitée par
+   * adresse pour la même raison (section 10).
+   *
+   * La borne de `multer` est posée **au-dessus** de `VOICE_MAX_BYTES` : c'est
+   * le service qui refuse, avec la règle partagée et une phrase en français
+   * (D8, D9), plutôt qu'une coupure de transport sans message. Multer ne
+   * reste qu'un dernier rempart contre un corps démesuré.
+   *
+   * L'audio n'est jamais écrit : il n'est pas confié à `MediaService`
+   * (contrairement à la photo du scan), il traverse le service et disparaît
+   * (D6).
+   */
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Post('voice')
+  @HttpCode(200)
+  @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: VOICE_MAX_BYTES + 1024, files: 1 } }))
+  voice(@UploadedFile() file: Express.Multer.File | undefined): Promise<VoiceSuggestionBatchDto> {
+    if (!file) throw new ApiError(400, 'validation_failed', 'Enregistrement manquant (champ « audio »)');
+    return this.suggestions.listFromVoice(file.buffer, file.mimetype);
   }
 
   @Post('keep')
