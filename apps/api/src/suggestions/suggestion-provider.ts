@@ -1,4 +1,4 @@
-import type { Difficulty, DishType, ModelRecipe, SuggestionIngredients, SuggestionRegion } from '@kitchen/shared';
+import type { Difficulty, DishType, ModelRecipe, SuggestionIngredients, SuggestionRegion, VoiceHeard } from '@kitchen/shared';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 
 /** Orientation facultative de la recherche (section 12, EF-25, B9) et nombre de recettes voulues. */
@@ -58,6 +58,25 @@ export interface SuggestionOutput {
   /** Toutes les tentatives facturées, dans l'ordre : au moins une, deux en cas de reprise. */
   attempts: SuggestionAttempt[];
   model: string;
+}
+
+/**
+ * Demande parlée (spécification du 2026-10-21) : la même demande, avec un
+ * enregistrement à la place des ingrédients tapés. `ingredients` est exclu —
+ * ce que la personne a dit est dans l'audio, pas dans un champ.
+ *
+ * L'audio ne traverse que cet objet : il n'est écrit nulle part, ni sur
+ * disque, ni en base, ni dans le journal d'appels (D6).
+ */
+export type VoiceSuggestionRequest = Omit<SuggestionRequest, 'ingredients'> & {
+  audio: Buffer;
+  /** Type MIME tel que l'écran l'a enregistré (`audio/webm`, `audio/mp4`…), transmis au modèle. */
+  mimeType: string;
+};
+
+/** Un appel parlé rend les recettes **et** la lecture que le modèle a faite de la phrase (D2, D4). */
+export interface VoiceSuggestionOutput extends SuggestionOutput {
+  heard: VoiceHeard;
 }
 
 /**

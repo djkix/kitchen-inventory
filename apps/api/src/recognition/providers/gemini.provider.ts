@@ -28,12 +28,12 @@ const GEMINI_RESPONSE_SCHEMA = {
  * coût (section 21). Partagée avec le fournisseur de suggestions, qui appelle le
  * même modèle Gemini : une seule table de prix à tenir à jour.
  */
-export const PRICES_USD_PER_MTOK: Record<string, { input: number; output: number }> = {
-  'gemini-3.5-flash': { input: 0.3, output: 2.5 },
-  'gemini-3.5-flash-lite': { input: 0.1, output: 0.4 },
-  'gemini-3.5-pro': { input: 2, output: 12 },
-  'gemini-2.5-flash': { input: 0.3, output: 2.5 },
-  'gemini-2.5-pro': { input: 1.25, output: 10 },
+export const PRICES_USD_PER_MTOK: Record<string, { input: number; output: number; audio: number }> = {
+  'gemini-3.5-flash': { input: 0.3, output: 2.5, audio: 1 },
+  'gemini-3.5-flash-lite': { input: 0.1, output: 0.4, audio: 0.3 },
+  'gemini-3.5-pro': { input: 2, output: 12, audio: 4 },
+  'gemini-2.5-flash': { input: 0.3, output: 2.5, audio: 1 },
+  'gemini-2.5-pro': { input: 1.25, output: 10, audio: 2.5 },
 };
 
 export interface GeminiResponse {
@@ -48,7 +48,17 @@ export interface GeminiResponse {
     groundingMetadata?: { webSearchQueries?: string[] };
   }>;
   promptFeedback?: { blockReason?: string };
-  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+  /**
+   * `promptTokensDetails` ventile les jetons d'entrée par modalité (TEXT,
+   * AUDIO, IMAGE…) : c'est elle qui permet de facturer l'audio à son tarif
+   * (D7, 2026-10-21). Elle n'est pas garantie — d'où le repli d'
+   * `estimateCostCents`, qui facture alors tout au tarif audio.
+   */
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    promptTokensDetails?: Array<{ modality?: string; tokenCount?: number }>;
+  };
 }
 
 /**
@@ -141,14 +151,36 @@ export function unpricedModelWarning(provider: string, model: string | undefined
  * peut en exécuter plusieurs, et à 35 $/1000 elles pèsent davantage que les
  * jetons d'un modèle « lite ». Les ignorer rendrait le plafond mensuel
  * mensonger dès que la recherche est active.
+ *
+ * `hasAudio` dit que l'appel portait de l'audio (demande parlée, D7 du
+ * 2026-10-21). L'entrée audio coûte plus cher que le texte — de l'ordre du
+ * triple pour Flash-Lite. Deux cas :
+ *
+ * - l'API rend `promptTokensDetails` : chaque modalité est facturée à son
+ *   tarif, le reste des jetons d'entrée au tarif texte ;
+ * - elle ne le rend pas : **tout** l'entrant passe au tarif audio. Un plafond
+ *   de protection qui surestime reste un plafond ; un plafond qui sous-compte
+ *   en silence n'en est plus un.
+ *
+ * Sans `hasAudio`, rien ne change : le scan photo et la recherche de recettes
+ * écrites continuent d'être comptés au tarif texte.
  */
-export function estimateCostCents(model: string, usage: GeminiResponse['usageMetadata'], searchQueries = 0): number | null {
+export function estimateCostCents(model: string, usage: GeminiResponse['usageMetadata'], searchQueries = 0, hasAudio = false): number | null {
   const price = PRICES_USD_PER_MTOK[model];
   // Un modèle hors table laisse quand même compter les recherches : mieux vaut
   // un coût partiel qu'aucun coût, puisque c'est le plafond qui est en jeu.
   if (!usage && searchQueries === 0) return null;
   if (!price && searchQueries === 0) return null;
-  const tokensUsd = usage && price ? ((usage.promptTokenCount ?? 0) * price.input + (usage.candidatesTokenCount ?? 0) * price.output) / 1_000_000 : 0;
+  let tokensUsd = 0;
+  if (usage && price) {
+    const promptTokens = usage.promptTokenCount ?? 0;
+    const details = usage.promptTokensDetails ?? [];
+    const declaredAudio = details.filter((d) => d.modality?.toUpperCase() === 'AUDIO').reduce((sum, d) => sum + (d.tokenCount ?? 0), 0);
+    // Repli de D7 : pas de ventilation sur un appel audio, tout au tarif audio.
+    const audioTokens = details.length > 0 ? Math.min(declaredAudio, promptTokens) : hasAudio ? promptTokens : 0;
+    const textTokens = Math.max(0, promptTokens - audioTokens);
+    tokensUsd = (textTokens * price.input + audioTokens * price.audio + (usage.candidatesTokenCount ?? 0) * price.output) / 1_000_000;
+  }
   const searchUsd = (searchQueries * SEARCH_COST_USD_PER_1K) / 1000;
   return Math.round((tokensUsd + searchUsd) * 100 * 10_000) / 10_000;
 }

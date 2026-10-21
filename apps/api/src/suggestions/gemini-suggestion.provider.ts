@@ -1,8 +1,18 @@
 import type { HttpClient } from '../common/http-client.js';
 import { countSearchQueries, estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
-import { buildSuggestionPrompt, InvalidBatchJsonError, parseModelBatch, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
-import { SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionRequest } from './suggestion-provider.js';
+import { buildSuggestionPrompt, buildVoicePrompt, InvalidBatchJsonError, parseModelBatch, parseVoiceBatch, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
+import {
+  SuggestionProviderError,
+  type SuggestionAttempt,
+  type SuggestionOutput,
+  type SuggestionRequest,
+  type VoiceSuggestionOutput,
+  type VoiceSuggestionRequest,
+} from './suggestion-provider.js';
+
+/** Partie d'un message envoyé au modèle : du texte, ou une pièce jointe encodée (photo, audio). */
+type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 
 const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
@@ -42,7 +52,7 @@ export class GeminiSuggestionProvider {
       const started = Date.now();
       let raw: GeminiResponse;
       try {
-        raw = await this.call(buildSuggestionPrompt(req, { retry }), model, webSearch);
+        raw = await this.call([{ text: buildSuggestionPrompt(req, { retry }) }], model, webSearch);
       } catch (error) {
         // Appel qui n'aboutit pas : rien à facturer pour celui-ci, mais les
         // précédents le sont — l'erreur les emporte pour qu'ils soient inscrits.
@@ -65,6 +75,43 @@ export class GeminiSuggestionProvider {
   }
 
   /**
+   * Demande parlée (spécification du 2026-10-21, D2) : l'enregistrement part
+   * avec la consigne, et le modèle rend sa lecture **et** les recettes dans la
+   * même réponse.
+   *
+   * Aucune reprise, contrairement à `suggest` : une seconde tentative
+   * renverrait l'audio, donc repaierait l'entrée la plus chère de toutes
+   * (D7), pour un défaut de format que rien ne garantit corrigé. Une réponse
+   * illisible est un échec net, annoncé comme tel.
+   *
+   * L'audio ne sort pas d'ici : il n'est ni écrit, ni recopié dans un message
+   * d'erreur (D6). Ce qui remonte dans `attempts[].raw` est la réponse du
+   * modèle, jamais la requête.
+   */
+  async suggestFromVoice(req: VoiceSuggestionRequest): Promise<VoiceSuggestionOutput> {
+    if (!this.options.apiKey) throw new ProviderError('Fournisseur de suggestions désactivé');
+    const model = req.model ?? this.model;
+    const started = Date.now();
+    const raw = await this.call(
+      [{ inlineData: { mimeType: req.mimeType, data: req.audio.toString('base64') } }, { text: buildVoicePrompt(req) }],
+      model,
+      req.webSearch !== false,
+    );
+    const attempts: SuggestionAttempt[] = [
+      // `hasAudio` : sans ventilation par modalité, tout l'entrant est facturé
+      // au tarif audio (D7). Un plafond qui surestime reste un plafond.
+      { raw, costCents: estimateCostCents(model, raw.usageMetadata, countSearchQueries(raw), true), latencyMs: Date.now() - started },
+    ];
+    try {
+      const batch = parseVoiceBatch(extractText(raw));
+      return { heard: batch.heard, recipes: batch.recipes.slice(0, req.count), attempts, model };
+    } catch (error) {
+      if (!(error instanceof InvalidBatchJsonError)) throw error;
+      throw new SuggestionProviderError('Le fournisseur de suggestions n’a pas renvoyé de JSON exploitable pour la demande parlée', attempts, error);
+    }
+  }
+
+  /**
    * Le nombre de recettes demandées est la seule borne qui fasse sens ici : elle
    * dépend de l'appel (`SuggestionRequest.count`), pas d'une limite structurelle du
    * schéma. Un modèle qui en renvoie davantage est tronqué, jamais rejeté : ce n'est
@@ -75,7 +122,7 @@ export class GeminiSuggestionProvider {
     return { recipes: batch.recipes.slice(0, count), attempts, model };
   }
 
-  private async call(prompt: string, model: string, webSearch: boolean): Promise<GeminiResponse> {
+  private async call(parts: GeminiPart[], model: string, webSearch: boolean): Promise<GeminiResponse> {
     const base = (this.options.baseURL ?? DEFAULT_BASE_URL).replace(/\/$/, '');
     let response: Response;
     try {
@@ -86,7 +133,7 @@ export class GeminiSuggestionProvider {
         signal: AbortSignal.timeout(45_000),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: webSearch ? SUGGESTION_SYSTEM_PROMPT : SUGGESTION_SYSTEM_PROMPT_NO_SEARCH }] },
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          contents: [{ role: 'user', parts }],
           // La recherche web est l'intérêt même de ce fournisseur : elle interdit
           // `responseSchema` (vigilance 1). Elle est aussi facturée par requête,
           // à part des jetons, et certaines clés la refusent — d'où le réglage

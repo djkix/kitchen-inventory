@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { SUGGESTION_INGREDIENT_LENGTH_MAX } from '../rules/suggestion-ingredients.js';
-import { modelBatchSchema, modelRecipeSchema, suggestionQuerySchema, SUGGESTION_PAGE_MAX, SUGGESTION_REGIONS } from './suggestions.js';
+import {
+  modelBatchSchema,
+  modelRecipeSchema,
+  suggestionQuerySchema,
+  SUGGESTION_PAGE_MAX,
+  SUGGESTION_REGIONS,
+  voiceAudioRejection,
+  voiceModelBatchSchema,
+  VOICE_HEARD_INGREDIENTS_MAX,
+  VOICE_MAX_BYTES,
+  VOICE_MAX_SECONDS,
+  VOICE_MIN_BYTES,
+} from './suggestions.js';
 
 const recette = {
   title: 'Pâtes à la tomate', origin: 'italienne', region: 'mediterraneenne',
@@ -137,5 +149,89 @@ describe('suggestionQuerySchema', () => {
   });
   it('expose sept régions, sans doublon', () => {
     expect(new Set(SUGGESTION_REGIONS).size).toBe(SUGGESTION_REGIONS.length);
+  });
+});
+
+/**
+ * Demande parlée (spécification du 2026-10-21) : un seul appel rend la lecture
+ * de la phrase ET les recettes (D2, D4).
+ */
+describe('voiceModelBatchSchema (demande parlée, D2, D4)', () => {
+  it('rend ce que le modèle a entendu à côté des recettes', () => {
+    const parsed = voiceModelBatchSchema.parse({
+      heard: { ingredients: ['poulet', 'sauce tomate'], orientation: 'plat italien' },
+      recipes: [recette],
+    });
+    expect(parsed.heard.ingredients).toEqual(['poulet', 'sauce tomate']);
+    expect(parsed.heard.orientation).toBe('plat italien');
+    expect(parsed.recipes).toHaveLength(1);
+  });
+
+  it('tient une réponse sans lecture pour une lecture vide, jamais pour une erreur', () => {
+    // C'est le service qui décide qu'une lecture vide veut dire « rien
+    // compris » (D9) : le schéma ne doit pas perdre les recettes payées.
+    const parsed = voiceModelBatchSchema.parse({ recipes: [recette] });
+    expect(parsed.heard).toEqual({ ingredients: [], orientation: null });
+    expect(parsed.recipes).toHaveLength(1);
+  });
+
+  it('écarte les ingrédients vides et borne la lecture', () => {
+    const parsed = voiceModelBatchSchema.parse({
+      heard: { ingredients: ['  ', 'poulet', ...Array.from({ length: 30 }, (_, i) => `x${i}`)], orientation: '   ' },
+      recipes: [recette],
+    });
+    expect(parsed.heard.ingredients).not.toContain('');
+    expect(parsed.heard.ingredients.length).toBeLessThanOrEqual(VOICE_HEARD_INGREDIENTS_MAX);
+    expect(parsed.heard.ingredients[0]).toBe('poulet');
+    // Une orientation faite d'espaces n'est pas une orientation.
+    expect(parsed.heard.orientation).toBeNull();
+  });
+
+  it('garde les recettes valides et écarte la seule mal formée, comme le lot écrit', () => {
+    const parsed = voiceModelBatchSchema.parse({
+      heard: { ingredients: ['poulet'], orientation: null },
+      recipes: [recette, { ...recette, sourceUrl: 'http://pas-https.test/x' }],
+    });
+    expect(parsed.recipes).toHaveLength(1);
+  });
+
+  it('refuse un lot dont aucune recette ne tient debout', () => {
+    expect(voiceModelBatchSchema.safeParse({ heard: { ingredients: [], orientation: null }, recipes: [{ title: 'rien' }] }).success).toBe(false);
+  });
+});
+
+/**
+ * Bornes de l'enregistrement (D8). Une seule implémentation, partagée par
+ * l'écran et par le serveur : un client n'est jamais une garantie, mais les
+ * deux doivent refuser pour la même raison et avec la même phrase.
+ */
+describe('voiceAudioRejection (D8, D9)', () => {
+  const ok = VOICE_MIN_BYTES + 1;
+
+  it('accepte un enregistrement dans les bornes', () => {
+    expect(voiceAudioRejection(ok, 'audio/webm;codecs=opus')).toBeNull();
+    expect(voiceAudioRejection(VOICE_MAX_BYTES, 'audio/mp4')).toBeNull();
+  });
+
+  it('refuse un enregistrement vide, et le dit', () => {
+    expect(voiceAudioRejection(0, 'audio/webm')).toMatch(/vide/i);
+    expect(voiceAudioRejection(VOICE_MIN_BYTES - 1, 'audio/webm')).toMatch(/vide/i);
+  });
+
+  it('refuse un enregistrement au-delà de la taille maximale', () => {
+    const message = voiceAudioRejection(VOICE_MAX_BYTES + 1, 'audio/webm');
+    expect(message).toMatch(/trop long|trop volumineux/i);
+    // La borne de durée est dite à l'utilisateur : une taille en octets ne
+    // veut rien dire pour qui vient de parler dans un micro.
+    expect(message).toContain(String(VOICE_MAX_SECONDS));
+  });
+
+  it('refuse un format que le modèle ne sait pas lire', () => {
+    expect(voiceAudioRejection(ok, 'video/mp4')).toMatch(/format/i);
+    expect(voiceAudioRejection(ok, 'text/plain')).toMatch(/format/i);
+  });
+
+  it('ignore les paramètres de codec et la casse du type', () => {
+    expect(voiceAudioRejection(ok, 'AUDIO/WEBM; codecs=opus')).toBeNull();
   });
 });

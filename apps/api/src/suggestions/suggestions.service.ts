@@ -6,6 +6,7 @@ import {
   createRecipeSchema,
   pickSeedIngredients,
   normalizeProductName,
+  normalizeIngredientTerms,
   labelMatchesTerms,
   recipeCoverage,
   SUGGESTION_PAGE_SIZE,
@@ -24,6 +25,8 @@ import {
   type SuggestionQuery,
   type SuggestionRegion,
   type Unit,
+  type VoiceSuggestionBatchDto,
+  voiceAudioRejection,
 } from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
 import { ApiError, assertProviderEnabled } from '../common/api-error.js';
@@ -38,7 +41,14 @@ import { SettingsService } from '../settings/settings.service.js';
 import { InvalidRewriteError, type GeminiRecipeRewriter, type RecipeRewriteInput } from './gemini-recipe-rewriter.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
 import { SuggestionPoolService, type PoolFilter, type PoolRecipe } from './suggestion-pool.service.js';
-import { RECIPE_REWRITER, SuggestionProviderError, type SuggestionAttempt, type SuggestionOutput, type SuggestionRequest } from './suggestion-provider.js';
+import {
+  RECIPE_REWRITER,
+  SuggestionProviderError,
+  type SuggestionAttempt,
+  type SuggestionOutput,
+  type SuggestionRequest,
+  type VoiceSuggestionOutput,
+} from './suggestion-provider.js';
 
 /**
  * Nombre de recettes rendues à l'écran en une fois (section 5.1, B8), et base
@@ -336,6 +346,93 @@ export class SuggestionsService {
     }
 
     return this.render(entries, snapshot, fromCache, notice, fresh, pageSize, query.ingredients?.terms ?? []);
+  }
+
+  /**
+   * Demande parlée (spécification du 2026-10-21) : Franck appuie sur un
+   * bouton, dit ce qu'il lui reste et ce qu'il veut manger, et reçoit des
+   * recettes croisées avec son stock réel.
+   *
+   * Ce qui se joue ici, dans l'ordre :
+   *
+   * - **D8** : les bornes de l'enregistrement sont revérifiées côté serveur,
+   *   avec la règle partagée — l'écran les applique déjà, mais un client
+   *   n'est jamais une garantie ;
+   * - **D5** : le réservoir n'est pas lu d'abord (une phrase est unique, il
+   *   n'y a rien à y retrouver), l'appel consomme le quota journalier et
+   *   entre dans le plafond mensuel comme une relance, et les recettes
+   *   rendues entrent au réservoir — rien de payé n'est jeté ;
+   * - **D4** : les ingrédients entendus sont traités comme **déclarés** au
+   *   sens du 2026-10-19 (D5) — jamais annoncés comme manquants, la
+   *   couverture restant calculée sur le seul stock ;
+   * - **D6** : l'audio traverse cette méthode et disparaît. Rien n'en est
+   *   écrit : `RecognitionLog.rawResult` ne reçoit que la réponse du modèle.
+   *
+   * Contrairement à `list`, un placard vide n'est pas une erreur : la parole
+   * porte déjà ses ingrédients, le stock ne sert qu'à compléter.
+   */
+  async listFromVoice(audio: Buffer, mimeType: string): Promise<VoiceSuggestionBatchDto> {
+    assertProviderEnabled(this.provider, 'suggestions');
+    // Règle partagée avec l'écran (`voiceAudioRejection`) : même refus, même
+    // phrase, une seule implémentation.
+    const rejection = voiceAudioRejection(audio.byteLength, mimeType);
+    if (rejection) throw new ApiError(400, 'validation_failed', rejection);
+
+    // Vérifié avant d'envoyer quoi que ce soit : un quota atteint ne doit pas
+    // faire monter un enregistrement vers le modèle. Pas de repli au
+    // réservoir non plus — une phrase n'a pas d'orientation de rechange, et
+    // servir des recettes sans rapport avec ce qui vient d'être dit serait
+    // plus déroutant qu'un refus clair.
+    const breach = await this.quotaBreach();
+    if (breach) throw ApiError.rateLimited(this.quotaMessage(breach, false));
+
+    const categories = await loadCategoryRows(this.prisma);
+    const snapshot = await this.coverage.snapshot(new Date(), categories);
+    const seeds = pickSeedIngredients(await loadSeedCandidates(this.prisma, snapshot, categories), new Date());
+
+    const started = Date.now();
+    let output: VoiceSuggestionOutput;
+    try {
+      const settings = await this.settings.get();
+      output = await this.provider.suggestFromVoice({
+        seeds: seeds.map((s) => s.name),
+        count: SUGGESTION_BATCH_SIZE + SUGGESTION_REQUEST_BUFFER,
+        audio,
+        mimeType,
+        model: settings.suggestionModel,
+        webSearch: settings.suggestionWebSearch,
+      });
+    } catch (error) {
+      if (error instanceof SuggestionProviderError) await this.logAttempts(error.attempts, false);
+      else await this.logFailure(error, Date.now() - started);
+      throw ApiError.providerUnavailable(error instanceof ProviderError ? error.message : 'Fournisseur de suggestions injoignable');
+    }
+    await this.logAttempts(output.attempts, true);
+
+    // Avant tout verdict sur la lecture : l'appel est payé, ses recettes
+    // entrent au réservoir même si la phrase n'a pas été comprise (D5).
+    const identities = new Set(output.recipes.map((recipe) => suggestionIdentity(recipe)));
+    await this.pool.ingest(output.recipes, output.model);
+
+    if (output.heard.ingredients.length === 0 && output.heard.orientation === null) {
+      // D9 : un refus se dit. Le modèle a répondu, mais n'a rien tiré de
+      // l'enregistrement — ce n'est ni une panne ni un quota.
+      throw ApiError.businessRule(
+        'Votre demande n’a pas été comprise : aucun ingrédient ni aucune envie n’a été reconnu dans l’enregistrement. Réessayez en parlant plus près du micro.',
+      );
+    }
+
+    // Relu au réservoir, jamais servi depuis la réponse brute : une recette
+    // web dont la page n'a pas pu être lue a été jetée à l'ingestion (D4 du
+    // 2026-10-15) et ne doit à aucun moment atteindre l'écran.
+    const entries = (await Promise.all([...identities].map((identity) => this.pool.findByIdentity(identity)))).filter(
+      (entry): entry is PoolRecipe => entry !== null,
+    );
+    // Les ingrédients entendus deviennent les « dictés » du 2026-10-19 : le
+    // mécanisme de D5 est réutilisé tel quel, jamais réécrit.
+    const dictated = normalizeIngredientTerms(output.heard.ingredients.join(', '));
+    const batch = await this.render(entries, snapshot, false, null, identities, SUGGESTION_PAGE_SIZE, dictated);
+    return { ...batch, heard: output.heard };
   }
 
   /**

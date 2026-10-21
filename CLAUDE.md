@@ -121,6 +121,18 @@ tools/             utilitaires hors application
   Spécification et onze décisions dans
   `docs/specs/2026-10-15-reservoir-de-suggestions.md` ; cahier des charges
   amendé le 2026-10-15 (section 26).
+- Demande parlée livrée (EF-25, EF-26) : `POST /suggestions/voice`
+  (multipart, champ `audio`), un seul appel à Gemini qui rend la lecture
+  (`heard`) **et** les recettes, écran `apps/web/src/screens/suggestions/
+  voice-request-screen.tsx` atteint par une icône de micro dans l'en-tête de
+  Suggestions (le champ à pastilles est inchangé). L'audio n'est conservé
+  nulle part ; l'enregistrement est borné à 60 s et 4 Mo
+  (`voiceAudioRejection`, règle partagée appliquée à l'écran et au serveur) ;
+  l'appel consomme le quota journalier et le plafond mensuel, et les recettes
+  entrent au réservoir. `PRICES_USD_PER_MTOK` porte désormais un tarif
+  `audio` et `estimateCostCents` facture tout au tarif audio quand l'API ne
+  ventile pas les jetons par modalité. Aucune migration. Spécification et
+  neuf décisions dans `docs/specs/2026-10-21-demande-parlee.md`.
 - Les choix laissés au jugement par le cahier des charges sont consignés dans
   `docs/decisions/`. Le plan d'exécution du lot 1 est dans `docs/plans/`.
 - Tests bout en bout Playwright livrés (section 19) : les parcours P1 à P4 du

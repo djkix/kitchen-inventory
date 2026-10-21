@@ -1,4 +1,13 @@
-import type { Difficulty, DishType, KeepSuggestionInput, RecipeDto, SuggestionBatchDto, SuggestionDuration, SuggestionRegion } from '@kitchen/shared';
+import type {
+  Difficulty,
+  DishType,
+  KeepSuggestionInput,
+  RecipeDto,
+  SuggestionBatchDto,
+  SuggestionDuration,
+  SuggestionRegion,
+  VoiceSuggestionBatchDto,
+} from '@kitchen/shared';
 import { api } from './api';
 
 /**
@@ -57,5 +66,25 @@ export const suggestionsApi = {
    */
   keep(input: KeepSuggestionInput): Promise<RecipeDto> {
     return api.post<RecipeDto>('/suggestions/keep', input);
+  },
+
+  /**
+   * Demande parlée (spécification du 2026-10-21, D1) : l'enregistrement monte
+   * au serveur, qui le confie au modèle. Celui-ci transcrit, comprend et
+   * propose dans le même appel (D2) ; la réponse porte sa lecture à côté des
+   * recettes, pour qu'un contresens se voie.
+   *
+   * L'audio n'est conservé nulle part (D6) : ni ici, ni au serveur. Ce qui
+   * part n'est écrit dans aucune requête rejouable — c'est un envoi, pas un
+   * téléversement de média.
+   */
+  voice(audio: Blob, mimeType: string): Promise<VoiceSuggestionBatchDto> {
+    const form = new FormData();
+    // Réemballé avec son type : c'est le type de la pièce multipart que le
+    // serveur lit, et un `Blob` sans type arriverait en
+    // `application/octet-stream`, donc refusé pour de mauvaises raisons.
+    // Le nom de fichier, lui, n'est lu par personne — `multer` en exige un.
+    form.append('audio', audio.type === mimeType ? audio : new Blob([audio], { type: mimeType }), 'demande.audio');
+    return api.postForm<VoiceSuggestionBatchDto>('/suggestions/voice', form);
   },
 };

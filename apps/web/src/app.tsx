@@ -23,6 +23,9 @@ const ProductFormScreen = lazy(() => import('./screens/products/product-form-scr
 const LocationsScreen = lazy(() => import('./screens/settings/locations-screen').then((m) => ({ default: m.LocationsScreen })));
 const ServiceTokensScreen = lazy(() => import('./screens/settings/service-tokens-screen').then((m) => ({ default: m.ServiceTokensScreen })));
 const RecipeFormScreen = lazy(() => import('./screens/recipe-form/recipe-form-screen').then((m) => ({ default: m.RecipeFormScreen })));
+// Demande parlée (2026-10-21) : un parcours à part, atteint depuis l'en-tête
+// de l'écran Suggestions et chargé seulement quand on s'y rend.
+const VoiceRequestScreen = lazy(() => import('./screens/suggestions/voice-request-screen').then((m) => ({ default: m.VoiceRequestScreen })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +57,9 @@ export function App() {
                 <Route path="/perime-bientot" element={<ExpiringScreen />} />
                 <Route path="/recettes" element={<SuggestionsScreen />} />
                 <Route path="/recettes/bibliotheque" element={<RecipesScreen />} />
+                {/* Avant `/recettes/:id` par le classement du routeur : un segment
+                    statique l'emporte sur un segment dynamique. */}
+                <Route path="/recettes/parler" element={<VoiceRequestScreen />} />
                 <Route path="/recettes/:id" element={<RecipeScreen />} />
                 <Route path="/recettes/:id/modifier" element={<RecipeFormScreen />} />
                 <Route path="/courses" element={<ComingSoonScreen title="Courses" />} />

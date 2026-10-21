@@ -169,6 +169,38 @@ combinaison trop rare peut ne rien rendre : l'écran le dit alors, au lieu
 d'afficher une liste vide et muette. Le champ vide ne change rien au
 comportement habituel.
 
+**Demande parlée.** Une icône de micro, dans l'en-tête de l'écran
+Suggestions, ouvre un écran à part : on appuie, on parle — « il me reste du
+poulet, et un peu de sauce tomate, je veux faire un plat italien, qu'est-ce
+que tu me proposes » —, et l'application rend des recettes qui croisent ce
+qui a été dit **avec le stock réel**. C'est ce croisement qui justifie la
+fonction : l'application Gemini, elle, ne connaît pas le contenu du placard.
+
+L'enregistrement part à Gemini, qui l'écoute, le comprend et propose dans le
+**même appel** : il n'y a pas d'étape de confirmation de la transcription.
+Ce que le modèle a compris — les ingrédients entendus, l'orientation déduite
+— est donc affiché **au-dessus des résultats**, pour qu'un contresens se
+voie tout de suite. Les ingrédients entendus sont traités comme déclarés :
+jamais annoncés comme manquants, exactement comme ceux tapés à la main, le
+taux de couverture restant calculé sur le stock réel.
+
+L'audio **n'est conservé nulle part** : ni fichier, ni colonne en base, ni
+trace dans le journal des appels, qui ne garde que la réponse du modèle. Il
+traverse le serveur et disparaît. En contrepartie, et c'est assumé, la parole
+part bien vers l'API de Google : c'est le prix de la fonction.
+
+L'enregistrement est borné à **60 secondes** et à **4 Mo** — il s'arrête tout
+seul à l'échéance, et le serveur refuse au-delà, avec une phrase en français.
+Chaque refus a la sienne : micro refusé, micro absent, micro déjà pris,
+enregistrement vide, modèle qui n'a rien compris, quota atteint. Une demande
+parlée appelle **toujours** le modèle — une phrase est unique, il n'y a rien à
+retrouver au réservoir — et consomme donc un appel du quota journalier et du
+plafond mensuel, comme une relance ; les recettes rendues entrent au
+réservoir, rien de payé n'est jeté. L'entrée audio y est facturée à son
+propre tarif, plus élevé que le texte : à défaut de ventilation par modalité
+dans la réponse de l'API, tout l'appel est compté au tarif audio — un plafond
+de protection a le droit de surestimer, jamais de sous-compter en silence.
+
 **Les recettes trouvées ne s'effacent plus.** Chaque recette rapportée par le
 modèle entre dans un réservoir permanent, dédoublonnée par son titre et son
 lien : elle y reste sans limite d'âge. À chaque visite, l'application lit ce
@@ -952,6 +984,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.27.0 | 2026-10-21 | **Demande parlée.** Un micro dans l'en-tête de l'écran Suggestions ouvre un écran à part : on appuie, on dit « il me reste du poulet, et un peu de sauce tomate, je veux faire un plat italien », et l'application rend des recettes qui croisent la phrase avec le stock réel. L'enregistrement part à Gemini, qui écoute, comprend et propose dans le même appel : ce qu'il a compris est affiché au-dessus des résultats, faute d'étape de confirmation, et les ingrédients entendus ne sont jamais annoncés comme manquants. L'audio n'est conservé nulle part — ni fichier, ni colonne, ni journal. L'enregistrement est borné à 60 secondes et 4 Mo, refusé au-delà côté écran comme côté serveur, et chaque refus a son message en français : micro refusé, micro absent, micro déjà pris, enregistrement vide, demande non comprise, quota atteint. Une demande parlée appelle toujours le modèle et consomme un appel du quota journalier comme du plafond mensuel ; les recettes rendues entrent au réservoir. L'entrée audio est désormais facturée à son propre tarif, trois fois celui du texte sur Flash-Lite, et, quand l'API ne ventile pas les jetons par modalité, tout l'appel est compté au tarif audio — le plafond mensuel sous-comptait sinon en silence. Le champ d'ingrédients à pastilles ne change pas, aucune migration |
 | 0.27.0 | 2026-10-20 | Le défilement de Suggestions finissait par demander plus de recettes que le schéma partagé n'en autorise : le serveur répondait « corps de requête invalide », et le bouton « Réessayer » de l'écran d'erreur rejouait la même requête invalide — une boucle dont on ne sortait pas. La page demandée est désormais bornée au plafond, et la sentinelle de défilement disparaît une fois celui-ci atteint |
 | 0.27.0 | 2026-10-20 | Le défilement infini de Suggestions ne chargeait qu'une seule page de plus, puis s'arrêtait : l'observateur se débranchait après son premier déclenchement et ne se rebranchait jamais. Il est désormais réarmé à chaque page reçue. Et quand le plafond d'affichage est atteint — soixante recettes à la fois, parce que chaque recette affichée coûte un rapprochement de tous ses ingrédients contre le catalogue de produits — l'écran le dit au lieu de s'arrêter en silence |
 | 0.27.0 | 2026-10-20 | Sur Suggestions, le bouton « Charger plus » n'est plus affiché : le défilement infini charge la suite tout seul, et le bouton restait pourtant visible en permanence tant qu'il restait des pages. Il devient atteignable à la tabulation seulement — la sentinelle de défilement ne se déclenche ni au clavier ni pour un lecteur d'écran, et le masquer purement aurait retiré la fonction à ceux qui n'utilisent pas la souris |
