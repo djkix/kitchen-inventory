@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuotaRefusal, quotaRefusalMessage } from './gemini.provider.js';
+import { parseQuotaRefusal, QuotaRefusalError, quotaRefusalMessage, withQuotaFallback } from './gemini.provider.js';
 
 /**
  * Un 429 de Gemini porte la raison du refus et le délai de reprise. Les lire
@@ -80,5 +80,53 @@ describe('quotaRefusalMessage', () => {
 
   it('reste compréhensible quand la raison est inconnue', () => {
     expect(quotaRefusalMessage({ scope: 'unknown', retryAfterSeconds: null })).toBe('Quota Gemini atteint');
+  });
+});
+
+describe('withQuotaFallback', () => {
+  const quota = () => new QuotaRefusalError('quota', { scope: 'day', retryAfterSeconds: null });
+
+  it('n’essaie que le modèle principal quand il répond', async () => {
+    const vus: Array<string | undefined> = [];
+    const r = await withQuotaFallback('a', 'b', async (m) => { vus.push(m); return 'ok'; });
+    expect(r).toEqual({ result: 'ok', modelUsed: 'a', fellBack: false });
+    expect(vus).toEqual(['a']);
+  });
+
+  it('reprend une fois sur le repli quand le quota du principal est épuisé', async () => {
+    const vus: Array<string | undefined> = [];
+    const r = await withQuotaFallback('a', 'b', async (m) => {
+      vus.push(m);
+      if (m === 'a') throw quota();
+      return 'ok';
+    });
+    expect(r).toEqual({ result: 'ok', modelUsed: 'b', fellBack: true });
+    expect(vus).toEqual(['a', 'b']);
+  });
+
+  it('ne reprend jamais deux fois : le refus du repli remonte tel quel', async () => {
+    const vus: Array<string | undefined> = [];
+    await expect(
+      withQuotaFallback('a', 'b', async (m) => { vus.push(m); throw quota(); }),
+    ).rejects.toBeInstanceOf(QuotaRefusalError);
+    expect(vus).toEqual(['a', 'b']);
+  });
+
+  it('ne reprend pas une panne qui n’est pas un quota : le repli échouerait pareil', async () => {
+    const vus: Array<string | undefined> = [];
+    await expect(
+      withQuotaFallback('a', 'b', async (m) => { vus.push(m); throw new Error('clé refusée'); }),
+    ).rejects.toThrow('clé refusée');
+    expect(vus).toEqual(['a']);
+  });
+
+  it('ne reprend pas sans repli configuré, ni sur le même modèle', async () => {
+    const sansRepli: Array<string | undefined> = [];
+    await expect(withQuotaFallback('a', undefined, async (m) => { sansRepli.push(m); throw quota(); })).rejects.toThrow();
+    expect(sansRepli).toEqual(['a']);
+
+    const memeModele: Array<string | undefined> = [];
+    await expect(withQuotaFallback('a', 'a', async (m) => { memeModele.push(m); throw quota(); })).rejects.toThrow();
+    expect(memeModele).toEqual(['a']);
   });
 });

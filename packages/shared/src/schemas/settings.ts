@@ -15,6 +15,17 @@ export const settingsSchema = z.object({
   /** Modèle des appels recettes (suggestions et réécriture). */
   suggestionModel: modelName.optional(),
   /**
+   * Modèle de repli, essayé une seule fois quand Gemini refuse pour quota
+   * épuisé. Les quotas étant comptés par modèle, basculer rouvre un réservoir
+   * intact. Absent (le défaut) : aucun repli, le refus remonte tel quel.
+   *
+   * Une seule reprise, jamais une cascade : transformer un refus en six appels
+   * facturés serait pire que le refus lui-même. Et le modèle qui a réellement
+   * répondu est dit à l'écran — une application qui change de comportement
+   * sans le dire fait lire un résultat sans savoir d'où il vient.
+   */
+  fallbackModel: modelName.optional(),
+  /**
    * Recherche web réelle pour les suggestions (outil `google_search`). Activée,
    * une partie des recettes vient de pages trouvées en ligne ; désactivée, le
    * modèle les compose toutes lui-même. Google facture chaque requête de

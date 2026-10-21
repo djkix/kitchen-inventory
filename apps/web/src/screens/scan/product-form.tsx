@@ -124,6 +124,16 @@ export function ProductForm({ defaults, recognition, lockLocation = false, onSav
             : `Reconnu à ${Math.round(recognition.confidence * 100)} %${recognition.suggestion.category ? ` — catégorie proposée : ${recognition.suggestion.category}` : ''}.`}
         </p>
       )}
+      {/*
+        Le quota du modèle choisi était épuisé : un autre a répondu. Dit plutôt
+        que tu, sinon on lirait un résultat de qualité différente sans savoir
+        que le modèle avait changé.
+      */}
+      {recognition?.fallbackModelUsed !== undefined && (
+        <p className="rounded-xl bg-surface px-3 py-2 text-[13px] text-muted">
+          Quota du modèle habituel épuisé : cette lecture vient de {recognition.fallbackModelUsed}.
+        </p>
+      )}
       <Input label="Nom" autoFocus={!defaults.name} review={review} error={errors.name?.message} {...form.register('name')} />
       <div className="grid grid-cols-2 gap-3">
         <Input label="Marque" review={review} error={errors.brand?.message} {...form.register('brand', nullable)} />

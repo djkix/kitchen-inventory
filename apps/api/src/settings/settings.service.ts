@@ -21,6 +21,7 @@ export class SettingsService {
       expiryAlertDays: this.config.EXPIRY_ALERT_DAYS,
       ...(this.config.VISION_MODEL ? { visionModel: this.config.VISION_MODEL } : {}),
       ...(this.config.SUGGESTION_MODEL ? { suggestionModel: this.config.SUGGESTION_MODEL } : {}),
+      ...(this.config.FALLBACK_MODEL ? { fallbackModel: this.config.FALLBACK_MODEL } : {}),
       // Recherche web active par défaut : c'est la fonctionnalité demandée
       // (« des recettes trouvées sur internet »), pas une option à activer.
       // Éteinte par défaut (2026-10-19, « pas de web pour le moment, mets-le
@@ -50,6 +51,11 @@ export class SettingsService {
   /** Modèle des appels recettes (suggestions et réécriture), même résolution par appel. */
   async suggestionModel(): Promise<string | undefined> {
     return (await this.get()).suggestionModel;
+  }
+
+  /** Modèle de repli sur refus de quota ; `undefined` désactive le repli. */
+  async fallbackModel(): Promise<string | undefined> {
+    return (await this.get()).fallbackModel;
   }
 
   /** Recherche web réelle pour les suggestions, même résolution par appel. */

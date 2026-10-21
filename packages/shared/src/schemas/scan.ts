@@ -39,6 +39,12 @@ export const scanImageResultSchema = z.object({
   needsReview: z.boolean(),
   /** Confiance trop basse : reprendre la photo plutôt que valider (section 17). */
   rejected: z.boolean(),
+  /**
+   * Modèle réellement utilisé quand le quota du modèle choisi était épuisé et
+   * qu'on a basculé sur le repli. Absent dans le cas normal : l'écran ne dit
+   * rien quand il n'y a rien à signaler.
+   */
+  fallbackModelUsed: z.string().optional(),
 });
 export type ScanImageResult = z.infer<typeof scanImageResultSchema>;
 
@@ -59,5 +65,21 @@ export const recognitionStatsSchema = z.object({
   cacheShare30d: z.number().nullable(),
   pendingIdentification: z.number(),
   provider: z.string(),
+  /**
+   * Appels réellement partis chez le fournisseur aujourd'hui et dans la
+   * dernière minute, scan **et** recettes confondus — c'est ainsi que Google
+   * les compte. Indicatifs : ils ne voient que ce que cette application a
+   * envoyé, pas ce qu'un autre outil consommerait sur la même clé.
+   */
+  providerCallsToday: z.number(),
+  providerCallsLastMinute: z.number(),
+  /**
+   * Limites annoncées par la console Google pour ce projet, recopiées dans
+   * `GEMINI_RPD` et `GEMINI_RPM` — aucune API ne permet de les lire. `null`
+   * quand elles ne sont pas renseignées : on affiche alors le compte seul,
+   * plutôt qu'un rapport à une valeur inventée.
+   */
+  providerDailyLimit: z.number().nullable(),
+  providerMinuteLimit: z.number().nullable(),
 });
 export type RecognitionStats = z.infer<typeof recognitionStatsSchema>;

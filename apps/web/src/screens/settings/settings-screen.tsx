@@ -60,6 +60,12 @@ export function SettingsScreen() {
             settingKey="suggestionModel"
             isAdmin={auth.isAdmin}
           />
+          <ModelRow
+            label="Modèle de repli"
+            hint="Essayé une fois si le quota du modèle choisi est épuisé"
+            settingKey="fallbackModel"
+            isAdmin={auth.isAdmin}
+          />
           <WebSearchRow isAdmin={auth.isAdmin} />
         </AccordionSection>
 

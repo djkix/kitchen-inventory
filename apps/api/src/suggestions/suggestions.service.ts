@@ -39,6 +39,7 @@ import { ProviderError } from '../recognition/providers/recognition-provider.js'
 import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { InvalidRewriteError, type GeminiRecipeRewriter, type RecipeRewriteInput } from './gemini-recipe-rewriter.js';
+import { withQuotaFallback } from '../recognition/providers/gemini.provider.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
 import { SuggestionPoolService, type PoolFilter, type PoolRecipe } from './suggestion-pool.service.js';
 import {
@@ -394,14 +395,18 @@ export class SuggestionsService {
     let output: VoiceSuggestionOutput;
     try {
       const settings = await this.settings.get();
-      output = await this.provider.suggestFromVoice({
-        seeds: seeds.map((s) => s.name),
-        count: SUGGESTION_BATCH_SIZE + SUGGESTION_REQUEST_BUFFER,
-        audio,
-        mimeType,
-        model: settings.suggestionModel,
-        webSearch: settings.suggestionWebSearch,
-      });
+      // Même repli que le scan : le quota se compte par modèle, donc basculer
+      // rouvre un réservoir intact. Une seule reprise, jamais une cascade.
+      ({ result: output } = await withQuotaFallback(settings.suggestionModel, settings.fallbackModel, (model) =>
+        this.provider.suggestFromVoice({
+          seeds: seeds.map((s) => s.name),
+          count: SUGGESTION_BATCH_SIZE + SUGGESTION_REQUEST_BUFFER,
+          audio,
+          mimeType,
+          model,
+          webSearch: settings.suggestionWebSearch,
+        }),
+      ));
     } catch (error) {
       if (error instanceof SuggestionProviderError) await this.logAttempts(error.attempts, false);
       else await this.logFailure(error, Date.now() - started);
@@ -615,7 +620,9 @@ export class SuggestionsService {
       // Modèle relu à chaque fournée : un changement dans les réglages vaut
       // immédiatement, sans redémarrage du conteneur.
       const settings = await this.settings.get();
-      output = await this.provider.suggest({ ...request, model: settings.suggestionModel, webSearch: settings.suggestionWebSearch });
+      ({ result: output } = await withQuotaFallback(settings.suggestionModel, settings.fallbackModel, (model) =>
+        this.provider.suggest({ ...request, model, webSearch: settings.suggestionWebSearch }),
+      ));
     } catch (error) {
       // Une reprise déjà facturée doit être inscrite même quand tout échoue
       // ensuite : le fournisseur porte ses tentatives sur l'erreur.
