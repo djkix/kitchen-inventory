@@ -7,6 +7,7 @@ import { SettingsScreen } from './settings-screen';
 vi.mock('../../hooks/use-auth', () => ({
   useAuth: () => ({ user: { id: 'me', name: 'Moi', email: 'moi@example.com', role: 'ADMIN' }, isAdmin: true, clear: vi.fn() }),
 }));
+const comptes = vi.hoisted(() => ({ pending: true }));
 vi.mock('../../lib/queries', () => ({
   queryKeys: {},
   useSettingsQuery: () => ({ data: { expiryAlertDays: 3 }, isPending: false }),
@@ -15,7 +16,7 @@ vi.mock('../../lib/queries', () => ({
     data: [
       { id: '1', status: 'ACTIVE' },
       { id: '2', status: 'ACTIVE' },
-      { id: '3', status: 'PENDING' },
+      ...(comptes.pending ? [{ id: '3', status: 'PENDING' }] : []),
     ],
   }),
 }));
@@ -46,7 +47,8 @@ describe('SettingsScreen', () => {
    * Refonte du 2026-10-21 : sections pliables. Les deux propriétés qui comptent
    * sont l'état d'ouverture de départ et le résumé lisible sans déplier.
    */
-  it('n’ouvre que « Reconnaissance » à l’arrivée', () => {
+  it('n’ouvre que « Reconnaissance » quand rien ne réclame d’action', () => {
+    comptes.pending = false;
     renderScreen();
     const ouvertes = screen
       .getAllByRole('group')
@@ -56,7 +58,18 @@ describe('SettingsScreen', () => {
     expect(ouvertes[0]).toContain('Reconnaissance');
   });
 
+  it('ouvre aussi « Comptes » tant qu’une demande attend : elle ne doit pas dormir derrière un repli', () => {
+    comptes.pending = true;
+    renderScreen();
+    const ouvertes = screen
+      .getAllByRole('group')
+      .filter((d): d is HTMLDetailsElement => d instanceof HTMLDetailsElement && d.open)
+      .map((d) => d.querySelector('summary')?.textContent ?? '');
+    expect(ouvertes.some((t) => t.includes('Comptes'))).toBe(true);
+  });
+
   it('résume chaque section sans qu’on ait à la déplier', () => {
+    comptes.pending = true;
     renderScreen();
     expect(screen.getByText(/gemini · 4 \/ 50 photos aujourd’hui/i)).toBeTruthy();
     expect(screen.getByText(/2 actifs · 1 en attente/)).toBeTruthy();
