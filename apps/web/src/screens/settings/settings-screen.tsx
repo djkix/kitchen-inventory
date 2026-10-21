@@ -7,14 +7,25 @@ import { ChevronIcon } from '../../components/ui/icons';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../hooks/use-auth';
 import { API_BASE, api, errorMessage } from '../../lib/api';
-import { queryKeys, useSettingsQuery } from '../../lib/queries';
+import { queryKeys, useAccountsQuery, useRecognitionStatsQuery, useSettingsQuery } from '../../lib/queries';
 import { AccountsSection, SignOutEverywhereRow } from './accounts-section';
+import { AccordionSection, SectionBadge } from './accordion-section';
 import { ModelRow } from './model-row';
 import { WebSearchRow } from './web-search-row';
 import { VersionBadge } from '../../components/shell/version-badge';
 import { StatsPanel } from './stats-panel';
 
-/** Écran Réglages (section 14) : emplacements, comptes, seuil d'alerte, reconnaissance, export, compte. */
+/**
+ * Écran Réglages (section 14) : emplacements, comptes, seuil d'alerte,
+ * reconnaissance, export, compte.
+ *
+ * Les sections sont pliables depuis la refonte du 2026-10-21 : l'écran faisait
+ * plusieurs hauteurs de téléphone et l'on descendait à l'aveugle. Chaque
+ * en-tête porte son résumé, ce qui évite de déplier pour savoir. Seule
+ * « Reconnaissance » est ouverte à l'arrivée — c'est ce qu'on vient consulter
+ * le plus souvent (quota du jour, budget du mois). « Compte » n'est pas
+ * pliable : s'en aller ne doit jamais demander un geste de plus.
+ */
 export function SettingsScreen() {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -34,13 +45,8 @@ export function SettingsScreen() {
   return (
     <>
       <ScreenHeader title="Réglages" subtitle={auth.user ? `${auth.user.name} · ${auth.user.role === 'ADMIN' ? 'administrateur' : 'membre'}` : undefined} />
-      <div className="flex flex-col gap-6 px-4">
-        <Section title="Inventaire">
-          <NavRow to="/reglages/emplacements" label="Emplacements" hint="Placards, frigo, cellier : profondeur libre" />
-          <AlertDaysRow isAdmin={auth.isAdmin} />
-        </Section>
-
-        <Section title="Reconnaissance">
+      <div className="flex flex-col gap-3 px-4">
+        <AccordionSection title="Reconnaissance" badge={<RecognitionBadge />} defaultOpen>
           <StatsPanel />
           <ModelRow
             label="Modèle de la photo"
@@ -55,25 +61,31 @@ export function SettingsScreen() {
             isAdmin={auth.isAdmin}
           />
           <WebSearchRow isAdmin={auth.isAdmin} />
-        </Section>
+        </AccordionSection>
+
+        <AccountsAccordion />
+
+        <AccordionSection title="Inventaire" badge={<AlertBadge />}>
+          <NavRow to="/reglages/emplacements" label="Emplacements" hint="Placards, frigo, cellier : profondeur libre" />
+          <AlertDaysRow isAdmin={auth.isAdmin} />
+        </AccordionSection>
 
         {auth.isAdmin && (
-          <Section title="Foyer">
+          <AccordionSection title="Foyer" badge={<SectionBadge>Home Assistant, scripts</SectionBadge>}>
             <NavRow to="/reglages/jetons" label="Jetons de service" hint="Accès lecture pour Home Assistant, scripts…" />
-          </Section>
+          </AccordionSection>
         )}
-        <AccountsSection />
 
-        <Section title="Export">
+        <AccordionSection title="Export" badge={<SectionBadge>Formats ouverts : CSV et JSON</SectionBadge>}>
           <div className="grid grid-cols-2 gap-2">
-            <a href={`${API_BASE}/export/inventory.csv`} download="inventaire.csv" className="flex min-h-touch items-center justify-center rounded-xl bg-surface px-4 text-[15px] font-medium active:bg-raised">
+            <a href={`${API_BASE}/export/inventory.csv`} download="inventaire.csv" className="flex min-h-touch items-center justify-center rounded-xl bg-raised px-4 text-[15px] font-medium active:bg-surface">
               Inventaire CSV
             </a>
-            <a href={`${API_BASE}/export/inventory.json`} download="inventaire.json" className="flex min-h-touch items-center justify-center rounded-xl bg-surface px-4 text-[15px] font-medium active:bg-raised">
+            <a href={`${API_BASE}/export/inventory.json`} download="inventaire.json" className="flex min-h-touch items-center justify-center rounded-xl bg-raised px-4 text-[15px] font-medium active:bg-surface">
               Inventaire JSON
             </a>
           </div>
-        </Section>
+        </AccordionSection>
 
         <Section title="Compte">
           <Button block variant="outline" loading={loggingOut} onClick={() => void logout()}>
@@ -86,6 +98,60 @@ export function SettingsScreen() {
         <VersionBadge className="pt-0" />
       </div>
     </>
+  );
+}
+
+/**
+ * Résumé de « Reconnaissance » : le fournisseur et la consommation du jour,
+ * les deux chiffres pour lesquels on ouvre cet écran. Même requête que
+ * `StatsPanel`, donc servie par le cache sans appel supplémentaire.
+ */
+function RecognitionBadge() {
+  const stats = useRecognitionStatsQuery();
+  if (!stats.data) return null;
+  const s = stats.data;
+  if (s.provider === 'none') return <SectionBadge>Photo désactivée</SectionBadge>;
+  return (
+    <SectionBadge>
+      {s.provider} · {s.visionCallsToday} / {s.dailyQuota} photos aujourd’hui
+    </SectionBadge>
+  );
+}
+
+/** Résumé d'« Inventaire » : le seuil d'alerte, seul réglage de la section. */
+function AlertBadge() {
+  const settings = useSettingsQuery();
+  if (!settings.data) return null;
+  const days = settings.data.expiryAlertDays;
+  return <SectionBadge>Alerte à {days} jour{days > 1 ? 's' : ''}</SectionBadge>;
+}
+
+/**
+ * « Comptes », réservée aux administrateurs comme `AccountsSection` elle-même :
+ * la section entière disparaît pour un membre, en-tête compris. Le retour
+ * précède la requête, qui n'est donc jamais lancée pour un membre — elle lui
+ * vaudrait un 403.
+ */
+function AccountsAccordion() {
+  const auth = useAuth();
+  if (!auth.isAdmin) return null;
+  return (
+    <AccordionSection title="Comptes" badge={<AccountsBadge />}>
+      <AccountsSection />
+    </AccordionSection>
+  );
+}
+
+/** Résumé de « Comptes » : ce qui demande une action se lit sans déplier. */
+function AccountsBadge() {
+  const accounts = useAccountsQuery();
+  if (!accounts.data) return null;
+  const active = accounts.data.filter((a) => a.status === 'ACTIVE').length;
+  const pending = accounts.data.filter((a) => a.status === 'PENDING').length;
+  return (
+    <SectionBadge>
+      {active} actif{active > 1 ? 's' : ''} · {pending === 0 ? 'aucune demande' : `${pending} en attente`}
+    </SectionBadge>
   );
 }
 
