@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.28.0](https://github.com/djkix/kitchen-inventory/compare/v0.27.1...v0.28.0) (2026-10-21)
+
+
+### Features
+
+* **reconnaissance:** dire quelle limite Gemini refuse, et passer la photo en 3.8 Flash ([5022f6e](https://github.com/djkix/kitchen-inventory/commit/5022f6e6f9f19d2964c3a7985efa40b0dad62e25))
+* **reconnaissance:** repli de modèle sur quota épuisé et compteur d'appels ([d26206a](https://github.com/djkix/kitchen-inventory/commit/d26206ab81bbeae7cd8246a44f29cc5646b173d2))
+* **reglages:** sections pliables et résumé en en-tête (section 14) ([87fbf77](https://github.com/djkix/kitchen-inventory/commit/87fbf77153809facd8bfdfa5b17d39cf30fe53d0))
+
+
+### Bug Fixes
+
+* **reglages:** l'ouverture de « Comptes » est à sens unique ([9d9a123](https://github.com/djkix/kitchen-inventory/commit/9d9a123dab6255d4a8bb1308d78fff097fedc741))
+* **reglages:** ouvrir « Comptes » tant qu'une demande d'accès attend ([e3b9079](https://github.com/djkix/kitchen-inventory/commit/e3b9079941fb657a24617ae9e68a087d91299d99))
+
 ## [0.27.1](https://github.com/djkix/kitchen-inventory/compare/v0.27.0...v0.27.1) (2026-10-21)
 
 
