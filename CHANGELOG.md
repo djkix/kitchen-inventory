@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.1](https://github.com/djkix/kitchen-inventory/compare/v0.27.0...v0.27.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **suggestions:** tarifer les alias de modèle par famille (EF-25, EF-26) ([4a17231](https://github.com/djkix/kitchen-inventory/commit/4a17231081cf49235319c054a6b328c991d5f3dd))
+
 ## [0.27.0](https://github.com/djkix/kitchen-inventory/compare/v0.26.3...v0.27.0) (2026-10-21)
 
 
