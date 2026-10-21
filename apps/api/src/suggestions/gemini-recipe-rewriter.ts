@@ -1,6 +1,6 @@
 import { recipeRewriteSchema, UNITS, type RecipeRewrite } from '@kitchen/shared';
 import type { HttpClient } from '../common/http-client.js';
-import { estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
+import { estimateCostCents, throwQuotaRefusal, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { stripJsonFences } from './prompt.js';
 
@@ -112,7 +112,7 @@ export class GeminiRecipeRewriter {
       throw new ProviderError('Fournisseur de suggestions Gemini injoignable', error);
     }
     if (response.status === 401 || response.status === 403) throw new ProviderError('Clé API Gemini refusée');
-    if (response.status === 429) throw new ProviderError('Quota Gemini atteint');
+    if (response.status === 429) await throwQuotaRefusal(response);
     if (!response.ok) throw new ProviderError(`Fournisseur de suggestions Gemini en erreur (${response.status})`);
 
     const raw = (await response.json()) as GeminiResponse;

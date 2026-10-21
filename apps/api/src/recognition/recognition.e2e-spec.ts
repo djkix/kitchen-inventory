@@ -106,7 +106,7 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
     const call = http.calls.find((c) => c.url.includes('generateContent'));
     const body = JSON.parse(String(call?.init?.body));
     // Le modèle voyage dans l'URL côté Gemini, la clé en en-tête : elle n'apparaît ainsi dans aucun journal.
-    expect(call?.url).toContain('gemini-3.5-flash');
+    expect(call?.url).toContain('gemini-3.8-flash');
     expect(call?.url).not.toContain('test-key');
     expect(new Headers(call?.init?.headers).get('x-goog-api-key')).toBe('test-key');
     expect(JSON.stringify(body)).toContain('pot rouge');
@@ -232,7 +232,7 @@ describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
     expect(res.body.suggestion).toMatchObject({ name: 'Pâte de piment coréenne (gochujang)', originalName: '고추장 (gochujang)', expiryDate: '2027-03-15' });
     expect(res.body).toMatchObject({ confidence: 0.92, needsReview: false, rejected: false });
     const call = http.calls.find((c) => c.url.includes('generativelanguage.googleapis.com'));
-    expect(call?.url).toContain('/v1beta/models/gemini-3.5-flash:generateContent');
+    expect(call?.url).toContain('/v1beta/models/gemini-3.8-flash:generateContent');
     expect(call?.url).not.toContain('AIza-test');
     expect(new Headers(call?.init?.headers).get('x-goog-api-key')).toBe('AIza-test');
     const body = JSON.parse(String(call?.init?.body));
