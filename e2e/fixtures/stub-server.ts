@@ -152,6 +152,18 @@ interface GeminiRequestBody {
 }
 
 /**
+ * La lecture d'un ticket porte elle aussi une image (ou un PDF) en
+ * `inlineData` : elle ressemble à la reconnaissance photo. Ce qui la distingue
+ * est son `responseSchema` (liste d'objets `label` / `quantity` / `kind`,
+ * GeminiReceiptReader), que la reconnaissance photo n'envoie pas. Elle doit
+ * donc être testée AVANT `isVisionRequest`.
+ */
+function isReceiptRequest(body: GeminiRequestBody): boolean {
+  const properties = body.generationConfig?.responseSchema?.items?.properties;
+  return isVisionRequest(body) && properties !== undefined && 'label' in properties && 'kind' in properties;
+}
+
+/**
  * Les trois usages de Gemini (reconnaissance photo, ticket de caisse et suggestions de recettes)
  * arrivent sur la même route `generateContent` ; on les distingue par le
  * corps de la requête, jamais par un ordre d'appel supposé :
@@ -168,18 +180,6 @@ interface GeminiRequestBody {
  * dépend d'aucun réglage : on route donc sur elle, et le reste est du module
  * recettes, avec ou sans outil.
  */
-/**
- * La lecture d'un ticket porte elle aussi une image (ou un PDF) en
- * `inlineData` : elle ressemble à la reconnaissance photo. Ce qui la distingue
- * est son `responseSchema` (liste d'objets `label` / `quantity` / `kind`,
- * GeminiReceiptReader), que la reconnaissance photo n'envoie pas. Elle doit
- * donc être testée AVANT `isVisionRequest`.
- */
-function isReceiptRequest(body: GeminiRequestBody): boolean {
-  const properties = body.generationConfig?.responseSchema?.items?.properties;
-  return isVisionRequest(body) && properties !== undefined && 'label' in properties && 'kind' in properties;
-}
-
 function isSuggestionRequest(body: GeminiRequestBody): boolean {
   return !isVisionRequest(body);
 }

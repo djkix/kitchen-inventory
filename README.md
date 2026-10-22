@@ -983,9 +983,9 @@ Couverture actuelle : P1 (inventaire initial, scans enchaînés), P2 (rangement
 des courses, DLC saisie aussi bien directement dans le tiroir de validation
 par raccourci qu'après l'ajout depuis le bandeau ; hors lecture automatique
 de la date, qui n'existe pas encore), P3
-(consommation, hors bascule en liste de courses — ni seuils ni liste
-n'existent), P4 (consultation, recherche, filtre par emplacement, périme
-bientôt, hors vue « à racheter » qui dépend de cette même liste de courses),
+(consommation ; il n'y a plus de bascule en liste de courses, la liste est
+abandonnée), P4 (consultation, recherche, filtre par emplacement, périme
+bientôt, la vue « à racheter » est abandonnée avec la liste de courses),
 P5 (suggestions de recettes, hors cahier des charges, ajouté parce que
 c'est la fonctionnalité la plus récente et la plus fragile — y compris le
 champ d'ingrédients dictés : pastilles, croix de retrait, autocomplétion
