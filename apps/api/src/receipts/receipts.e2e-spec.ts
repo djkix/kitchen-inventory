@@ -120,6 +120,8 @@ describe('lecture d’un ticket de caisse (EF-29)', () => {
   it('refuse un format non pris en charge, un fichier absent et un emplacement inconnu', async () => {
     ctx.http.on('generateContent', () => geminiFixture('receipts/gemini-ticket.json'));
     await upload('text/plain').expect(400);
+    // Le GIF n'est pas accepté : `inlineData` de Gemini ne le prend pas, l'accepter ici échouait en 502.
+    await upload('image/gif').expect(400);
     await ctx.agent.post('/api/v1/receipts').field('locationId', ctx.locationId).expect(400);
     await upload('image/png', 'inconnu').expect(404);
     await ctx.agent.post('/api/v1/receipts').attach('file', TINY_PNG, { filename: 't.png', contentType: 'image/png' }).expect(400);
@@ -192,8 +194,12 @@ describe('validation d’un ticket vers le stock (EF-29)', () => {
   const validate = (id: string, lines: { id: string; productId: string; quantity: number; clientOpId: string }[]) =>
     ctx.agent.post(`/api/v1/receipts/${id}/validate`).send({ lines });
 
-  it('valide deux lignes cochées et laisse les autres de côté', async () => {
+  it('valide deux lignes cochées et laisse les autres de côté, sans estimer de date', async () => {
+    // Le produit a une catégorie à durée de conservation : si l'entrée
+    // demandait l'estimation, une DLC apparaîtrait. D2 dit qu'il n'y en a pas.
+    const categorie = await ctx.t.prisma.category.create({ data: { name: 'Catégorie à DLC', shelfLifeDays: 90 } });
     const riz = await product('Riz basmati');
+    await ctx.t.prisma.product.update({ where: { id: riz }, data: { categoryId: categorie.id } });
     const pates = await product('Pâtes penne');
     const lait = await product('Lait entier');
     const r = await draft(['RIZ', 'PATES', 'LAIT']);
@@ -205,7 +211,7 @@ describe('validation d’un ticket vers le stock (EF-29)', () => {
     expect([await stockOf(riz), await stockOf(pates), await stockOf(lait)]).toEqual([3, 2, 0]);
     expect(await ctx.t.prisma.stockMovement.count()).toBe(2);
     const item = await ctx.t.prisma.stockItem.findFirstOrThrow({ where: { productId: riz } });
-    expect(item).toMatchObject({ locationId: ctx.locationId, expiryDate: null });
+    expect(item).toMatchObject({ locationId: ctx.locationId, expiryDate: null, dateEstimated: false });
     expect((await ctx.t.prisma.receipt.findUniqueOrThrow({ where: { id: r.id } })).status).toBe('VALIDATED');
   });
 
@@ -345,7 +351,11 @@ describe('libellés en attente et apprentissage (EF-29)', () => {
 
   it('ne liste ni les lignes reconnues ni les ambiguës', async () => {
     await ctx.agent.post('/api/v1/products').send({ name: 'Riz basmati' }).expect(201);
-    await read(['RIZ BASMATI']);
+    // Deux laits : « LAIT » ne peut pas être tranché, la ligne est AMBIGUOUS.
+    await ctx.agent.post('/api/v1/products').send({ name: 'Lait demi-écrémé' }).expect(201);
+    await ctx.agent.post('/api/v1/products').send({ name: 'Lait entier' }).expect(201);
+    const res = await read(['RIZ BASMATI', 'LAIT']);
+    expect(res.body.lines.map((l: { state: string }) => l.state)).toEqual(['MATCHED', 'AMBIGUOUS']);
     expect(await pending()).toEqual([]);
     expect((await ctx.agent.get('/api/v1/receipts/pending-labels/count').expect(200)).body).toEqual({ count: 0 });
   });

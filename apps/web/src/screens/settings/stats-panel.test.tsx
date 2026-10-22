@@ -22,6 +22,10 @@ const base = {
   recipeCallsThisMonth: 12,
   recipeCostCentsThisMonth: 18,
   recipeDailyQuota: 20,
+  receiptCallsToday: 2,
+  receiptCallsThisMonth: 4,
+  receiptCostCentsThisMonth: 9,
+  receiptDailyQuota: 10,
 };
 
 /**
@@ -51,6 +55,15 @@ describe('compteur d’appels au fournisseur', () => {
     expect(screen.getByText(/12 ce mois · 0,18/)).toBeTruthy();
     // La tuile des photos reste sur son propre compte.
     expect(screen.getByText('1 / 50')).toBeTruthy();
+  });
+
+  /** Même raison pour les tickets (EF-29) : « quota atteint » ne disait pas sur combien. */
+  it('donne aux tickets leur propre compte et annonce leur quota', () => {
+    stats.data = { ...base, providerDailyLimit: null, providerMinuteLimit: null };
+    render(<StatsPanel />);
+    expect(screen.getByText('Tickets aujourd’hui')).toBeTruthy();
+    expect(screen.getByText('2 / 10')).toBeTruthy();
+    expect(screen.getByText(/4 ce mois · 0,09/)).toBeTruthy();
   });
 
   it('affiche le rapport dès que la console Google a été recopiée', () => {

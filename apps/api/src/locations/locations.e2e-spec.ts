@@ -75,6 +75,22 @@ describe('emplacements (EF-06)', () => {
     await agent.delete(`/api/v1/locations/${placard.id}`).expect(204);
   });
 
+  /**
+   * Un ticket de caisse (EF-29) lu dans cet emplacement ne doit pas en
+   * empêcher la suppression : la contrainte la refusait (P2003), et Réglages ›
+   * Emplacements affichait une erreur interne en anglais.
+   */
+  it('supprime un emplacement qu’un ticket de caisse a utilisé', async () => {
+    const placard = await byPath('/cuisine/placard');
+    const user = await t.prisma.user.findFirstOrThrow();
+    const receipt = await t.prisma.receipt.create({
+      data: { locationId: placard.id, createdById: user.id, lines: { create: [{ position: 0, rawLabel: 'RIZ', quantity: 1, state: 'UNKNOWN', candidateIds: [] }] } },
+    });
+    await agent.delete(`/api/v1/locations/${placard.id}`).expect(204);
+    expect(await t.prisma.receipt.findUnique({ where: { id: receipt.id } })).toBeNull();
+    expect(await t.prisma.receiptLine.count()).toBe(0);
+  });
+
   it('un emplacement racine sans parent ne peut pas déplacer son contenu', async () => {
     const cellier = await byPath('/cellier');
     const res = await agent.post(`/api/v1/locations/${cellier.id}/move-contents`).expect(422);

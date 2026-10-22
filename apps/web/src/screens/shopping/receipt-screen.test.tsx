@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProductDto, ReceiptDto, ReceiptLineDto } from '@kitchen/shared';
 import { ToastProvider } from '../../components/ui/toast';
@@ -11,7 +11,7 @@ import { ReceiptScreen } from './receipt-screen';
 
 /** Écran du ticket de caisse (EF-29). Le réseau est doublé : aucune requête réelle. */
 vi.mock('../../lib/receipts-api', () => ({
-  receiptsApi: { read: vi.fn(), validate: vi.fn(), pendingLabels: vi.fn(), pendingLabelCount: vi.fn(), attachLabel: vi.fn() },
+  receiptsApi: { read: vi.fn(), get: vi.fn(), validate: vi.fn(), pendingLabels: vi.fn(), pendingLabelCount: vi.fn(), attachLabel: vi.fn() },
 }));
 vi.mock('../../lib/api', async (importOriginal) => ({ ...(await importOriginal<Record<string, unknown>>()), api: { get: vi.fn() } }));
 const api_ = vi.mocked(receiptsApi);
@@ -40,13 +40,17 @@ const RECEIPT: ReceiptDto = {
   ],
 };
 
-function renderScreen() {
+/** Les deux adresses de l'écran : l'entrée vide et le brouillon serveur (`/courses/:id`). */
+function renderScreen(entry = '/courses') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <ToastProvider>
-        <MemoryRouter>
-          <ReceiptScreen />
+        <MemoryRouter initialEntries={[entry]}>
+          <Routes>
+            <Route path="/courses" element={<ReceiptScreen />} />
+            <Route path="/courses/:id" element={<ReceiptScreen />} />
+          </Routes>
         </MemoryRouter>
       </ToastProvider>
     </QueryClientProvider>,
@@ -160,7 +164,9 @@ describe('ReceiptScreen (EF-29)', () => {
     await photograph();
     await screen.findByText('2 → 3');
     fireEvent.click(within(screen.getByRole('group', { name: 'Produit pour OLIVE NOIRE' })).getByRole('button', { name: 'Olive verte' }));
-    expect(screen.getByText('+1 g')).toBeTruthy();
+    // La case est vide (un gramme n'est pas un article du ticket) : la quantité se saisit.
+    fireEvent.change(screen.getByRole('textbox', { name: 'Quantité de Olive verte' }), { target: { value: '20' } });
+    expect(screen.getByText('+20 g')).toBeTruthy();
   });
 
   it('n’envoie jamais une ligne inconnue à la validation', async () => {
@@ -192,12 +198,50 @@ describe('ReceiptScreen (EF-29)', () => {
   it('refuse avant la photo un emplacement mémorisé qui n’existe plus', async () => {
     writeScanLocation({ id: 'disparu', name: 'Ancien' });
     renderScreen();
-    // Attendre la liste des emplacements : avant elle, le bouton est désactivé quoi qu'il arrive.
+    // La liste arrivée, l'emplacement disparu est écarté : le bouton reste
+    // désactivé et l'écran redemande un emplacement. Attendu sur l'état, pas
+    // sur une durée — un délai fixe n'est qu'une instabilité différée.
+    await screen.findByText('Choisir l’emplacement');
     await waitFor(() => expect(api.get).toHaveBeenCalled());
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    });
-    expect(screen.getByText('Choisir l’emplacement')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Photographier le ticket' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  /**
+   * Le brouillon vit côté serveur (spécification : « basculer d'application ou
+   * rafraîchir perdrait un appel déjà payé »). Monter l'écran sur l'adresse du
+   * ticket doit donc rendre ses lignes, sans nouvelle lecture.
+   */
+  it('monté sur l’adresse d’un ticket, relit le brouillon au serveur', async () => {
+    api_.get.mockResolvedValue(RECEIPT);
+    renderScreen('/courses/r1');
+    await screen.findByText('Yaourt nature');
+    expect(api_.get).toHaveBeenCalledWith('r1');
+    expect(api_.read).not.toHaveBeenCalled();
+    expect(screen.getByText('ZZ INCONNU 500G')).toBeTruthy();
+  });
+
+  it('après la lecture, l’adresse porte le ticket', async () => {
+    await photograph();
+    await screen.findByText('Yaourt nature');
+    // Le cache est posé avant la navigation : aucune relecture de l'appel payé.
+    expect(api_.get).not.toHaveBeenCalled();
+  });
+
+  /** « 1 g de Comté » serait faux : hors des unités qui comptent, la case reste vide. */
+  it('ne pré-remplit pas la quantité d’un produit qui ne se compte pas', async () => {
+    await photograph();
+    await screen.findByText('2 → 3');
+    fireEvent.click(within(screen.getByRole('group', { name: 'Produit pour OLIVE NOIRE' })).getByRole('button', { name: 'Olive verte' }));
+    expect((screen.getByRole('textbox', { name: 'Quantité de Olive verte' }) as HTMLInputElement).value).toBe('');
+    expect((screen.getByRole('button', { name: /^Ajouter/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('pré-remplit la quantité d’un produit compté au paquet', async () => {
+    await photograph({
+      ...RECEIPT,
+      lines: [line({ id: 'l4', position: 0, rawLabel: 'CAFE MOULU', state: 'AMBIGUOUS', quantity: 3, candidates: [product('p4', 'Café moulu', 'PACK'), product('p5', 'Café grains', 'PACK')] })],
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Café moulu' }));
+    expect((screen.getByRole('textbox', { name: 'Quantité de Café moulu' }) as HTMLInputElement).value).toBe('3');
   });
 });

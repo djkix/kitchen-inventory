@@ -26,6 +26,10 @@ test.beforeAll(async () => {
 
 useSharedAdminSession();
 
+// Lecture du ticket par le double de Gemini, validation ligne à ligne puis
+// relecture du stock : le budget de 30 s par défaut est juste, comme pour P5.
+test.slow();
+
 // Minuscule PNG valide : seul le type MIME compte pour l'API.
 const TINY_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 

@@ -1,9 +1,11 @@
-import { normalizeReceiptLabel, receiptQuantitySchema, roundQuantity, UNIT_LABELS_FR, type LocationNode, type ProductDto, type ReceiptDto, type ReceiptLineDto } from '@kitchen/shared';
-import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { coversReceiptLabel, isCountableUnit, receiptQuantitySchema, roundQuantity, UNIT_LABELS_FR, type LocationNode, type ProductDto, type ReceiptDto, type ReceiptLineDto } from '@kitchen/shared';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Button } from '../../components/ui/button';
 import { ErrorState } from '../../components/ui/empty-state';
+import { ListSkeleton } from '../../components/ui/skeleton';
 import { PinIcon } from '../../components/ui/icons';
 import { useToast } from '../../components/ui/toast';
 import { errorMessage, newClientOpId } from '../../lib/api';
@@ -28,12 +30,9 @@ function parseQuantity(text: string): number | null {
  * d'abord (D6). Le tri est stable, l'ordre de l'API reste celui des autres.
  */
 export function orderCandidates(label: string, candidates: readonly ProductDto[]): ProductDto[] {
-  const wanted = normalizeReceiptLabel(label).split(' ').filter(Boolean);
-  const covers = (p: ProductDto) => {
-    const names = new Set(normalizeReceiptLabel(p.name).split(' '));
-    return wanted.length > 0 && wanted.every((w) => names.has(w));
-  };
-  return [...candidates].sort((a, b) => Number(covers(b)) - Number(covers(a)));
+  // Même définition que la règle serveur (`coversReceiptLabel`) : l'écran ne
+  // réinvente pas le test de couverture, sinon il classe autrement qu'elle.
+  return [...candidates].sort((a, b) => Number(coversReceiptLabel(label, b.name)) - Number(coversReceiptLabel(label, a.name)));
 }
 
 /** Lire et valider changent les libellés en attente : la liste et la pastille de l'onglet doivent suivre. */
@@ -53,14 +52,26 @@ export function ReceiptScreen() {
     [locations.data, picked],
   );
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [receipt, setReceipt] = useState<ReceiptDto | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
+  // Le brouillon vit côté serveur et l'adresse le désigne : une lecture coûte
+  // des dizaines de secondes et un appel payant, que rafraîchir ou changer
+  // d'application ne doit pas perdre.
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // `staleTime` : le brouillon ne bouge pas tout seul, et la lecture vient
+  // d'être posée au cache — sans cela l'écran relirait le ticket juste après
+  // l'avoir payé.
+  const draft = useQuery({ queryKey: queryKeys.receipt(id ?? ''), queryFn: () => receiptsApi.get(id!), enabled: !!id, staleTime: 5 * 60_000 });
+  const receipt = id ? (draft.data ?? null) : null;
+
   const read = useMutation({
     mutationFn: (file: File) => receiptsApi.read(file, location?.id ?? ''),
     onSuccess: (data) => {
-      setReceipt(data);
+      // Posé au cache avant la navigation : l'écran du ticket s'affiche sans relire.
+      queryClient.setQueryData(queryKeys.receipt(data.id), data);
+      void navigate(`/courses/${data.id}`, { replace: true });
       void invalidatePendingLabels(queryClient);
     },
   });
@@ -82,13 +93,22 @@ export function ReceiptScreen() {
       <ScreenHeader title="Courses" subtitle="Ticket de caisse" />
       <input ref={input} type="file" accept="image/*,application/pdf" capture="environment" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={onPicked} data-testid="receipt-file" />
 
-      {receipt ? (
+      {id && !receipt ? (
+        draft.isError ? (
+          <div className="flex flex-col gap-3 px-4 py-4">
+            <ErrorState title="Ticket introuvable" message={errorMessage(draft.error, 'Ce ticket n’est plus disponible.')} />
+            <Button variant="secondary" block onClick={() => void navigate('/courses', { replace: true })}>Revenir aux courses</Button>
+          </div>
+        ) : (
+          <ListSkeleton />
+        )
+      ) : receipt ? (
         <ReceiptReview
           key={receipt.id}
           receipt={receipt}
           onDone={() => {
-            setReceipt(null);
             read.reset();
+            void navigate('/courses', { replace: true });
             void queryClient.invalidateQueries({ queryKey: queryKeys.stockAll });
             void queryClient.invalidateQueries({ queryKey: queryKeys.locations });
           }}
@@ -129,6 +149,13 @@ function initialState(line: ReceiptLineDto): LineState {
   return { checked: line.state === 'MATCHED', quantity: String(line.quantity), productId: line.state === 'MATCHED' ? (line.product?.id ?? null) : null };
 }
 
+/**
+ * Le « 3 × » du ticket compte des objets : il ne pré-remplit la quantité que
+ * pour un produit qui se compte ainsi. Sinon la case reste vide — « 1 g de
+ * Comté » serait faux, c'est à Franck de dire combien.
+ */
+const prefilledQuantity = (line: ReceiptLineDto, product: ProductDto): string => (isCountableUnit(product.defaultUnit) ? String(line.quantity) : '');
+
 function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () => void }) {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -157,15 +184,6 @@ function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () =>
     },
   });
 
-  if (lines.length === 0) {
-    return (
-      <div className="flex flex-col gap-3 px-4 py-4">
-        <ErrorState title="Aucune ligne lue" message="Le ticket ne contient aucune ligne exploitable. Reprenez la photo à plat, bien éclairée." />
-        <Button variant="secondary" block onClick={onDone}>Reprendre une photo</Button>
-      </div>
-    );
-  }
-
   const count = selected.length;
   return (
     <div className="flex flex-col gap-3 px-4 pb-4">
@@ -180,7 +198,7 @@ function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () =>
           // `currentQuantity` est calculé d'après le produit de la ligne côté serveur : nul tant
           // qu'elle est ambiguë. Une ligne dont on a choisi le produit n'a donc aucune base connue.
           const baselineKnown = line.state === 'MATCHED';
-          const unit = chosen && chosen.defaultUnit !== 'PIECE' ? UNIT_LABELS_FR[chosen.defaultUnit] : null;
+          const unit = chosen && !isCountableUnit(chosen.defaultUnit) ? UNIT_LABELS_FR[chosen.defaultUnit] : null;
           return (
             <li key={line.id} className="flex flex-col gap-2 p-3">
               <div className="flex items-start gap-3">
@@ -231,7 +249,7 @@ function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () =>
                       key={candidate.id}
                       type="button"
                       aria-pressed={s.productId === candidate.id}
-                      onClick={() => patch(line.id, { productId: candidate.id, checked: true })}
+                      onClick={() => patch(line.id, { productId: candidate.id, checked: true, quantity: prefilledQuantity(line, candidate) })}
                       className={cn('min-h-[36px] rounded-full border px-3 text-[14px]', s.productId === candidate.id ? 'border-accent bg-accent-deep text-accent' : 'border-line text-fg active:bg-raised')}
                     >
                       {candidate.name}

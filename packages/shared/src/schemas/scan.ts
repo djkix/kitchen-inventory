@@ -86,6 +86,16 @@ export const recognitionStatsSchema = z.object({
   /** Fournées de recettes autorisées par jour (`RECIPE_SUGGESTION_DAILY_QUOTA`). */
   recipeDailyQuota: z.number(),
   /**
+   * Lectures de **tickets de caisse** (EF-29) aujourd'hui et sur le mois, avec
+   * leur dépense : même raison que les recettes — leur quota propre n'était
+   * annoncé nulle part, et leur coût se lisait fondu dans la tuile « photos ».
+   */
+  receiptCallsToday: z.number(),
+  receiptCallsThisMonth: z.number(),
+  receiptCostCentsThisMonth: z.number(),
+  /** Lectures de tickets autorisées par jour (`RECEIPT_DAILY_QUOTA`). */
+  receiptDailyQuota: z.number(),
+  /**
    * Limites annoncées par la console Google pour ce projet, recopiées dans
    * `GEMINI_RPD` et `GEMINI_RPM` — aucune API ne permet de les lire. `null`
    * quand elles ne sont pas renseignées : on affiche alors le compte seul,

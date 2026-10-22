@@ -61,6 +61,7 @@ export const queryKeys = {
   cuisines: ['cuisines'] as const,
   recipeFilters: ['preferences', 'recipe-filters'] as const,
   pendingRating: ['recipes', 'pending-rating'] as const,
+  receipt: (id: string) => ['receipts', 'item', id] as const,
   pendingLabels: ['receipts', 'pending-labels'] as const,
   pendingLabelCount: ['receipts', 'pending-label-count'] as const,
   suggestions: (orientation: SuggestionOrientation) => ['suggestions', 'list', orientation] as const,

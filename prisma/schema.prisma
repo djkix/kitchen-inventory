@@ -547,7 +547,10 @@ model ReceiptLabelAlias {
 model Receipt {
   id          String        @id @default(cuid())
   locationId  String
-  location    Location      @relation(fields: [locationId], references: [id])
+  // Un ticket sans emplacement n'a pas de sens, et son stock est déjà versé
+  // (les `StockItem` ne dépendent pas de lui) : supprimer l'emplacement
+  // emporte le ticket plutôt que de rendre la suppression impossible.
+  location    Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
   status      ReceiptStatus @default(DRAFT)
   createdById String
   createdBy   User          @relation(fields: [createdById], references: [id])

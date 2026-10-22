@@ -257,6 +257,7 @@ describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
     // Un scan photo ne compte pas pour les recettes : les deux usages ont des
     // quotas distincts, et les mêler rendrait les deux chiffres faux.
     expect(stats.body).toMatchObject({ recipeCallsToday: 0, recipeCallsThisMonth: 0, recipeCostCentsThisMonth: 0, recipeDailyQuota: 20 });
+    expect(stats.body).toMatchObject({ receiptCallsToday: 0, receiptCallsThisMonth: 0, receiptCostCentsThisMonth: 0, receiptDailyQuota: 10 });
   });
 
   it('traite un blocage de sécurité ou une clé refusée comme un échec de fournisseur', async () => {
