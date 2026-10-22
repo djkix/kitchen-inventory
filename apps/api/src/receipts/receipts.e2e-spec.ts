@@ -184,6 +184,7 @@ describe('validation d’un ticket vers le stock (EF-29)', () => {
   const stockOf = async (productId: string) =>
     (await ctx.t.prisma.stockItem.findMany({ where: { productId, archivedAt: null } })).reduce((n, i) => n + Number(i.quantity), 0);
   const draft = async (labels: string[]) => {
+    ctx.http.reset();
     ctx.http.on('generateContent', () => geminiText(labels.map((label) => ({ label, quantity: 1, kind: 'PRODUCT' }))));
     return (await upload().expect(201)).body as { id: string; lines: { id: string }[] };
   };
@@ -318,5 +319,62 @@ describe('validation d’un ticket vers le stock (EF-29)', () => {
       expect(await ctx.t.prisma.stockMovement.count()).toBe(0);
       expect((await ctx.t.prisma.receipt.findUniqueOrThrow({ where: { id: r.id } })).status).toBe('DRAFT');
     });
+  });
+});
+
+describe('libellés en attente et apprentissage (EF-29)', () => {
+  const { ctx, upload } = setup();
+  const read = (labels: string[]) => {
+    ctx.http.reset();
+    ctx.http.on('generateContent', () => geminiText(labels.map((label) => ({ label, quantity: 1, kind: 'PRODUCT' }))));
+    return upload().expect(201);
+  };
+  const pending = async () => (await ctx.agent.get('/api/v1/receipts/pending-labels').expect(200)).body as { label: string; seenAt: string; count: number }[];
+  const attach = (label: string, productId: string) => ctx.agent.post('/api/v1/receipts/pending-labels/attach').send({ label, productId });
+
+  it('un libellé vu sur deux tickets, imprimé différemment, ne figure qu’une fois', async () => {
+    await read(['XYZZY 500G', 'PLOP']);
+    await read(['XYZZY 1KG']);
+    const list = await pending();
+    expect(list).toHaveLength(2);
+    expect(list.find((l) => l.label.startsWith('XYZZY'))).toMatchObject({ label: 'XYZZY 1KG', count: 2 });
+    expect(list.find((l) => l.label === 'PLOP')).toMatchObject({ count: 1 });
+    expect(new Date(list[0]!.seenAt).toString()).not.toBe('Invalid Date');
+    expect((await ctx.agent.get('/api/v1/receipts/pending-labels/count').expect(200)).body).toEqual({ count: 2 });
+  });
+
+  it('ne liste ni les lignes reconnues ni les ambiguës', async () => {
+    await ctx.agent.post('/api/v1/products').send({ name: 'Riz basmati' }).expect(201);
+    await read(['RIZ BASMATI']);
+    expect(await pending()).toEqual([]);
+    expect((await ctx.agent.get('/api/v1/receipts/pending-labels/count').expect(200)).body).toEqual({ count: 0 });
+  });
+
+  it('attacher crée l’alias, sort le libellé de la liste et le fait reconnaître au ticket suivant', async () => {
+    const produit = (await ctx.agent.post('/api/v1/products').send({ name: 'Pâte à tartiner' }).expect(201)).body;
+    await read(['PT DEJ CHOCO 500G']);
+    await attach('PT DEJ CHOCO 500G', produit.id).expect(204);
+    expect(await pending()).toEqual([]);
+    // Graphie voisine : seule la forme normalisée peut la relier à l'alias.
+    const res = await read(['2 x PT DEJ CHOCO 750G']);
+    expect(res.body.lines[0]).toMatchObject({ state: 'MATCHED', product: { id: produit.id } });
+  });
+
+  it('attacher un libellé déjà attaché met l’alias à jour', async () => {
+    const a = (await ctx.agent.post('/api/v1/products').send({ name: 'Produit A' }).expect(201)).body;
+    const b = (await ctx.agent.post('/api/v1/products').send({ name: 'Produit B' }).expect(201)).body;
+    await attach('XYZZY', a.id).expect(204);
+    await attach('XYZZY 500G', b.id).expect(204);
+    expect(await ctx.t.prisma.receiptLabelAlias.count()).toBe(1);
+    const res = await read(['XYZZY']);
+    expect(res.body.lines[0].product.id).toBe(b.id);
+  });
+
+  it('refuse un produit inconnu, un libellé vide de sens et un corps invalide', async () => {
+    const a = (await ctx.agent.post('/api/v1/products').send({ name: 'Produit A' }).expect(201)).body;
+    await attach('XYZZY', 'inconnu').expect(404);
+    await attach('500G', a.id).expect(422);
+    await ctx.agent.post('/api/v1/receipts/pending-labels/attach').send({ label: 'XYZZY' }).expect(400);
+    expect(await ctx.t.prisma.receiptLabelAlias.count()).toBe(0);
   });
 });

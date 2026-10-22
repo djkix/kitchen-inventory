@@ -48,3 +48,16 @@ export const validateReceiptSchema = z
   .refine((v) => new Set(v.lines.map((l) => l.id)).size === v.lines.length, { message: 'Ligne en double', path: ['lines'] })
   .refine((v) => new Set(v.lines.map((l) => l.clientOpId)).size === v.lines.length, { message: 'clientOpId en double', path: ['lines'] });
 export type ValidateReceiptInput = z.infer<typeof validateReceiptSchema>;
+
+/** Libellé de ticket jamais reconnu, en attente qu'on le rattache à un produit (EF-29). */
+export const pendingLabelSchema = z.object({
+  /** Dernière graphie imprimée ; deux graphies voisines n'en font qu'une (clé `normalizeReceiptLabel`). */
+  label: z.string(),
+  /** Dernier ticket où il est apparu. */
+  seenAt: z.string().datetime(),
+  count: z.number().int().min(1),
+});
+export type PendingLabelDto = z.infer<typeof pendingLabelSchema>;
+
+export const attachLabelSchema = z.object({ label: z.string().min(1).max(200), productId: idSchema });
+export type AttachLabelInput = z.infer<typeof attachLabelSchema>;

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { matchReceiptLine, normalizeReceiptLabel, type ReceiptCandidate, type ReceiptDto, type ValidateReceiptInput } from '@kitchen/shared';
+import { matchReceiptLine, normalizeReceiptLabel, type AttachLabelInput, type PendingLabelDto, type ReceiptCandidate, type ReceiptDto, type ValidateReceiptInput } from '@kitchen/shared';
 import { Logger } from 'nestjs-pino';
 import { ApiError } from '../common/api-error.js';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
@@ -138,13 +138,46 @@ export class ReceiptsService {
     let added = 0;
     for (const line of input.lines) {
       const { replayed } = await this.stock.create(
-        { productId: line.productId, locationId: receipt.locationId, quantity: line.quantity, clientOpId: line.clientOpId },
+        { productId: line.productId, locationId: receipt.locationId, quantity: line.quantity, estimateExpiry: false, clientOpId: line.clientOpId },
         user,
       );
       if (!replayed) added++;
     }
     await this.prisma.receipt.update({ where: { id }, data: { status: 'VALIDATED' } });
     return { added };
+  }
+
+  /**
+   * Lignes `UNKNOWN` dont la forme normalisée n'a pas d'alias, groupées par cette
+   * forme (la même que celle de l'alias, donc la même que celle de la lecture).
+   */
+  async pendingLabels(): Promise<PendingLabelDto[]> {
+    const [lines, aliases] = await Promise.all([
+      this.prisma.receiptLine.findMany({ where: { state: 'UNKNOWN' }, select: { rawLabel: true, receipt: { select: { createdAt: true } } } }),
+      this.prisma.receiptLabelAlias.findMany({ select: { label: true } }),
+    ]);
+    const learned = new Set(aliases.map((a) => a.label));
+    const groups = new Map<string, { label: string; seenAt: Date; count: number }>();
+    for (const line of lines) {
+      const key = normalizeReceiptLabel(line.rawLabel);
+      if (!key || learned.has(key)) continue; // sans mot significatif, rien à rattacher
+      const seenAt = line.receipt.createdAt;
+      const group = groups.get(key);
+      if (!group) groups.set(key, { label: line.rawLabel, seenAt, count: 1 });
+      else {
+        group.count++;
+        if (seenAt > group.seenAt) Object.assign(group, { label: line.rawLabel, seenAt });
+      }
+    }
+    return [...groups.values()].sort((a, b) => b.seenAt.getTime() - a.seenAt.getTime()).map((g) => ({ label: g.label, seenAt: g.seenAt.toISOString(), count: g.count }));
+  }
+
+  /** Corriger un rattachement est permis : l'alias existant est mis à jour. */
+  async attachLabel({ label, productId }: AttachLabelInput): Promise<void> {
+    const key = normalizeReceiptLabel(label);
+    if (!key) throw ApiError.businessRule('Ce libellé ne contient aucun mot exploitable');
+    if (!(await this.prisma.product.findFirst({ where: { id: productId, mergedIntoId: null } }))) throw ApiError.notFound('Produit introuvable');
+    await this.prisma.receiptLabelAlias.upsert({ where: { label: key }, create: { label: key, productId }, update: { productId } });
   }
 
   /** Quota journalier propre aux tickets, et plafond mensuel partagé avec le scan et les suggestions. */

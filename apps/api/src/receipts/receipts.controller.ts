@@ -1,7 +1,7 @@
 import { Controller, Get, HttpCode, Param, Post, UploadedFile, UseInterceptors, Body } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
-import { createReceiptSchema, validateReceiptSchema, type ReceiptDto, type ValidateReceiptInput } from '@kitchen/shared';
+import { attachLabelSchema, createReceiptSchema, validateReceiptSchema, type AttachLabelInput, type PendingLabelDto, type ReceiptDto, type ValidateReceiptInput } from '@kitchen/shared';
 import { CurrentUser, type RequestUser } from '../auth/request-user.js';
 import { ApiError } from '../common/api-error.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -26,6 +26,25 @@ export class ReceiptsController {
     }
     const { locationId } = new ZodValidationPipe(createReceiptSchema).transform(rawBody);
     return this.receipts.read(file.buffer, file.mimetype, locationId, user.id);
+  }
+
+  // Les routes `pending-labels` précèdent `:id`, sinon `:id` les capterait.
+  /** Libellés jamais reconnus, à rattacher quand on veut (EF-29). */
+  @Get('pending-labels')
+  pendingLabels(): Promise<PendingLabelDto[]> {
+    return this.receipts.pendingLabels();
+  }
+
+  /** Alimente la pastille de l'onglet Courses. */
+  @Get('pending-labels/count')
+  async pendingLabelCount(): Promise<{ count: number }> {
+    return { count: (await this.receipts.pendingLabels()).length };
+  }
+
+  @Post('pending-labels/attach')
+  @HttpCode(204)
+  async attachLabel(@Body(new ZodValidationPipe(attachLabelSchema)) body: AttachLabelInput): Promise<void> {
+    await this.receipts.attachLabel(body);
   }
 
   @Get(':id')
