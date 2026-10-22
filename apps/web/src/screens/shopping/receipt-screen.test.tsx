@@ -28,6 +28,7 @@ const line = (over: Partial<ReceiptLineDto> & Pick<ReceiptLineDto, 'id' | 'posit
 const RECEIPT: ReceiptDto = {
   id: 'r1',
   locationId: 'loc1',
+  status: 'DRAFT',
   // Volontairement désordonné : l'écran doit suivre `position`, pas l'ordre de réception.
   lines: [
     line({ id: 'l3', position: 2, rawLabel: 'ZZ INCONNU 500G', state: 'UNKNOWN' }),
@@ -126,6 +127,22 @@ describe('ReceiptScreen (EF-29)', () => {
     expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['Olive noire', 'Olive verte']);
     fireEvent.click(within(group).getByRole('button', { name: 'Olive noire' }));
     expect((screen.getByRole('checkbox', { name: 'Ajouter Olive noire' }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('choisir un candidat compté au poids ne coche pas la ligne et ne bloque pas les autres', async () => {
+    await photograph();
+    await screen.findByText('Yaourt nature');
+    fireEvent.click(within(screen.getByRole('group', { name: 'Produit pour OLIVE NOIRE' })).getByRole('button', { name: 'Olive verte' }));
+    expect((screen.getByRole('checkbox', { name: 'Ajouter Olive verte' }) as HTMLInputElement).checked).toBe(false);
+    const button = screen.getByRole('button', { name: 'Ajouter 1 produit' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+  });
+
+  it('un ticket déjà validé affiche un message et aucun bouton d’ajout', async () => {
+    api_.get.mockResolvedValue({ ...RECEIPT, status: 'VALIDATED' });
+    renderScreen('/courses/r1');
+    await screen.findByText('Ce ticket a déjà été validé : ses produits sont au stock.');
+    expect(screen.queryByRole('button', { name: /Ajouter|Rien à ajouter/ })).toBeNull();
   });
 
   it('annonce le nombre de produits à ajouter', async () => {
@@ -233,7 +250,13 @@ describe('ReceiptScreen (EF-29)', () => {
     await screen.findByText('2 → 3');
     fireEvent.click(within(screen.getByRole('group', { name: 'Produit pour OLIVE NOIRE' })).getByRole('button', { name: 'Olive verte' }));
     expect((screen.getByRole('textbox', { name: 'Quantité de Olive verte' }) as HTMLInputElement).value).toBe('');
-    expect((screen.getByRole('button', { name: /^Ajouter/ }) as HTMLButtonElement).disabled).toBe(true);
+    // Non cochée, la ligne vide ne bloque rien ; cochée sans montant, elle bloque jusqu'à la saisie.
+    const button = () => screen.getByRole('button', { name: /^Ajouter/ }) as HTMLButtonElement;
+    expect(button().disabled).toBe(false);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Ajouter Olive verte' }));
+    expect(button().disabled).toBe(true);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Quantité de Olive verte' }), { target: { value: '2' } });
+    expect(button().disabled).toBe(false);
   });
 
   it('pré-remplit la quantité d’un produit compté au paquet', async () => {

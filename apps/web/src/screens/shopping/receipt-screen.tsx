@@ -178,6 +178,7 @@ function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () =>
         lines: selected.map(({ line, productId, quantity }) => ({ id: line.id, productId, quantity, clientOpId: (opIds.current[line.id] ??= newClientOpId()) })),
       }),
     onSuccess: ({ added }) => {
+      queryClient.removeQueries({ queryKey: queryKeys.receipt(receipt.id) });
       void invalidatePendingLabels(queryClient);
       toast.show({ message: added === 0 ? 'Rien de nouveau : ce ticket était déjà validé.' : `${added} produit${added > 1 ? 's' : ''} ajouté${added > 1 ? 's' : ''} au stock`, tone: 'success' });
       onDone();
@@ -185,6 +186,7 @@ function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () =>
   });
 
   const count = selected.length;
+  const validated = receipt.status === 'VALIDATED';
   return (
     <div className="flex flex-col gap-3 px-4 pb-4">
       <p className="text-[13px] text-muted">Dans l’ordre du ticket. Cochez ce qui entre au stock ; la quantité se corrige sur la ligne.</p>
@@ -249,7 +251,7 @@ function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () =>
                       key={candidate.id}
                       type="button"
                       aria-pressed={s.productId === candidate.id}
-                      onClick={() => patch(line.id, { productId: candidate.id, checked: true, quantity: prefilledQuantity(line, candidate) })}
+                      onClick={() => patch(line.id, { productId: candidate.id, checked: isCountableUnit(candidate.defaultUnit), quantity: prefilledQuantity(line, candidate) })}
                       className={cn('min-h-[36px] rounded-full border px-3 text-[14px]', s.productId === candidate.id ? 'border-accent bg-accent-deep text-accent' : 'border-line text-fg active:bg-raised')}
                     >
                       {candidate.name}
@@ -261,11 +263,12 @@ function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () =>
           );
         })}
       </ul>
+      {validated && <p className="text-[14px] text-muted">Ce ticket a déjà été validé : ses produits sont au stock.</p>}
       {validate.isError && <p role="alert" className="text-[14px] text-danger">{errorMessage(validate.error)}</p>}
-      <Button variant="primary" size="lg" block disabled={count === 0 || hasInvalid} loading={validate.isPending} onClick={() => validate.mutate()}>
+      {!validated && <Button variant="primary" size="lg" block disabled={count === 0 || hasInvalid} loading={validate.isPending} onClick={() => validate.mutate()}>
         {count === 0 ? 'Rien à ajouter' : `Ajouter ${count} produit${count > 1 ? 's' : ''}`}
-      </Button>
-      <Button variant="ghost" block disabled={validate.isPending} onClick={onDone}>Abandonner ce ticket</Button>
+      </Button>}
+      <Button variant="ghost" block disabled={validate.isPending} onClick={onDone}>{validated ? 'Revenir aux courses' : 'Abandonner ce ticket'}</Button>
     </div>
   );
 }

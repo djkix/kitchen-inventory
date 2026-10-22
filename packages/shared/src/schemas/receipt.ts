@@ -30,6 +30,7 @@ export type ReceiptLineDto = z.infer<typeof receiptLineSchema>;
 export const receiptSchema = z.object({
   id: idSchema,
   locationId: idSchema,
+  status: z.enum(['DRAFT', 'VALIDATED']),
   lines: z.array(receiptLineSchema),
 });
 export type ReceiptDto = z.infer<typeof receiptSchema>;

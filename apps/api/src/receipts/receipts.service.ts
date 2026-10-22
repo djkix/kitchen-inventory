@@ -91,6 +91,7 @@ export class ReceiptsService {
     return {
       id: receipt.id,
       locationId: receipt.locationId,
+      status: receipt.status,
       lines: receipt.lines.map((l) => ({
         id: l.id,
         position: l.position,
