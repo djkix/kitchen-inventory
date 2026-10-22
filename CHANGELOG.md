@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.30.0](https://github.com/djkix/kitchen-inventory/compare/v0.29.0...v0.30.0) (2026-10-22)
+
+
+### Features
+
+* **ticket:** écran Courses, ticket photographié et validé (EF-29) ([7ea68db](https://github.com/djkix/kitchen-inventory/commit/7ea68dbcb5baa3e5e20f89c68ceb2a0c9def4d10))
+* **ticket:** lecture d'un ticket et brouillon de lignes (EF-29) ([eef791c](https://github.com/djkix/kitchen-inventory/commit/eef791cadff4089fb210ac0bccd1282ac0a843e6))
+* **ticket:** lecture d'un ticket photo ou PDF par Gemini (EF-29) ([2d9bc38](https://github.com/djkix/kitchen-inventory/commit/2d9bc3865a99e123c9dd68a18ac154c160eab60a))
+* **ticket:** libellés en attente et apprentissage manuel (EF-29) ([72bca00](https://github.com/djkix/kitchen-inventory/commit/72bca00d356d9b171c9c9200505c67b148ac9e76))
+* **ticket:** modèles du ticket de caisse et de l'apprentissage des libellés (EF-29) ([91b63e6](https://github.com/djkix/kitchen-inventory/commit/91b63e6a3afd3e94a4977c8ea6fa7e640073acfc))
+* **ticket:** rapprochement d'une ligne de ticket au catalogue (EF-29) ([f225934](https://github.com/djkix/kitchen-inventory/commit/f225934eb57163ac35de5edf96ae4fe4b581ad0d))
+* **ticket:** validation d'un ticket vers le stock (EF-29) ([5f921f8](https://github.com/djkix/kitchen-inventory/commit/5f921f8ecc2663b36d0379e803c32228d92b4e2a))
+
+
+### Bug Fixes
+
+* **deploiement:** passer FALLBACK_MODEL, GEMINI_RPD et GEMINI_RPM au conteneur ([29d9287](https://github.com/djkix/kitchen-inventory/commit/29d9287639b5d6b1314d1e14603f477f5e1b6603))
+* **ticket:** base de quantité honnête, unité visible, libellés rafraîchis, emplacement lu sans écriture (EF-29) ([4875a8a](https://github.com/djkix/kitchen-inventory/commit/4875a8aaccb698970c4a1e9e71cde97ba297170b))
+* **ticket:** emplacement supprimable, brouillon serveur, unités comptées (EF-29) ([629d9b8](https://github.com/djkix/kitchen-inventory/commit/629d9b841ad100f3e77d7fccee5a4f1b7060c4a5))
+* **ticket:** le ticket a sa propre liste de types, MediaService reste aux images (EF-29) ([f8da74d](https://github.com/djkix/kitchen-inventory/commit/f8da74d96f67550b14876daeadc1acd8bbf00c05))
+* **ticket:** ligne au poids non cochée d'office, ticket validé non rééditable (EF-29) ([a78604f](https://github.com/djkix/kitchen-inventory/commit/a78604f6b49b76aca5e8aa09ff72be3ac94f781b))
+* **ticket:** MATCHED exige la couverture complète du libellé, alias compris (EF-29) ([2495321](https://github.com/djkix/kitchen-inventory/commit/2495321bb578b7d1dc9fb8270b4b44f58f49550c))
+* **ticket:** un produit n'entre que par sa propre ligne (EF-29) ([ea17b63](https://github.com/djkix/kitchen-inventory/commit/ea17b6324084930559e320b44f04ec9a53620807))
+* **ticket:** une lecture facturée qui échoue porte son coût au plafond mensuel (EF-29) ([6c7f288](https://github.com/djkix/kitchen-inventory/commit/6c7f28857a3bf37fe8e2d3c229e9dd238d6de88b))
+
 ## [0.29.0](https://github.com/djkix/kitchen-inventory/compare/v0.28.0...v0.29.0) (2026-10-22)
 
 
