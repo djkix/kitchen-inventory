@@ -48,6 +48,8 @@ const configSchema = z.object({
   // Quota journalier propre aux suggestions de recettes (EF-26), pour éviter
   // l'emballement malgré le plafond de dépense partagé.
   RECIPE_SUGGESTION_DAILY_QUOTA: z.coerce.number().int().min(0).default(20),
+  // Lectures de ticket de caisse autorisées par jour (EF-29), compteur propre.
+  RECEIPT_DAILY_QUOTA: z.coerce.number().int().min(0).default(10),
   OFF_USER_AGENT: z.string().default('KitchenInventory/0.1 (self-hosted; https://github.com/djkix/kitchen-inventory)'),
   OFF_BASE_URL: z.string().url().default('https://world.openfoodfacts.org'),
   EXPIRY_ALERT_DAYS: z.coerce.number().int().min(0).max(365).default(7),
