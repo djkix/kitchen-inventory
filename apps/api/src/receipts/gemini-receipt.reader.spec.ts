@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
-import { GeminiReceiptReader } from './gemini-receipt.reader.js';
+import { MediaService } from '../media/media.service.js';
+import { GeminiReceiptReader, RECEIPT_MIME_TYPES } from './gemini-receipt.reader.js';
 
 const FILE = Buffer.from('ticket');
 
@@ -58,5 +59,18 @@ describe('GeminiReceiptReader (EF-29)', () => {
     http.reset();
     http.fail('generateContent');
     await expect(reader.read(FILE, 'image/jpeg')).rejects.toThrow(/injoignable/);
+  });
+});
+
+describe('types acceptés (EF-29)', () => {
+  it('le ticket accepte le PDF et les images du scan', () => {
+    expect(RECEIPT_MIME_TYPES).toContain('application/pdf');
+    expect(RECEIPT_MIME_TYPES).toContain('image/jpeg');
+  });
+
+  it('le scan photo, lui, refuse toujours le PDF : MediaService n’est pas élargi', () => {
+    const media = new MediaService({ mediaDir: '/nulle-part' } as never);
+    expect(media.isSupportedMime('application/pdf')).toBe(false);
+    expect(media.isSupportedMime('image/jpeg')).toBe(true);
   });
 });
