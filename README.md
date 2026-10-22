@@ -513,6 +513,11 @@ Les garde-fous qui ne se voient pas à l'écran :
   les plages privées, de bouclage, lien-local, multicast, CGNAT, et en IPv6 les
   formes qui encapsulent une IPv4 (`::ffff:…`, `::a.b.c.d`, NAT64
   `64:ff9b::/96`, 6to4 `2002::/16`, Teredo).
+- **Photos d'Open Food Facts.** L'adresse de la photo vient de la réponse
+  d'Open Food Facts : elle n'est téléchargée qu'en HTTPS depuis
+  `images.openfoodfacts.org` ou `static.openfoodfacts.org`, sans suivre de
+  redirection, en 8 secondes au plus et 5 Mo au plus (coupée pendant la
+  lecture). Toute autre adresse est ignorée et le produit est créé sans photo.
 
 ## Intégrations
 

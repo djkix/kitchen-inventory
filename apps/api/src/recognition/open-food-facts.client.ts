@@ -58,6 +58,28 @@ const UNIT_MAP: Record<string, { unit: Unit; factor: number }> = {
 const ORIGINAL_NAME_LANGS = ['ja', 'ko', 'zh', 'th', 'vi'];
 
 /**
+ * Hôtes d'où Open Food Facts sert ses photos de produits (`image_front_*_url`).
+ * L'URL vient de la réponse d'un service tiers : sans cette liste, elle ferait
+ * de l'API un relais vers n'importe quelle adresse, réseau local compris
+ * (revue de sécurité du 2026-10-22).
+ */
+export const OFF_IMAGE_HOSTS: ReadonlySet<string> = new Set(['images.openfoodfacts.org', 'static.openfoodfacts.org']);
+/** Plafond d'une photo de produit : les vignettes d'Open Food Facts pèsent quelques dizaines de kilo-octets. */
+export const OFF_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const OFF_IMAGE_TIMEOUT_MS = 8_000;
+
+/** Vrai si l'URL désigne une photo servie en HTTPS par un hôte d'Open Food Facts. */
+export function isAllowedOffImageUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  return url.protocol === 'https:' && OFF_IMAGE_HOSTS.has(url.hostname) && url.port === '' && url.username === '' && url.password === '';
+}
+
+/**
  * Section 5, niveau 3 : Open Food Facts, sans clé, avec l'en-tête User-Agent
  * demandé par le projet. Un échec réseau renvoie null et se journalise ; il ne
  * bloque jamais le scan (section 17).
@@ -110,17 +132,51 @@ export class OpenFoodFactsClient {
     };
   }
 
-  /** Télécharge l'image du produit ; null si indisponible, sans faire échouer le scan. */
+  /**
+   * Télécharge l'image du produit ; null si indisponible, sans faire échouer
+   * le scan. HTTPS vers un hôte d'Open Food Facts seulement, aucune
+   * redirection suivie, délai borné et taille plafonnée pendant la lecture.
+   */
   async downloadImage(url: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+    if (!isAllowedOffImageUrl(url)) {
+      this.logger.warn({ url }, 'Image Open Food Facts ignorée : hôte non autorisé');
+      return null;
+    }
+    const signal = AbortSignal.timeout(OFF_IMAGE_TIMEOUT_MS);
     try {
-      const response = await this.http(url, { headers: { 'User-Agent': this.config.OFF_USER_AGENT }, signal: AbortSignal.timeout(8_000) });
+      const response = await this.http(url, { headers: { 'User-Agent': this.config.OFF_USER_AGENT }, redirect: 'error', signal });
       if (!response.ok) return null;
       const mimeType = response.headers.get('content-type')?.split(';')[0]?.trim() || 'image/jpeg';
-      return { buffer: Buffer.from(await response.arrayBuffer()), mimeType };
+      const buffer = await readCapped(response, OFF_IMAGE_MAX_BYTES);
+      return buffer ? { buffer, mimeType } : null;
     } catch {
       return null;
     }
   }
+}
+
+/** Lit le corps sans jamais dépasser `maxBytes` en mémoire ; null au-delà. */
+async function readCapped(response: Response, maxBytes: number): Promise<Buffer | null> {
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    return null;
+  }
+  if (!response.body) return Buffer.alloc(0);
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
 }
 
 function parseNetContent(p: OffProduct): { value: number; unit: Unit } | null {
