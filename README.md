@@ -75,11 +75,11 @@ Le ticket lu vit à sa propre adresse (`/courses/<id>`) et le brouillon est
 gardé par le serveur : rafraîchir la page ou basculer d'application ne perd
 pas une lecture déjà payée.
 Une ligne reconnue arrive cochée ; une ligne ambiguë propose ses candidats (le
-plus proche du libellé en premier) et se coche dès qu'on en choisit un ; une
+plus proche du libellé en premier) et se coche dès qu'on en choisit un, sauf si le produit n'est pas compté par objets entiers (il reste décoché tant que vous n'avez pas saisi la quantité et coché la ligne) ; une
 ligne inconnue est marquée « Nouveau », ne se coche pas et ne se valide pas —
 on la scanne ensuite par son code-barres. La quantité se corrige sur la ligne
 (le modèle peut mal lire un « 3 × »), et le « → » suit. Le bouton annonce
-« Ajouter N produits » ; les entrées se font sans date de péremption. Un ticket
+« Ajouter N produits » ; les entrées se font sans date de péremption. Rouvrir un ticket déjà validé affiche « Ce ticket a déjà été validé » sans bouton d'ajout. Un ticket
 illisible affiche le message du serveur. Sous la liste, « Libellés à
 rattacher » (replié) recense les libellés jamais reconnus : on en rattache un à
 un produit, ce qui n'agit que sur les tickets suivants — le ticket affiché
@@ -887,7 +887,7 @@ jusqu'à 8 Mo, et `locationId`) fait lire le ticket par Gemini et rend un
 **brouillon** : les lignes de produits dans l'ordre d'impression, chacune
 rapprochée du catalogue (`MATCHED`, `AMBIGUOUS` ou `UNKNOWN`, avec ses
 candidats et la quantité déjà en stock dans l'emplacement). `GET
-/api/v1/receipts/:id` le relit. Rien n'entre au stock à ce stade. Le fichier
+/api/v1/receipts/:id` le relit (avec son `status`, `DRAFT` ou `VALIDATED`). Rien n'entre au stock à ce stade. Le fichier
 n'est jamais conservé et aucun prix n'est stocké ; une quantité lue hors de
 0,01 à 99 est ramenée à 1. L'appel compte dans `RECEIPT_DAILY_QUOTA` et dans le
 plafond mensuel partagé, y compris quand le ticket est illisible (la lecture
