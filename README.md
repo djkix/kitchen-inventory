@@ -527,6 +527,14 @@ Les garde-fous qui ne se voient pas à l'écran :
   et `Strict-Transport-Security` dès que `PUBLIC_URL` est en HTTPS. Un reverse
   proxy qui poserait déjà ces en-têtes doit être aligné, sinon le navigateur
   applique les deux politiques à la fois.
+- **Écritures inter-origines.** Toute requête qui modifie quelque chose
+  (`POST`, `PATCH`, `PUT`, `DELETE`) doit venir de l'origine de `PUBLIC_URL`
+  (en-tête `Origin`, à défaut `Referer`) ; sinon 403. Une écriture sans
+  aucune de ces deux indications n'est acceptée que si elle ne porte pas de
+  cookie de session, et un jeton de service (`Authorization`) sans cookie
+  passe toujours. **`PUBLIC_URL` doit donc être exactement l'adresse tapée
+  dans le navigateur** (schéma, nom et port) ; en développement, le serveur
+  Vite sur `localhost` est accepté en plus.
 
 ## Intégrations
 

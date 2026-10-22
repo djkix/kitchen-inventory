@@ -18,7 +18,11 @@ export interface TestApp {
   config: AppConfig;
   /** Agent supertest sans cookie. */
   api: TestAgent;
-  /** Nouvel agent qui conserve ses cookies (une session). */
+  /**
+   * Nouvel agent qui conserve ses cookies (une session) et envoie l'en-tête
+   * `Origin` de `PUBLIC_URL`, comme le navigateur sur l'application : sans
+   * lui, une écriture accompagnée du cookie de session serait refusée.
+   */
   agent: () => TestAgent;
   /** Connecte un agent par jeton Google doublé ; la première connexion crée l'administrateur. */
   signIn: (agent: TestAgent, identity: FakeIdentity) => Promise<TestAgent>;
@@ -50,7 +54,7 @@ export async function createTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}, 
     prisma,
     config,
     api: request(server),
-    agent: () => request.agent(server),
+    agent: () => request.agent(server).set('Origin', new URL(config.PUBLIC_URL).origin),
     signIn: async (agent, identity) => {
       await agent.post('/api/v1/auth/google').send({ credential: fakeGoogleCredential(identity) }).expect(200);
       return agent;
