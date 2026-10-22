@@ -44,51 +44,18 @@ describe('SettingsScreen', () => {
   });
 
   /**
-   * Refonte du 2026-10-21 : sections pliables. Les deux propriétés qui comptent
-   * sont l'état d'ouverture de départ et le résumé lisible sans déplier.
+   * Toutes les sections sont repliées à l'arrivée (2026-10-22). Ce que
+   * l'écran doit garantir, c'est que rien d'actionnable ne disparaisse pour
+   * autant : le résumé de l'en-tête porte l'information, y compris une
+   * demande d'accès en attente.
    */
-  it('n’ouvre que « Reconnaissance » quand rien ne réclame d’action', () => {
-    comptes.pending = false;
-    renderScreen();
-    const ouvertes = screen
-      .getAllByRole('group')
-      .filter((d): d is HTMLDetailsElement => d instanceof HTMLDetailsElement && d.open)
-      .map((d) => d.querySelector('summary')?.textContent ?? '');
-    expect(ouvertes).toHaveLength(1);
-    expect(ouvertes[0]).toContain('Reconnaissance');
-  });
-
-  it('ouvre aussi « Comptes » tant qu’une demande attend : elle ne doit pas dormir derrière un repli', () => {
+  it('n’ouvre aucune section à l’arrivée', () => {
     comptes.pending = true;
     renderScreen();
     const ouvertes = screen
       .getAllByRole('group')
-      .filter((d): d is HTMLDetailsElement => d instanceof HTMLDetailsElement && d.open)
-      .map((d) => d.querySelector('summary')?.textContent ?? '');
-    expect(ouvertes.some((t) => t.includes('Comptes'))).toBe(true);
-  });
-
-  /**
-   * Le défaut exact qu'il s'agit d'empêcher : liée directement à « il reste une
-   * demande », la section se refermait à la validation de la dernière — sous le
-   * doigt de qui venait de valider, au moment où il regardait le résultat.
-   */
-  it('reste ouverte après la validation de la dernière demande', () => {
-    comptes.pending = true;
-    const { rerender } = renderScreen();
-    comptes.pending = false;
-    rerender(
-      <QueryClientProvider client={new QueryClient()}>
-        <MemoryRouter>
-          <SettingsScreen />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-    const comptesSection = screen
-      .getAllByRole('group')
-      .filter((d): d is HTMLDetailsElement => d instanceof HTMLDetailsElement)
-      .find((d) => (d.querySelector('summary')?.textContent ?? '').includes('Comptes'));
-    expect(comptesSection?.open).toBe(true);
+      .filter((d): d is HTMLDetailsElement => d instanceof HTMLDetailsElement && d.open);
+    expect(ouvertes).toHaveLength(0);
   });
 
   it('résume chaque section sans qu’on ait à la déplier', () => {
@@ -100,6 +67,7 @@ describe('SettingsScreen', () => {
   });
 
   it('laisse « Se déconnecter » atteignable sans déplier quoi que ce soit', () => {
+    comptes.pending = false;
     renderScreen();
     const bouton = screen.getByRole('button', { name: 'Se déconnecter' });
     expect(bouton.closest('details')).toBeNull();

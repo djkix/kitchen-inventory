@@ -16,6 +16,23 @@ import { VersionBadge } from '../../components/shell/version-badge';
 import { StatsPanel } from './stats-panel';
 
 /**
+ * Puces de section, cantonnées à l'écran Réglages (choix de Franck,
+ * 2026-10-22, d'après la maquette). Volontairement hors des jetons du thème :
+ * celui-ci réserve le rouge, l'orange et l'ambre à la péremption et les bleus
+ * à la température de stockage, sens qui doivent rester lisibles partout
+ * ailleurs. Ici, aucune de ces significations n'a cours — un réglage n'est ni
+ * périssable ni réfrigéré — et cinq replis identiques avaient besoin d'un
+ * repère visuel.
+ */
+const SECTION_DOTS = {
+  reconnaissance: '#38bdf8',
+  comptes: '#10b981',
+  inventaire: '#f59e0b',
+  foyer: '#6366f1',
+  export: '#a855f7',
+} as const;
+
+/**
  * Écran Réglages (section 14) : emplacements, comptes, seuil d'alerte,
  * reconnaissance, export, compte.
  *
@@ -44,9 +61,13 @@ export function SettingsScreen() {
 
   return (
     <>
-      <ScreenHeader title="Réglages" subtitle={auth.user ? `${auth.user.name} · ${auth.user.role === 'ADMIN' ? 'administrateur' : 'membre'}` : undefined} />
+      <ScreenHeader
+        title="Réglages"
+        subtitle={auth.user ? `${auth.user.name} · ${auth.user.role === 'ADMIN' ? 'administrateur' : 'membre'}` : undefined}
+        actions={<VersionBadge compact />}
+      />
       <div className="flex flex-col gap-3 px-4">
-        <AccordionSection title="Reconnaissance" badge={<RecognitionBadge />} defaultOpen>
+        <AccordionSection title="Reconnaissance" badge={<RecognitionBadge />} dotColor={SECTION_DOTS.reconnaissance}>
           <StatsPanel />
           <ModelRow
             label="Modèle de la photo"
@@ -71,18 +92,18 @@ export function SettingsScreen() {
 
         <AccountsAccordion />
 
-        <AccordionSection title="Inventaire" badge={<AlertBadge />}>
+        <AccordionSection title="Inventaire" badge={<AlertBadge />} dotColor={SECTION_DOTS.inventaire}>
           <NavRow to="/reglages/emplacements" label="Emplacements" hint="Placards, frigo, cellier : profondeur libre" />
           <AlertDaysRow isAdmin={auth.isAdmin} />
         </AccordionSection>
 
         {auth.isAdmin && (
-          <AccordionSection title="Foyer" badge={<SectionBadge>Home Assistant, scripts</SectionBadge>}>
+          <AccordionSection title="Foyer" badge={<SectionBadge>Home Assistant, scripts</SectionBadge>} dotColor={SECTION_DOTS.foyer}>
             <NavRow to="/reglages/jetons" label="Jetons de service" hint="Accès lecture pour Home Assistant, scripts…" />
           </AccordionSection>
         )}
 
-        <AccordionSection title="Export" badge={<SectionBadge>Formats ouverts : CSV et JSON</SectionBadge>}>
+        <AccordionSection title="Export" badge={<SectionBadge>Formats ouverts : CSV et JSON</SectionBadge>} dotColor={SECTION_DOTS.export}>
           <div className="grid grid-cols-2 gap-2">
             <a href={`${API_BASE}/export/inventory.csv`} download="inventaire.csv" className="flex min-h-touch items-center justify-center rounded-xl bg-raised px-4 text-[15px] font-medium active:bg-surface">
               Inventaire CSV
@@ -101,7 +122,6 @@ export function SettingsScreen() {
           <p className="pt-1 text-center text-[13px] text-faint">Connecté en tant que {auth.user?.email}</p>
         </Section>
 
-        <VersionBadge className="pt-0" />
       </div>
     </>
   );
@@ -141,31 +161,10 @@ function AlertBadge() {
 function AccountsAccordion() {
   const auth = useAuth();
   // Le retour précède toute requête : la liste des comptes vaudrait un 403 à
-  // un membre. D'où la coupure en deux composants.
+  // un membre.
   if (!auth.isAdmin) return null;
-  return <AdminAccountsAccordion />;
-}
-
-function AdminAccountsAccordion() {
-  const accounts = useAccountsQuery();
-  const pending = (accounts.data ?? []).some((a) => a.status === 'PENDING');
-  /**
-   * Une demande en attente est la seule chose de cet écran qui réclame une
-   * action : la section s'ouvre d'elle-même quand il en arrive une, sinon elle
-   * dormirait derrière un repli (trouvé par le parcours P6, le jour de la
-   * refonte).
-   *
-   * L'ouverture est **à sens unique**. Liée directement à `pending`, elle se
-   * refermait à la validation de la dernière demande — c'est-à-dire sous le
-   * doigt de qui venait de valider, au moment précis où il regardait le
-   * résultat. Une section se referme parce qu'on la referme.
-   */
-  const [opened, setOpened] = useState(false);
-  useEffect(() => {
-    if (pending) setOpened(true);
-  }, [pending]);
   return (
-    <AccordionSection title="Comptes" badge={<AccountsBadge />} defaultOpen={opened}>
+    <AccordionSection title="Comptes" badge={<AccountsBadge />} dotColor={SECTION_DOTS.comptes}>
       <AccountsSection />
     </AccordionSection>
   );
