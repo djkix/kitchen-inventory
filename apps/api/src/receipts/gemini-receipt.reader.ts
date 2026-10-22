@@ -34,6 +34,19 @@ const RESPONSE_SCHEMA = {
   },
 } as const;
 
+/** Échec survenu APRÈS une réponse facturée : porte le coût, comme `SuggestionProviderError` porte ses tentatives. */
+export class ReceiptReadError extends ProviderError {
+  constructor(
+    message: string,
+    readonly costCents: number | null,
+    readonly raw: GeminiResponse,
+    cause?: unknown,
+  ) {
+    super(message, cause);
+    this.name = 'ReceiptReadError';
+  }
+}
+
 /**
  * Lecture d'un ticket de caisse (EF-29). Le modèle ne fait que lire : le
  * rapprochement au catalogue est une règle pure de `packages/shared`.
@@ -67,18 +80,31 @@ export class GeminiReceiptReader {
     if (!response.ok) throw new ProviderError(`Fournisseur de lecture de ticket Gemini en erreur (${response.status})`);
 
     const raw = (await response.json()) as GeminiResponse;
-    // La réponse est reçue donc facturée : le coût est calculé avant tout contrôle.
+    // La réponse est reçue donc facturée : tout échec d'ici à la fin porte son coût
+    // (`ReceiptReadError`), pour que l'appelant l'inscrive et que le plafond mensuel compte juste.
     const costCents = estimateCostCents(used, raw.usageMetadata);
-    if (raw.promptFeedback?.blockReason) throw new ProviderError('Gemini a refusé de lire ce ticket');
-    const candidate = raw.candidates?.[0];
-    if (!candidate) throw new ProviderError('Gemini n’a pas produit de réponse (aucun candidat)');
-    if (candidate.finishReason === 'MAX_TOKENS') throw new ProviderError('Ticket trop long : la lecture a été tronquée');
-    if (candidate.finishReason && candidate.finishReason !== 'STOP') throw new ProviderError(`Gemini n’a pas produit de réponse (${candidate.finishReason})`);
-
-    const lines = parseLines((candidate.content?.parts ?? []).map((p) => p.text ?? '').join(''));
-    if (lines.length === 0) throw new ProviderError('Aucun produit lisible sur ce ticket. Cadrez-le entièrement, bien à plat, et réessayez.');
+    let lines: RawReceiptLine[];
+    try {
+      lines = interpret(raw);
+    } catch (error) {
+      if (error instanceof ProviderError) throw new ReceiptReadError(error.message, costCents, raw, error);
+      throw error;
+    }
     return { lines, raw, costCents };
   }
+}
+
+/** Contrôles portant sur une réponse déjà reçue. Lève `ProviderError` ; l'appelant y joint le coût. */
+function interpret(raw: GeminiResponse): RawReceiptLine[] {
+  if (raw.promptFeedback?.blockReason) throw new ProviderError('Gemini a refusé de lire ce ticket');
+  const candidate = raw.candidates?.[0];
+  if (!candidate) throw new ProviderError('Gemini n’a pas produit de réponse (aucun candidat)');
+  if (candidate.finishReason === 'MAX_TOKENS') throw new ProviderError('Ticket trop long : la lecture a été tronquée');
+  if (candidate.finishReason && candidate.finishReason !== 'STOP') throw new ProviderError(`Gemini n’a pas produit de réponse (${candidate.finishReason})`);
+
+  const lines = parseLines((candidate.content?.parts ?? []).map((p) => p.text ?? '').join(''));
+  if (lines.length === 0) throw new ProviderError('Aucun produit lisible sur ce ticket. Cadrez-le entièrement, bien à plat, et réessayez.');
+  return lines;
 }
 
 /** Ne garde que les produits, dans l'ordre ; une quantité absente ou invalide vaut 1. */
