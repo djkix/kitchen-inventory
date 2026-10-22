@@ -158,8 +158,13 @@ test('affiche la version de l’application dans les réglages', async ({ page }
   // version que seule une publication fixe sur l'image publiée : ni le job
   // `build-image` ni le job `e2e` ne publient quoi que ce soit.
   await page.goto('/');
-  await expect(page.getByText('Inventaire ci', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('vci', { exact: true })).toHaveCount(0);
 
+  // Depuis le 2026-10-22, la version est dans l'en-tête de Réglages, en haut à
+  // droite, sous sa forme compacte : au bas d'un écran devenu pliable, il
+  // fallait dérouler pour l'atteindre. Elle doit rester visible **sans** qu'on
+  // déplie quoi que ce soit — c'est tout l'objet du déplacement.
   await page.goto('/reglages');
-  await expect(page.getByText('Inventaire ci', { exact: true })).toBeVisible();
+  await expect(page.getByText('vci', { exact: true })).toBeVisible();
+  await expect(page.getByRole('group').filter({ hasText: 'Reconnaissance' }).first()).not.toHaveAttribute('open', '');
 });
