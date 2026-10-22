@@ -55,7 +55,7 @@ export function normalizeIngredientTerms(raw: string): string[] {
  * final fait partie du mot (« os », « ananas » garde son sens une fois les
  * deux côtés repliés de la même façon).
  */
-function foldForComparison(value: string): string {
+export function foldForComparison(value: string): string {
   return (
     normalizeProductName(value)
       // Les ligatures survivent à la décomposition NFD de `normalizeProductName`
@@ -76,7 +76,7 @@ function foldForComparison(value: string): string {
 const STOP_WORDS = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'un', 'une', 'au', 'aux', 'et', 'a', 'en', 'avec']);
 
 /** Mots d'un terme qui portent réellement le sens, forme comparable. */
-function significantWords(term: string): string[] {
+export function significantWords(term: string): string[] {
   return foldForComparison(term)
     .split(' ')
     .filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
