@@ -853,7 +853,7 @@ curl -H "Authorization: Bearer kit_…" https://kitchen.djkix.ovh/api/v1/stock/e
 
 Toute méthode autre que `GET` est refusée avec ce jeton.
 
-**Lecture d'un ticket de caisse (API seulement, pas encore d'écran).**
+**Ticket de caisse (API seulement, pas encore d'écran).**
 `POST /api/v1/receipts` (multipart : `file`, photo JPEG, PNG, WebP, HEIC ou PDF
 jusqu'à 8 Mo, et `locationId`) fait lire le ticket par Gemini et rend un
 **brouillon** : les lignes de produits dans l'ordre d'impression, chacune
@@ -864,6 +864,15 @@ n'est jamais conservé et aucun prix n'est stocké ; une quantité lue hors de
 1 à 99 est ramenée à 1. L'appel compte dans `RECEIPT_DAILY_QUOTA` et dans le
 plafond mensuel partagé, y compris quand le ticket est illisible (la lecture
 est facturée quand même).
+
+`POST /api/v1/receipts/:id/validate` (`{ "lines": [{ "id", "productId",
+"quantity", "clientOpId" }] }`, réponse `{ "added": n }`) fait entrer au stock
+les seules lignes envoyées, dans l'emplacement du ticket, sans date de
+péremption : chacune est un mouvement d'entrée comme `POST /stock`, donc deux
+lignes du même produit s'additionnent. Les lignes absentes du corps ne sont pas
+ajoutées et ne créent aucun produit. Le `clientOpId` rend l'appel rejouable : un
+rejeu à l'identique ne double rien (`added: 0`) ; un ticket déjà validé refuse
+toute autre demande (409).
 
 **Export.** `GET /api/v1/export/inventory.csv` et `/inventory.json`, derrière
 la session ou un jeton de service.

@@ -178,3 +178,101 @@ describe('lecture de ticket sans fournisseur (EF-29)', () => {
     expect(ctx.http.calls).toHaveLength(0);
   });
 });
+
+describe('validation d’un ticket vers le stock (EF-29)', () => {
+  const { ctx, upload } = setup();
+  const stockOf = async (productId: string) =>
+    (await ctx.t.prisma.stockItem.findMany({ where: { productId, archivedAt: null } })).reduce((n, i) => n + Number(i.quantity), 0);
+  const draft = async (labels: string[]) => {
+    ctx.http.on('generateContent', () => geminiText(labels.map((label) => ({ label, quantity: 1, kind: 'PRODUCT' }))));
+    return (await upload().expect(201)).body as { id: string; lines: { id: string }[] };
+  };
+  const product = async (name: string) => (await ctx.agent.post('/api/v1/products').send({ name }).expect(201)).body.id as string;
+  const validate = (id: string, lines: { id: string; productId: string; quantity: number; clientOpId: string }[]) =>
+    ctx.agent.post(`/api/v1/receipts/${id}/validate`).send({ lines });
+
+  it('valide deux lignes cochées et laisse les autres de côté', async () => {
+    const riz = await product('Riz basmati');
+    const pates = await product('Pâtes penne');
+    const lait = await product('Lait entier');
+    const r = await draft(['RIZ', 'PATES', 'LAIT']);
+    const res = await validate(r.id, [
+      { id: r.lines[0]!.id, productId: riz, quantity: 3, clientOpId: 'op-line-a' },
+      { id: r.lines[1]!.id, productId: pates, quantity: 2, clientOpId: 'op-line-b' },
+    ]).expect(200);
+    expect(res.body).toEqual({ added: 2 });
+    expect([await stockOf(riz), await stockOf(pates), await stockOf(lait)]).toEqual([3, 2, 0]);
+    expect(await ctx.t.prisma.stockMovement.count()).toBe(2);
+    const item = await ctx.t.prisma.stockItem.findFirstOrThrow({ where: { productId: riz } });
+    expect(item).toMatchObject({ locationId: ctx.locationId, expiryDate: null });
+    expect((await ctx.t.prisma.receipt.findUniqueOrThrow({ where: { id: r.id } })).status).toBe('VALIDATED');
+  });
+
+  it('rejouer la même validation avec les mêmes clientOpId n’ajoute rien', async () => {
+    const riz = await product('Riz basmati');
+    const r = await draft(['RIZ']);
+    const lines = [{ id: r.lines[0]!.id, productId: riz, quantity: 3, clientOpId: 'op-line-a' }];
+    await validate(r.id, lines).expect(200);
+    const again = await validate(r.id, lines).expect(200);
+    expect(again.body).toEqual({ added: 0 });
+    expect(await stockOf(riz)).toBe(3);
+    expect(await ctx.t.prisma.stockMovement.count()).toBe(1);
+  });
+
+  it('rejoue sans doubler après une validation interrompue (ticket encore DRAFT)', async () => {
+    const riz = await product('Riz basmati');
+    const pates = await product('Pâtes penne');
+    const r = await draft(['RIZ', 'PATES']);
+    const lines = [
+      { id: r.lines[0]!.id, productId: riz, quantity: 3, clientOpId: 'op-line-a' },
+      { id: r.lines[1]!.id, productId: pates, quantity: 2, clientOpId: 'op-line-b' },
+    ];
+    await validate(r.id, lines.slice(0, 1)).expect(200);
+    await ctx.t.prisma.receipt.update({ where: { id: r.id }, data: { status: 'DRAFT' } });
+    expect((await validate(r.id, lines).expect(200)).body).toEqual({ added: 1 });
+    expect([await stockOf(riz), await stockOf(pates)]).toEqual([3, 2]);
+  });
+
+  it('deux lignes du même produit montent la quantité de deux au total', async () => {
+    const riz = await product('Riz basmati');
+    const r = await draft(['RIZ 1KG', 'RIZ BIO']);
+    await validate(r.id, [
+      { id: r.lines[0]!.id, productId: riz, quantity: 2, clientOpId: 'op-line-a' },
+      { id: r.lines[1]!.id, productId: riz, quantity: 5, clientOpId: 'op-line-b' },
+    ]).expect(200);
+    expect(await stockOf(riz)).toBe(7);
+    expect(await ctx.t.prisma.stockMovement.count()).toBe(2);
+  });
+
+  it('une ligne absente du corps n’est pas ajoutée', async () => {
+    const riz = await product('Riz basmati');
+    const r = await draft(['RIZ', 'XYZZY']);
+    await validate(r.id, [{ id: r.lines[0]!.id, productId: riz, quantity: 1, clientOpId: 'op-line-a' }]).expect(200);
+    expect(await ctx.t.prisma.stockMovement.count()).toBe(1);
+    expect(await ctx.t.prisma.product.count()).toBe(1);
+  });
+
+  it('un ticket déjà VALIDATED est refusé pour d’autres opérations', async () => {
+    const riz = await product('Riz basmati');
+    const r = await draft(['RIZ', 'RIZ BIO']);
+    await validate(r.id, [{ id: r.lines[0]!.id, productId: riz, quantity: 1, clientOpId: 'op-line-a' }]).expect(200);
+    const res = await validate(r.id, [{ id: r.lines[1]!.id, productId: riz, quantity: 1, clientOpId: 'op-line-b' }]).expect(409);
+    expect(res.body.error.message).toMatch(/déjà été validé/);
+    expect(await stockOf(riz)).toBe(1);
+  });
+
+  it('refuse une ligne d’un autre ticket, un produit inconnu et des doublons', async () => {
+    const riz = await product('Riz basmati');
+    const r = await draft(['RIZ']);
+    const line = r.lines[0]!.id;
+    await validate(r.id, [{ id: 'autre', productId: riz, quantity: 1, clientOpId: 'op-line-a' }]).expect(404);
+    await validate(r.id, [{ id: line, productId: 'inconnu', quantity: 1, clientOpId: 'op-line-b' }]).expect(404);
+    await validate('inconnu', [{ id: line, productId: riz, quantity: 1, clientOpId: 'op-line-c' }]).expect(404);
+    await validate(r.id, [
+      { id: line, productId: riz, quantity: 1, clientOpId: 'op-line-d' },
+      { id: line, productId: riz, quantity: 1, clientOpId: 'op-line-e' },
+    ]).expect(400);
+    await validate(r.id, []).expect(400);
+    expect(await ctx.t.prisma.stockMovement.count()).toBe(0);
+  });
+});

@@ -1,14 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { matchReceiptLine, normalizeReceiptLabel, type ReceiptCandidate, type ReceiptDto } from '@kitchen/shared';
+import { matchReceiptLine, normalizeReceiptLabel, type ReceiptCandidate, type ReceiptDto, type ValidateReceiptInput } from '@kitchen/shared';
 import { Logger } from 'nestjs-pino';
 import { ApiError } from '../common/api-error.js';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { toNumber } from '../common/decimal.js';
+import type { RequestUser } from '../auth/request-user.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { toProductDto } from '../products/product.mapper.js';
 import { withQuotaFallback } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
+import { StockService } from '../stock/stock.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { GeminiReceiptReader, ReceiptReadError } from './gemini-receipt.reader.js';
 
@@ -25,6 +27,7 @@ export class ReceiptsService {
     private readonly prisma: PrismaService,
     private readonly reader: GeminiReceiptReader,
     private readonly settings: SettingsService,
+    private readonly stock: StockService,
     private readonly logger: Logger,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
@@ -99,6 +102,37 @@ export class ReceiptsService {
         currentQuantity: (l.productId && totals.get(l.productId)) || 0,
       })),
     };
+  }
+
+  /**
+   * Chaque ligne cochée passe par `StockService.create` (lot, mouvement, quantité
+   * recalculée) : aucune logique de stock ici. Sans date, par décision D2. Les
+   * lignes `UNKNOWN` ne créent aucun produit.
+   */
+  async validate(id: string, input: ValidateReceiptInput, user: RequestUser): Promise<{ added: number }> {
+    const receipt = await this.prisma.receipt.findUnique({ where: { id }, include: { lines: { select: { id: true } } } });
+    if (!receipt) throw ApiError.notFound('Ticket introuvable');
+    const own = new Set(receipt.lines.map((l) => l.id));
+    const stranger = input.lines.find((l) => !own.has(l.id));
+    if (stranger) throw ApiError.notFound('Ligne introuvable sur ce ticket');
+
+    if (receipt.status === 'VALIDATED') {
+      // Un rejeu à l'identique (réponse perdue) réussit sans rien ajouter ; toute autre demande est refusée.
+      const known = await this.prisma.stockMovement.count({ where: { clientOpId: { in: input.lines.map((l) => l.clientOpId) } } });
+      if (known === input.lines.length) return { added: 0 };
+      throw ApiError.conflict('Ce ticket a déjà été validé');
+    }
+
+    let added = 0;
+    for (const line of input.lines) {
+      const { replayed } = await this.stock.create(
+        { productId: line.productId, locationId: receipt.locationId, quantity: line.quantity, clientOpId: line.clientOpId },
+        user,
+      );
+      if (!replayed) added++;
+    }
+    await this.prisma.receipt.update({ where: { id }, data: { status: 'VALIDATED' } });
+    return { added };
   }
 
   /** Quota journalier propre aux tickets, et plafond mensuel partagé avec le scan et les suggestions. */

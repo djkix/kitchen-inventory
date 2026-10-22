@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { idSchema } from './common.js';
+import { clientOpIdSchema, idSchema } from './common.js';
 import { productSchema } from './products.js';
 
 /**
@@ -33,3 +33,18 @@ export const receiptSchema = z.object({
   lines: z.array(receiptLineSchema),
 });
 export type ReceiptDto = z.infer<typeof receiptSchema>;
+
+/**
+ * Validation d'un ticket (EF-29) : seules les lignes cochées sont envoyées.
+ * Le `clientOpId` de chaque ligne rend la validation rejouable sans doubler.
+ */
+export const validateReceiptSchema = z
+  .object({
+    lines: z
+      .array(z.object({ id: idSchema, productId: idSchema, quantity: receiptQuantitySchema, clientOpId: clientOpIdSchema }))
+      .min(1)
+      .max(200),
+  })
+  .refine((v) => new Set(v.lines.map((l) => l.id)).size === v.lines.length, { message: 'Ligne en double', path: ['lines'] })
+  .refine((v) => new Set(v.lines.map((l) => l.clientOpId)).size === v.lines.length, { message: 'clientOpId en double', path: ['lines'] });
+export type ValidateReceiptInput = z.infer<typeof validateReceiptSchema>;

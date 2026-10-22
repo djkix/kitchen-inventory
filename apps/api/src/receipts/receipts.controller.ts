@@ -1,7 +1,7 @@
 import { Controller, Get, HttpCode, Param, Post, UploadedFile, UseInterceptors, Body } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
-import { createReceiptSchema, type ReceiptDto } from '@kitchen/shared';
+import { createReceiptSchema, validateReceiptSchema, type ReceiptDto, type ValidateReceiptInput } from '@kitchen/shared';
 import { CurrentUser, type RequestUser } from '../auth/request-user.js';
 import { ApiError } from '../common/api-error.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -31,5 +31,12 @@ export class ReceiptsController {
   @Get(':id')
   get(@Param('id') id: string): Promise<ReceiptDto> {
     return this.receipts.get(id);
+  }
+
+  /** Les lignes cochées entrent au stock, une par mouvement (EF-29). */
+  @Post(':id/validate')
+  @HttpCode(200)
+  validate(@Param('id') id: string, @Body(new ZodValidationPipe(validateReceiptSchema)) body: ValidateReceiptInput, @CurrentUser() user: RequestUser): Promise<{ added: number }> {
+    return this.receipts.validate(id, body, user);
   }
 }
