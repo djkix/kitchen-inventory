@@ -18,7 +18,7 @@ function clientFor(payload: Partial<TokenPayload> & { aud: string }): IdTokenCli
   };
 }
 
-const PAYLOAD = { aud: 'bon-client-id', sub: '1234', email: 'djkix@Example.org', email_verified: true, name: 'djkix' };
+const PAYLOAD = { aud: 'bon-client-id', sub: '1234', email: 'Proprietaire@Example.org', email_verified: true, name: 'djkix' };
 
 describe('GoogleIdTokenVerifier', () => {
   it('rend l’identité, adresse normalisée en minuscules', async () => {
