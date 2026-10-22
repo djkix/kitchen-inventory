@@ -80,8 +80,7 @@ test('un ticket photographié, une ligne décochée, le reste entre au stock (EF
   }).toPass({ timeout: 10_000 });
   expect(await totalOf(page, 'Beurre doux')).toBe(beurreBefore);
 
-  // Et le Stock l'affiche.
-  await page.goto('/');
-  await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill('Yaourt nature');
-  await expect(page.locator('article').filter({ hasText: 'Yaourt nature' }).first()).toBeVisible();
+  // La lecture est bien passée par la doublure de Gemini, et une seule fois.
+  const calls = (await (await fetch('http://127.0.0.1:3101/__calls')).json()) as { receipts: number };
+  expect(calls.receipts).toBe(1);
 });

@@ -106,8 +106,8 @@ tools/             utilitaires hors application
   modèle (scan et suggestions), porté à 5 € ; `RECIPE_SUGGESTION_DAILY_QUOTA`
   borne les fournées par jour. Spécification et dix-sept arbitrages dans
   `docs/specs/2026-10-04-recettes-suggerees.md` ; cahier des charges amendé le
-  2026-10-04 (section 26). EF-24 (ajout aux courses, qui suppose une liste de
-  courses qui n'existe pas encore) en reste hors, remonté au lot 2.
+  2026-10-04 (section 26). EF-24 (ajout aux courses) en reste hors ; abandonnée le
+  2026-10-22 avec la liste de courses (voir « Ticket de caisse »).
 - Réservoir permanent de suggestions livré (EF-25, EF-26) : le cache de fournée
   de 24 h n'existe plus. Les recettes rapportées par le modèle entrent dans
   `SuggestionPoolRecipe` (migration `0009_suggestion_pool`), dédoublonnées par
@@ -185,6 +185,21 @@ tools/             utilitaires hors application
   bandeau du dernier article reste disponible pour rattraper un oubli après
   coup — les deux chemins sont couverts par des parcours bout en bout.
 
+- Ticket de caisse livré (EF-29, spec `docs/specs/2026-10-22-ticket-de-caisse.md`) :
+  l'onglet Courses n'est plus une liste mais l'écran du ticket. On choisit
+  l'emplacement, on photographie le ticket (photo ou PDF, 8 Mo),
+  `apps/api/src/receipts` le fait lire par Gemini, la règle pure
+  `matchReceiptLine` de `packages/shared` rapproche chaque ligne au catalogue
+  (reconnue, ambiguë, inconnue ; reconnue d'office seulement pour un produit
+  compté à la pièce) et l'écran `apps/web/src/screens/shopping/receipt-screen.tsx`
+  montre les lignes dans l'ordre du ticket : on décoche, on corrige une
+  quantité, on valide, un mouvement d'entrée par ligne. Les libellés jamais
+  reconnus se rattachent depuis une liste repliée, et leur nombre orne
+  l'onglet. Aucune liste de courses : **EF-12 et EF-24 sont abandonnées**
+  (section 26, 2026-10-22). Parcours bout en bout P7 (`e2e/p7-ticket.spec.ts`),
+  la doublure de Gemini reconnaissant la lecture de ticket à son
+  `responseSchema`.
+
 ## Développement local
 
 Ni Docker ni PostgreSQL ne sont requis pour les tests : `npm test` démarre une
@@ -193,9 +208,7 @@ paquet partagé n'a jamais été compilé. Voir le README, section Développemen
 
 ## Prochaine étape
 
-Lot 2 (décision 8) après quelques semaines d'usage réel : seuils et liste de
-courses, alertes de péremption, mode hors ligne (`POST /sync`, file IndexedDB,
-les écritures portent déjà `clientOpId`), export enrichi, et pour le module
-recettes : ajout des ingrédients manquants aux courses (EF-24, qui suppose
-cette liste). Reste aussi à écrire le jeu de non-régression de reconnaissance
+Lot 2 (décision 8) après quelques semaines d'usage réel : alertes de péremption, mode hors ligne (`POST /sync`, file IndexedDB,
+les écritures portent déjà `clientOpId`), export enrichi. Plus de seuils ni de
+liste de courses : EF-12 et EF-24 sont abandonnées. Reste aussi à écrire le jeu de non-régression de reconnaissance
 sur photos réelles (section 19).
