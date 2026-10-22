@@ -156,7 +156,9 @@ dans `app.tsx`). Il est remplacé.
 ## Les choix que j'ai faits, faute d'avoir été tranchés
 
 Signalés comme tels : ils relèvent du jugement, pas d'une décision de Franck.
-Les huit premiers répondent à une relecture technique de cette spécification.
+Plusieurs répondent à une relecture technique de cette spécification ; les deux
+derniers ont été consignés pendant la réalisation, quand il a fallu choisir un
+chiffre que rien ne fixait.
 
 - **Un seul appel au modèle** par ticket, photo ou PDF, qui rend toutes les
   lignes.
