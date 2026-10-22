@@ -27,28 +27,36 @@ export function normalizeReceiptLabel(raw: string): string {
 }
 
 /**
- * Un alias connu l'emporte : aucune recherche. Sinon un candidat est retenu
- * quand il partage au moins la moitié des mots significatifs du libellé
- * (les tickets abrègent : « H OLIVE » pour « Huile d'olive »).
- * Un seul candidat compté à la pièce donne MATCHED ; toute autre unité est
- * AMBIGUOUS, car le « 3 × » du ticket compte des paquets : l'ajouter à un
- * produit suivi en grammes écrirait trois grammes dans le stock.
+ * Un alias connu l'emporte : aucune recherche. Sinon MATCHED exige un unique
+ * candidat qui couvre **tous** les mots significatifs du libellé ; le
+ * recouvrement partiel (au moins un mot et la moitié du libellé, car les
+ * tickets abrègent : « H OLIVE » pour « Huile d'olive ») ne sert qu'à dresser
+ * la liste AMBIGUOUS.
+ * MATCHED suppose aussi une unité PIECE, alias compris : le « 3 × » du ticket
+ * compte des paquets, l'ajouter à un produit suivi en grammes écrirait trois
+ * grammes dans le stock.
  */
 export function matchReceiptLine(
   label: string,
-  aliasProductId: string | null,
+  alias: ReceiptCandidate | null,
   candidates: readonly ReceiptCandidate[],
 ): ReceiptMatch {
-  if (aliasProductId) return { state: 'MATCHED', productId: aliasProductId, candidateIds: [] };
+  if (alias) {
+    return alias.defaultUnit === 'PIECE'
+      ? { state: 'MATCHED', productId: alias.id, candidateIds: [] }
+      : { state: 'AMBIGUOUS', productId: null, candidateIds: [alias.id] };
+  }
   const labelWords = normalizeReceiptLabel(label).split(' ').filter(Boolean);
   if (labelWords.length === 0) return { state: 'UNKNOWN', productId: null, candidateIds: [] };
-  const found = candidates.filter((c) => {
-    const names = new Set(words(c.name));
-    const shared = labelWords.filter((w) => names.has(w)).length;
-    return shared > 0 && shared * 2 >= labelWords.length;
-  });
-  const candidateIds = found.map((c) => c.id);
-  const only = found.length === 1 ? found[0] : undefined;
+  const scored = candidates
+    .map((c) => {
+      const names = new Set(words(c.name));
+      return { c, shared: labelWords.filter((w) => names.has(w)).length };
+    })
+    .filter(({ shared }) => shared > 0 && shared * 2 >= labelWords.length);
+  const candidateIds = scored.map(({ c }) => c.id);
+  const full = scored.filter(({ shared }) => shared === labelWords.length);
+  const only = full.length === 1 ? full[0]?.c : undefined;
   if (only && only.defaultUnit === 'PIECE') return { state: 'MATCHED', productId: only.id, candidateIds };
-  return { state: found.length === 0 ? 'UNKNOWN' : 'AMBIGUOUS', productId: null, candidateIds };
+  return { state: candidateIds.length === 0 ? 'UNKNOWN' : 'AMBIGUOUS', productId: null, candidateIds };
 }
