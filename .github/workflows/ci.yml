@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -51,8 +51,8 @@ jobs:
       # Requis par « prisma generate » pour valider le datasource, jamais ouvert.
       DATABASE_URL: postgresql://kitchen:kitchen@localhost:5432/kitchen_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -98,8 +98,8 @@ jobs:
       DATABASE_URL: postgresql://kitchen:kitchen@localhost:5432/kitchen
       SHADOW_DATABASE_URL: postgresql://kitchen:kitchen@localhost:5432/kitchen_shadow
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -125,10 +125,10 @@ jobs:
     env:
       IMAGE: kitchen-build-check:ci
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Build de l'image (sans publication)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: docker/Dockerfile
@@ -186,12 +186,12 @@ jobs:
       # ne reconstruise pas ce que le step précédent vient de construire avec cache.
       E2E_APP_IMAGE: kitchen-e2e-app:ci
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - run: npm ci
       # `prisma/seed/dev.ts` importe @kitchen/shared : un paquet du monorepo,
       # qui doit être compilé avant d'être importable. `npm ci` ne fait
@@ -199,7 +199,7 @@ jobs:
       # module '.../dist/index.js' » avant même de toucher le navigateur.
       - run: npm run build -w @kitchen/shared
       - name: Construction de l'image du montage (cache GitHub Actions)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: docker/Dockerfile
@@ -238,7 +238,7 @@ jobs:
         run: docker compose -f docker-compose.e2e.yml logs app > app-e2e.log || true
       - name: Publication du rapport Playwright
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: rapport-e2e
           # Résolu par Playwright relativement à e2e/ (dossier du fichier de
@@ -251,7 +251,7 @@ jobs:
           retention-days: 14
       - name: Publication des artefacts Playwright (traces, captures, vidéos)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: artefacts-e2e
           # Même découpage que le rapport : un sous-dossier par exécution.
@@ -259,7 +259,7 @@ jobs:
           retention-days: 14
       - name: Publication des journaux applicatifs (en cas d'échec)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: journaux-app-e2e
           path: app-e2e.log

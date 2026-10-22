@@ -542,6 +542,10 @@ Les garde-fous qui ne se voient pas à l'écran :
   `POST /api/v1/suggestions` (orientation dans le corps JSON), celle qu'utilise
   l'écran ; un jeton de service, en lecture seule, ne peut donc pas la
   déclencher.
+- **Chaîne de publication.** Les actions GitHub tierces sont épinglées sur un
+  SHA de commit complet (la version lisible en commentaire), et le tag de
+  version d'une republication manuelle passe par l'environnement puis doit
+  avoir la forme `vX.Y.Z` avant toute construction.
 
 ## Intégrations
 
