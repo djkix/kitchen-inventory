@@ -518,6 +518,15 @@ Les garde-fous qui ne se voient pas à l'écran :
   `images.openfoodfacts.org` ou `static.openfoodfacts.org`, sans suivre de
   redirection, en 8 secondes au plus et 5 Mo au plus (coupée pendant la
   lecture). Toute autre adresse est ignorée et le produit est créé sans photo.
+- **En-têtes du navigateur.** Toutes les réponses, front compris, portent une
+  politique de sécurité du contenu (scripts et styles de l'application seule,
+  plus `accounts.google.com/gsi/` pour le bouton Google ; aucun script en
+  ligne ; WebAssembly autorisé pour le décodeur de codes-barres),
+  `frame-ancestors 'none'` et `X-Frame-Options: DENY` (aucun affichage dans un
+  cadre), une `Permissions-Policy` qui réserve caméra et micro à l'application,
+  et `Strict-Transport-Security` dès que `PUBLIC_URL` est en HTTPS. Un reverse
+  proxy qui poserait déjà ces en-têtes doit être aligné, sinon le navigateur
+  applique les deux politiques à la fois.
 
 ## Intégrations
 
