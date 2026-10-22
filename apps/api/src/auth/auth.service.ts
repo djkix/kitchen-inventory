@@ -3,6 +3,7 @@ import type { CurrentUser, GoogleLoginInput, RecoveryLoginInput } from '@kitchen
 import type { Response } from 'express';
 import { Logger } from 'nestjs-pino';
 import { ApiError } from '../common/api-error.js';
+import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { createDefaultLocations } from '../locations/default-locations.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GOOGLE_TOKEN_VERIFIER, type GoogleIdentity, type GoogleTokenVerifier } from './google-token.verifier.js';
@@ -25,6 +26,29 @@ const PENDING_MESSAGE = 'Votre demande attend la validation d’un administrateu
  */
 const RECOVERY_MESSAGE = 'Accès de secours indisponible';
 
+/**
+ * Qui peut devenir le premier administrateur d'une base vide (revue de
+ * sécurité du 2026-10-22). Sans garde, la première connexion Google vérifiée
+ * venue d'Internet — n'importe quel compte Google — prenait le foyer entre le
+ * déploiement et la première connexion du propriétaire.
+ *
+ * - `ADMIN_EMAIL` posée : seule cette adresse peut ouvrir la base ;
+ * - absente en production : aucune création automatique, l'administrateur
+ *   se crée par `tools/acces-secours.js` (ou en posant `ADMIN_EMAIL`) ;
+ * - absente en développement et en test : comportement historique, la
+ *   première connexion crée l'administrateur.
+ */
+export function firstAdminAllowed(config: Pick<AppConfig, 'ADMIN_EMAIL' | 'NODE_ENV'>, email: string): boolean {
+  if (config.ADMIN_EMAIL) return email.trim().toLowerCase() === config.ADMIN_EMAIL;
+  return config.NODE_ENV !== 'production';
+}
+
+/** Consigne journalisée quand une connexion sur base vide est refusée faute d'adresse autorisée. */
+export const FIRST_ADMIN_HINT =
+  'Base vide : aucun administrateur ne peut être créé automatiquement pour cette adresse. ' +
+  'Poser ADMIN_EMAIL=<adresse du propriétaire> puis redémarrer, ou créer l’administrateur avec ' +
+  '« docker compose exec app node tools/acces-secours.js <adresse> ».';
+
 interface Account {
   id: string;
   email: string;
@@ -40,6 +64,7 @@ export class AuthService {
     private readonly sessions: SessionService,
     private readonly logger: Logger,
     @Inject(GOOGLE_TOKEN_VERIFIER) private readonly google: GoogleTokenVerifier,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   async setupRequired(): Promise<boolean> {
@@ -50,7 +75,8 @@ export class AuthService {
    * Section 10 (D1, D3, D7) : le jeton Google est vérifié côté serveur, le
    * compte est retrouvé **par adresse e-mail**, et aucune session n'est ouverte
    * tant que le compte n'est pas `ACTIVE`. Sur une base vide, la première
-   * connexion crée l'administrateur.
+   * connexion crée l'administrateur — seulement pour l'adresse autorisée
+   * (`firstAdminAllowed`).
    */
   async loginWithGoogle(input: GoogleLoginInput, res: Response): Promise<CurrentUser> {
     const identity = await this.google.verify(input.credential);
@@ -90,6 +116,14 @@ export class AuthService {
       if (raced) return { account: raced, created: false, first: false };
 
       const first = (await tx.user.count()) === 0;
+      // Base vide et adresse non autorisée : rien n'est créé, pas même une
+      // demande `PENDING` — sinon le vrai propriétaire, arrivant ensuite,
+      // ne serait plus « le premier » et attendrait une validation que
+      // personne ne peut donner. Même réponse qu'une demande en attente.
+      if (first && !firstAdminAllowed(this.config, identity.email)) {
+        this.logger.warn({ email: identity.email }, FIRST_ADMIN_HINT);
+        throw ApiError.forbidden(PENDING_MESSAGE);
+      }
       // Le `sub` n'est stocké que pour mémoire : jamais deux comptes dessus,
       // sinon une adresse Google changée ne pourrait plus faire de demande.
       const subDejaPris = (await tx.user.findUnique({ where: { googleSub: identity.sub } })) !== null;

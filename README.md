@@ -229,14 +229,13 @@ pas y recopier de fragment de `docker-compose.e2e.yml`** : ce fichier de tests
 pose `GOOGLE_CERTS_URL`, qui déplace la racine de confiance de
 l'authentification (voir [Configuration](#configuration)).
 
-> **Se connecter immédiatement après le premier démarrage, avant d'ouvrir
-> l'accès à qui que ce soit.** Sur une base vide, la première connexion Google
-> réussie crée l'administrateur : tant que personne ne s'est connecté, la
-> place est libre pour le premier qui trouve l'adresse. Concrètement : ne
-> publier le nom de domaine dans le reverse proxy qu'une fois
-> `GOOGLE_CLIENT_ID` renseigné et votre propre connexion faite, ou garder
-> l'accès restreint (réseau local, filtrage d'IP) le temps de le faire. La même
-> fenêtre se rouvre après toute restauration sur base vide.
+> **Renseigner `ADMIN_EMAIL` avant le premier démarrage.** Sur une base vide,
+> seule cette adresse peut devenir administrateur par connexion Google ; toute
+> autre connexion est refusée sans rien créer. Sans `ADMIN_EMAIL`, l'image de
+> production ne crée **aucun** administrateur automatiquement : le journal
+> l'annonce à chaque tentative, et le premier compte se crée alors avec la
+> [porte de secours](#accès-de-secours). Les deux protections valent aussi
+> après une restauration sur base vide.
 
 ## Première connexion
 
@@ -309,13 +308,17 @@ lien). L'URL publique utilisée ci-dessous est celle de l'instance,
 
 ### 2. Le premier compte, puis les suivants
 
-Sur une base vide, **la première connexion Google réussie crée le compte
-administrateur** — `ACTIVE` et `ADMIN` — et pose les emplacements par défaut
-(cuisine, placard, réfrigérateur, congélateur, cellier), renommables ou
-supprimables. Il n'y a rien à faire d'autre que de se connecter — **et il faut
-le faire tout de suite** : c'est le premier connecté qui devient
-administrateur, pas le propriétaire de la machine. Voir l'avertissement de
-[Déployer](#déployer).
+Sur une base vide, **la première connexion Google de l'adresse `ADMIN_EMAIL`
+crée le compte administrateur** — `ACTIVE` et `ADMIN` — et pose les
+emplacements par défaut (cuisine, placard, réfrigérateur, congélateur,
+cellier), renommables ou supprimables. Une autre adresse qui se présente avant
+reçoit le message d'une demande en attente, et rien n'est créé : la place ne
+revient pas au premier qui trouve l'adresse du site. Sans `ADMIN_EMAIL`, aucune
+connexion Google ne crée d'administrateur en production : créer le premier
+compte avec `docker compose exec app node tools/acces-secours.js
+votre-adresse@example.org` (voir [Accès de secours](#accès-de-secours)), puis se
+connecter avec Google sous la même adresse. En développement et en test, sans
+`ADMIN_EMAIL`, la première connexion crée l'administrateur comme avant.
 
 Ensuite, l'inscription est ouverte mais **l'accès ne l'est pas**. Une adresse
 inconnue qui se connecte crée une **demande** : aucune session n'est ouverte,
@@ -476,6 +479,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `SECRET_KEY` | Secret de signature des cookies, 32 caractères minimum, obligatoire |
 | `PUBLIC_URL` | URL publique HTTPS |
 | `GOOGLE_CLIENT_ID` | Client ID OAuth « Application web » de la console Google Cloud, **public** (pas de client secret avec ce flux). Vide = la connexion Google est indisponible et le bouton ne s'affiche pas, l'application devenant inaccessible autrement que par la porte de secours. Obtention : [Première connexion](#première-connexion) |
+| `ADMIN_EMAIL` | Seule adresse autorisée à devenir le premier administrateur d'une base vide. Absente en production, aucune connexion Google ne crée d'administrateur : passer par la [porte de secours](#accès-de-secours). Sans effet une fois un compte créé |
 | `GOOGLE_CERTS_URL` | **Réservée au montage de tests bout en bout, à ne jamais poser ici.** Elle remplace les clés publiques qui valident les jetons Google : qui sert ces clés signe des jetons que l'application accepte. Posée, elle est signalée par un avertissement au démarrage et par `google_certs_url` dans le `degraded` de `/health` |
 | `VISION_PROVIDER` | `none` ou `gemini` |
 | `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.8-flash`) ; `VISION_BASE_URL` sert pour un proxy. Comme `SUGGESTION_MODEL`, `VISION_MODEL` n'est qu'une valeur de départ : le choix fait dans Réglages prime |

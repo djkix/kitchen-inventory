@@ -20,6 +20,19 @@ describe('loadConfig', () => {
   });
 });
 
+describe('ADMIN_EMAIL', () => {
+  it('est normalisée comme l’adresse du jeton Google', () => {
+    expect(loadConfig({ ...BASE, ADMIN_EMAIL: '  Moi@Example.ORG ' }).ADMIN_EMAIL).toBe('moi@example.org');
+  });
+  it('est facultative, et vide vaut absente', () => {
+    expect(loadConfig({ ...BASE }).ADMIN_EMAIL).toBeUndefined();
+    expect(loadConfig({ ...BASE, ADMIN_EMAIL: '' }).ADMIN_EMAIL).toBeUndefined();
+  });
+  it('refuse une valeur qui n’est pas une adresse', () => {
+    expect(() => loadConfig({ ...BASE, ADMIN_EMAIL: 'pas-une-adresse' })).toThrow('ADMIN_EMAIL');
+  });
+});
+
 describe('googleCertsOverrideWarning', () => {
   it('ne dit rien quand la variable est absente (production normale)', () => {
     expect(googleCertsOverrideWarning(loadConfig({ ...BASE }))).toBeNull();

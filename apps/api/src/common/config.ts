@@ -60,6 +60,17 @@ const configSchema = z.object({
   // Client ID public de Google Identity Services (section 10, spec du 2026-10-18).
   // Vide = connexion Google indisponible, et le bouton ne s'affiche pas.
   GOOGLE_CLIENT_ID: z.string().default(''),
+  // Seule adresse autorisée à devenir le premier administrateur d'une base
+  // vide (revue de sécurité du 2026-10-22). Absente en production, aucune
+  // connexion Google ne crée d'administrateur : passer par
+  // `tools/acces-secours.js`. Absente en développement et en test, la
+  // première connexion crée l'administrateur, comme avant.
+  ADMIN_EMAIL: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.email('ADMIN_EMAIL doit être une adresse e-mail'))
+    .optional(),
   // Où lire les clés publiques qui signent les jetons Google. Absente = les
   // vraies, chez Google. Sert **uniquement** au montage de tests bout en bout
   // (docker-compose.e2e.yml), qui doit vérifier une signature sans réseau : la

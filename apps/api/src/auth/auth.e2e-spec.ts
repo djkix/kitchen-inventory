@@ -265,3 +265,57 @@ describe('utilisateurs et jetons de service', () => {
     await t.api.get('/api/v1/me').set('Authorization', bearer).expect(401);
   });
 });
+
+describe('premier administrateur d’une base vide (revue de sécurité du 2026-10-22)', () => {
+  const PROPRIETAIRE: FakeIdentity = { email: 'proprietaire@example.org', name: 'Propriétaire', sub: 'google-proprietaire' };
+  const INTRUS: FakeIdentity = { email: 'intrus@example.org', name: 'Intrus', sub: 'google-intrus' };
+
+  describe('ADMIN_EMAIL posée', () => {
+    let t: TestApp;
+    beforeAll(async () => {
+      // Casse et espaces différents de l'adresse Google : la comparaison est normalisée.
+      t = await createTestApp({ ADMIN_EMAIL: '  Proprietaire@Example.org ' });
+    });
+    beforeEach(() => t.reset());
+    afterAll(() => t.close());
+
+    it('refuse toute autre adresse sur une base vide, sans rien créer', async () => {
+      const res = await google(t, INTRUS).expect(403);
+      expect(res.body.error.message).toBe(ATTENTE);
+      expect(res.headers['set-cookie']).toBeUndefined();
+      expect(await t.prisma.user.count()).toBe(0);
+      expect(await t.prisma.location.count()).toBe(0);
+    });
+
+    it('fait de l’adresse désignée le premier administrateur, même après une tentative refusée', async () => {
+      await google(t, INTRUS).expect(403);
+      const res = await google(t, PROPRIETAIRE).expect(200);
+      expect(res.body).toMatchObject({ email: PROPRIETAIRE.email, role: 'ADMIN' });
+      expect(await t.prisma.location.count()).toBeGreaterThan(0);
+      // La base n'est plus vide : l'intrus devient une simple demande en attente.
+      await google(t, INTRUS).expect(403);
+      expect(await t.prisma.user.findUniqueOrThrow({ where: { email: INTRUS.email } })).toMatchObject({ role: 'MEMBER', status: 'PENDING' });
+    });
+  });
+
+  describe('ADMIN_EMAIL absente en production', () => {
+    let t: TestApp;
+    beforeAll(async () => {
+      t = await createTestApp({ NODE_ENV: 'production' });
+    });
+    beforeEach(() => t.reset());
+    afterAll(() => t.close());
+
+    it('ne crée aucun administrateur par connexion Google', async () => {
+      const res = await google(t, PROPRIETAIRE).expect(403);
+      expect(res.body.error.message).toBe(ATTENTE);
+      expect(await t.prisma.user.count()).toBe(0);
+    });
+
+    it('laisse entrer l’administrateur créé par la porte de secours', async () => {
+      await t.prisma.user.create({ data: { email: PROPRIETAIRE.email, name: PROPRIETAIRE.email, role: 'ADMIN', status: 'ACTIVE' } });
+      const res = await google(t, PROPRIETAIRE).expect(200);
+      expect(res.body).toMatchObject({ email: PROPRIETAIRE.email, role: 'ADMIN' });
+    });
+  });
+});
