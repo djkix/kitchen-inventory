@@ -36,6 +36,14 @@ export function StatsPanel() {
     { label: 'Reconnaissance automatique (30 j)', value: s.automaticRate30d === null ? '—' : PERCENT.format(s.automaticRate30d) },
     { label: 'Part du cache (30 j)', value: s.cacheShare30d === null ? '—' : PERCENT.format(s.cacheShare30d) },
     {
+      // Les recettes ont leur propre ligne : exclues des tuiles « photos »
+      // pour ne pas fausser le taux d'automatisation, elles n'étaient visibles
+      // nulle part en propre — on ne lisait leur conso que dans le coût du mois.
+      label: 'Recettes aujourd’hui',
+      value: `${s.recipeCallsToday} / ${s.recipeDailyQuota}`,
+      note: `${s.recipeCallsThisMonth} ce mois · ${EUROS.format(s.recipeCostCentsThisMonth / 100)}`,
+    },
+    {
       // Compteur indicatif : ce que Google compte ne distingue ni le scan ni
       // les recettes. Sans limite renseignée (`GEMINI_RPD`), le compte est
       // rendu seul — un rapport à une valeur inventée vaudrait moins que rien.

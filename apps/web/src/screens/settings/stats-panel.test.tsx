@@ -18,6 +18,10 @@ const base = {
   pendingIdentification: 0,
   providerCallsToday: 15,
   providerCallsLastMinute: 5,
+  recipeCallsToday: 3,
+  recipeCallsThisMonth: 12,
+  recipeCostCentsThisMonth: 18,
+  recipeDailyQuota: 20,
 };
 
 /**
@@ -33,6 +37,20 @@ describe('compteur d’appels au fournisseur', () => {
     expect(screen.getByText('15')).toBeTruthy();
     expect(screen.getByText('5 dans la dernière minute')).toBeTruthy();
     expect(screen.queryByText(/15 \//)).toBeNull();
+  });
+
+  /**
+   * Les tuiles « photos » excluent les recettes pour ne pas fausser le taux
+   * d'automatisation du scan ; sans ligne propre, leur consommation n'était
+   * lisible nulle part (question de djkix, 2026-10-22).
+   */
+  it('donne aux recettes leur propre compte, distinct des photos', () => {
+    stats.data = { ...base, providerDailyLimit: null, providerMinuteLimit: null };
+    render(<StatsPanel />);
+    expect(screen.getByText('3 / 20')).toBeTruthy();
+    expect(screen.getByText(/12 ce mois · 0,18/)).toBeTruthy();
+    // La tuile des photos reste sur son propre compte.
+    expect(screen.getByText('1 / 50')).toBeTruthy();
   });
 
   it('affiche le rapport dès que la console Google a été recopiée', () => {

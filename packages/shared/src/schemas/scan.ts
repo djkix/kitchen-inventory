@@ -74,6 +74,18 @@ export const recognitionStatsSchema = z.object({
   providerCallsToday: z.number(),
   providerCallsLastMinute: z.number(),
   /**
+   * Appels partis pour les **recettes** (suggestions, demande parlée,
+   * réécriture) aujourd'hui et sur le mois, avec leur dépense. Les compteurs
+   * « photos » les excluent délibérément — une fournée de recettes faisait
+   * chuter le taux d'automatisation du scan — mais ils n'étaient alors visibles
+   * nulle part : on ne lisait leur consommation que fondue dans le coût du mois.
+   */
+  recipeCallsToday: z.number(),
+  recipeCallsThisMonth: z.number(),
+  recipeCostCentsThisMonth: z.number(),
+  /** Fournées de recettes autorisées par jour (`RECIPE_SUGGESTION_DAILY_QUOTA`). */
+  recipeDailyQuota: z.number(),
+  /**
    * Limites annoncées par la console Google pour ce projet, recopiées dans
    * `GEMINI_RPD` et `GEMINI_RPM` — aucune API ne permet de les lire. `null`
    * quand elles ne sont pas renseignées : on affiche alors le compte seul,

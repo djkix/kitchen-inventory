@@ -180,9 +180,15 @@ export class RecognitionService {
     // Ce que Google compte, lui, ne distingue ni le scan ni les recettes : un
     // appel est un appel. Le cache est exclu — il n'est jamais parti chez le
     // fournisseur, c'est tout son intérêt.
-    const [providerCallsToday, providerCallsLastMinute] = await Promise.all([
+    const [providerCallsToday, providerCallsLastMinute, recipeCallsToday, recipeCallsThisMonth, recipeSpend] = await Promise.all([
       this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, createdAt: { gte: dayStart } } }),
       this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, createdAt: { gte: new Date(now.getTime() - 60_000) } } }),
+      // Les recettes ont leur propre compte : exclues des tuiles « photos »
+      // pour ne pas fausser le taux d'automatisation, elles n'apparaissaient
+      // jusqu'ici nulle part en propre.
+      this.prisma.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION', createdAt: { gte: dayStart } } }),
+      this.prisma.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION', createdAt: { gte: monthStart } } }),
+      this.prisma.recognitionLog.aggregate({ where: { purpose: 'RECIPE_SUGGESTION', createdAt: { gte: monthStart } }, _sum: { costCents: true } }),
     ]);
     const attempts = recent.length + cacheHits;
     const automatic = cacheHits + recent.filter((r) => r.succeeded).length;
@@ -200,6 +206,10 @@ export class RecognitionService {
       providerCallsLastMinute,
       providerDailyLimit: this.config.GEMINI_RPD ?? null,
       providerMinuteLimit: this.config.GEMINI_RPM ?? null,
+      recipeCallsToday,
+      recipeCallsThisMonth,
+      recipeCostCentsThisMonth: Math.round((recipeSpend._sum.costCents?.toNumber() ?? 0) * 100) / 100,
+      recipeDailyQuota: this.config.RECIPE_SUGGESTION_DAILY_QUOTA,
     };
   }
 

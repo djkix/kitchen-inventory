@@ -50,6 +50,12 @@ test('une adresse inconnue attend une validation, puis entre une fois validée',
   const adminPage = await adminContext.newPage();
   await adminPage.goto('/reglages');
 
+  // Les sections de Réglages sont repliées par défaut (2026-10-22). L'en-tête
+  // annonce « 1 en attente » sans qu'on déplie ; valider demande d'ouvrir,
+  // c'est le geste réel.
+  await expect(adminPage.getByText(/1 en attente/)).toBeVisible();
+  await adminPage.getByRole('group').filter({ hasText: 'Comptes' }).first().locator('summary').click();
+
   // `<section aria-label="…">` nommée, donc un rôle `region` : les trois
   // listes de la section Comptes se distinguent par leur nom, jamais par
   // leur position dans la page.

@@ -9,8 +9,15 @@ interface AccordionSectionProps {
    * fournie ici réserverait une ligne vide le temps du chargement.
    */
   badge?: ReactNode;
-  /** Ouverte à l'arrivée sur l'écran. Une seule l'est : « Reconnaissance ». */
-  defaultOpen?: boolean;
+  /**
+   * Couleur de la puce, en hexadécimal. Volontairement passée ici plutôt que
+   * prise dans les jetons du thème : ces teintes n'existent que sur l'écran
+   * Réglages (choix de djkix, 2026-10-22, d'après la maquette). Les jetons
+   * globaux réservent le rouge, l'orange et l'ambre à la péremption et les
+   * bleus à la température de stockage — en faire des couleurs de section
+   * ailleurs dans l'application brouillerait ces sens-là.
+   */
+  dotColor: string;
   children: ReactNode;
 }
 
@@ -20,19 +27,23 @@ interface AccordionSectionProps {
  * React ni gestionnaire de clic. Replier n'efface rien — le contenu reste dans
  * le document, donc la recherche du navigateur le trouve toujours.
  *
- * La puce ne porte pas de couleur propre : le thème réserve le rouge, l'orange
- * et l'ambre à la péremption, les bleus à la température de stockage et le
- * céladon aux actions (voir styles.css). Une puce décorative dans l'une de ces
- * teintes viderait de son sens la seule chose qui compte dans une application
- * de stock. Elle s'allume donc en céladon à l'ouverture, et reste sourde sinon.
+ * Chaque section porte une puce de couleur, cantonnée à cet écran : elles
+ * donnent le repère visuel qui manquait à une liste de cinq replis identiques.
+ * Elles n'entrent pas dans les jetons du thème, et ne doivent apparaître nulle
+ * part ailleurs — le reste de l'application garde ses couleurs pour la
+ * péremption et la température de stockage, qui s'y lisent.
  */
-export function AccordionSection({ title, badge, defaultOpen = false, children }: AccordionSectionProps) {
+export function AccordionSection({ title, badge, dotColor, children }: AccordionSectionProps) {
   return (
-    <details open={defaultOpen} className="group rounded-card bg-surface">
+    <details className="group rounded-card bg-surface">
       <summary
         className="flex min-h-touch cursor-pointer list-none items-center gap-3 px-4 py-3 active:bg-raised [&::-webkit-details-marker]:hidden"
       >
-        <span aria-hidden className="size-2 shrink-0 rounded-full bg-faint transition-colors group-open:bg-accent" />
+        <span
+          aria-hidden
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: dotColor, boxShadow: `0 0 8px ${dotColor}` }}
+        />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="text-[15px] font-medium">{title}</span>
           {badge}
