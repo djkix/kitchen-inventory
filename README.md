@@ -65,6 +65,10 @@ une fois pour tout le ticket (celui du scan est repris), puis on prend la
 photo avec l'appareil du téléphone. Les lignes s'affichent **dans l'ordre du
 ticket**, reconnues et inconnues mêlées, pour suivre le papier : le nom du
 produit, le libellé imprimé en dessous, et le mouvement de stock « 2 → 3 ».
+Quand la ligne est ambiguë et que l'on vient de choisir son produit, la base
+n'est pas connue : la ligne affiche alors l'ajout seul (« +1 ») plutôt qu'un
+faux « 0 → 1 ». Hors des produits comptés à la pièce, l'unité s'affiche à côté
+de la quantité (« 2 → 3 kg », « +1 l »).
 Une ligne reconnue arrive cochée ; une ligne ambiguë propose ses candidats (le
 plus proche du libellé en premier) et se coche dès qu'on en choisit un ; une
 ligne inconnue est marquée « Nouveau », ne se coche pas et ne se valide pas —
@@ -457,7 +461,8 @@ formulaire avec des changements non enregistrés demande confirmation. Voir
 `docs/cahier-des-charges.md`, section 12.
 
 **Limites connues.** Pas d'ajout des ingrédients manquants à une liste de
-courses (EF-24, qui suppose l'existence de cette liste, repoussée au lot 2) ;
+courses : il n'y a pas de liste de courses, EF-12 et EF-24 sont abandonnées
+(2026-10-22) au profit du ticket de caisse ;
 un ingrédient rapproché par approximation (« crème » → *Crème fraîche épaisse
 30 %*) est affiché comme probable, compte comme disponible dans la couverture,
 et se confirme ou se corrige au moment de cuisiner, jamais avant ; une recette
@@ -956,7 +961,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 ### Tests bout en bout
 
-Une suite Playwright (section 19) joue les parcours P1 à P6 dans un vrai
+Une suite Playwright (section 19) joue les parcours P1 à P7 dans un vrai
 Chromium (caméra simulée depuis une vidéo fabriquée) contre **l'image Docker
 réellement construite** — jamais un serveur de développement — démarrée par
 un montage jetable dédié (`docker-compose.e2e.yml`) : une base PostgreSQL 16
@@ -988,7 +993,11 @@ depuis le catalogue, recettes n'utilisant que des combinaisons complètes, et
 l'explication affichée quand une combinaison ne rend rien) et P6 (inscription
 et validation d'un compte, hors cahier lui aussi : une adresse inconnue se
 connecte, voit le message d'attente et n'accède à rien, un administrateur la
-valide dans Réglages › Comptes, elle entre). Le mode hors
+valide dans Réglages › Comptes, elle entre) et P7 (ticket de caisse, EF-29 :
+on choisit l'emplacement, on dépose la photo, les lignes arrivent dans l'ordre
+du ticket, on en décoche une, on valide, et la quantité du produit coché monte
+dans le Stock, celle du produit décoché ne bouge pas ; Gemini est doublé, le
+reste est le code réel). Le mode hors
 ligne n'est pas couvert non plus, pour la même raison : il n'existe pas
 encore (lot 2). La conservation d'une recette trouvée sur le **web** n'est
 pas jouée bout en bout : le récupérateur de pages refuse délibérément le HTTP
@@ -1050,6 +1059,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.30.0 | 2026-10-22 | **Le ticket de caisse remplit le stock, et la liste de courses est abandonnée.** L'onglet Courses n'est plus une liste à cocher : on y choisit l'emplacement, on photographie le ticket (ou on dépose un PDF), et les lignes s'affichent dans l'ordre du ticket — produit reconnu, libellé imprimé, quantité corrigeable, et le mouvement de stock « 2 → 3 », ou « +1 » seul quand le produit de la ligne vient d'être choisi et que sa base n'est pas connue, avec l'unité à côté de la quantité dès que le produit ne se compte pas à la pièce. Une ligne reconnue arrive cochée, une ligne ambiguë propose ses candidats, une ligne inconnue est marquée « Nouveau » et reste à scanner ; on décoche ce qui ne doit pas entrer, on valide, et les quantités montent dans le Stock sans date de péremption. Les libellés jamais reconnus se rattachent à un produit depuis la liste repliée sous l'écran, et la pastille de l'onglet les compte : ils seront reconnus aux tickets suivants. Un parcours bout en bout (P7) rejoue tout cela dans un vrai navigateur. Le cahier des charges est amendé (sections 3, 4, 12, 14 et 26) : EF-12 (seuils et liste de courses) et EF-24 (ajout des manquants aux courses) sont abandonnées, EF-29 ajoutée — l'inventaire sert à savoir ce qui dort au fond du placard et ce qu'on peut en cuisiner, pas à suivre ce qu'il reste à acheter ([détail](CHANGELOG.md)) |
 | 0.29.1 | 2026-10-22 | `docker-compose.yml` et `.env.example` transmettent enfin `FALLBACK_MODEL`, `GEMINI_RPD` et `GEMINI_RPM` : les trois variables ajoutées la veille existaient côté application mais n'étaient pas passées au conteneur, donc le modèle de repli restait inerte et le compteur d'appels sans dénominateur, quoi qu'on mette dans le `.env` |
 | 0.29.0 | 2026-10-22 | **Réglages : tout replié, puces de couleur, version en haut à droite, et la conso des recettes enfin visible.** Les cinq sections sont désormais repliées à l'arrivée, y compris Reconnaissance et Comptes : le résumé de chaque en-tête porte l'information — « 2 actifs · 1 en attente » se lit section fermée, donc rien d'actionnable ne disparaît. Chaque section porte une puce de couleur (cyan pour Reconnaissance, émeraude pour Comptes, ambre pour Inventaire, indigo pour Foyer, violet pour Export) : cinq replis identiques manquaient de repère visuel. Ces teintes sont **cantonnées à cet écran** et n'entrent pas dans les jetons du thème, qui réservent le rouge, l'orange et l'ambre à la péremption et les bleus à la température de stockage — sens qui restent intacts partout ailleurs. La version de l'application passe du bas de l'écran à l'en-tête, en haut à droite : au bas d'un écran devenu pliable, il fallait dérouler pour l'atteindre. Enfin, les appels **recettes** ont leur propre tuile — du jour, du mois, et leur dépense. Les tuiles « photos » les excluent délibérément, pour ne pas fausser le taux d'automatisation du scan ; mais faute de ligne propre, leur consommation n'était lisible nulle part, seulement fondue dans le coût du mois |
 | 0.28.0 | 2026-10-21 | **Dire quelle limite Gemini refuse, et basculer de modèle plutôt que d'abandonner.** Un 429 n'est plus traduit par un « Quota Gemini atteint » indifférencié : l'application lit le refus que Google envoie — `quotaId` nomme la limite franchie, `retryDelay` donne la reprise — et dit « Trop de demandes coup sur coup. Réessayez dans 12 secondes. » ou « Le quota Gemini du jour est épuisé. Il repart à minuit, heure du Pacifique. » Aucune limite n'est recopiée dans le code : aucune API ne permet de les lire, et une table recopiée diverge en silence — c'est ce qui a rendu le plafond de dépense inopérant six jours durant. Un **modèle de repli** se choisit dans Réglages › Reconnaissance : quand le quota du modèle retenu est épuisé, l'application reprend **une seule fois** sur ce second modèle, les quotas de Gemini étant comptés par modèle. Jamais de cascade, et jamais pour une autre panne — une clé refusée échouerait à l'identique sur le repli. Le scan annonce la bascule à l'écran : « Quota du modèle habituel épuisé : cette lecture vient de … ». Enfin, Réglages affiche le nombre d'appels réellement partis chez le fournisseur, aujourd'hui et dans la dernière minute, scan et recettes confondus — c'est ainsi que Google les compte. Renseignez `GEMINI_RPD` et `GEMINI_RPM` d'après la console Google pour lire « 15 / 500 » au lieu de « 15 » ; laissées vides, l'écran rend le compte seul, un rapport à une valeur inventée valant moins que pas de rapport |
