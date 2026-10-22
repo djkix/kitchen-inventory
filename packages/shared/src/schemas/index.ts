@@ -7,3 +7,4 @@ export * from './scan.js';
 export * from './settings.js';
 export * from './recipes.js';
 export * from './suggestions.js';
+export * from './receipt.js';

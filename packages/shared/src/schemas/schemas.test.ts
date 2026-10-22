@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createStockItemSchema, paginationQuerySchema, scanBarcodeSchema, visionSuggestionSchema } from './index.js';
+import { createStockItemSchema, paginationQuerySchema, receiptQuantitySchema, scanBarcodeSchema, visionSuggestionSchema } from './index.js';
 
 describe('scanBarcodeSchema', () => {
   it('accepte un EAN-13 et un EAN-8', () => {
@@ -40,4 +40,9 @@ describe('visionSuggestionSchema', () => {
   it('refuse une confiance hors bornes', () => {
     expect(visionSuggestionSchema.safeParse({ name: 'X', confidence: 1.5 }).success).toBe(false);
   });
+});
+
+describe('receiptQuantitySchema (EF-29)', () => {
+  it.each([0.01, 1, 2.5, 99])('accepte %s', (q) => expect(receiptQuantitySchema.safeParse(q).success).toBe(true));
+  it.each([0, -1, 100, 1e9, Infinity, NaN])('refuse %s', (q) => expect(receiptQuantitySchema.safeParse(q).success).toBe(false));
 });

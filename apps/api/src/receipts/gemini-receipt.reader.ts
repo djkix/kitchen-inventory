@@ -1,3 +1,4 @@
+import { receiptQuantitySchema } from '@kitchen/shared';
 import type { HttpClient } from '../common/http-client.js';
 import { estimateCostCents, throwQuotaRefusal, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
@@ -107,7 +108,7 @@ function interpret(raw: GeminiResponse): RawReceiptLine[] {
   return lines;
 }
 
-/** Ne garde que les produits, dans l'ordre ; une quantité absente ou invalide vaut 1. */
+/** Ne garde que les produits, dans l'ordre ; une quantité absente, invalide ou hors bornes (hallucination) vaut 1. */
 function parseLines(text: string): RawReceiptLine[] {
   let data: unknown;
   try {
@@ -121,7 +122,7 @@ function parseLines(text: string): RawReceiptLine[] {
     if (typeof item !== 'object' || item === null) continue;
     const { label, quantity, kind } = item as Record<string, unknown>;
     if (kind !== 'PRODUCT' || typeof label !== 'string' || label.trim() === '') continue;
-    lines.push({ label: label.trim(), quantity: typeof quantity === 'number' && Number.isFinite(quantity) && quantity > 0 ? quantity : 1 });
+    lines.push({ label: label.trim(), quantity: receiptQuantitySchema.catch(1).parse(quantity) });
   }
   return lines;
 }
