@@ -38,6 +38,19 @@ describe('export (EF-16), front statique et robots', () => {
     await t.api.get('/api/v1/export/inventory.csv').expect(401);
   });
 
+  it('neutralise un nom de produit qui commencerait une formule de tableur', async () => {
+    await t.reset();
+    const agent = t.agent();
+    await t.signIn(agent, ADMIN);
+    const product = await agent.post('/api/v1/products').send({ name: '=HYPERLINK("https://ailleurs.example")', brand: '@marque' }).expect(201);
+    const location = await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } });
+    await agent.post('/api/v1/stock').send({ productId: product.body.id, locationId: location.id, quantity: 1 }).expect(201);
+
+    const csv = await agent.get('/api/v1/export/inventory.csv').expect(200);
+    const line = csv.text.replace('\uFEFF', '').trim().split('\r\n')[1];
+    expect(line).toMatch(/^"'=HYPERLINK\(""https:\/\/ailleurs\.example""\)";;'@marque;/);
+  });
+
   it('sert le front sur les routes hors API et interdit les robots', async () => {
     const home = await t.api.get('/').expect(200);
     expect(home.text).toContain('<title>Inventaire</title>');

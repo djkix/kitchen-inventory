@@ -595,7 +595,10 @@ qui comptent des objets entiers (pièce, paquet, boîte, sachet) sont reconnues
 d'office, le « 3 × » du ticket en désignant trois.
 
 **Export.** `GET /api/v1/export/inventory.csv` et `/inventory.json`, derrière
-la session ou un jeton de service.
+la session ou un jeton de service. Dans le CSV, une cellule de texte qui
+commencerait comme une formule de tableur (`=`, `+`, `-`, `@`, tabulation,
+retour chariot) est préfixée d'une apostrophe : Excel l'affiche comme du texte
+au lieu de l'exécuter.
 
 **API.** REST sous `/api/v1`, JSON, erreurs normalisées
 `{ "error": { "code", "message", "details" } }` avec des codes stables
