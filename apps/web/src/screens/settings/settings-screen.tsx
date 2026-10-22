@@ -16,7 +16,7 @@ import { VersionBadge } from '../../components/shell/version-badge';
 import { StatsPanel } from './stats-panel';
 
 /**
- * Puces de section, cantonnées à l'écran Réglages (choix de djkix,
+ * Puces de section, cantonnées à l'écran Réglages (choix du propriétaire,
  * 2026-10-22, d'après la maquette). Volontairement hors des jetons du thème :
  * celui-ci réserve le rouge, l'orange et l'ambre à la péremption et les bleus
  * à la température de stockage, sens qui doivent rester lisibles partout

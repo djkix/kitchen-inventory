@@ -34,7 +34,7 @@ import { buildSuggestionPrompt } from './prompt.js';
 import { SuggestionsModule } from './suggestions.module.js';
 import { SuggestionsService } from './suggestions.service.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'Camille' };
 
 /** Composition déposée au réservoir par les scénarios de demande parlée (2026-10-21). */
 const COMPOSITION_VOCALE: ModelRecipe = {
@@ -133,7 +133,7 @@ describe('SuggestionsService (EF-26)', () => {
    * pour que la contrainte de clé étrangère soit respectée.
    */
   async function seedUser(db: PrismaService): Promise<RequestUser> {
-    const user = await db.user.create({ data: { email: 'proprietaire.keep@example.org', name: 'djkix', passwordHash: 'x', role: 'ADMIN' } });
+    const user = await db.user.create({ data: { email: 'proprietaire.keep@example.org', name: 'Camille', passwordHash: 'x', role: 'ADMIN' } });
     return { id: user.id, email: user.email, name: user.name, role: 'ADMIN', via: 'session', sessionId: 's1' };
   }
 
@@ -469,7 +469,7 @@ describe('SuggestionsService (EF-26)', () => {
     // Le plafond de douze venait de la fournée, que D8 a supprimée. Sans
     // borne, une visite rendait tout le réservoir — et payait un
     // rapprochement `pg_trgm` par libellé d'ingrédient de chacune de ces
-    // recettes, sur un mini-PC, pour un téléphone (revue finale du
+    // recettes, sur une petite machine, pour un téléphone (revue finale du
     // 2026-10-15). La borne est posée APRÈS le tri : les meilleures en tête.
     const { service, db } = await createService();
     await seedPool(
@@ -486,7 +486,7 @@ describe('SuggestionsService (EF-26)', () => {
   });
 
   /**
-   * djkix, 2026-10-19 : « je veux les conserver afin de les consulter
+   * Le propriétaire, 2026-10-19 : « je veux les conserver afin de les consulter
    * ultérieurement ». Le réservoir les gardait déjà ; l'écran n'en montrait
    * que douze et rien ne permettait de voir les autres.
    */
@@ -711,7 +711,7 @@ describe('SuggestionsService (EF-26)', () => {
   });
 
   /**
-   * Demande de djkix du 2026-10-19 : « si je ne trouve pas de recette qui me
+   * Demande du propriétaire du 2026-10-19 : « si je ne trouve pas de recette qui me
    * plaît, permet de faire un nouvel appel ». L'appel partait déjà, mais
    * `comparePoolEntries` plaçait les arrivantes derrière les anciennes mieux
    * couvertes : l'écran ne bougeait pas d'un pouce.
@@ -1502,7 +1502,7 @@ describe('SuggestionsService (EF-26)', () => {
 
     it('dit que le repli de quota a perdu les ingrédients demandés (tour 1)', async () => {
       // Repli : le réservoir entier, sans filtre d'orientation NI d'ingrédients.
-      // Sans cette phrase, djkix reçoit des recettes qui n'ont rien à voir
+      // Sans cette phrase, le propriétaire reçoit des recettes qui n'ont rien à voir
       // avec ce qu'il vient de taper, et seul le quota lui est expliqué.
       const { service, db } = await createService({ RECIPE_SUGGESTION_DAILY_QUOTA: '0' });
       await seedStock(db);

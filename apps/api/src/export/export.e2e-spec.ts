@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'Camille' };
 
 describe('export (EF-16), front statique et robots', () => {
   let t: TestApp;

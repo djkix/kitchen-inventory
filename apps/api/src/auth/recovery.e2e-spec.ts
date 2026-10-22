@@ -6,7 +6,7 @@ import { AuthController } from './auth.controller.js';
 import { hashPassword } from './password.js';
 import { SessionService } from './session.service.js';
 
-const PROPRIETAIRE: FakeIdentity = { email: 'proprietaire@example.org', name: 'djkix', sub: 'google-proprietaire' };
+const OWNER: FakeIdentity = { email: 'proprietaire@example.org', name: 'Camille', sub: 'google-proprietaire' };
 const INCONNU: FakeIdentity = { email: 'inconnu@example.org', name: 'Inconnu', sub: 'google-inconnu' };
 
 const REFUS = 'Accès de secours indisponible';
@@ -30,12 +30,12 @@ describe('porte de secours en ligne de commande (D6)', () => {
 
   describe('POST /auth/recovery', () => {
     it('n’ouvre rien tant qu’aucun mot de passe de secours n’est en base', async () => {
-      await t.signIn(t.agent(), PROPRIETAIRE);
+      await t.signIn(t.agent(), OWNER);
       // Le compte existe, il est ACTIVE et ADMIN : seul le mot de passe de secours manque.
-      const avant = await t.prisma.user.findUniqueOrThrow({ where: { email: PROPRIETAIRE.email } });
+      const avant = await t.prisma.user.findUniqueOrThrow({ where: { email: OWNER.email } });
       expect(avant.passwordHash).toBeNull();
 
-      const res = await recovery(t, PROPRIETAIRE.email, 'n’importe quoi').expect(401);
+      const res = await recovery(t, OWNER.email, 'n’importe quoi').expect(401);
       expect(res.body.error.code).toBe('unauthenticated');
       expect(res.body.error.message).toBe(REFUS);
       expect(res.headers['set-cookie']).toBeUndefined();
@@ -43,9 +43,9 @@ describe('porte de secours en ligne de commande (D6)', () => {
     });
 
     it('refuse une adresse inconnue, sans la distinguer d’un compte sans mot de passe de secours', async () => {
-      await t.signIn(t.agent(), PROPRIETAIRE);
+      await t.signIn(t.agent(), OWNER);
       const inconnue = await recovery(t, 'personne@example.org', 'n’importe quoi').expect(401);
-      const connue = await recovery(t, PROPRIETAIRE.email, 'n’importe quoi').expect(401);
+      const connue = await recovery(t, OWNER.email, 'n’importe quoi').expect(401);
       expect(inconnue.body).toEqual(connue.body);
       expect(await t.prisma.user.count()).toBe(1);
     });
@@ -55,23 +55,23 @@ describe('porte de secours en ligne de commande (D6)', () => {
       // qu'aucune porte de secours ait été ouverte. Il ne doit rien ouvrir :
       // sinon le mot de passe supprimé de l'interface resterait une entrée
       // permanente, exactement le secret dormant que D6 écarte.
-      await t.signIn(t.agent(), PROPRIETAIRE);
+      await t.signIn(t.agent(), OWNER);
       await t.prisma.user.update({
-        where: { email: PROPRIETAIRE.email },
+        where: { email: OWNER.email },
         data: { passwordHash: await hashPassword('ancien-mot-de-passe'), recoveryExpiresAt: null },
       });
 
-      const res = await recovery(t, PROPRIETAIRE.email, 'ancien-mot-de-passe').expect(401);
+      const res = await recovery(t, OWNER.email, 'ancien-mot-de-passe').expect(401);
       expect(res.body.error.message).toBe(REFUS);
       expect(res.headers['set-cookie']).toBeUndefined();
       expect(await t.prisma.session.count()).toBe(1); // celle de la connexion Google
     });
 
     it('deux appels simultanés avec le même mot de passe n’ouvrent qu’une session', async () => {
-      const { password } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
+      const { password } = await grantRecovery(t.prisma, OWNER.email);
       const statuts = await Promise.all([
-        recovery(t, PROPRIETAIRE.email, password).then((r) => r.status),
-        recovery(t, PROPRIETAIRE.email, password).then((r) => r.status),
+        recovery(t, OWNER.email, password).then((r) => r.status),
+        recovery(t, OWNER.email, password).then((r) => r.status),
       ]);
       expect(statuts.sort()).toEqual([200, 401]);
       // La session et l'effacement vivent dans la même transaction : l'appel
@@ -80,22 +80,22 @@ describe('porte de secours en ligne de commande (D6)', () => {
     });
 
     it('ouvre une session avec le mot de passe tiré par le script', async () => {
-      const { password } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
+      const { password } = await grantRecovery(t.prisma, OWNER.email);
       const agent = t.agent();
-      const res = await agent.post('/api/v1/auth/recovery').send({ email: PROPRIETAIRE.email, password }).expect(200);
-      expect(res.body).toMatchObject({ email: PROPRIETAIRE.email, role: 'ADMIN' });
+      const res = await agent.post('/api/v1/auth/recovery').send({ email: OWNER.email, password }).expect(200);
+      expect(res.body).toMatchObject({ email: OWNER.email, role: 'ADMIN' });
       expect(res.headers['set-cookie']?.[0]).toMatch(/^sid=.*HttpOnly/);
       await agent.get('/api/v1/me').expect(200);
     });
 
     it('refuse le mot de passe après l’heure d’expiration', async () => {
-      const { password } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
+      const { password } = await grantRecovery(t.prisma, OWNER.email);
       await t.prisma.user.update({
-        where: { email: PROPRIETAIRE.email },
+        where: { email: OWNER.email },
         data: { recoveryExpiresAt: new Date(Date.now() - 1_000) },
       });
 
-      const res = await recovery(t, PROPRIETAIRE.email, password).expect(401);
+      const res = await recovery(t, OWNER.email, password).expect(401);
       expect(res.body.error.message).toBe(REFUS);
       expect(res.headers['set-cookie']).toBeUndefined();
       expect(await t.prisma.session.count()).toBe(0);
@@ -103,8 +103,8 @@ describe('porte de secours en ligne de commande (D6)', () => {
 
     it('expire bien au bout d’une heure, pas davantage', async () => {
       const avant = Date.now();
-      const { expiresAt } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
-      const stocke = (await t.prisma.user.findUniqueOrThrow({ where: { email: PROPRIETAIRE.email } })).recoveryExpiresAt;
+      const { expiresAt } = await grantRecovery(t.prisma, OWNER.email);
+      const stocke = (await t.prisma.user.findUniqueOrThrow({ where: { email: OWNER.email } })).recoveryExpiresAt;
       expect(stocke?.getTime()).toBe(expiresAt.getTime());
       expect(expiresAt.getTime() - avant).toBeGreaterThan(3_599_000);
       expect(expiresAt.getTime() - avant).toBeLessThan(3_605_000);
@@ -113,27 +113,27 @@ describe('porte de secours en ligne de commande (D6)', () => {
     it('une connexion Google réussie referme la porte restée ouverte', async () => {
       // La porte n'a plus d'objet dès que Google remarche : la laisser vivre
       // jusqu'à la fin de son heure serait une entrée gratuite sans raison.
-      const { password } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
-      await t.signIn(t.agent(), PROPRIETAIRE);
+      const { password } = await grantRecovery(t.prisma, OWNER.email);
+      await t.signIn(t.agent(), OWNER);
 
-      const apres = await t.prisma.user.findUniqueOrThrow({ where: { email: PROPRIETAIRE.email } });
+      const apres = await t.prisma.user.findUniqueOrThrow({ where: { email: OWNER.email } });
       expect(apres.passwordHash).toBeNull();
       expect(apres.recoveryExpiresAt).toBeNull();
 
-      const refus = await recovery(t, PROPRIETAIRE.email, password).expect(401);
+      const refus = await recovery(t, OWNER.email, password).expect(401);
       expect(refus.body.error.message).toBe(REFUS);
       expect(refus.headers['set-cookie']).toBeUndefined();
     });
 
     it('ne sert qu’une fois : le succès efface le hachage et l’expiration', async () => {
-      const { password } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
-      await recovery(t, PROPRIETAIRE.email, password).expect(200);
+      const { password } = await grantRecovery(t.prisma, OWNER.email);
+      await recovery(t, OWNER.email, password).expect(200);
 
-      const apres = await t.prisma.user.findUniqueOrThrow({ where: { email: PROPRIETAIRE.email } });
+      const apres = await t.prisma.user.findUniqueOrThrow({ where: { email: OWNER.email } });
       expect(apres.passwordHash).toBeNull();
       expect(apres.recoveryExpiresAt).toBeNull();
 
-      const seconde = await recovery(t, PROPRIETAIRE.email, password).expect(401);
+      const seconde = await recovery(t, OWNER.email, password).expect(401);
       expect(seconde.body.error.message).toBe(REFUS);
       expect(seconde.headers['set-cookie']).toBeUndefined();
       expect(await t.prisma.session.count()).toBe(1); // la seule, ouverte au premier usage
@@ -144,7 +144,7 @@ describe('porte de secours en ligne de commande (D6)', () => {
       // transaction : une panne au milieu doit rendre le mot de passe de
       // secours intact, sinon le propriétaire se retrouve enfermé dehors avec
       // sa seule porte déjà consommée.
-      const { password } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
+      const { password } = await grantRecovery(t.prisma, OWNER.email);
       const sessions = t.app.get(SessionService);
       const spy = vi.spyOn(sessions, 'open').mockImplementation(async (userId, _res, tx) => {
         const writer = (tx ?? t.prisma) as typeof t.prisma;
@@ -152,35 +152,35 @@ describe('porte de secours en ligne de commande (D6)', () => {
         throw new Error('panne après écriture de la session');
       });
       try {
-        await recovery(t, PROPRIETAIRE.email, password).expect(500);
+        await recovery(t, OWNER.email, password).expect(500);
       } finally {
         spy.mockRestore();
       }
 
       expect(await t.prisma.session.count()).toBe(0);
-      const apres = await t.prisma.user.findUniqueOrThrow({ where: { email: PROPRIETAIRE.email } });
+      const apres = await t.prisma.user.findUniqueOrThrow({ where: { email: OWNER.email } });
       expect(apres.passwordHash).not.toBeNull();
       expect(apres.recoveryExpiresAt).not.toBeNull();
       // Et la porte reste franchissable.
-      await recovery(t, PROPRIETAIRE.email, password).expect(200);
+      await recovery(t, OWNER.email, password).expect(200);
     });
 
     it('un mauvais mot de passe échoue sans brûler le bon', async () => {
-      const { password } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
-      await recovery(t, PROPRIETAIRE.email, 'mauvais-mot-de-passe').expect(401);
+      const { password } = await grantRecovery(t.prisma, OWNER.email);
+      await recovery(t, OWNER.email, 'mauvais-mot-de-passe').expect(401);
 
-      const apres = await t.prisma.user.findUniqueOrThrow({ where: { email: PROPRIETAIRE.email } });
+      const apres = await t.prisma.user.findUniqueOrThrow({ where: { email: OWNER.email } });
       expect(apres.passwordHash).not.toBeNull();
       expect(apres.recoveryExpiresAt).not.toBeNull();
       // Le vrai mot de passe reste utilisable : un tiers ne doit pas pouvoir
       // condamner la porte en tapant n'importe quoi pendant l'heure ouverte.
-      await recovery(t, PROPRIETAIRE.email, password).expect(200);
+      await recovery(t, OWNER.email, password).expect(200);
     });
 
     it('refuse un compte qui n’est plus ACTIVE, même avec un mot de passe de secours valide', async () => {
-      const { password } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
-      await t.prisma.user.update({ where: { email: PROPRIETAIRE.email }, data: { status: 'REVOKED' } });
-      await recovery(t, PROPRIETAIRE.email, password).expect(401);
+      const { password } = await grantRecovery(t.prisma, OWNER.email);
+      await t.prisma.user.update({ where: { email: OWNER.email }, data: { status: 'REVOKED' } });
+      await recovery(t, OWNER.email, password).expect(401);
       expect(await t.prisma.session.count()).toBe(0);
     });
 
@@ -193,16 +193,16 @@ describe('porte de secours en ligne de commande (D6)', () => {
 
   describe('tools/acces-secours.ts', () => {
     it('crée le compte absent en ACTIVE/ADMIN', async () => {
-      const { created } = await grantRecovery(t.prisma, PROPRIETAIRE.email);
+      const { created } = await grantRecovery(t.prisma, OWNER.email);
       expect(created).toBe(true);
-      const user = await t.prisma.user.findUniqueOrThrow({ where: { email: PROPRIETAIRE.email } });
+      const user = await t.prisma.user.findUniqueOrThrow({ where: { email: OWNER.email } });
       expect(user).toMatchObject({ status: 'ACTIVE', role: 'ADMIN' });
       expect(user.passwordHash).toMatch(/^\$argon2id\$/);
       expect(user.recoveryExpiresAt).not.toBeNull();
     });
 
     it('promeut un compte existant en attente, sans toucher à son identité', async () => {
-      await t.signIn(t.agent(), PROPRIETAIRE);
+      await t.signIn(t.agent(), OWNER);
       await t.api.post('/api/v1/auth/google').send({ credential: fakeGoogleCredential(INCONNU) }).expect(403);
       const avant = await t.prisma.user.findUniqueOrThrow({ where: { email: INCONNU.email } });
       expect(avant).toMatchObject({ status: 'PENDING', role: 'MEMBER' });
@@ -214,16 +214,16 @@ describe('porte de secours en ligne de commande (D6)', () => {
     });
 
     it('normalise l’adresse comme la connexion Google', async () => {
-      await t.signIn(t.agent(), PROPRIETAIRE);
-      const { created, email } = await grantRecovery(t.prisma, '  PROPRIETAIRE@Example.ORG ');
+      await t.signIn(t.agent(), OWNER);
+      const { created, email } = await grantRecovery(t.prisma, '  Proprietaire@Example.ORG ');
       expect(created).toBe(false);
-      expect(email).toBe(PROPRIETAIRE.email);
+      expect(email).toBe(OWNER.email);
       expect(await t.prisma.user.count()).toBe(1);
     });
 
     it('affiche le mot de passe une seule fois sur la sortie standard, et il ouvre la porte', async () => {
       const lignes: string[] = [];
-      await run(t.prisma, ['  PROPRIETAIRE@Example.ORG '], (ligne) => lignes.push(ligne));
+      await run(t.prisma, ['  Proprietaire@Example.ORG '], (ligne) => lignes.push(ligne));
 
       const sortie = lignes.join('\n');
       const motDePasse = /Mot de passe .*: (\S+)/.exec(sortie)?.[1];
@@ -231,7 +231,7 @@ describe('porte de secours en ligne de commande (D6)', () => {
       // Une seule occurrence : rien ne le répète ni ne le résume plus bas.
       expect(sortie.split(motDePasse as string)).toHaveLength(2);
       expect((motDePasse as string).length).toBeGreaterThanOrEqual(24);
-      await recovery(t, PROPRIETAIRE.email, motDePasse as string).expect(200);
+      await recovery(t, OWNER.email, motDePasse as string).expect(200);
     });
 
     it('refuse de s’exécuter sans adresse en argument', async () => {

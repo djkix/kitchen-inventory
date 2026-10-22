@@ -99,7 +99,7 @@ describe('isMainstreamGeminiModel', () => {
     }
   });
 
-  // Choix de djkix du 2026-10-15 : l'API continuerait de servir un Pro sur sa
+  // Choix du propriétaire du 2026-10-15 : l'API continuerait de servir un Pro sur sa
   // clé, facturé à l'usage — c'est bien pour cela qu'on l'écarte ici.
   it('écarte les modèles Pro, que l’API servirait pourtant', () => {
     for (const id of ['gemini-3.5-pro', 'gemini-4-pro', 'gemini-2.5-pro']) {

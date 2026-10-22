@@ -107,14 +107,14 @@ describe('RecipePageFetcher (tâche 9, B6, B14)', () => {
   it('refuse une URL qui vise une adresse privée (vigilance 2)', async () => {
     const fetcher = new RecipePageFetcher(async () => htmlResponse('<html></html>'));
 
-    await expect(structuredOf(fetcher, 'https://192.168.1.20/recette')).rejects.toBeInstanceOf(RecipePageRefusedError);
+    await expect(structuredOf(fetcher, 'https://192.168.1.10/recette')).rejects.toBeInstanceOf(RecipePageRefusedError);
   });
 
   it('refuse une redirection qui vise http://, localhost ou une adresse privée, au second saut', async () => {
     const refusedTargets = [
       `http://${PUBLIC_HOST}/ailleurs`, // rétrogradation HTTPS → HTTP
       'https://localhost/ailleurs',
-      'https://192.168.1.20/ailleurs',
+      'https://192.168.1.10/ailleurs',
     ];
 
     for (const target of refusedTargets) {

@@ -141,7 +141,7 @@ test('liste ce qui périme bientôt, du plus urgent au moins urgent', async ({ p
 });
 
 test('affiche la version de l’application dans les réglages', async ({ page }) => {
-  // Demandé par djkix en 0.5, puis restreint par lui le 2026-10-06 : la
+  // Demandé par le propriétaire en 0.5, puis restreint par lui le 2026-10-06 : la
   // version est une information d'administration, elle ne doit plus apparaître
   // au bas de chaque écran mais seulement dans Réglages (`VersionBadge`,
   // monté dans apps/web/src/screens/settings/settings-screen.tsx).

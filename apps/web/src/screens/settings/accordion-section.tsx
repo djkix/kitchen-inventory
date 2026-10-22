@@ -12,7 +12,7 @@ interface AccordionSectionProps {
   /**
    * Couleur de la puce, en hexadécimal. Volontairement passée ici plutôt que
    * prise dans les jetons du thème : ces teintes n'existent que sur l'écran
-   * Réglages (choix de djkix, 2026-10-22, d'après la maquette). Les jetons
+   * Réglages (choix du propriétaire, 2026-10-22, d'après la maquette). Les jetons
    * globaux réservent le rouge, l'orange et l'ambre à la péremption et les
    * bleus à la température de stockage — en faire des couleurs de section
    * ailleurs dans l'application brouillerait ces sens-là.

@@ -4,7 +4,7 @@ import { ProviderError, type RecognitionInput, type RecognitionOutput, type Reco
 
 /**
  * Modèle de la photo quand ni `VISION_MODEL` ni le choix de Réglages ne
- * tranchent. Porté à `gemini-3.8-flash` le 2026-10-21 (demande de djkix) :
+ * tranchent. Porté à `gemini-3.8-flash` le 2026-10-21 (demande du propriétaire) :
  * disponible depuis le 2 septembre 2026, il lit une étiquette au moins aussi
  * bien que la 3.5. Son tarif n'est pas encore dans `PRICES_USD_PER_MTOK` — le
  * repli par famille le facture au tarif Flash, ce pour quoi il a été écrit.

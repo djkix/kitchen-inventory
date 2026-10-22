@@ -89,7 +89,7 @@ export function SuggestionsScreen() {
    */
   const [limit, setLimit] = useState(SUGGESTION_PAGE_SIZE);
   /**
-   * Panneau de filtres (djkix, 2026-10-20 : « j'aime beaucoup l'affichage
+   * Panneau de filtres (le propriétaire, 2026-10-20 : « j'aime beaucoup l'affichage
    * barre de recherche / filtre sur l'onglet Mes Recettes, fais la même chose
    * pour la partie Suggestion »). Les quatre sélecteurs d'orientation vivent
    * désormais derrière un bouton, comme les onze contrôles de « Mes recettes »
@@ -240,7 +240,7 @@ export function SuggestionsScreen() {
  * à part, donc un lien vers son écran — jamais un second mode de ce champ-ci,
  * qui reste strictement inchangé.
  *
- * Dans l'en-tête, et pas dans le corps de l'écran : djkix a demandé trois
+ * Dans l'en-tête, et pas dans le corps de l'écran : le propriétaire a demandé trois
  * fois d'alléger cette page, et la zone d'actions de l'en-tête était vide.
  * Une icône de 44 px n'y prend la place de rien.
  */
@@ -470,13 +470,13 @@ function SuggestionsResult({
          * Pied de liste (2026-10-19). Le bouton de relance n'existait que dans
          * l'état vide : dès que le réservoir rendait six recettes ou plus pour
          * l'orientation, plus aucun appel ne partait et rien ne permettait d'en
-         * demander d'autres — djkix a vu « toujours les mêmes douze recettes »,
+         * demander d'autres — le propriétaire a vu « toujours les mêmes douze recettes »,
          * et c'était exact. Les deux nombres disent pourquoi : ce qui est connu
          * pour cette orientation, et ce que l'application connaît en tout.
          */
         <div className="flex flex-col items-center gap-3 px-4 pb-6 pt-5">
           {/*
-            Défilement infini (demande de djkix, 2026-10-19 : « je suis obligé
+            Défilement infini (demande du propriétaire, 2026-10-19 : « je suis obligé
             de cliquer sur charger plus »). La sentinelle ci-dessous demande la
             page suivante dès qu'elle entre dans la fenêtre.
 
@@ -499,7 +499,7 @@ function SuggestionsResult({
                 l'effet ne dépendait que de `onVisible`, qui est stable : une
                 fois débranché après le premier déclenchement, il ne se
                 rebranchait jamais. La liste chargeait donc UNE page de plus,
-                puis plus rien — défaut constaté par djkix le 2026-10-20 sur un
+                puis plus rien — défaut constaté par le propriétaire le 2026-10-20 sur un
                 réservoir de deux cents recettes.
               */}
               <LoadMoreSentinel onVisible={onLoadMore} armedFor={batch.items.length} />
@@ -530,7 +530,7 @@ function SuggestionsResult({
             Le plafond se dit, il ne s'applique pas en silence (2026-10-20) : sur
             un réservoir de deux cents recettes, le défilement s'arrêtait net à
             soixante sans que rien n'explique pourquoi — on pouvait croire à une
-            panne, ce que djkix a d'ailleurs cru. Le plafond existe parce que
+            panne, ce que le propriétaire a d'ailleurs cru. Le plafond existe parce que
             chaque recette affichée coûte un rapprochement de tous ses
             ingrédients contre le catalogue de produits.
           */}

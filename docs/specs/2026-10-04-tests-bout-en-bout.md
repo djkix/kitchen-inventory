@@ -1,6 +1,6 @@
 # Tests bout en bout des parcours
 
-2026-10-04 · djkix, avec assistance de Claude · révision 1
+2026-10-04 · le propriétaire, avec assistance de Claude · révision 1
 
 Spécification de la suite Playwright exigée par la section 19 du cahier : les parcours P1 à P4 de la
 section 3, joués dans un vrai navigateur, contre **l'image Docker réellement publiée**.
@@ -26,7 +26,7 @@ parcours au navigateur. Un parcours qui passe ici veut dire que l'application li
 | --- | --- |
 | Couverture | Ce qui existe aujourd'hui ; chaque incrément ajoutera ses parcours **[C1]** |
 | Cible | L'image Docker, construite depuis le `Dockerfile` du dépôt, et une base PostgreSQL jetable **[C2]** |
-| Exécution | **CI uniquement** : djkix n'a pas Docker sur son Mac **[C3]** |
+| Exécution | **CI uniquement** : le propriétaire n'a pas Docker sur son poste **[C3]** |
 | Cadence | Sur `main` après fusion, pas sur les pull requests **[C4]** |
 
 Conséquence assumée de **[C3]** et **[C4]** : une régression n'est connue qu'une fois le code sur
@@ -61,7 +61,7 @@ L'application est configurée par variables d'environnement, comme en production
 `VISION_BASE_URL` et `OFF_BASE_URL` pointent vers la doublure. Aucune clé réelle, aucun appel sortant
 **[C8]**.
 
-Les migrations sont appliquées par l'entrypoint de l'image, comme chez djkix : c'est précisément ce
+Les migrations sont appliquées par l'entrypoint de l'image, comme chez le propriétaire : c'est précisément ce
 qu'on veut éprouver.
 
 ## 5. Le jeu de données
@@ -132,7 +132,7 @@ chaîne, qui est tout l'intérêt de l'exercice.
 
 L'application est une PWA dont le service worker s'enregistre sur la version construite. Il est
 **laissé actif** **[C13]** : le désactiver reviendrait à tester une application différente de celle
-installée sur le téléphone de djkix, et c'est exactement le genre d'écart que cette suite existe
+installée sur le téléphone du propriétaire, et c'est exactement le genre d'écart que cette suite existe
 pour supprimer. Les tests attendent donc que le réseau soit au repos plutôt que de supposer un
 rendu immédiat.
 
@@ -141,10 +141,10 @@ rendu immédiat.
 Un job `e2e` dans `.github/workflows/ci.yml`, déclenché **sur `main` seulement** **[C4]**, après le
 job `check`. Il construit l'image avec le cache de `buildx`, démarre le montage, joue les parcours,
 et publie en artefact le rapport Playwright, les captures et les vidéos des échecs **[C14]** —
-puisque djkix ne peut pas rejouer localement, la trace est tout ce qu'il aura.
+puisque le propriétaire ne peut pas rejouer localement, la trace est tout ce qu'il aura.
 
 Un échec du job `e2e` n'empêche pas la publication de l'image : elle est déclenchée par le tag, que
-release-please pose après coup. djkix reste libre de publier en connaissance de cause.
+release-please pose après coup. Le propriétaire reste libre de publier en connaissance de cause.
 
 ## 10. Ce que cette spécification ne tranche pas
 
@@ -159,7 +159,7 @@ release-please pose après coup. djkix reste libre de publier en connaissance de
 | --- | --- |
 | C1 | On couvre ce qui existe ; chaque incrément ajoute ses parcours |
 | C2 | La cible est l'image Docker et une base jetable |
-| C3 | Exécution en CI uniquement, faute de Docker sur le Mac de djkix |
+| C3 | Exécution en CI uniquement, faute de Docker sur le poste du propriétaire |
 | C4 | Sur `main` après fusion, pas sur les pull requests |
 | C5 | Un parcours « suggestions » est ajouté aux quatre du cahier |
 | C6 | Un `docker-compose.e2e.yml` dédié, distinct de la production |

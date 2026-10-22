@@ -336,7 +336,7 @@ export class SuggestionsService {
         if (fallback.length === 0) throw ApiError.rateLimited(this.quotaMessage(breach, false));
         entries = fallback;
         // Le repli lit le réservoir sans AUCUN filtre : ni orientation, ni
-        // ingrédients dictés. Le dire (tour de correction 1) — sinon djkix
+        // ingrédients dictés. Le dire (tour de correction 1) — sinon le propriétaire
         // reçoit des recettes sans rapport avec ce qu'il vient de taper, et
         // seul le quota lui est expliqué.
         notice = this.quotaMessage(breach, true, (query.ingredients?.terms.length ?? 0) > 0);
@@ -359,7 +359,7 @@ export class SuggestionsService {
   }
 
   /**
-   * Demande parlée (spécification du 2026-10-21) : djkix appuie sur un
+   * Demande parlée (spécification du 2026-10-21) : le propriétaire appuie sur un
    * bouton, dit ce qu'il lui reste et ce qu'il veut manger, et reçoit des
    * recettes croisées avec son stock réel.
    *
@@ -788,7 +788,7 @@ export class SuggestionsService {
           locationName: entry?.locationName ?? null,
           locationTemperature: entry?.locationTemperature ?? null,
           state: outcomeById.get(id)?.state ?? 'untracked',
-          // Déclaré à l'instant par djkix (D5) : `state` continue de dire ce
+          // Déclaré à l'instant par le propriétaire (D5) : `state` continue de dire ce
           // que le stock sait, l'écran dit ce qu'il a sous la main.
           declared: labelMatchesTerms(ingredient.label, dictated),
         };
@@ -838,7 +838,7 @@ export class SuggestionsService {
 
   /**
    * Conservation d'une suggestion (EF-25, EF-26, D9, D10) : « l'application
-   * n'envoie jamais djkix vers le site » — et depuis le réservoir, elle ne
+   * n'envoie jamais le propriétaire vers le site » — et depuis le réservoir, elle ne
    * rappelle plus le site elle-même. La recette est cherchée **par son
    * identité au réservoir** (`SuggestionPoolRecipe.identity`, unique), jamais
    * dans une fournée : l'écran sert du réservoir depuis la tâche 4, la
@@ -976,7 +976,7 @@ export class SuggestionsService {
       // reclassée à la main (demande du 2026-10-08).
       dishType: suggestion.dishType,
       // La région de la suggestion devient la cuisine de la recette conservée
-      // (choix de djkix, 2026-10-19). Jusqu'ici une recette conservée
+      // (choix du propriétaire, 2026-10-19). Jusqu'ici une recette conservée
       // n'arrivait avec aucune cuisine : le sélecteur « Cuisine » de « Mes
       // recettes », qui liste les lignes de `Cuisine`, ne pouvait donc
       // correspondre à aucune d'elles — un filtre qui ne filtrait rien. Les

@@ -67,7 +67,7 @@ export function Sheet({ open, onClose, title, description, children, locked = fa
 
   /**
    * Le geste « page précédente » ferme le tiroir au lieu de quitter l'écran
-   * (djkix, 2026-10-19 : « quand je swipe vers la gauche, au lieu d'avoir un
+   * (le propriétaire, 2026-10-19 : « quand je swipe vers la gauche, au lieu d'avoir un
    * retour aux suggestions, je bascule sur Mes recettes »). Rien n'écoutait ce
    * glissement : c'est le navigateur qui remontait l'historique, puisque
    * l'ouverture d'un tiroir n'y ajoutait aucune entrée.

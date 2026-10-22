@@ -45,7 +45,7 @@ export function normalizeIngredientTerms(raw: string): string[] {
  * quatre lettres (tour de correction 1 du 2026-10-19).
  *
  * Sans cela, « pomme de terre » ne trouvait pas « Pommes de terre nouvelles »,
- * ni « oeuf » « Œufs » : l'exemple littéral de la demande. Selon que djkix
+ * ni « oeuf » « Œufs » : l'exemple littéral de la demande. Selon que le propriétaire
  * tapait au singulier ou au pluriel, il déclenchait un appel payant au lieu de
  * lire son réservoir, et voyait son propre ingrédient annoncé comme manquant.
  *
@@ -85,7 +85,7 @@ export function significantWords(term: string): string[] {
 /**
  * Un libellé d'ingrédient de recette porte-t-il l'un des termes dictés (D5, D8) ?
  * Inclusion du terme entier seulement : c'est la question « ce libellé-ci
- * est-il celui que djkix a déclaré ? », qui se pose libellé par libellé.
+ * est-il celui que le propriétaire a déclaré ? », qui se pose libellé par libellé.
  */
 export function labelMatchesTerms(label: string, terms: readonly string[]): boolean {
   const folded = foldForComparison(label);
@@ -100,7 +100,7 @@ export function labelMatchesTerms(label: string, terms: readonly string[]): bool
  * significatifs** dans un libellé quelconque de la recette.
  *
  * La seconde lecture existe pour une saisie que la première rejetait en bloc
- * (constat de djkix, 2026-10-19) : il a tapé « poulet tomate » sans virgule,
+ * (constat du propriétaire, 2026-10-19) : il a tapé « poulet tomate » sans virgule,
  * donc un terme unique, et aucun libellé ne contient « poulet tomate » d'un
  * seul tenant. L'écran annonçait « aucune recette » pour du poulet et des
  * tomates, après avoir payé l'appel au modèle dont les recettes venaient

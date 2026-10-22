@@ -40,7 +40,7 @@ Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clô
 
 /**
  * Les instructions viennent d'abord, les données (lues sur une page choisie
- * par le modèle lui-même, jamais par djkix) ensuite et marquées comme
+ * par le modèle lui-même, jamais par le propriétaire) ensuite et marquées comme
  * telles : une phrase qui s'adresserait au modèle depuis l'intérieur de la
  * page n'a pas plus de poids qu'un ingrédient parmi d'autres (revue de
  * tâche 9).

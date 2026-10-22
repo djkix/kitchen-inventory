@@ -94,7 +94,7 @@ jobs:
             type=raw,value=latest,enable=${{ steps.version.outputs.value != '' }}
             type=raw,value=main,enable=${{ steps.version.outputs.value == '' }}
 
-      # amd64 seulement : l'hôte de déploiement est un mini-PC x86. La section 9
+      # amd64 seulement : l'hôte de déploiement est une machine x86. La section 9
       # du cahier des charges prévoit aussi arm64, mais sa construction passait
       # par l'émulation QEMU, qui échouait par intermittence sur une instruction
       # illégale (code 132) et doublait la durée du build. À rétablir le jour où

@@ -6,7 +6,7 @@ import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { createProduct, createStock } from '../../test/recipes.test-helpers.js';
 import { FakeHttp, geminiFixture } from '../../test/fake-http.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'Camille' };
 
 /** Hôte IP littéral (RFC 5737) : atteint sans résolution DNS, pour qu'aucun test ne dépende du réseau (section 19). */
 const WEB_RECIPE_HOST = '203.0.113.20';

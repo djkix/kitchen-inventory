@@ -5,7 +5,7 @@ import { cn } from '../../lib/cn';
 /**
  * Question bloquante posée à l'entrée de l'écran Suggestions (section 12,
  * EF-25, décision D2 du 2026-10-11) : tant qu'aucun type n'est choisi, ni
- * liste, ni squelette, ni barre de filtres ne sont affichés. djkix a choisi
+ * liste, ni squelette, ni barre de filtres ne sont affichés. Le propriétaire a choisi
  * cette variante en connaissant son coût — une tape de plus à chaque visite.
  *
  * Les sept types sont ceux de la taxonomie existante (`DISH_TYPES`), affichés

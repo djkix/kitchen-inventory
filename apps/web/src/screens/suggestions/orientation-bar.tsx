@@ -72,7 +72,7 @@ const SELECT_CLASS =
  * moins bien pour plus de code. `min-h-touch` tient par la hauteur du
  * contrôle, pas par sa police (A7).
  *
- * Deux par ligne, pas quatre (revue du 2026-10-11, djkix avait autorisé « 1
+ * Deux par ligne, pas quatre (revue du 2026-10-11, le propriétaire avait autorisé « 1
  * ou 2 lignes ») : à 375 px, quatre sélecteurs sur une seule ligne ne
  * laissent qu'environ 45 px de texte utile chacun une fois marges, gouttières,
  * padding et flèche native déduits — trop peu pour lire « Latino-américaine »

@@ -7,7 +7,7 @@ import { Sheet } from './sheet';
  * Le geste « page précédente » (glissement vers la gauche sur un téléphone,
  * bouton Retour d'Android) doit **fermer le tiroir**, pas quitter l'écran.
  *
- * djkix l'a rencontré le 2026-10-19 sur le tiroir d'une suggestion : « quand
+ * Le propriétaire l'a rencontré le 2026-10-19 sur le tiroir d'une suggestion : « quand
  * je swipe vers la gauche, au lieu d'avoir un retour aux suggestions, je
  * bascule sur Mes recettes ». Aucun code de l'application n'écoutait ce
  * glissement — c'est le navigateur qui revenait à l'entrée d'historique

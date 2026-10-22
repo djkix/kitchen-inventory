@@ -15,7 +15,7 @@ export function VersionBadge({ className, compact = false }: { className?: strin
   const degraded = health.data !== undefined && health.data.status !== 'ok';
 
   /**
-   * Forme compacte, dans l'en-tête de Réglages (demande de djkix,
+   * Forme compacte, dans l'en-tête de Réglages (demande du propriétaire,
    * 2026-10-22) : la version se lit d'un coup d'œil en haut à droite au lieu
    * d'attendre au bas d'un écran devenu pliable, où il fallait dérouler pour
    * l'atteindre. Les explications longues n'y tiennent pas — le bandeau de

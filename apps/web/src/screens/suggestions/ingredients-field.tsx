@@ -9,7 +9,7 @@ import { useProductsQuery } from '../../lib/queries';
  * sélection dans l'inventaire — un reste n'a pas de code-barres, il est né du
  * repas d'hier, et c'est précisément ce que le stock ne sait pas dire.
  *
- * Des **pastilles**, depuis le 2026-10-19 : djkix a tapé « poulet tomate »
+ * Des **pastilles**, depuis le 2026-10-19 : le propriétaire a tapé « poulet tomate »
  * sans virgule, l'application a compris un seul ingrédient de ce nom, et rien
  * à l'écran ne le disait — il a lu « Aucune recette avec ces ingrédients »
  * après avoir payé l'appel au modèle. Chaque terme validé (Entrée ou virgule)
@@ -196,7 +196,7 @@ export function IngredientsField({
             // `search` : le clavier du téléphone affiche alors une touche de
             // validation explicite, seul moyen de soumettre sans bouton visible.
             enterKeyHint="search"
-            // « ingrédients » plutôt qu'un exemple nommé (choix de djkix,
+            // « ingrédients » plutôt qu'un exemple nommé (choix du propriétaire,
             // 2026-10-20) : à environ 185 px de large sur un téléphone, un
             // exemple à deux aliments se faisait couper en plein milieu, et un
             // exemple tronqué enseigne la syntaxe de travers.

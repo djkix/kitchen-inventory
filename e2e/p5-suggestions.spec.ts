@@ -13,7 +13,7 @@ import { emptySuggestionPool, seedReadWebRecipes, suggestionCalls } from './supp
  * Ce que ce fichier prouve, et dans cet ordre (les tests d'un fichier
  * s'exécutent en série sur une base restaurée une seule fois, `workers: 1` et
  * `fullyParallel: false` — le réservoir se remplit donc au fil des tests,
- * comme il le ferait au fil des visites de djkix) :
+ * comme il le ferait au fil des visites du propriétaire) :
  *  1. le réservoir vide fait appeler le modèle, et une recette `web` dont la
  *     page est injoignable n'atteint jamais l'écran (décision D4) ;
  *  2. le réservoir rempli sert deux visites successives SANS aucun appel au
@@ -477,7 +477,7 @@ test('ingrédients dictés : pastilles, autocomplétion, et des recettes qui les
   const field = page.getByRole('combobox', { name: 'Ingrédients à utiliser' });
 
   // 1. Le cœur de la correction : un terme validé par Entrée devient une
-  //    pastille VISIBLE. djkix avait tapé « poulet tomate » sans virgule, et
+  //    pastille VISIBLE. Le propriétaire avait tapé « poulet tomate » sans virgule, et
   //    rien à l'écran ne disait que l'application n'y lisait qu'un seul
   //    ingrédient de ce nom — il a lu « Aucune recette » après avoir payé
   //    l'appel. La croix de la pastille porte le terme dans son nom
@@ -525,7 +525,7 @@ test('ingrédients dictés : pastilles, autocomplétion, et des recettes qui les
   //    est appelé une fois (le seul appel de ce parcours) ; la fournée
   //    rejouée n'apporte rien de plus qui les porte toutes, et l'écran doit
   //    le DIRE plutôt que de laisser une liste vide et muette — la limite
-  //    assumée de D1, qui est précisément ce que djkix a subi.
+  //    assumée de D1, qui est précisément ce que le propriétaire a subi.
   await field.fill('pâtes,');
   const empty = await waitForSuggestionsResponse(page, () => search.click());
   expect(empty.items).toHaveLength(0);
@@ -537,7 +537,7 @@ test('ingrédients dictés : pastilles, autocomplétion, et des recettes qui les
 });
 
 test('efface une recette de la liste : archivage après confirmation, jamais de suppression (D4, D5)', async ({ page }) => {
-  // « Toujours présent dans la base des recettes » (demande de djkix) :
+  // « Toujours présent dans la base des recettes » (demande du propriétaire) :
   // l'effacement de la liste est un `POST /recipes/:id/archive`. La recette
   // quitte « Mes recettes », garde son historique et ses notes, et la bascule
   // « Archivées » la retrouve.

@@ -3,7 +3,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { FakeHttp, json } from '../../test/fake-http.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'Camille' };
 const MEMBRE = { email: 'membre@example.org', name: 'Membre' };
 
 const LIST_MODELS = {
@@ -14,7 +14,7 @@ const LIST_MODELS = {
 };
 
 /**
- * Choix du modèle depuis les réglages (demandé par djkix le 2026-10-06, après
+ * Choix du modèle depuis les réglages (demandé par le propriétaire le 2026-10-06, après
  * la panne des suggestions). Deux invariants tiennent tout le reste : la
  * précédence base > environnement > défaut, et le fait que le modèle soit relu
  * à chaque appel — un réglage changé à l'écran ne doit pas attendre un

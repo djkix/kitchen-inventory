@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { fakeGoogleCredential, type FakeIdentity } from '../../test/google-verifier.double.js';
 
-const ADMIN: FakeIdentity = { email: 'proprietaire@example.org', name: 'djkix', sub: 'google-proprietaire' };
+const ADMIN: FakeIdentity = { email: 'proprietaire@example.org', name: 'Camille', sub: 'google-proprietaire' };
 const INCONNU: FakeIdentity = { email: 'inconnu@example.org', name: 'Inconnu', sub: 'google-inconnu' };
 
 const ATTENTE = 'Votre demande attend la validation d’un administrateur.';
@@ -26,7 +26,7 @@ describe('connexion par compte Google', () => {
   it('la première connexion crée l’administrateur, ouvre une session et pose les emplacements par défaut', async () => {
     const agent = t.agent();
     const res = await agent.post('/api/v1/auth/google').send({ credential: fakeGoogleCredential(ADMIN) }).expect(200);
-    expect(res.body).toMatchObject({ email: ADMIN.email, name: 'djkix', role: 'ADMIN' });
+    expect(res.body).toMatchObject({ email: ADMIN.email, name: 'Camille', role: 'ADMIN' });
     expect(res.headers['set-cookie']?.[0]).toMatch(/^sid=.*HttpOnly/);
     expect(res.headers['set-cookie']?.[0]).toMatch(/SameSite=Lax/);
 
@@ -172,7 +172,7 @@ describe('connexion par compte Google', () => {
 
   it('une adresse changée crée une demande, sans buter sur l’unicité du `sub`', async () => {
     await t.signIn(t.agent(), ADMIN);
-    const res = await google(t, { email: 'autre@example.org', name: 'djkix', sub: 'google-proprietaire' }).expect(403);
+    const res = await google(t, { email: 'autre@example.org', name: 'Camille', sub: 'google-proprietaire' }).expect(403);
     expect(res.body.error.code).toBe('forbidden');
     const demande = await t.prisma.user.findUniqueOrThrow({ where: { email: 'autre@example.org' } });
     expect(demande.status).toBe('PENDING');
@@ -207,7 +207,7 @@ describe('connexion par compte Google', () => {
 
   it('les anciennes routes de mot de passe n’existent plus', async () => {
     await t.api.post('/api/v1/auth/login').send({ email: ADMIN.email, password: 'un-mot-de-passe-long' }).expect(404);
-    await t.api.post('/api/v1/auth/setup').send({ email: ADMIN.email, name: 'djkix', password: 'un-mot-de-passe-long' }).expect(404);
+    await t.api.post('/api/v1/auth/setup').send({ email: ADMIN.email, name: 'Camille', password: 'un-mot-de-passe-long' }).expect(404);
     const agent = await t.signIn(t.agent(), ADMIN);
     await agent.post('/api/v1/me/password').send({ currentPassword: 'x', newPassword: 'un-mot-de-passe-long' }).expect(404);
   });

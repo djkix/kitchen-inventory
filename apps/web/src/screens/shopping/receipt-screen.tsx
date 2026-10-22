@@ -152,7 +152,7 @@ function initialState(line: ReceiptLineDto): LineState {
 /**
  * Le « 3 × » du ticket compte des objets : il ne pré-remplit la quantité que
  * pour un produit qui se compte ainsi. Sinon la case reste vide — « 1 g de
- * Comté » serait faux, c'est à djkix de dire combien.
+ * Comté » serait faux, c'est au propriétaire de dire combien.
  */
 const prefilledQuantity = (line: ReceiptLineDto, product: ProductDto): string => (isCountableUnit(product.defaultUnit) ? String(line.quantity) : '');
 

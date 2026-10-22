@@ -177,7 +177,7 @@ export enrichi restent à faire. La liste de courses alimentée par des seuils
 
 ### Prérequis
 
-- Un hôte Docker `amd64` (mini-PC, NAS x86) avec `docker compose`. L'image
+- Un hôte Docker `amd64` (PC ou NAS x86) avec `docker compose`. L'image
   n'est publiée que pour cette architecture ; pour un Raspberry Pi ou un hôte
   arm, la construire localement avec `docker compose -f docker-compose.yml -f
   docker-compose.dev.yml build`.
@@ -701,7 +701,7 @@ décisions dans `docs/specs/2026-10-04-tests-bout-en-bout.md`, jugement rendu
 dans `docs/decisions/2026-10-04-tests-bout-en-bout.md`.
 
 **Cette suite ne tourne qu'en CI**, sur `main` après chaque fusion — jamais en
-local, faute de moteur de conteneurs sur le Mac de djkix. C'est le
+local, faute de moteur de conteneurs sur le poste du propriétaire. C'est le
 compromis : en échange, le job `e2e` de `.github/workflows/ci.yml` publie
 toujours en artefact le rapport Playwright et, à chaque échec, les captures,
 vidéos et traces (dossier `e2e/artefacts/`) ainsi que les journaux du
@@ -785,7 +785,7 @@ engendré par release-please depuis les messages de commit.
 | 0.10.0 | 2026-10-06 | Le numéro de version ne s'affiche plus qu'au bas de l'écran Réglages, au lieu de chaque écran et de la page de connexion : c'est une information d'administration, et le bandeau « Nouvelle version… |
 | 0.9.2 | 2026-10-05 | Correctif : aucune suggestion de recette n'avait jamais abouti depuis la 0.8.0 |
 | 0.9.1 | 2026-10-05 | Correctif d'accessibilité : les cartes de recette et de suggestion n'avaient aucun nom annoncé par les lecteurs d'écran, et étaient introuvables par une requête rôle + nom — Chromium ne remonte… |
-| 0.9.0 | 2026-10-05 | La date de péremption se saisit désormais directement dans le tiroir de validation du scan (EF-02), ce que djkix avait demandé puis fait reporter deux fois : sous la quantité, trois raccourcis («… |
+| 0.9.0 | 2026-10-05 | La date de péremption se saisit désormais directement dans le tiroir de validation du scan (EF-02), ce que le propriétaire avait demandé puis fait reporter deux fois : sous la quantité, trois raccourcis («… |
 | 0.8.3 | 2026-10-05 | Tests des parcours de bout en bout : vingt-huit scénarios rejouent désormais l'application entière dans un vrai navigateur — ranger les courses en scannant, saisir une date de péremption,… |
 | 0.8.2 | 2026-10-05 | Correctif : la recherche du stock ignore désormais les accents (EF-11) |
 | 0.8.1 | 2026-10-05 | Correctif : « Mes recettes » n'affichait jamais une recette conservée |

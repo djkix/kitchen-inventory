@@ -7,7 +7,7 @@ type Temperature = 'ambient' | 'chilled' | 'frozen' | null;
 /**
  * Trois jeux de classes distincts par température, plus un repli neutre pour
  * `null` — ni la couleur ni la forme ne portent seules l'information
- * (djkix, round de correction 1) : chaque température a sa propre teinte
+ * (le propriétaire, round de correction 1) : chaque température a sa propre teinte
  * (`--color-chilled`/`--color-frozen`, ajoutées au thème dans `styles.css`,
  * distinctes des couleurs de péremption `danger`/`warn`/`soon`) et son propre
  * pictogramme décoratif (`aria-hidden`, porté par `icons.tsx`).

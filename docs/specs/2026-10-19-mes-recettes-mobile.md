@@ -1,7 +1,7 @@
 # « Mes recettes » et la fiche recette, repris pour le mobile
 
 **Date** : 2026-10-19
-**Demande de djkix**, en trois volets :
+**Demande du propriétaire**, en trois volets :
 
 1. « Ajouter à mes recettes » au lieu de « Plus d'informations ».
 2. Sur la liste : « un menu de filtre (actuellement ça prend trop de place sur
@@ -21,7 +21,7 @@
 **« Ajouter à mes recettes »**. Le libellé actuel vient d'un arbitrage du
 2026-10-08 (« simple renommage » de « Conserver »), et il a produit exactement
 l'ambiguïté qu'on pouvait craindre : le mot promet une lecture, l'action est un
-enregistrement définitif. djkix a buté dessus le 2026-10-19 en demandant ce
+enregistrement définitif. Le propriétaire a buté dessus le 2026-10-19 en demandant ce
 que ce bouton apportait « par rapport à la fenêtre d'affichage de la recette ».
 
 **D2 — Les filtres passent derrière un bouton.** Un seul contrôle

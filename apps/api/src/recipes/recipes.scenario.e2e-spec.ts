@@ -3,7 +3,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { createProduct, createRecipe, createStock, isoIn, logCooked } from '../../test/recipes.test-helpers.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'Camille' };
 
 /**
  * Scénario de réussite du socle (A23). Stock et recettes figés, résultat

@@ -54,7 +54,7 @@ export const SUGGESTION_PAGE_SIZE = 12;
  * classement proportionnelle à la page, et ce calcul est un rapprochement
  * `pg_trgm` par libellé d'ingrédient contre tout le catalogue de produits.
  * Une valeur libre venue du client (`?limit=10000`) ferait donc balayer tout
- * le réservoir à chaque visite, sur un mini-PC, pour un téléphone.
+ * le réservoir à chaque visite, sur une petite machine, pour un téléphone.
  *
  * Pourquoi cinq pages et pas plus : c'est déjà soixante cartes à faire défiler
  * au doigt — au-delà, l'outil qui sert n'est pas une page plus longue mais les
@@ -296,7 +296,7 @@ export interface SuggestionIngredientDto {
    * correction 1 du 2026-10-19). `state` continue de dire ce que le **stock**
    * sait — la règle de couverture partagée n'a pas à connaître une déclaration
    * invérifiable — mais l'écran ne doit jamais afficher « Merguez — Manquant »
-   * juste après que djkix ait tapé « merguez ».
+   * juste après que le propriétaire ait tapé « merguez ».
    */
   declared: boolean;
 }
@@ -351,7 +351,7 @@ export interface SuggestionBatchDto {
    * Recettes connues pour cette orientation, et dans toute l'application
    * (2026-10-19). `items` n'en montre qu'une page : sans ces deux nombres, un
    * réservoir qui ne bouge plus et un réservoir plein se ressemblent — c'est
-   * exactement ce qui a donné à djkix l'impression de tourner sur douze
+   * exactement ce qui a donné au propriétaire l'impression de tourner sur douze
    * recettes.
    */
   poolCount: number;

@@ -272,7 +272,7 @@ git add e2e && git commit -m "test(e2e): parcours P3, consommation (section 3)"
 test('trouve un produit par son nom, accents ignorés', async ({ page }) => { /* « crepes » trouve « Crêpes » */ });
 test('filtre par emplacement, sous-emplacements compris', async ({ page }) => { /* … */ });
 test('liste ce qui périme bientôt, du plus urgent au moins urgent', async ({ page }) => { /* … */ });
-test('affiche la version de l’application', async ({ page }) => { /* demandé explicitement par djkix en 0.5 */ });
+test('affiche la version de l’application', async ({ page }) => { /* demandé explicitement par le propriétaire en 0.5 */ });
 ```
 
 - [ ] **Step 2 à 3 : implémenter, vérifier, commit**
@@ -380,7 +380,7 @@ git commit -m "ci: jouer les parcours bout en bout sur main (section 19)"
 - [ ] **Step 1 : README**
 
 Une section Développement qui dit comment la suite tourne, et surtout **qu'elle ne tourne pas en
-local** faute de Docker sur la machine de djkix **[C3]** : en cas d'échec, le rapport Playwright est
+local** faute de Docker sur la machine du propriétaire **[C3]** : en cas d'échec, le rapport Playwright est
 en artefact du job. Ajouter la ligne de version à « Derniers changements ». Ne pas écrire
 `CHANGELOG.md`, généré par release-please.
 

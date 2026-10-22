@@ -92,7 +92,7 @@ describe('SuggestionSheet', () => {
   });
 
   /**
-   * Le tiroir porte deux boutons (demande de djkix du 2026-10-19, second
+   * Le tiroir porte deux boutons (demande du propriétaire du 2026-10-19, second
    * tour) : l'action à gauche, l'abandon à droite. « Plus d'informations »
    * promettait une lecture là où le geste enregistre définitivement la
    * recette, et « Ajouter à mes recettes » ne disait pas où l'on atterrit —
@@ -279,7 +279,7 @@ describe('SuggestionSheet', () => {
 /**
  * D5, tour de correction 1 (2026-10-19) : retirer l'ingrédient dicté des
  * manquants ne suffisait pas — le tiroir affichait toujours « Merguez,
- * Manquant » juste après que djkix ait tapé « merguez », et c'est là qu'il
+ * Manquant » juste après que le propriétaire ait tapé « merguez », et c'est là qu'il
  * regarde.
  */
 describe('SuggestionSheet, ingrédient déclaré', () => {
