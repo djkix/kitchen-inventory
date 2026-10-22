@@ -876,6 +876,17 @@ celui rapproché (`MATCHED`) ou l'un de ses candidats (`AMBIGUOUS`) ; une ligne
 rejeu à l'identique ne double rien (`added: 0`) ; un ticket déjà validé refuse
 toute autre demande (409).
 
+Les libellés jamais reconnus s'accumulent pour qu'on les rattache quand on veut :
+`GET /api/v1/receipts/pending-labels` rend `[{ "label", "seenAt", "count" }]`
+(un libellé n'y figure qu'une fois, même imprimé un peu différemment d'un ticket
+à l'autre ; `count` est le nombre de lignes), `GET …/pending-labels/count` rend
+`{ "count": n }` pour la pastille de l'onglet Courses, et `POST
+…/pending-labels/attach` (`{ "label", "productId" }`, 204) apprend le libellé :
+les tickets suivants le reconnaissent, sans passer par la recherche. Rattacher
+de nouveau un libellé déjà appris change son produit. Rien ne se fait pendant le
+scan ni sur l'écran d'un ticket. Un produit suivi autrement qu'à la pièce reste
+proposé comme candidat (`AMBIGUOUS`) plutôt que reconnu d'office.
+
 **Export.** `GET /api/v1/export/inventory.csv` et `/inventory.json`, derrière
 la session ou un jeton de service.
 
