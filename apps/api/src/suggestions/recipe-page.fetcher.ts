@@ -126,30 +126,63 @@ function isPrivateIPv4(address: string): boolean {
   return false;
 }
 
-/** Premier groupe (16 bits) de l'adresse, en tenant compte de la compression « :: ». */
-function firstIPv6Group(address: string): number | null {
-  const withoutZone = address.split('%')[0] ?? '';
-  const head = withoutZone.includes('::') ? (withoutZone.split('::')[0] ?? '') : withoutZone;
-  const firstGroup = head.split(':')[0];
-  if (!firstGroup) return 0; // l'adresse commence par « :: » : premier groupe nul
-  const value = Number.parseInt(firstGroup, 16);
-  return Number.isNaN(value) ? null : value;
+/**
+ * Les huit groupes de 16 bits d'une adresse IPv6, « :: » développé et IPv4
+ * finale (`::ffff:1.2.3.4`) convertie ; `null` si l'adresse est illisible.
+ */
+export function parseIPv6(address: string): number[] | null {
+  let text = (address.split('%')[0] ?? '').toLowerCase();
+  const dotted = text.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted?.[1] && dotted[2]) {
+    const parts = dotted[2].split('.').map(Number);
+    if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) return null;
+    const [a, b, c, d] = parts as [number, number, number, number];
+    text = `${dotted[1]}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const halves = text.split('::');
+  if (halves.length > 2) return null;
+  const toGroups = (part: string | undefined): number[] | null => {
+    if (!part) return [];
+    const groups = part.split(':').map((g) => (/^[0-9a-f]{1,4}$/.test(g) ? Number.parseInt(g, 16) : Number.NaN));
+    return groups.some((g) => Number.isNaN(g)) ? null : groups;
+  };
+  const head = toGroups(halves[0]);
+  const tail = toGroups(halves[1]);
+  if (!head || !tail) return null;
+  if (halves.length === 1) return head.length === 8 ? head : null;
+  const missing = 8 - head.length - tail.length;
+  if (missing < 1) return null;
+  return [...head, ...new Array<number>(missing).fill(0), ...tail];
 }
 
 function isPrivateIPv6(address: string): boolean {
-  const normalized = address.toLowerCase();
-  if (normalized === '::1' || normalized === '::') return true;
-  const mapped = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped?.[1]) return isPrivateIPv4(mapped[1]);
-  const first = firstIPv6Group(normalized);
-  if (first === null) return true;
-  if (first >= 0xfc00 && first <= 0xfdff) return true; // adresses locales uniques, fc00::/7
-  if (first >= 0xfe80 && first <= 0xfebf) return true; // lien-local, fe80::/10
-  if (first >= 0xff00 && first <= 0xffff) return true; // multicast, ff00::/8
+  const g = parseIPv6(address);
+  if (!g) return true; // illisible : refusée par prudence
+  const [g0, g1, g2, g3, g4, g5] = g as [number, number, number, number, number, number, number, number];
+  const zeroUpTo = (n: number): boolean => g.slice(0, n).every((x) => x === 0);
+  // Non spécifiée (::), bouclage (::1) et IPv4-compatible (::a.b.c.d, dépréciée) :
+  // les 96 premiers bits sont nuls.
+  if (zeroUpTo(6)) return true;
+  // IPv4-mapped (::ffff:a.b.c.d) et IPv4-translated (::ffff:0:a.b.c.d, RFC 2765) :
+  // refusées en bloc, une réponse DNS légitime n'en rend pas.
+  if (zeroUpTo(5) && g5 === 0xffff) return true;
+  if (zeroUpTo(4) && g4 === 0xffff && g5 === 0) return true;
+  // NAT64 (64:ff9b::/96, RFC 6052, et 64:ff9b:1::/48, RFC 8215) : l'adresse
+  // IPv4 encapsulée peut être interne.
+  if (g0 === 0x64 && g1 === 0xff9b && (g2 === 0 || g2 === 1)) return true;
+  // 6to4 (2002::/16) et Teredo (2001::/32) : IPv4 encapsulée, elle aussi.
+  if (g0 === 0x2002) return true;
+  if (g0 === 0x2001 && g1 === 0) return true;
+  // Préfixe de rejet (100::/64, RFC 6666).
+  if (g0 === 0x100 && g1 === 0 && g2 === 0 && g3 === 0) return true;
+  if (g0 >= 0xfc00 && g0 <= 0xfdff) return true; // adresses locales uniques, fc00::/7
+  if (g0 >= 0xfe80 && g0 <= 0xfeff) return true; // lien-local fe80::/10 et site-local déprécié fec0::/10
+  if (g0 >= 0xff00) return true; // multicast, ff00::/8
   return false;
 }
 
-function isPrivateAddress(address: string): boolean {
+/** Vrai pour toute adresse qui n'est pas publiquement routable — ou illisible. */
+export function isPrivateAddress(address: string): boolean {
   const version = isIP(address);
   if (version === 4) return isPrivateIPv4(address);
   if (version === 6) return isPrivateIPv6(address);
@@ -161,7 +194,10 @@ function isPrivateAddress(address: string): boolean {
  * réservoir (D9, D10) : la page est lue une seule fois, son contenu recopié en
  * base, et le site n'est plus jamais recontacté — pas même à la conservation.
  * HTTPS seul, délai borné, hôtes privés ou locaux refusés, taille plafonnée,
- * redirections revalidées à chaque saut. Un échec de sécurité est un refus
+ * redirections revalidées à chaque saut, et connexion **épinglée** sur
+ * l'adresse validée (`pinnedAddress`) : le nom n'est jamais résolu une
+ * seconde fois au moment de se connecter, ce qui ferme la porte au « DNS
+ * rebinding » (revue de sécurité du 2026-10-22). Un échec de sécurité est un refus
  * explicite (`RecipePageRefusedError`) ; un échec réseau rend `null`, sans
  * jamais faire échouer l'appelant.
  */
@@ -169,6 +205,8 @@ export class RecipePageFetcher {
   constructor(
     private readonly http: HttpClient,
     private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    // Injectable pour les tests : aucun test ne résout de nom pour de vrai.
+    private readonly resolveHost: HostResolver = resolveWithDns,
   ) {}
 
   /**
@@ -198,12 +236,15 @@ export class RecipePageFetcher {
 
     try {
       for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-        await assertFetchable(current);
+        // Revalidé à chaque saut, et l'adresse retenue est celle-là même sur
+        // laquelle la connexion part.
+        const pinnedAddress = await assertFetchable(current, this.resolveHost);
 
         const response = await this.http(current.toString(), {
           redirect: 'manual',
           headers: { accept: 'text/html,application/xhtml+xml' },
           signal,
+          pinnedAddress,
         });
 
         if (response.status >= 300 && response.status < 400) {
@@ -281,28 +322,41 @@ function raceWithAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T |
   });
 }
 
-/** Refuse tout ce qui n'est pas HTTPS vers un hôte public (vigilance 2) ; jamais suivi en silence. */
-async function assertFetchable(url: URL): Promise<void> {
+/** Résout un nom d'hôte en adresses IP (toutes familles). */
+export type HostResolver = (hostname: string) => Promise<string[]>;
+
+async function resolveWithDns(hostname: string): Promise<string[]> {
+  const results = await lookup(hostname, { all: true });
+  return results.map((r) => r.address);
+}
+
+/**
+ * Refuse tout ce qui n'est pas HTTPS vers un hôte public (vigilance 2) ; jamais
+ * suivi en silence. Rend l'adresse sur laquelle épingler la connexion.
+ */
+async function assertFetchable(url: URL, resolveHost: HostResolver): Promise<string> {
   if (url.protocol !== 'https:') {
     throw new RecipePageRefusedError('Seule une adresse en https est acceptée pour récupérer une recette');
   }
-  await assertPublicHost(url.hostname);
+  return assertPublicHost(url.hostname.replace(/^\[(.*)\]$/, '$1'), resolveHost);
 }
 
-async function assertPublicHost(hostname: string): Promise<void> {
+async function assertPublicHost(hostname: string, resolveHost: HostResolver): Promise<string> {
   const literalVersion = isIP(hostname);
   const addresses: string[] = [];
   if (literalVersion) {
     addresses.push(hostname);
   } else {
     try {
-      const results = await lookup(hostname, { all: true });
-      addresses.push(...results.map((r) => r.address));
+      addresses.push(...(await resolveHost(hostname)));
     } catch {
       throw new RecipePageRefusedError('Hôte de la recette introuvable');
     }
   }
+  // Toutes les adresses doivent être publiques, pas seulement celle retenue :
+  // un nom qui en mélange est suspect en soi.
   if (addresses.length === 0 || addresses.some((address) => isPrivateAddress(address))) {
     throw new RecipePageRefusedError('Adresse privée ou locale refusée pour récupérer une recette');
   }
+  return addresses[0]!;
 }

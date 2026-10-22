@@ -501,6 +501,19 @@ son coût estimé et sa confiance ; les compteurs correspondants (appels du jour
 et du mois, coût cumulé, taux de reconnaissance automatique sur trente jours,
 part des scans résolus par le cache) sont affichés dans les réglages.
 
+## Sécurité
+
+Les garde-fous qui ne se voient pas à l'écran :
+
+- **Pages de recettes web.** Le récupérateur ne lit que du HTTPS vers une
+  adresse publique, revalide chaque redirection, et **épingle la connexion sur
+  l'adresse qu'il vient de vérifier** : le nom n'est jamais résolu une seconde
+  fois, si bien qu'un DNS qui changerait de réponse entre la vérification et
+  la connexion (« DNS rebinding ») ne mène pas au réseau local. Sont refusées
+  les plages privées, de bouclage, lien-local, multicast, CGNAT, et en IPv6 les
+  formes qui encapsulent une IPv4 (`::ffff:…`, `::a.b.c.d`, NAT64
+  `64:ff9b::/96`, 6to4 `2002::/16`, Teredo).
+
 ## Intégrations
 
 **Home Assistant et autres lecteurs.** Un jeton de service créé dans
