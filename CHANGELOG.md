@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/djkix/kitchen-inventory/compare/v0.28.0...v0.29.0) (2026-10-22)
+
+
+### Features
+
+* **reglages:** tout replié, puces de couleur, version en en-tête, conso des recettes ([f70761d](https://github.com/djkix/kitchen-inventory/commit/f70761d18b516de29a96cb817195d0002d68fb59))
+
 ## [0.28.0](https://github.com/djkix/kitchen-inventory/compare/v0.27.1...v0.28.0) (2026-10-21)
 
 
