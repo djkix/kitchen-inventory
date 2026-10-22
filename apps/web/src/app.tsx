@@ -8,13 +8,13 @@ import { useAuth } from './hooks/use-auth';
 import { isApiError, setUnauthenticatedHandler } from './lib/api';
 import { LoginScreen } from './screens/login/login-screen';
 import { MaintenanceScreen } from './screens/maintenance-screen';
-import { ComingSoonScreen } from './screens/placeholder/coming-soon-screen';
 import { RecipesScreen } from './screens/recipes/recipes-screen';
 import { RecipeScreen } from './screens/recipe/recipe-screen';
 import { StockScreen } from './screens/stock/stock-screen';
 import { ItemScreen } from './screens/item/item-screen';
 import { ExpiringScreen } from './screens/expiring/expiring-screen';
 import { SettingsScreen } from './screens/settings/settings-screen';
+import { ReceiptScreen } from './screens/shopping/receipt-screen';
 import { SuggestionsScreen } from './screens/suggestions/suggestions-screen';
 
 // Écrans secondaires chargés à la demande : l'onglet Stock arrive le premier.
@@ -62,7 +62,7 @@ export function App() {
                 <Route path="/recettes/parler" element={<VoiceRequestScreen />} />
                 <Route path="/recettes/:id" element={<RecipeScreen />} />
                 <Route path="/recettes/:id/modifier" element={<RecipeFormScreen />} />
-                <Route path="/courses" element={<ComingSoonScreen title="Courses" />} />
+                <Route path="/courses" element={<ReceiptScreen />} />
                 <Route path="/reglages" element={<SettingsScreen />} />
                 <Route path="/reglages/emplacements" element={<LocationsScreen />} />
                 <Route path="/reglages/jetons" element={<ServiceTokensScreen />} />
