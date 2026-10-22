@@ -10,8 +10,6 @@ const EXTENSIONS: Record<string, string> = {
   'image/webp': 'webp',
   'image/heic': 'heic',
   'image/gif': 'gif',
-  // Tickets de caisse (EF-29) : lus par le modèle, jamais enregistrés.
-  'application/pdf': 'pdf',
 };
 
 export const MIME_BY_EXTENSION: Record<string, string> = Object.fromEntries(Object.entries(EXTENSIONS).map(([mime, ext]) => [ext, mime]));
