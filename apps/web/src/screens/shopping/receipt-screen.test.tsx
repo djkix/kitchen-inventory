@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProductDto, ReceiptDto, ReceiptLineDto } from '@kitchen/shared';
 import { ToastProvider } from '../../components/ui/toast';
-import { ApiClientError } from '../../lib/api';
+import { api, ApiClientError } from '../../lib/api';
 import { receiptsApi } from '../../lib/receipts-api';
 import { writeScanLocation } from '../../lib/scan-session';
 import { ReceiptScreen } from './receipt-screen';
@@ -13,10 +13,12 @@ import { ReceiptScreen } from './receipt-screen';
 vi.mock('../../lib/receipts-api', () => ({
   receiptsApi: { read: vi.fn(), validate: vi.fn(), pendingLabels: vi.fn(), pendingLabelCount: vi.fn(), attachLabel: vi.fn() },
 }));
-const api = vi.mocked(receiptsApi);
+vi.mock('../../lib/api', async (importOriginal) => ({ ...(await importOriginal<Record<string, unknown>>()), api: { get: vi.fn() } }));
+const api_ = vi.mocked(receiptsApi);
+const locationNode = (id: string, name: string) => ({ id, name, parentId: null, path: name, depth: 0, kind: null, temperature: null, sortOrder: 0, itemCount: 0, children: [] });
 
-const product = (id: string, name: string): ProductDto => ({
-  id, barcode: null, name, originalName: null, brand: null, categoryId: null, defaultUnit: 'PIECE', netContent: null, netContentUnit: null,
+const product = (id: string, name: string, defaultUnit: ProductDto['defaultUnit'] = 'PIECE'): ProductDto => ({
+  id, barcode: null, name, originalName: null, brand: null, categoryId: null, defaultUnit, netContent: null, netContentUnit: null,
   afterOpeningDays: null, minThreshold: null, imagePath: null, recognitionSource: 'MANUAL', confidence: null, createdAt: '', updatedAt: '',
 });
 const line = (over: Partial<ReceiptLineDto> & Pick<ReceiptLineDto, 'id' | 'position' | 'rawLabel' | 'state'>): ReceiptLineDto => ({
@@ -33,7 +35,7 @@ const RECEIPT: ReceiptDto = {
     line({
       id: 'l2', position: 1, rawLabel: 'OLIVE NOIRE', state: 'AMBIGUOUS',
       // L'API met le candidat partiel en tête : l'écran doit remonter celui qui couvre le libellé.
-      candidates: [product('p9', 'Olive verte'), product('p2', 'Olive noire')],
+      candidates: [product('p9', 'Olive verte', 'GRAM'), product('p2', 'Olive noire')],
     }),
   ],
 };
@@ -52,17 +54,24 @@ function renderScreen() {
 }
 
 async function photograph(receipt: Promise<ReceiptDto> | ReceiptDto = RECEIPT) {
-  api.read.mockImplementation(() => Promise.resolve(receipt));
+  api_.read.mockImplementation(() => Promise.resolve(receipt));
+  await pickFile();
+}
+
+/** La liste des emplacements valide celui mémorisé : on n'envoie rien avant. */
+async function pickFile() {
   renderScreen();
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Photographier le ticket' }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.change(screen.getByTestId('receipt-file'), { target: { files: [new File(['x'], 't.jpg', { type: 'image/jpeg' })] } });
 }
 
 beforeEach(() => {
   localStorage.clear();
   writeScanLocation({ id: 'loc1', name: 'Frigo' });
-  Object.values(api).forEach((m) => m.mockReset());
-  api.pendingLabels.mockResolvedValue([]);
-  api.validate.mockResolvedValue({ added: 1 });
+  Object.values(api_).forEach((m) => m.mockReset());
+  api_.pendingLabels.mockResolvedValue([]);
+  api_.validate.mockResolvedValue({ added: 1 });
+  vi.mocked(api.get).mockResolvedValue([locationNode('loc1', 'Frigo'), locationNode('loc2', 'Cellier')]);
 });
 
 describe('ReceiptScreen (EF-29)', () => {
@@ -102,8 +111,8 @@ describe('ReceiptScreen (EF-29)', () => {
     await screen.findByText('2 → 3');
     fireEvent.change(screen.getByRole('textbox', { name: 'Quantité de Yaourt nature' }), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ajouter 1 produit' }));
-    await waitFor(() => expect(api.validate).toHaveBeenCalledTimes(1));
-    expect(api.validate.mock.calls[0]?.[1].lines).toEqual([{ id: 'l1', productId: 'p1', quantity: 3, clientOpId: expect.any(String) }]);
+    await waitFor(() => expect(api_.validate).toHaveBeenCalledTimes(1));
+    expect(api_.validate.mock.calls[0]?.[1].lines).toEqual([{ id: 'l1', productId: 'p1', quantity: 3, clientOpId: expect.any(String) }]);
   });
 
   it('choisir un candidat sur une ligne ambiguë la coche, et propose d’abord celui qui couvre le libellé', async () => {
@@ -132,10 +141,63 @@ describe('ReceiptScreen (EF-29)', () => {
   });
 
   it('un ticket illisible affiche le message du serveur, pas une liste vide', async () => {
-    api.read.mockRejectedValue(new ApiClientError(422, 'provider_invalid_response', 'Ticket illisible : reprenez la photo à plat.'));
-    renderScreen();
-    fireEvent.change(screen.getByTestId('receipt-file'), { target: { files: [new File(['x'], 't.jpg', { type: 'image/jpeg' })] } });
+    api_.read.mockRejectedValue(new ApiClientError(422, 'provider_invalid_response', 'Ticket illisible : reprenez la photo à plat.'));
+    await pickFile();
     expect(await screen.findByText('Ticket illisible : reprenez la photo à plat.')).toBeTruthy();
     expect(screen.queryByRole('list')).toBeNull();
+  });
+
+  it('une ligne MATCHED montre la flèche, une ligne ambiguë choisie montre l’ajout seul', async () => {
+    await photograph();
+    await screen.findByText('2 → 3');
+    fireEvent.click(within(screen.getByRole('group', { name: 'Produit pour OLIVE NOIRE' })).getByRole('button', { name: 'Olive noire' }));
+    expect(screen.getByText('+1')).toBeTruthy();
+    // Une seule flèche : celle de la ligne reconnue. Jamais « 0 → 1 » sur la ligne choisie.
+    expect(screen.getAllByText(/→/)).toHaveLength(1);
+  });
+
+  it('affiche l’unité d’un produit choisi qui n’est pas compté à la pièce', async () => {
+    await photograph();
+    await screen.findByText('2 → 3');
+    fireEvent.click(within(screen.getByRole('group', { name: 'Produit pour OLIVE NOIRE' })).getByRole('button', { name: 'Olive verte' }));
+    expect(screen.getByText('+1 g')).toBeTruthy();
+  });
+
+  it('n’envoie jamais une ligne inconnue à la validation', async () => {
+    await photograph();
+    await screen.findByText('2 → 3');
+    fireEvent.click(within(screen.getByRole('group', { name: 'Produit pour OLIVE NOIRE' })).getByRole('button', { name: 'Olive noire' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter 2 produits' }));
+    await waitFor(() => expect(api_.validate).toHaveBeenCalled());
+    expect(api_.validate.mock.calls[0]?.[1].lines.map((l) => l.id).sort()).toEqual(['l1', 'l2']);
+  });
+
+  it('rafraîchit les libellés en attente après une validation et après une lecture', async () => {
+    await photograph();
+    await screen.findByText('2 → 3');
+    // Après la lecture : première relecture. Après la validation : seconde.
+    await waitFor(() => expect(api_.pendingLabels.mock.calls.length).toBeGreaterThanOrEqual(2));
+    const afterRead = api_.pendingLabels.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter 1 produit' }));
+    await waitFor(() => expect(api_.pendingLabels.mock.calls.length).toBeGreaterThan(afterRead));
+  });
+
+  it('ne réécrit pas l’emplacement du scan quand on en choisit un autre', async () => {
+    renderScreen();
+    fireEvent.click(await screen.findByText('Changer'));
+    fireEvent.click(await screen.findByRole('button', { name: /Cellier/ }));
+    expect(localStorage.getItem('kitchen.scan.locationId')).toBe('loc1');
+  });
+
+  it('refuse avant la photo un emplacement mémorisé qui n’existe plus', async () => {
+    writeScanLocation({ id: 'disparu', name: 'Ancien' });
+    renderScreen();
+    // Attendre la liste des emplacements : avant elle, le bouton est désactivé quoi qu'il arrive.
+    await waitFor(() => expect(api.get).toHaveBeenCalled());
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(screen.getByText('Choisir l’emplacement')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Photographier le ticket' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
