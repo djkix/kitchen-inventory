@@ -110,17 +110,29 @@ export class ReceiptsService {
    * lignes `UNKNOWN` ne créent aucun produit.
    */
   async validate(id: string, input: ValidateReceiptInput, user: RequestUser): Promise<{ added: number }> {
-    const receipt = await this.prisma.receipt.findUnique({ where: { id }, include: { lines: { select: { id: true } } } });
+    const receipt = await this.prisma.receipt.findUnique({ where: { id }, include: { lines: true } });
     if (!receipt) throw ApiError.notFound('Ticket introuvable');
-    const own = new Set(receipt.lines.map((l) => l.id));
-    const stranger = input.lines.find((l) => !own.has(l.id));
-    if (stranger) throw ApiError.notFound('Ligne introuvable sur ce ticket');
+    const own = new Map(receipt.lines.map((l) => [l.id, l]));
+    if (input.lines.some((l) => !own.has(l.id))) throw ApiError.notFound('Ligne introuvable sur ce ticket');
 
     if (receipt.status === 'VALIDATED') {
       // Un rejeu à l'identique (réponse perdue) réussit sans rien ajouter ; toute autre demande est refusée.
       const known = await this.prisma.stockMovement.count({ where: { clientOpId: { in: input.lines.map((l) => l.clientOpId) } } });
       if (known === input.lines.length) return { added: 0 };
       throw ApiError.conflict('Ce ticket a déjà été validé');
+    }
+
+    // Un produit n'entre que par sa propre ligne : le serveur ne s'en remet pas à l'écran.
+    for (const line of input.lines) {
+      const row = own.get(line.id)!;
+      const allowed = row.state === 'MATCHED' ? row.productId === line.productId : row.state === 'AMBIGUOUS' && row.candidateIds.includes(line.productId);
+      if (!allowed) {
+        throw ApiError.businessRule(
+          row.state === 'UNKNOWN'
+            ? `La ligne « ${row.rawLabel} » n'est pas reconnue : elle ne peut pas être validée`
+            : `Le produit choisi ne correspond pas à la ligne « ${row.rawLabel} »`,
+        );
+      }
     }
 
     let added = 0;
