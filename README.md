@@ -59,6 +59,24 @@ au même endroit. Une date oubliée se rattrape ensuite depuis le bandeau
 « Ajouté : … », sans quitter la caméra. Un article déjà validé n'est relu
 que lorsqu'il a quitté le champ de la caméra.
 
+**Courses : le ticket de caisse.** L'onglet Courses se remplit depuis un ticket
+photographié (photo ou PDF, 8 Mo au plus). On choisit d'abord l'emplacement,
+une fois pour tout le ticket (celui du scan est repris), puis on prend la
+photo avec l'appareil du téléphone. Les lignes s'affichent **dans l'ordre du
+ticket**, reconnues et inconnues mêlées, pour suivre le papier : le nom du
+produit, le libellé imprimé en dessous, et le mouvement de stock « 2 → 3 ».
+Une ligne reconnue arrive cochée ; une ligne ambiguë propose ses candidats (le
+plus proche du libellé en premier) et se coche dès qu'on en choisit un ; une
+ligne inconnue est marquée « Nouveau », ne se coche pas et ne se valide pas —
+on la scanne ensuite par son code-barres. La quantité se corrige sur la ligne
+(le modèle peut mal lire un « 3 × »), et le « → » suit. Le bouton annonce
+« Ajouter N produits » ; les entrées se font sans date de péremption. Un ticket
+illisible affiche le message du serveur. Sous la liste, « Libellés à
+rattacher » (replié) recense les libellés jamais reconnus : on en rattache un à
+un produit, ce qui n'agit que sur les tickets suivants — le ticket affiché
+n'est pas relu. La pastille de l'onglet compte les libellés distincts en
+attente.
+
 **Reconnaissance photo.** La prise de vue passe par l'appareil photo du
 téléphone, pour profiter de l'autofocus, du flash et de la stabilisation : une
 étiquette dorée ou gravée dans un placard peu éclairé se lit nettement mieux
@@ -853,7 +871,7 @@ curl -H "Authorization: Bearer kit_…" https://kitchen.djkix.ovh/api/v1/stock/e
 
 Toute méthode autre que `GET` est refusée avec ce jeton.
 
-**Ticket de caisse (API seulement, pas encore d'écran).**
+**Ticket de caisse (API ; l'écran est l'onglet Courses, voir Fonctionnalités).**
 `POST /api/v1/receipts` (multipart : `file`, photo JPEG, PNG, WebP, HEIC ou PDF
 jusqu'à 8 Mo, et `locationId`) fait lire le ticket par Gemini et rend un
 **brouillon** : les lignes de produits dans l'ordre d'impression, chacune

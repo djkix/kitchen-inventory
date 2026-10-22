@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router';
 import { cn } from '../../lib/cn';
+import { usePendingLabelCountQuery } from '../../lib/queries';
 import { CartIcon, RecipesIcon, SettingsIcon, StockIcon } from '../ui/icons';
 import { ScanFab } from './scan-fab';
 
@@ -23,6 +24,7 @@ const tabButtonClassName = (isActive: boolean) =>
   cn('flex h-full flex-col items-center justify-center gap-1 pt-2 pb-2 text-[12px] font-medium', isActive ? 'text-accent' : 'text-muted active:text-fg');
 
 export function BottomNav() {
+  const pendingLabels = usePendingLabelCountQuery().data?.count ?? 0;
   return (
     <nav aria-label="Navigation principale" className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur">
       <ul className="mx-auto grid h-nav max-w-lg grid-cols-5 items-end">
@@ -43,7 +45,17 @@ export function BottomNav() {
               <NavLink to={tab.to} end={tab.end} className={({ isActive }) => tabButtonClassName(isActive)}>
                 {({ isActive }) => (
                   <>
-                    <tab.icon size={24} strokeWidth={isActive ? 2.2 : 1.8} />
+                    <span className="relative">
+                      <tab.icon size={24} strokeWidth={isActive ? 2.2 : 1.8} />
+                      {tab.to === '/courses' && pendingLabels > 0 && (
+                        <span
+                          aria-label={`${pendingLabels} libellé${pendingLabels > 1 ? 's' : ''} en attente`}
+                          className="tnum absolute -right-3 -top-1 min-w-[18px] rounded-full bg-accent px-1 text-center text-[11px] font-semibold leading-[18px] text-ink"
+                        >
+                          {pendingLabels}
+                        </span>
+                      )}
+                    </span>
                     <span>{tab.label}</span>
                   </>
                 )}

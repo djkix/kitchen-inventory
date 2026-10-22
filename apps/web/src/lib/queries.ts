@@ -19,6 +19,7 @@ import type {
   UpdateRecipeInput,
 } from '@kitchen/shared';
 import { api } from './api';
+import { receiptsApi } from './receipts-api';
 import { recipesApi } from './recipes-api';
 import { suggestionsApi, type SuggestionOrientation } from './suggestions-api';
 import type { CuisineDto, HealthReport, ServiceTokenDto } from './types';
@@ -60,6 +61,8 @@ export const queryKeys = {
   cuisines: ['cuisines'] as const,
   recipeFilters: ['preferences', 'recipe-filters'] as const,
   pendingRating: ['recipes', 'pending-rating'] as const,
+  pendingLabels: ['receipts', 'pending-labels'] as const,
+  pendingLabelCount: ['receipts', 'pending-label-count'] as const,
   suggestions: (orientation: SuggestionOrientation) => ['suggestions', 'list', orientation] as const,
 };
 
@@ -175,6 +178,15 @@ export function useServiceTokensQuery(enabled: boolean) {
 
 export function useRecognitionStatsQuery() {
   return useQuery({ queryKey: queryKeys.recognitionStats, queryFn: () => api.get<RecognitionStats>('/recognition/stats') });
+}
+
+export function usePendingLabelsQuery() {
+  return useQuery({ queryKey: queryKeys.pendingLabels, queryFn: () => receiptsApi.pendingLabels() });
+}
+
+/** Pastille de l'onglet Courses : libellés distincts en attente. */
+export function usePendingLabelCountQuery() {
+  return useQuery({ queryKey: queryKeys.pendingLabelCount, queryFn: () => receiptsApi.pendingLabelCount(), staleTime: 60_000 });
 }
 
 export function useProductsQuery(q: string) {
