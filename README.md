@@ -825,6 +825,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `VISION_DAILY_QUOTA` | Appels photo autorisés par jour (50) |
 | `VISION_MONTHLY_CAP_CENTS` | Plafond de dépense mensuel en centimes, partagé par le scan photo et les suggestions (500, soit 5 €) ; 0 le désactive. Couvre les jetons **et** les requêtes de recherche web |
 | `RECIPE_SUGGESTION_DAILY_QUOTA` | Fournées de suggestions de recettes autorisées par jour (20) |
+| `RECEIPT_DAILY_QUOTA` | Lectures de ticket de caisse autorisées par jour (10), compteur séparé du scan photo et des suggestions |
 | `FALLBACK_MODEL` | Modèle essayé **une seule fois** quand Gemini refuse pour quota épuisé, les quotas étant comptés par modèle. Vide (défaut) : pas de repli, le refus remonte tel quel. Valeur de départ seulement — le choix fait dans Réglages prime |
 | `GEMINI_RPD`, `GEMINI_RPM` | Limites de requêtes par jour et par minute du projet Google, telles que `aistudio.google.com/rate-limit` les annonce. **Purement indicatives** : elles ne bloquent rien, elles servent à afficher « 15 / 500 » au lieu de « 15 » dans Réglages. Aucune API ne permet de les lire, d'où la recopie à la main ; laissées vides, l'écran rend le compte seul |
 | `OFF_USER_AGENT` | En-tête demandé par Open Food Facts |
