@@ -870,7 +870,9 @@ est facturée quand même).
 les seules lignes envoyées, dans l'emplacement du ticket, sans date de
 péremption : chacune est un mouvement d'entrée comme `POST /stock`, donc deux
 lignes du même produit s'additionnent. Les lignes absentes du corps ne sont pas
-ajoutées et ne créent aucun produit. Le `clientOpId` rend l'appel rejouable : un
+ajoutées et ne créent aucun produit. Le produit d'une ligne doit être le sien :
+celui rapproché (`MATCHED`) ou l'un de ses candidats (`AMBIGUOUS`) ; une ligne
+`UNKNOWN` ne se valide pas (422, et rien n'entre du lot). Le `clientOpId` rend l'appel rejouable : un
 rejeu à l'identique ne double rien (`added: 0`) ; un ticket déjà validé refuse
 toute autre demande (409).
 

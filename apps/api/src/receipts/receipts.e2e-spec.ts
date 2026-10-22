@@ -261,12 +261,12 @@ describe('validation d’un ticket vers le stock (EF-29)', () => {
     expect(await stockOf(riz)).toBe(1);
   });
 
-  it('refuse une ligne d’un autre ticket, un produit inconnu et des doublons', async () => {
+  it('refuse une ligne d’un autre ticket, un produit étranger à la ligne et des doublons', async () => {
     const riz = await product('Riz basmati');
     const r = await draft(['RIZ']);
     const line = r.lines[0]!.id;
     await validate(r.id, [{ id: 'autre', productId: riz, quantity: 1, clientOpId: 'op-line-a' }]).expect(404);
-    await validate(r.id, [{ id: line, productId: 'inconnu', quantity: 1, clientOpId: 'op-line-b' }]).expect(404);
+    await validate(r.id, [{ id: line, productId: 'inconnu', quantity: 1, clientOpId: 'op-line-b' }]).expect(422);
     await validate('inconnu', [{ id: line, productId: riz, quantity: 1, clientOpId: 'op-line-c' }]).expect(404);
     await validate(r.id, [
       { id: line, productId: riz, quantity: 1, clientOpId: 'op-line-d' },
@@ -274,5 +274,49 @@ describe('validation d’un ticket vers le stock (EF-29)', () => {
     ]).expect(400);
     await validate(r.id, []).expect(400);
     expect(await ctx.t.prisma.stockMovement.count()).toBe(0);
+  });
+
+  describe('le produit appartient à sa ligne', () => {
+    it('MATCHED : un autre produit que celui de la ligne est refusé, rien n’entre', async () => {
+      const riz = await product('Riz basmati');
+      const autre = await product('Café moulu');
+      const r = await draft(['RIZ BASMATI 1KG']);
+      const res = await validate(r.id, [{ id: r.lines[0]!.id, productId: autre, quantity: 1, clientOpId: 'op-line-a' }]).expect(422);
+      expect(res.body.error).toMatchObject({ code: 'business_rule' });
+      expect(res.body.error.message).toMatch(/ne correspond pas/);
+      expect(await ctx.t.prisma.stockMovement.count()).toBe(0);
+      await validate(r.id, [{ id: r.lines[0]!.id, productId: riz, quantity: 1, clientOpId: 'op-line-b' }]).expect(200);
+    });
+
+    it('AMBIGUOUS : un candidat passe, un produit hors candidats est refusé', async () => {
+      const demi = await product('Lait demi-écrémé');
+      await product('Lait entier');
+      const autre = await product('Café moulu');
+      const r = await draft(['LAIT']);
+      const line = r.lines[0]!.id;
+      await validate(r.id, [{ id: line, productId: autre, quantity: 1, clientOpId: 'op-line-a' }]).expect(422);
+      expect(await ctx.t.prisma.stockMovement.count()).toBe(0);
+      await validate(r.id, [{ id: line, productId: demi, quantity: 1, clientOpId: 'op-line-b' }]).expect(200);
+      expect(await stockOf(demi)).toBe(1);
+    });
+
+    it('UNKNOWN : la ligne ne peut pas être validée, même avec un produit existant', async () => {
+      const riz = await product('Riz basmati');
+      const r = await draft(['XYZZY']);
+      const res = await validate(r.id, [{ id: r.lines[0]!.id, productId: riz, quantity: 1, clientOpId: 'op-line-a' }]).expect(422);
+      expect(res.body.error.message).toMatch(/n'est pas reconnue|n’est pas reconnue/);
+      expect(await ctx.t.prisma.stockMovement.count()).toBe(0);
+    });
+
+    it('une ligne refusée parmi d’autres annule tout le lot, sans demi-validation', async () => {
+      const riz = await product('Riz basmati');
+      const r = await draft(['RIZ BASMATI 1KG', 'XYZZY']);
+      await validate(r.id, [
+        { id: r.lines[0]!.id, productId: riz, quantity: 1, clientOpId: 'op-line-a' },
+        { id: r.lines[1]!.id, productId: riz, quantity: 1, clientOpId: 'op-line-b' },
+      ]).expect(422);
+      expect(await ctx.t.prisma.stockMovement.count()).toBe(0);
+      expect((await ctx.t.prisma.receipt.findUniqueOrThrow({ where: { id: r.id } })).status).toBe('DRAFT');
+    });
   });
 });
