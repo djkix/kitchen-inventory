@@ -28,7 +28,7 @@ import { restoreDatabase } from './support/database.ts';
  * - `getByRole('group', { name: 'Type de plat' }).getByRole('button', { name:
  *   'Plat' })` — question bloquante à l'entrée de l'écran (décision D2 du
  *   2026-10-11, `apps/web/src/screens/suggestions/dish-type-question.tsx`) :
- *   depuis cette décision, aucun appel à `GET /suggestions` ne part tant
+ *   depuis cette décision, aucun appel à `POST /suggestions` ne part tant
  *   qu'un type de plat n'a pas été choisi — ni liste, ni erreur ne peuvent
  *   donc apparaître avant d'y répondre. Peu importe lequel des sept types
  *   est choisi ici : le fournisseur est absent quelle que soit l'orientation

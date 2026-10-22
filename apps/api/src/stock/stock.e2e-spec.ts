@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'Camille' };
 const isoIn = (days: number): string => {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -224,6 +224,6 @@ describe('stock (EF-07, EF-08, EF-09, EF-10)', () => {
       ['LOSS', -2],
       ['INBOUND', 2],
     ]);
-    expect(detail.body.movements[0].userName).toBe('djkix');
+    expect(detail.body.movements[0].userName).toBe('Camille');
   });
 });

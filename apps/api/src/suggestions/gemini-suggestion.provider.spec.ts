@@ -168,7 +168,7 @@ describe('GeminiSuggestionProvider (EF-26)', () => {
 });
 
 /**
- * La demande de djkix du 2026-10-19 — « diversifie les propositions (pas de
+ * La demande du propriétaire du 2026-10-19 — « diversifie les propositions (pas de
  * variante) » — se joue entièrement dans le texte envoyé au modèle : ces cas
  * épinglent les deux consignes qui la portent.
  */

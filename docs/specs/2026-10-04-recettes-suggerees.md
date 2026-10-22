@@ -1,6 +1,6 @@
 # Recettes suggérées à partir du stock
 
-2026-10-04 · djkix, avec assistance de Claude · révision 2, dix-sept arbitrages intégrés
+2026-10-04 · le propriétaire, avec assistance de Claude · révision 2, dix-sept arbitrages intégrés
 
 Spécification du deuxième incrément du module recettes : **partir du stock réel et proposer des
 recettes trouvées sur le web ou composées par Gemini**, catégorisées par origine, durée et facilité,
@@ -44,7 +44,7 @@ rapprochement de chaque ingrédient au stock, catégorisation.
 
 ### Hors de cet incrément, et pourquoi
 
-- **La création d'une recette à la main [B13].** djkix ne veut pas saisir de recettes. Le formulaire
+- **La création d'une recette à la main [B13].** Le propriétaire ne veut pas saisir de recettes. Le formulaire
   reste accessible pour **modifier une recette conservée**. Conséquence assumée : la recette de
   famille, absente du web, n'a pas sa place dans l'application.
 - **L'ajout des manquants à la liste de courses** (EF-24) : la liste de courses n'existe pas encore.
@@ -54,14 +54,14 @@ rapprochement de chaque ingrédient au stock, catégorisation.
 
 ## 3. Le parcours
 
-1. djkix ouvre **Suggestions**, écran d'entrée du module **[B12]**.
+1. Le propriétaire ouvre **Suggestions**, écran d'entrée du module **[B12]**.
 2. L'application compose le point de départ depuis le stock, sans le lui montrer **[B2]**.
 3. Si une fournée en cache correspond, elle s'affiche immédiatement ; sinon Gemini est interrogé.
 4. La fournée s'affiche : une carte par recette — titre, origine, durée, facilité, couverture,
    manquants, provenance. **Pas d'étapes à ce stade pour une recette web ; les étapes d'une
    composition Gemini sont visibles dans sa fiche, déjà dans la fournée [B7, amendé le
    2026-10-08].**
-5. djkix oriente par région, durée ou facilité : **une recherche ciblée est relancée [B9]**.
+5. Le propriétaire oriente par région, durée ou facilité : **une recherche ciblée est relancée [B9]**.
 6. Une recette lui plaît : il la conserve. La page est alors récupérée et réécrite au format de
    l'application **[B6]**, et la recette entre dans **Mes recettes**.
 7. De là, le socle reprend la main : cuisson avec décrément, historique, notation.
@@ -174,7 +174,7 @@ La normalisation réutilise `normalizeProductName`, et la similarité l'extensio
 
 Un rapprochement probable **ne bloque pas et ne demande rien** **[B11]** : il compte comme disponible
 pour la couverture, il est signalé comme probable, et c'est au moment de cuisiner — dans le tiroir
-qui existe déjà — que djkix confirme ou change le produit. Le seuil de similarité est fixé à
+qui existe déjà — que le propriétaire confirme ou change le produit. Le seuil de similarité est fixé à
 **0,40** et sera calibré sur le scénario figé.
 
 Une fois les produits résolus, **la couverture est calculée par les règles existantes**, sans
@@ -182,7 +182,7 @@ réimplémentation : `recipeCoverage` et ses groupes s'appliquent tels quels.
 
 ## 8. Conservation d'une recette
 
-Au moment où djkix conserve une suggestion, et à ce moment seulement **[B6]** :
+Au moment où le propriétaire conserve une suggestion, et à ce moment seulement **[B6]** :
 
 1. Pour une recette venant d'un site : la page est récupérée (HTTPS seul, délai maximal de
    5 secondes), ses données structurées `schema.org/Recipe` lues quand elles existent **[B14]**, et
@@ -204,7 +204,7 @@ et la suggestion reste dans la fournée.
 
 Une fournée — de base ou ciblée — est enregistrée avec la signature de son point de départ et de son
 orientation. Elle est réutilisée tant que la signature est inchangée, et au plus **24 heures**.
-djkix force une nouvelle fournée en tirant l'écran vers le bas. **[B12]**
+Le propriétaire force une nouvelle fournée en tirant l'écran vers le bas. **[B12]**
 
 Les appels passent par le **même journal de coûts et le même plafond mensuel** que la reconnaissance
 photo : `RecognitionLog` reçoit une colonne `purpose` (`VISION` ou `RECIPE_SUGGESTION`), le plafond

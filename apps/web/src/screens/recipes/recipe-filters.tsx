@@ -89,8 +89,8 @@ const SELECT_CLASS =
  * `RecipeFilters`, dans la requête et dans les préférences enregistrées —
  * aucun geste d'ici ne le change plus, `clearFilters` le reporte tel quel.
  *
- * Même présentation que l'orientation des suggestions (2026-10-15, demande de
- * djkix : « pour "mes recettes" avoir la même approche au niveau des filtres
+ * Même présentation que l'orientation des suggestions (2026-10-15, demande du
+ * propriétaire : « pour "mes recettes" avoir la même approche au niveau des filtres
  * que pour les suggestions ») : des `<select>` natifs par paires plutôt que
  * six rangées de pastilles défilantes, qui remplissaient un écran de
  * téléphone entier alors que l'application est utilisée en très grande

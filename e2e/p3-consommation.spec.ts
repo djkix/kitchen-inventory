@@ -179,7 +179,13 @@ test('refuse de descendre sous zéro', async ({ page }) => {
   // rejouant directement l'appel que l'écran aurait fait s'il l'avait permis
   // — même route, mêmes identifiants de session que `expectNoActiveStockOf`
   // (e2e/support/stock.ts), jamais un accès direct à la base.
-  const refused = await page.request.post(`/api/v1/stock/${id}/consume`, { data: { quantity: 1 } });
+  // `Origin` posé comme le navigateur le pose sur un `fetch` de l'écran : sans
+  // lui, la garde des écritures inter-origines (apps/api/src/common/
+  // csrf.middleware.ts) refuserait l'appel avant la règle métier visée ici.
+  const refused = await page.request.post(`/api/v1/stock/${id}/consume`, {
+    data: { quantity: 1 },
+    headers: { Origin: new URL(page.url()).origin },
+  });
   expect(refused.status()).toBe(422);
   const refusedBody = (await refused.json()) as { error: { code: string; message: string } };
   expect(refusedBody.error.code).toBe('business_rule');

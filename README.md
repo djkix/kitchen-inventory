@@ -177,7 +177,7 @@ export enrichi restent à faire. La liste de courses alimentée par des seuils
 
 ### Prérequis
 
-- Un hôte Docker `amd64` (mini-PC, NAS x86) avec `docker compose`. L'image
+- Un hôte Docker `amd64` (PC ou NAS x86) avec `docker compose`. L'image
   n'est publiée que pour cette architecture ; pour un Raspberry Pi ou un hôte
   arm, la construire localement avec `docker compose -f docker-compose.yml -f
   docker-compose.dev.yml build`.
@@ -229,14 +229,13 @@ pas y recopier de fragment de `docker-compose.e2e.yml`** : ce fichier de tests
 pose `GOOGLE_CERTS_URL`, qui déplace la racine de confiance de
 l'authentification (voir [Configuration](#configuration)).
 
-> **Se connecter immédiatement après le premier démarrage, avant d'ouvrir
-> l'accès à qui que ce soit.** Sur une base vide, la première connexion Google
-> réussie crée l'administrateur : tant que personne ne s'est connecté, la
-> place est libre pour le premier qui trouve l'adresse. Concrètement : ne
-> publier le nom de domaine dans le reverse proxy qu'une fois
-> `GOOGLE_CLIENT_ID` renseigné et votre propre connexion faite, ou garder
-> l'accès restreint (réseau local, filtrage d'IP) le temps de le faire. La même
-> fenêtre se rouvre après toute restauration sur base vide.
+> **Renseigner `ADMIN_EMAIL` avant le premier démarrage.** Sur une base vide,
+> seule cette adresse peut devenir administrateur par connexion Google ; toute
+> autre connexion est refusée sans rien créer. Sans `ADMIN_EMAIL`, l'image de
+> production ne crée **aucun** administrateur automatiquement : le journal
+> l'annonce à chaque tentative, et le premier compte se crée alors avec la
+> [porte de secours](#accès-de-secours). Les deux protections valent aussi
+> après une restauration sur base vide.
 
 ## Première connexion
 
@@ -309,13 +308,17 @@ lien). L'URL publique utilisée ci-dessous est celle de l'instance,
 
 ### 2. Le premier compte, puis les suivants
 
-Sur une base vide, **la première connexion Google réussie crée le compte
-administrateur** — `ACTIVE` et `ADMIN` — et pose les emplacements par défaut
-(cuisine, placard, réfrigérateur, congélateur, cellier), renommables ou
-supprimables. Il n'y a rien à faire d'autre que de se connecter — **et il faut
-le faire tout de suite** : c'est le premier connecté qui devient
-administrateur, pas le propriétaire de la machine. Voir l'avertissement de
-[Déployer](#déployer).
+Sur une base vide, **la première connexion Google de l'adresse `ADMIN_EMAIL`
+crée le compte administrateur** — `ACTIVE` et `ADMIN` — et pose les
+emplacements par défaut (cuisine, placard, réfrigérateur, congélateur,
+cellier), renommables ou supprimables. Une autre adresse qui se présente avant
+reçoit le message d'une demande en attente, et rien n'est créé : la place ne
+revient pas au premier qui trouve l'adresse du site. Sans `ADMIN_EMAIL`, aucune
+connexion Google ne crée d'administrateur en production : créer le premier
+compte avec `docker compose exec app node tools/acces-secours.js
+votre-adresse@example.org` (voir [Accès de secours](#accès-de-secours)), puis se
+connecter avec Google sous la même adresse. En développement et en test, sans
+`ADMIN_EMAIL`, la première connexion crée l'administrateur comme avant.
 
 Ensuite, l'inscription est ouverte mais **l'accès ne l'est pas**. Une adresse
 inconnue qui se connecte crée une **demande** : aucune session n'est ouverte,
@@ -476,6 +479,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `SECRET_KEY` | Secret de signature des cookies, 32 caractères minimum, obligatoire |
 | `PUBLIC_URL` | URL publique HTTPS |
 | `GOOGLE_CLIENT_ID` | Client ID OAuth « Application web » de la console Google Cloud, **public** (pas de client secret avec ce flux). Vide = la connexion Google est indisponible et le bouton ne s'affiche pas, l'application devenant inaccessible autrement que par la porte de secours. Obtention : [Première connexion](#première-connexion) |
+| `ADMIN_EMAIL` | Seule adresse autorisée à devenir le premier administrateur d'une base vide. Absente en production, aucune connexion Google ne crée d'administrateur : passer par la [porte de secours](#accès-de-secours). Sans effet une fois un compte créé |
 | `GOOGLE_CERTS_URL` | **Réservée au montage de tests bout en bout, à ne jamais poser ici.** Elle remplace les clés publiques qui valident les jetons Google : qui sert ces clés signe des jetons que l'application accepte. Posée, elle est signalée par un avertissement au démarrage et par `google_certs_url` dans le `degraded` de `/health` |
 | `VISION_PROVIDER` | `none` ou `gemini` |
 | `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.8-flash`) ; `VISION_BASE_URL` sert pour un proxy. Comme `SUGGESTION_MODEL`, `VISION_MODEL` n'est qu'une valeur de départ : le choix fait dans Réglages prime |
@@ -496,6 +500,52 @@ passe de secours ni de contenu d'image. Chaque appel au fournisseur de vision es
 son coût estimé et sa confiance ; les compteurs correspondants (appels du jour
 et du mois, coût cumulé, taux de reconnaissance automatique sur trente jours,
 part des scans résolus par le cache) sont affichés dans les réglages.
+
+## Sécurité
+
+Les garde-fous qui ne se voient pas à l'écran :
+
+- **Pages de recettes web.** Le récupérateur ne lit que du HTTPS vers une
+  adresse publique, revalide chaque redirection, et **épingle la connexion sur
+  l'adresse qu'il vient de vérifier** : le nom n'est jamais résolu une seconde
+  fois, si bien qu'un DNS qui changerait de réponse entre la vérification et
+  la connexion (« DNS rebinding ») ne mène pas au réseau local. Sont refusées
+  les plages privées, de bouclage, lien-local, multicast, CGNAT, et en IPv6 les
+  formes qui encapsulent une IPv4 (`::ffff:…`, `::a.b.c.d`, NAT64
+  `64:ff9b::/96`, 6to4 `2002::/16`, Teredo).
+- **Photos d'Open Food Facts.** L'adresse de la photo vient de la réponse
+  d'Open Food Facts : elle n'est téléchargée qu'en HTTPS depuis
+  `images.openfoodfacts.org` ou `static.openfoodfacts.org`, sans suivre de
+  redirection, en 8 secondes au plus et 5 Mo au plus (coupée pendant la
+  lecture). Toute autre adresse est ignorée et le produit est créé sans photo.
+- **En-têtes du navigateur.** Toutes les réponses, front compris, portent une
+  politique de sécurité du contenu (scripts et styles de l'application seule,
+  plus `accounts.google.com/gsi/` pour le bouton Google ; aucun script en
+  ligne ; WebAssembly autorisé pour le décodeur de codes-barres),
+  `frame-ancestors 'none'` et `X-Frame-Options: DENY` (aucun affichage dans un
+  cadre), une `Permissions-Policy` qui réserve caméra et micro à l'application,
+  et `Strict-Transport-Security` dès que `PUBLIC_URL` est en HTTPS. Un reverse
+  proxy qui poserait déjà ces en-têtes doit être aligné, sinon le navigateur
+  applique les deux politiques à la fois.
+- **Écritures inter-origines.** Toute requête qui modifie quelque chose
+  (`POST`, `PATCH`, `PUT`, `DELETE`) doit venir de l'origine de `PUBLIC_URL`
+  (en-tête `Origin`, à défaut `Referer`) ; sinon 403. Une écriture sans
+  aucune de ces deux indications n'est acceptée que si elle ne porte pas de
+  cookie de session, et un jeton de service (`Authorization`) sans cookie
+  passe toujours. **`PUBLIC_URL` doit donc être exactement l'adresse tapée
+  dans le navigateur** (schéma, nom et port) ; en développement, le serveur
+  Vite sur `localhost` est accepté en plus.
+- **Suggestions : la lecture ne coûte rien.** `GET /api/v1/suggestions` ne
+  fait que relire le réservoir (couverture recalculée contre le stock) : il
+  n'appelle jamais Gemini et n'écrit rien, `refresh` y est ignoré. La
+  recherche qui peut appeler le modèle et consommer le quota est
+  `POST /api/v1/suggestions` (orientation dans le corps JSON), celle qu'utilise
+  l'écran ; un jeton de service, en lecture seule, ne peut donc pas la
+  déclencher.
+- **Chaîne de publication.** Les actions GitHub tierces sont épinglées sur un
+  SHA de commit complet (la version lisible en commentaire), et le tag de
+  version d'une republication manuelle passe par l'environnement puis doit
+  avoir la forme `vX.Y.Z` avant toute construction.
 
 ## Intégrations
 
@@ -549,7 +599,10 @@ qui comptent des objets entiers (pièce, paquet, boîte, sachet) sont reconnues
 d'office, le « 3 × » du ticket en désignant trois.
 
 **Export.** `GET /api/v1/export/inventory.csv` et `/inventory.json`, derrière
-la session ou un jeton de service.
+la session ou un jeton de service. Dans le CSV, une cellule de texte qui
+commencerait comme une formule de tableur (`=`, `+`, `-`, `@`, tabulation,
+retour chariot) est préfixée d'une apostrophe : Excel l'affiche comme du texte
+au lieu de l'exécuter.
 
 **API.** REST sous `/api/v1`, JSON, erreurs normalisées
 `{ "error": { "code", "message", "details" } }` avec des codes stables
@@ -648,7 +701,7 @@ décisions dans `docs/specs/2026-10-04-tests-bout-en-bout.md`, jugement rendu
 dans `docs/decisions/2026-10-04-tests-bout-en-bout.md`.
 
 **Cette suite ne tourne qu'en CI**, sur `main` après chaque fusion — jamais en
-local, faute de moteur de conteneurs sur le Mac de djkix. C'est le
+local, faute de moteur de conteneurs sur le poste du propriétaire. C'est le
 compromis : en échange, le job `e2e` de `.github/workflows/ci.yml` publie
 toujours en artefact le rapport Playwright et, à chaque échec, les captures,
 vidéos et traces (dossier `e2e/artefacts/`) ainsi que les journaux du
@@ -700,6 +753,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.30.1 | 2026-10-22 | Correctifs de sécurité : premier administrateur réservé à `ADMIN_EMAIL`, connexion épinglée des pages de recettes, photos Open Food Facts bornées, en-têtes CSP/HSTS, garde des écritures inter-origines, `GET /suggestions` en lecture seule, export CSV sans formules, actions CI épinglées |
 | 0.30.0 | 2026-10-22 | Le ticket de caisse remplit le stock, et la liste de courses est abandonnée |
 | 0.29.1 | 2026-10-22 | `docker-compose.yml` et `.env.example` transmettent enfin `FALLBACK_MODEL`, `GEMINI_RPD` et `GEMINI_RPM` : les trois variables ajoutées la veille existaient côté application mais n'étaient pas… |
 | 0.29.0 | 2026-10-22 | Réglages : tout replié, puces de couleur, version en haut à droite, et la conso des recettes enfin visible |
@@ -732,7 +786,7 @@ engendré par release-please depuis les messages de commit.
 | 0.10.0 | 2026-10-06 | Le numéro de version ne s'affiche plus qu'au bas de l'écran Réglages, au lieu de chaque écran et de la page de connexion : c'est une information d'administration, et le bandeau « Nouvelle version… |
 | 0.9.2 | 2026-10-05 | Correctif : aucune suggestion de recette n'avait jamais abouti depuis la 0.8.0 |
 | 0.9.1 | 2026-10-05 | Correctif d'accessibilité : les cartes de recette et de suggestion n'avaient aucun nom annoncé par les lecteurs d'écran, et étaient introuvables par une requête rôle + nom — Chromium ne remonte… |
-| 0.9.0 | 2026-10-05 | La date de péremption se saisit désormais directement dans le tiroir de validation du scan (EF-02), ce que djkix avait demandé puis fait reporter deux fois : sous la quantité, trois raccourcis («… |
+| 0.9.0 | 2026-10-05 | La date de péremption se saisit désormais directement dans le tiroir de validation du scan (EF-02), ce que le propriétaire avait demandé puis fait reporter deux fois : sous la quantité, trois raccourcis («… |
 | 0.8.3 | 2026-10-05 | Tests des parcours de bout en bout : vingt-huit scénarios rejouent désormais l'application entière dans un vrai navigateur — ranger les courses en scannant, saisir une date de péremption,… |
 | 0.8.2 | 2026-10-05 | Correctif : la recherche du stock ignore désormais les accents (EF-11) |
 | 0.8.1 | 2026-10-05 | Correctif : « Mes recettes » n'affichait jamais une recette conservée |

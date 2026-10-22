@@ -1,7 +1,7 @@
 # Demande parlée : Gemini écoute, comprend, et propose
 
 **Date** : 2026-10-21
-**Demande de djkix** : « il me faut une analyse de la transcription que
+**Demande du propriétaire** : « il me faut une analyse de la transcription que
 j'enregistre. Par ex : "il me reste du poulet, et un peu de sauce tomate, je
 veux faire un plat italien, qu'est-ce que tu me proposes". Gemini va analyser
 ce que j'ai (identification des ingrédients fournis via le vocal, matching
@@ -10,7 +10,7 @@ avec l'inventaire, et proposition de recette en combinant les 2). »
 
 ## Ce qui est visé, et ce qui ne l'est pas
 
-djkix fait déjà cela dans l'application Gemini. Ce qui lui manque, c'est le
+Le propriétaire fait déjà cela dans l'application Gemini. Ce qui lui manque, c'est le
 **croisement avec son stock réel** — la seule chose que son téléphone ne sait
 pas et que son inventaire sait.
 
@@ -22,7 +22,7 @@ découper en termes perd « je veux un plat italien ».
 
 ## Décisions
 
-**D1 — Gemini entend l'audio.** Choix de djkix entre deux options. Le
+**D1 — Gemini entend l'audio.** Choix du propriétaire entre deux options. Le
 navigateur enregistre, le serveur transmet, le modèle transcrit et comprend en
 un seul appel. Motifs : une phrase longue passe mieux qu'avec le moteur du
 téléphone, rien ne dépend du navigateur, et sur Chrome la confidentialité est
@@ -30,13 +30,13 @@ de toute façon identique — la reconnaissance vocale du navigateur y envoie
 déjà l'audio à Google. Contrepartie assumée : sur Safari, la transcription se
 serait faite sur l'appareil ; elle part désormais au réseau dans tous les cas.
 
-**D2 — Un seul appel, pas d'étape de confirmation.** Choix de djkix. Le
+**D2 — Un seul appel, pas d'étape de confirmation.** Choix du propriétaire. Le
 modèle rend sa lecture **et** les recettes dans la même réponse. Contrepartie
 assumée : une erreur d'écoute ne se découvre qu'en lisant des recettes à côté
 de la plaque. La lecture comprise est donc **affichée avec les résultats**,
 pour que l'erreur soit visible sans être coûteuse.
 
-**D3 — Un parcours à part.** Choix de djkix contre une intégration au champ
+**D3 — Un parcours à part.** Choix du propriétaire contre une intégration au champ
 à pastilles. La demande parlée a son écran : on parle, on obtient des
 recettes. Le champ d'ingrédients tapé reste ce qu'il est, inchangé. Deux
 chemins distincts, pas deux façons de remplir le même champ.
@@ -91,7 +91,7 @@ français. Jamais un bouton qui ne réagit pas.
 
 - **La parole part au réseau**, vers l'API Gemini. C'est le prix de D1, et
   c'est contraire à l'esprit de la section 10 du cahier des charges, qui veut
-  qu'aucune donnée ne parte vers un tiers. djkix l'a tranché en connaissance
+  qu'aucune donnée ne parte vers un tiers. Le propriétaire l'a tranché en connaissance
   de cause : il fait déjà exactement cela dans l'application Gemini.
 - **Un contresens coûte un appel.** C'est le prix de D2.
 - **Le coût réel reste à mesurer.** Les tarifs audio sont documentés par

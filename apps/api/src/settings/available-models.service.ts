@@ -42,7 +42,7 @@ const SPECIALISED = /embedding|aqa|transcribe|live|tts|audio|image|imagen|veo|le
 const PINNED_SNAPSHOT = /-\d{3}$|-\d{4}-\d{2}-\d{2}$|-\d{2}-\d{2}$/;
 
 /**
- * Famille Flash seule (choix de djkix, 2026-10-15).
+ * Famille Flash seule (choix du propriétaire, 2026-10-15).
  *
  * Son abonnement Google AI Plus réserve les modèles Pro aux forfaits
  * supérieurs à compter du 13 novembre 2026 — pour l'appli Gemini et le Mode IA

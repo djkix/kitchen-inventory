@@ -46,7 +46,7 @@ describe('compteur d’appels au fournisseur', () => {
   /**
    * Les tuiles « photos » excluent les recettes pour ne pas fausser le taux
    * d'automatisation du scan ; sans ligne propre, leur consommation n'était
-   * lisible nulle part (question de djkix, 2026-10-22).
+   * lisible nulle part (question du propriétaire, 2026-10-22).
    */
   it('donne aux recettes leur propre compte, distinct des photos', () => {
     stats.data = { ...base, providerDailyLimit: null, providerMinuteLimit: null };

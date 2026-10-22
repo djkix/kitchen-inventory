@@ -27,9 +27,29 @@ import { SuggestionsService } from './suggestions.service.js';
 export class SuggestionsController {
   constructor(private readonly suggestions: SuggestionsService) {}
 
+  /**
+   * Lecture seule (revue de sécurité du 2026-10-22) : le réservoir tel qu'il
+   * est, couverture recalculée contre le stock, **sans jamais appeler le
+   * modèle ni écrire** — `refresh` y est ignoré. C'est la seule forme
+   * accessible à un jeton de service.
+   */
   @Get()
   list(@ZodQuery(suggestionQuerySchema) query: SuggestionQuery): Promise<SuggestionBatchDto> {
-    return this.suggestions.list(query);
+    return this.suggestions.list(query, { allowModelCall: false });
+  }
+
+  /**
+   * Recherche (écran Suggestions) : même orientation, dans le corps. Peut
+   * appeler le modèle — sous le plancher du réservoir ou sur relance
+   * explicite —, consommer le quota et écrire au réservoir. En `POST` pour
+   * que ni un lien, ni un préchargement, ni un jeton de service (lecture
+   * seule, refusé par `SessionGuard`) ne la déclenchent, et pour passer par
+   * la garde des écritures inter-origines.
+   */
+  @Post()
+  @HttpCode(200)
+  search(@ZodBody(suggestionQuerySchema) body: SuggestionQuery): Promise<SuggestionBatchDto> {
+    return this.suggestions.list(body);
   }
 
   /**

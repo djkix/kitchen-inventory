@@ -76,12 +76,12 @@ tools/             utilitaires hors application
   cascade de reconnaissance (fournisseur `gemini`, seul implémenté),
   export, healthcheck), `apps/web` (PWA : installation, connexion, stock,
   fiche article, périme bientôt, scan en rafale, réglages).
-- Livraison : image Docker unique `linux/amd64` sur GHCR (l'hôte est un
-  mini-PC x86), `docker-compose.yml` à trois services, CI GitHub Actions
+- Livraison : image Docker unique `linux/amd64` sur GHCR (l'hôte est une
+  machine x86), `docker-compose.yml` à trois services, CI GitHub Actions
   (types, lint, tests sur PostgreSQL 16, dérive des migrations, build
   d'image), release-please. L'étiquette `latest` ne suit que les versions
   publiées ; les poussées sur `main` sortent sous l'étiquette `main`.
-- En service chez djkix depuis la 0.6.1 : scan validé article par article,
+- En service en production depuis la 0.6.1 : scan validé article par article,
   photo par l'appareil natif, version affichée et bandeau de mise à jour.
 - Module recettes (socle) livré : `apps/api/src/recipes` (CRUD, filtres et tri
   mémorisés, couverture et groupe calculés depuis le stock, cuisson avec
@@ -142,8 +142,8 @@ tools/             utilitaires hors application
   navigateur (Chromium, caméra simulée) contre l'image Docker construite dans
   le job lui-même et une base PostgreSQL jetable, avec une doublure locale
   d'Open Food Facts et de Gemini — jamais de réseau réel. **CI uniquement**,
-  sur `main` après fusion : djkix n'a pas de moteur de conteneurs sur son
-  Mac. La conservation d'une recette trouvée sur le web n'est pas jouée bout
+  sur `main` après fusion : le propriétaire n'a pas de moteur de conteneurs sur son
+  poste. La conservation d'une recette trouvée sur le web n'est pas jouée bout
   en bout : le récupérateur de pages refuse HTTP et les adresses privées, et
   une doublure locale tombe dans les deux cas. Spécification, quinze
   décisions et les deux limites assumées dans
@@ -199,6 +199,17 @@ tools/             utilitaires hors application
   (section 26, 2026-10-22). Parcours bout en bout P7 (`e2e/p7-ticket.spec.ts`),
   la doublure de Gemini reconnaissant la lecture de ticket à son
   `responseSchema`.
+- Revue de sécurité du 2026-10-22 corrigée : premier administrateur d'une
+  base vide réservé à `ADMIN_EMAIL` (aucun en production sans elle, porte de
+  secours sinon), connexion du récupérateur de pages épinglée sur l'adresse
+  validée (`pinnedAddress`, `apps/api/src/common/http-client.ts`) et refus
+  IPv6 étendu, photos Open Food Facts bornées (hôtes, HTTPS, 5 Mo, pas de
+  redirection), en-têtes CSP/X-Frame-Options/Permissions-Policy/HSTS
+  (`apps/api/src/common/noindex.middleware.ts`), garde des écritures
+  inter-origines (`apps/api/src/common/csrf.middleware.ts` : toute écriture
+  doit venir de `PUBLIC_URL`), `GET /suggestions` en lecture seule et
+  recherche en `POST /suggestions`, export CSV sans formules, actions CI
+  épinglées par SHA.
 
 ## Développement local
 

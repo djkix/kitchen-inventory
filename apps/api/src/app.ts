@@ -7,8 +7,9 @@ import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import type { GoogleTokenVerifier } from './auth/google-token.verifier.js';
 import { googleCertsOverrideWarning, type AppConfig } from './common/config.js';
+import { csrfOriginMiddleware } from './common/csrf.middleware.js';
 import type { HttpClient } from './common/http-client.js';
-import { noindexMiddleware } from './common/noindex.middleware.js';
+import { noindexMiddleware, securityHeadersMiddleware } from './common/noindex.middleware.js';
 import { unpricedModelWarning } from './recognition/providers/gemini.provider.js';
 
 export const API_PREFIX = 'api/v1';
@@ -31,7 +32,10 @@ export async function createApp(config: AppConfig, httpClient?: HttpClient, goog
   // robots.txt doit vivre à la racine du site, hors du préfixe d'API.
   app.setGlobalPrefix(API_PREFIX, { exclude: ['robots.txt'] });
   app.use(noindexMiddleware);
+  app.use(securityHeadersMiddleware(config));
   app.use(cookieParser(config.SECRET_KEY));
+  // Après cookieParser : la garde regarde si un cookie de session accompagne l'écriture.
+  app.use(csrfOriginMiddleware(config));
   app.disable('x-powered-by');
   // Derrière le reverse proxy : l'adresse client vient de X-Forwarded-For.
   app.set('trust proxy', 1);

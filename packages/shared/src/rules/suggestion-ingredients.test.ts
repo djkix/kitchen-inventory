@@ -40,7 +40,7 @@ describe('recipeUsesAllTerms (D1, D8)', () => {
   });
   it('ne sépare pas le singulier du pluriel, dans les deux sens', () => {
     // L'exemple littéral de la demande : « j'ai des pommes de terre ». Selon
-    // que djkix tape au singulier ou au pluriel, il déclenchait un appel
+    // que le propriétaire tape au singulier ou au pluriel, il déclenchait un appel
     // payant au lieu de lire son réservoir.
     expect(recipeUsesAllTerms(['Pommes de terre nouvelles'], ['pomme de terre'])).toBe(true);
     expect(recipeUsesAllTerms(['Pomme de terre'], ['pommes de terre'])).toBe(true);
@@ -70,7 +70,7 @@ describe('labelMatchesTerms (D5)', () => {
   });
 });
 
-describe('recipeUsesAllTerms — saisie sans virgule (constat de djkix, 2026-10-19)', () => {
+describe('recipeUsesAllTerms — saisie sans virgule (constat du propriétaire, 2026-10-19)', () => {
   const POULET_TOMATE = ['Blanc de poulet', 'Tomates cerises', 'Huile d’olive'];
 
   it('trouve une recette au poulet et à la tomate quand les deux sont tapés d’un seul tenant', () => {

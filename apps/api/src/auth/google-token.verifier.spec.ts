@@ -18,12 +18,12 @@ function clientFor(payload: Partial<TokenPayload> & { aud: string }): IdTokenCli
   };
 }
 
-const PAYLOAD = { aud: 'bon-client-id', sub: '1234', email: 'djkix@Example.org', email_verified: true, name: 'djkix' };
+const PAYLOAD = { aud: 'bon-client-id', sub: '1234', email: 'Proprietaire@Example.org', email_verified: true, name: 'Camille' };
 
 describe('GoogleIdTokenVerifier', () => {
   it('rend l’identité, adresse normalisée en minuscules', async () => {
     const identity = await new GoogleIdTokenVerifier('bon-client-id', clientFor(PAYLOAD)).verify('jeton-signe');
-    expect(identity).toEqual({ email: 'proprietaire@example.org', emailVerified: true, sub: '1234', name: 'djkix' });
+    expect(identity).toEqual({ email: 'proprietaire@example.org', emailVerified: true, sub: '1234', name: 'Camille' });
   });
 
   it('refuse un jeton émis pour une autre application (vigilance 5)', async () => {

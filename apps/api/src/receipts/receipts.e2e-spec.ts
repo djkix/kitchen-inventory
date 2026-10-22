@@ -4,7 +4,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { FakeHttp, geminiFixture, json, TINY_PNG } from '../../test/fake-http.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'Camille' };
 const geminiText = (lines: unknown, finishReason = 'STOP') =>
   json({
     candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(lines) }] }, finishReason }],

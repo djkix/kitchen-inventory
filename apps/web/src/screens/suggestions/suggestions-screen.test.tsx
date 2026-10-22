@@ -285,21 +285,21 @@ describe('SuggestionsScreen', () => {
   });
 
   /**
-   * djkix, 2026-10-19 : « je suis obligé de cliquer sur charger plus ». La
+   * Le propriétaire, 2026-10-19 : « je suis obligé de cliquer sur charger plus ». La
    * page suivante se demande désormais dès que le bas de liste entre dans la
    * fenêtre. `jsdom` ne fournit pas `IntersectionObserver` : on le double pour
    * déclencher l'entrée en vue à la main, sinon la sentinelle est inerte et le
    * test ne prouverait rien.
    */
   /**
-   * djkix, 2026-10-20 : deux cents recettes au réservoir, douze à l'écran, et
+   * Le propriétaire, 2026-10-20 : deux cents recettes au réservoir, douze à l'écran, et
    * le défilement ne chargeait rien. L'effet de la sentinelle ne dépendait que
    * de `onVisible`, qui est stable : débranché après le premier déclenchement,
    * l'observateur ne se rebranchait jamais. Au mieux une page de plus, puis
    * plus rien. Ce test fait entrer le bas de liste en vue DEUX fois.
    */
   /**
-   * djkix, 2026-10-20 : « j'ai une erreur quand je scrolle : corps de requête
+   * Le propriétaire, 2026-10-20 : « j'ai une erreur quand je scrolle : corps de requête
    * invalide, avec un bouton réessayer mais ça tourne en boucle ». Le compteur
    * de page n'était borné nulle part : passé soixante, le schéma partagé
    * refusait la requête, et « Réessayer » rejouait la même requête invalide.
@@ -499,7 +499,7 @@ describe('SuggestionsScreen', () => {
   });
 
   /**
-   * djkix, 2026-10-19 : « j'ai l'impression qu'il n'y a que 12 recettes ».
+   * Le propriétaire, 2026-10-19 : « j'ai l'impression qu'il n'y a que 12 recettes ».
    * C'était exact. Le bouton de relance n'existait que dans l'état vide, donc
    * dès que le réservoir rendait de quoi remplir une page pour l'orientation,
    * plus aucun appel ne partait et rien ne permettait d'en demander d'autres.
@@ -593,7 +593,7 @@ describe('SuggestionsScreen', () => {
   });
 
   /**
-   * djkix, 2026-10-19 : « je veux les conserver afin de les consulter
+   * Le propriétaire, 2026-10-19 : « je veux les conserver afin de les consulter
    * ultérieurement. Plus je fais de requêtes pour les recettes, plus
    * j'emmagasine de recettes dans l'application. » Le réservoir les gardait
    * déjà ; l'écran en cachait définitivement tout ce qui dépassait la page.
@@ -846,7 +846,7 @@ describe('SuggestionsScreen', () => {
   });
 
   /**
-   * Revue finale du 2026-10-11, piège signalé par djkix : sans le bouton
+   * Revue finale du 2026-10-11, piège signalé par le propriétaire : sans le bouton
    * dédié, le seul chemin restant vers la question bloquante est un
    * rechargement complet de la page — qui réinitialise à la fois la réponse
    * ET l'orientation déjà en mémoire. Répondre ensuite le MÊME type qu'avant
@@ -1017,7 +1017,7 @@ describe('SuggestionsScreen, ingrédients dictés (2026-10-19)', () => {
 });
 
 /**
- * djkix, 2026-10-20 : « j'aime beaucoup l'affichage barre de recherche /
+ * Le propriétaire, 2026-10-20 : « j'aime beaucoup l'affichage barre de recherche /
  * filtre sur l'onglet Mes Recettes, fais la même chose pour la partie
  * Suggestion ». Les quatre sélecteurs d'orientation occupaient une moitié
  * d'écran de téléphone avant la première recette ; ils passent derrière un

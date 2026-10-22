@@ -20,8 +20,8 @@ const stats: RecipeStatsDto = {
 };
 
 const logs: RecipeLogDto[] = [
-  { id: 'log1', cookedAt: '2026-10-05T19:00:00.000Z', servingsCooked: 4, stockApplied: true, cookedByName: 'djkix', canRate: true, ratings: [] },
-  { id: 'log2', cookedAt: '2026-10-01T19:00:00.000Z', servingsCooked: 4, stockApplied: true, cookedByName: 'djkix', canRate: true, ratings: [] },
+  { id: 'log1', cookedAt: '2026-10-05T19:00:00.000Z', servingsCooked: 4, stockApplied: true, cookedByName: 'Camille', canRate: true, ratings: [] },
+  { id: 'log2', cookedAt: '2026-10-01T19:00:00.000Z', servingsCooked: 4, stockApplied: true, cookedByName: 'Camille', canRate: true, ratings: [] },
 ];
 
 function renderPanel(props: Partial<React.ComponentProps<typeof HistoryPanel>> = {}) {

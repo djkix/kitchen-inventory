@@ -34,7 +34,7 @@ import { buildSuggestionPrompt } from './prompt.js';
 import { SuggestionsModule } from './suggestions.module.js';
 import { SuggestionsService } from './suggestions.service.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'Camille' };
 
 /** Composition déposée au réservoir par les scénarios de demande parlée (2026-10-21). */
 const COMPOSITION_VOCALE: ModelRecipe = {
@@ -133,7 +133,7 @@ describe('SuggestionsService (EF-26)', () => {
    * pour que la contrainte de clé étrangère soit respectée.
    */
   async function seedUser(db: PrismaService): Promise<RequestUser> {
-    const user = await db.user.create({ data: { email: 'proprietaire.keep@example.org', name: 'djkix', passwordHash: 'x', role: 'ADMIN' } });
+    const user = await db.user.create({ data: { email: 'proprietaire.keep@example.org', name: 'Camille', passwordHash: 'x', role: 'ADMIN' } });
     return { id: user.id, email: user.email, name: user.name, role: 'ADMIN', via: 'session', sessionId: 's1' };
   }
 
@@ -469,7 +469,7 @@ describe('SuggestionsService (EF-26)', () => {
     // Le plafond de douze venait de la fournée, que D8 a supprimée. Sans
     // borne, une visite rendait tout le réservoir — et payait un
     // rapprochement `pg_trgm` par libellé d'ingrédient de chacune de ces
-    // recettes, sur un mini-PC, pour un téléphone (revue finale du
+    // recettes, sur une petite machine, pour un téléphone (revue finale du
     // 2026-10-15). La borne est posée APRÈS le tri : les meilleures en tête.
     const { service, db } = await createService();
     await seedPool(
@@ -486,7 +486,7 @@ describe('SuggestionsService (EF-26)', () => {
   });
 
   /**
-   * djkix, 2026-10-19 : « je veux les conserver afin de les consulter
+   * Le propriétaire, 2026-10-19 : « je veux les conserver afin de les consulter
    * ultérieurement ». Le réservoir les gardait déjà ; l'écran n'en montrait
    * que douze et rien ne permettait de voir les autres.
    */
@@ -711,7 +711,7 @@ describe('SuggestionsService (EF-26)', () => {
   });
 
   /**
-   * Demande de djkix du 2026-10-19 : « si je ne trouve pas de recette qui me
+   * Demande du propriétaire du 2026-10-19 : « si je ne trouve pas de recette qui me
    * plaît, permet de faire un nouvel appel ». L'appel partait déjà, mais
    * `comparePoolEntries` plaçait les arrivantes derrière les anciennes mieux
    * couvertes : l'écran ne bougeait pas d'un pouce.
@@ -1502,7 +1502,7 @@ describe('SuggestionsService (EF-26)', () => {
 
     it('dit que le repli de quota a perdu les ingrédients demandés (tour 1)', async () => {
       // Repli : le réservoir entier, sans filtre d'orientation NI d'ingrédients.
-      // Sans cette phrase, djkix reçoit des recettes qui n'ont rien à voir
+      // Sans cette phrase, le propriétaire reçoit des recettes qui n'ont rien à voir
       // avec ce qu'il vient de taper, et seul le quota lui est expliqué.
       const { service, db } = await createService({ RECIPE_SUGGESTION_DAILY_QUOTA: '0' });
       await seedStock(db);
@@ -1763,7 +1763,7 @@ describe('SuggestionsService (EF-26)', () => {
 
 });
 
-describe('GET /suggestions (EF-26, tâche 7)', () => {
+describe('POST /suggestions (EF-26, tâche 7)', () => {
   let t: TestApp;
   let agent: TestAgent;
   let http: FakeHttp;
@@ -1781,12 +1781,12 @@ describe('GET /suggestions (EF-26, tâche 7)', () => {
   afterAll(() => t.close());
 
   it('exige une session', async () => {
-    const res = await t.api.get('/api/v1/suggestions').expect(401);
+    const res = await t.api.post('/api/v1/suggestions').expect(401);
     expect(res.body.error.code).toBe('unauthenticated');
   });
 
   it('valide l’orientation par le schéma partagé', async () => {
-    const res = await agent.get('/api/v1/suggestions').query({ region: 'martienne' }).expect(400);
+    const res = await agent.post('/api/v1/suggestions').send({ region: 'martienne' }).expect(400);
     expect(res.body.error.code).toBe('validation_failed');
   });
 
@@ -1796,7 +1796,7 @@ describe('GET /suggestions (EF-26, tâche 7)', () => {
     await createStock(agent, { productId, locationId: placardId, quantity: 5, unit: 'PIECE' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
-    const res = await agent.get('/api/v1/suggestions').expect(200);
+    const res = await agent.post('/api/v1/suggestions').expect(200);
 
     // Plus d'identifiant de lot dans la réponse (lot du 2026-10-15) : l'écran
     // est servi par le réservoir, et la conservation désigne la recette par son
@@ -1806,7 +1806,59 @@ describe('GET /suggestions (EF-26, tâche 7)', () => {
   });
 });
 
-describe('GET /suggestions, fournisseur désactivé (EF-26, tâche 7)', () => {
+describe('GET /suggestions en lecture seule (revue de sécurité du 2026-10-22)', () => {
+  let t: TestApp;
+  let agent: TestAgent;
+  let http: FakeHttp;
+
+  beforeAll(async () => {
+    http = new FakeHttp();
+    t = await createTestApp({ VISION_PROVIDER: 'gemini', VISION_API_KEY: 'AIza-test' }, http.client);
+  });
+  beforeEach(async () => {
+    await t.reset();
+    http.reset();
+    agent = t.agent();
+    await t.signIn(agent, ADMIN);
+    const productId = await createProduct(agent, { name: 'Tomate' });
+    const placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
+    await createStock(agent, { productId, locationId: placardId, quantity: 5, unit: 'PIECE' });
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
+  });
+  afterAll(() => t.close());
+
+  it('sert le réservoir sans appeler le modèle ni écrire, même réservoir vide et relance demandée', async () => {
+    const logsBefore = await t.prisma.recognitionLog.count();
+    for (const query of [{}, { refresh: 'true' }]) {
+      const res = await agent.get('/api/v1/suggestions').query(query).expect(200);
+      expect(res.body.items).toEqual([]);
+      expect(res.body.fromCache).toBe(true);
+    }
+    expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(0);
+    expect(await t.prisma.suggestionPoolRecipe.count()).toBe(0);
+    expect(await t.prisma.recognitionLog.count()).toBe(logsBefore);
+  });
+
+  it('rend ce que la recherche en POST a rempli', async () => {
+    const searched = await agent.post('/api/v1/suggestions').send({}).expect(200);
+    expect(http.calls.filter((c) => c.url.includes('generateContent')).length).toBeGreaterThan(0);
+    http.calls.length = 0;
+    const read = await agent.get('/api/v1/suggestions').expect(200);
+    expect(read.body.items.map((i: { title: string }) => i.title).sort()).toEqual(searched.body.items.map((i: { title: string }) => i.title).sort());
+    expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(0);
+  });
+
+  it('un jeton de service lit le réservoir mais ne déclenche jamais de recherche', async () => {
+    const created = await agent.post('/api/v1/service-tokens').send({ name: 'Home Assistant' }).expect(201);
+    const bearer = `Bearer ${created.body.token}`;
+    await t.api.get('/api/v1/suggestions').set('Authorization', bearer).expect(200);
+    const refused = await t.api.post('/api/v1/suggestions').set('Authorization', bearer).send({ refresh: true }).expect(403);
+    expect(refused.body.error.message).toBe('Un jeton de service ne permet que la lecture');
+    expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(0);
+  });
+});
+
+describe('POST /suggestions, fournisseur désactivé (EF-26, tâche 7)', () => {
   it('dit en français que le fournisseur n’est pas configuré', async () => {
     const t = await createTestApp({ VISION_PROVIDER: 'none' });
     try {
@@ -1814,7 +1866,7 @@ describe('GET /suggestions, fournisseur désactivé (EF-26, tâche 7)', () => {
       const agent = t.agent();
       await t.signIn(agent, ADMIN);
 
-      const res = await agent.get('/api/v1/suggestions').expect(422);
+      const res = await agent.post('/api/v1/suggestions').expect(422);
       expect(res.body.error.code).toBe('provider_disabled');
       expect(res.body.error.message).toBe('Fournisseur de suggestions désactivé : renseignez VISION_PROVIDER et VISION_API_KEY');
     } finally {

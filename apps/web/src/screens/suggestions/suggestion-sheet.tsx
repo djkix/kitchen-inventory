@@ -32,7 +32,7 @@ interface SuggestionSheetProps {
  * lot du 2026-10-15), et son contenu n'est mis en forme qu'à la conservation —
  * la fiche l'annonce honnêtement plutôt que de laisser croire à un oubli (B7).
  *
- * Deux boutons (demande de djkix, 2026-10-19) : « Je fais cette recette »
+ * Deux boutons (demande du propriétaire, 2026-10-19) : « Je fais cette recette »
  * conserve et mène à la fiche, où se trouve le nombre de parts ; « Annuler »
  * ferme et revient aux suggestions, sans rien enregistrer. L'action principale
  * conserve la recette et déclenche
@@ -44,7 +44,7 @@ interface SuggestionSheetProps {
  *
  * `clientOpId` est **déterministe** (round 1 de revue) — dérivé de la seule
  * identité de la suggestion, jamais tiré au hasard : un identifiant aléatoire régénéré à
- * chaque ouverture du tiroir se faisait oublier dès que djkix fermait la
+ * chaque ouverture du tiroir se faisait oublier dès que le propriétaire fermait la
  * fiche après un échec et la rouvrait pour réessayer, ce qui rejouait un
  * second appel payant si le premier avait en fait atteint Gemini (réponse
  * lente, délai du proxy) avant que le client ne voie l'échec. Une chaîne
@@ -53,7 +53,7 @@ interface SuggestionSheetProps {
  * tentatives de conserver la même suggestion portent forcément le même
  * identifiant, ce qu'attend la colonne unique du serveur.
  *
- * Conséquence acceptée : si djkix conserve une suggestion, supprime la
+ * Conséquence acceptée : si le propriétaire conserve une suggestion, supprime la
  * recette de sa bibliothèque, puis conserve de nouveau la même suggestion, le
  * serveur ne retrouve aucune recette pour cet identifiant et en recrée une —
  * c'est le comportement voulu, pas un bug de déduplication.
@@ -92,7 +92,7 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
       // se fermant (voir `Sheet`), et il ne la retire que si elle est encore
       // au sommet. La fiche empilée d'abord, la fermeture ne touche à rien et
       // le passage à la fiche n'est pas mangé par la dépile.
-      // C'est là, et seulement là, que djkix lit enfin les étapes.
+      // C'est là, et seulement là, que le propriétaire lit enfin les étapes.
       navigate(`/recettes/${recipe.id}`);
       onClose();
     } catch (err) {
@@ -131,7 +131,7 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
                     {/* Un ingrédient que l'on vient de déclarer dans le champ de
                         saisie n'est jamais annoncé manquant (D5, tour 1) :
                         `state` dit ce que le stock sait, cette ligne dit ce que
-                        djkix a sous la main. */}
+                        le propriétaire a sous la main. */}
                     <span className="shrink-0 text-[13px] text-muted">
                       {ingredient.declared ? 'Déclaré' : INGREDIENT_STATE_LABELS_FR[ingredient.state]}
                     </span>
@@ -139,7 +139,7 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
                   {ingredient.quantity !== null && ingredient.unit !== null && (
                     <span className="block text-[13px] text-faint">{formatQuantity(ingredient.quantity, ingredient.unit)}</span>
                   )}
-                  {/* Rapprochement approximatif (A11, B11) : jamais tu, pour que djkix
+                  {/* Rapprochement approximatif (A11, B11) : jamais tu, pour que le propriétaire
                       puisse corriger une mauvaise supposition avant de cuisiner. */}
                   {ingredient.match === 'probable' && ingredient.productName && (
                     <span className="block text-[13px] text-soon">
@@ -228,7 +228,7 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
         )}
 
         {/*
-          Deux boutons (demande de djkix, 2026-10-19) : l'action à gauche,
+          Deux boutons (demande du propriétaire, 2026-10-19) : l'action à gauche,
           l'abandon à droite. L'action est pleine, accentuée et deux fois plus
           large — un geste d'abandon ne doit pas se confondre avec un
           enregistrement définitif —, et les deux restent dans le tiers

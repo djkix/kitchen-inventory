@@ -71,7 +71,7 @@ export default defineConfig({
   // Rapport HTML et artefacts (traces, captures, vidéos) dans des dossiers
   // frères, jamais l'un dans l'autre : le reporter HTML vide son dossier
   // avant de le régénérer, ce qui effacerait les artefacts s'ils étaient à
-  // l'intérieur (djkix ne peut rien rejouer localement, ils sont la seule
+  // l'intérieur (le propriétaire ne peut rien rejouer localement, ils sont la seule
   // preuve d'un échec).
   //
   // Et un sous-dossier PAR EXÉCUTION (`RUN_NAME`) : la CI lance deux fois

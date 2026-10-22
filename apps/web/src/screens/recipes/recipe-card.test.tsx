@@ -25,7 +25,7 @@ const base: RecipeSummaryDto = {
 };
 
 /**
- * djkix ne retrouvait ni la note du foyer ni le nombre de réalisations dans
+ * Le propriétaire ne retrouvait ni la note du foyer ni le nombre de réalisations dans
  * « Mes recettes » (demande d'origine) : les deux doivent apparaître sur la
  * carte elle-même, sans écran dédié.
  */

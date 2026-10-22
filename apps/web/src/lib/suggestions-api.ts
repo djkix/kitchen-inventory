@@ -11,7 +11,7 @@ import type {
 import { api } from './api';
 
 /**
- * Orientation de recherche envoyée à `GET /suggestions` (section 12, B9) :
+ * Orientation de recherche envoyée à `POST /suggestions` (section 12, B9) :
  * tous les champs sont facultatifs, une orientation vide équivaut à aucune
  * contrainte. Les filtres eux-mêmes sont branchés par la tâche 11.
  */
@@ -50,9 +50,16 @@ export interface SuggestionOrientation {
 }
 
 export const suggestionsApi = {
-  /** Suggestions (EF-25, EF-26) : réservoir, appel au modèle et quotas sont décidés par le serveur, la couverture est recalculée contre le stock du moment. */
+  /**
+   * Suggestions (EF-25, EF-26) : réservoir, appel au modèle et quotas sont
+   * décidés par le serveur, la couverture est recalculée contre le stock du
+   * moment. En `POST`, orientation dans le corps : la recherche peut appeler
+   * le modèle et écrire au réservoir, et `GET /suggestions` est désormais une
+   * lecture seule du réservoir qui n'appelle jamais le modèle (revue de
+   * sécurité du 2026-10-22).
+   */
   list(orientation: SuggestionOrientation): Promise<SuggestionBatchDto> {
-    return api.get<SuggestionBatchDto>('/suggestions', { query: { ...orientation } });
+    return api.post<SuggestionBatchDto>('/suggestions', { ...orientation });
   },
 
   /**

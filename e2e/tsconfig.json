@@ -5,7 +5,7 @@
   // contente d'effacer les types à l'exécution sans jamais les vérifier. Une
   // erreur de type passait donc la CI au vert et ne se manifestait qu'en
   // échec d'exécution sur `main`, le seul endroit où le job e2e tourne et le
-  // seul que djkix ne peut pas rejouer. Vérifié par `npm run typecheck:e2e`,
+  // seul que le propriétaire ne peut pas rejouer. Vérifié par `npm run typecheck:e2e`,
   // appelé par le job `check` (donc sur chaque pull request).
   "extends": "../tsconfig.base.json",
   "compilerOptions": {

@@ -16,7 +16,7 @@ import { useVoiceRecorder, type VoiceRecording } from './use-voice-recorder';
  *
  * Un parcours à part (D3), et non un second mode du champ à pastilles : on
  * parle, on obtient des recettes. L'écran Suggestions n'y gagne qu'une icône
- * dans son en-tête — il a été allégé trois fois à la demande de djkix, un
+ * dans son en-tête — il a été allégé trois fois à la demande du propriétaire, un
  * contrôle permanent de plus y serait un recul.
  *
  * Un seul appel rend la lecture et les recettes (D2) : la lecture est donc
