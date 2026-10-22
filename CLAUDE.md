@@ -199,6 +199,17 @@ tools/             utilitaires hors application
   (section 26, 2026-10-22). Parcours bout en bout P7 (`e2e/p7-ticket.spec.ts`),
   la doublure de Gemini reconnaissant la lecture de ticket à son
   `responseSchema`.
+- Revue de sécurité du 2026-10-22 corrigée : premier administrateur d'une
+  base vide réservé à `ADMIN_EMAIL` (aucun en production sans elle, porte de
+  secours sinon), connexion du récupérateur de pages épinglée sur l'adresse
+  validée (`pinnedAddress`, `apps/api/src/common/http-client.ts`) et refus
+  IPv6 étendu, photos Open Food Facts bornées (hôtes, HTTPS, 5 Mo, pas de
+  redirection), en-têtes CSP/X-Frame-Options/Permissions-Policy/HSTS
+  (`apps/api/src/common/noindex.middleware.ts`), garde des écritures
+  inter-origines (`apps/api/src/common/csrf.middleware.ts` : toute écriture
+  doit venir de `PUBLIC_URL`), `GET /suggestions` en lecture seule et
+  recherche en `POST /suggestions`, export CSV sans formules, actions CI
+  épinglées par SHA.
 
 ## Développement local
 
