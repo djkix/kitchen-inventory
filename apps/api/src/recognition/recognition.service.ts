@@ -180,7 +180,7 @@ export class RecognitionService {
     // Ce que Google compte, lui, ne distingue ni le scan ni les recettes : un
     // appel est un appel. Le cache est exclu — il n'est jamais parti chez le
     // fournisseur, c'est tout son intérêt.
-    const [providerCallsToday, providerCallsLastMinute, recipeCallsToday, recipeCallsThisMonth, recipeSpend] = await Promise.all([
+    const [providerCallsToday, providerCallsLastMinute, recipeCallsToday, recipeCallsThisMonth, recipeSpend, receiptCallsToday, receiptCallsThisMonth, receiptSpend] = await Promise.all([
       this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, createdAt: { gte: dayStart } } }),
       this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, createdAt: { gte: new Date(now.getTime() - 60_000) } } }),
       // Les recettes ont leur propre compte : exclues des tuiles « photos »
@@ -189,6 +189,11 @@ export class RecognitionService {
       this.prisma.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION', createdAt: { gte: dayStart } } }),
       this.prisma.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION', createdAt: { gte: monthStart } } }),
       this.prisma.recognitionLog.aggregate({ where: { purpose: 'RECIPE_SUGGESTION', createdAt: { gte: monthStart } }, _sum: { costCents: true } }),
+      // Les tickets de caisse (EF-29) ont de même leur propre quota journalier :
+      // sans ces compteurs, « quota atteint » ne disait pas sur combien.
+      this.prisma.recognitionLog.count({ where: { purpose: 'RECEIPT', createdAt: { gte: dayStart } } }),
+      this.prisma.recognitionLog.count({ where: { purpose: 'RECEIPT', createdAt: { gte: monthStart } } }),
+      this.prisma.recognitionLog.aggregate({ where: { purpose: 'RECEIPT', createdAt: { gte: monthStart } }, _sum: { costCents: true } }),
     ]);
     const attempts = recent.length + cacheHits;
     const automatic = cacheHits + recent.filter((r) => r.succeeded).length;
@@ -210,6 +215,10 @@ export class RecognitionService {
       recipeCallsThisMonth,
       recipeCostCentsThisMonth: Math.round((recipeSpend._sum.costCents?.toNumber() ?? 0) * 100) / 100,
       recipeDailyQuota: this.config.RECIPE_SUGGESTION_DAILY_QUOTA,
+      receiptCallsToday,
+      receiptCallsThisMonth,
+      receiptCostCentsThisMonth: Math.round((receiptSpend._sum.costCents?.toNumber() ?? 0) * 100) / 100,
+      receiptDailyQuota: this.config.RECEIPT_DAILY_QUOTA,
     };
   }
 

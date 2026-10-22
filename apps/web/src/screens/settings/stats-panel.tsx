@@ -44,6 +44,13 @@ export function StatsPanel() {
       note: `${s.recipeCallsThisMonth} ce mois · ${EUROS.format(s.recipeCostCentsThisMonth / 100)}`,
     },
     {
+      // Même raison pour les tickets de caisse (EF-29) : leur quota journalier
+      // est propre, leur dépense était noyée dans la tuile « photos ».
+      label: 'Tickets aujourd’hui',
+      value: `${s.receiptCallsToday} / ${s.receiptDailyQuota}`,
+      note: `${s.receiptCallsThisMonth} ce mois · ${EUROS.format(s.receiptCostCentsThisMonth / 100)}`,
+    },
+    {
       // Compteur indicatif : ce que Google compte ne distingue ni le scan ni
       // les recettes. Sans limite renseignée (`GEMINI_RPD`), le compte est
       // rendu seul — un rapport à une valeur inventée vaudrait moins que rien.

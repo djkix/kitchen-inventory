@@ -9,6 +9,10 @@ export const receiptsApi = {
     form.append('file', file, file.name || 'ticket');
     return api.postForm<ReceiptDto>('/receipts', form);
   },
+  /** Relecture du brouillon : un ticket survit à un rafraîchissement ou à un changement d'application. */
+  get(id: string): Promise<ReceiptDto> {
+    return api.get<ReceiptDto>(`/receipts/${encodeURIComponent(id)}`);
+  },
   validate(id: string, input: ValidateReceiptInput): Promise<{ added: number }> {
     return api.post<{ added: number }>(`/receipts/${encodeURIComponent(id)}/validate`, input);
   },

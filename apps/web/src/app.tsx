@@ -63,6 +63,9 @@ export function App() {
                 <Route path="/recettes/:id" element={<RecipeScreen />} />
                 <Route path="/recettes/:id/modifier" element={<RecipeFormScreen />} />
                 <Route path="/courses" element={<ReceiptScreen />} />
+                {/* Un ticket lu vit sur son adresse : rafraîchir ou revenir à
+                    l'onglet ne perd pas une lecture déjà payée (EF-29). */}
+                <Route path="/courses/:id" element={<ReceiptScreen />} />
                 <Route path="/reglages" element={<SettingsScreen />} />
                 <Route path="/reglages/emplacements" element={<LocationsScreen />} />
                 <Route path="/reglages/jetons" element={<ServiceTokensScreen />} />

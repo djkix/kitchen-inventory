@@ -6,11 +6,13 @@ import { ProviderError } from '../recognition/providers/recognition-provider.js'
 export type RawReceiptLine = { label: string; quantity: number };
 
 /**
- * Types acceptés à l'envoi d'un ticket : les images du scan, plus le PDF. Liste propre
+ * Types acceptés à l'envoi d'un ticket : les images du scan, plus le PDF. Le GIF
+ * en est exclu : `inlineData` de Gemini ne le prend pas, l'accepter ici le faisait
+ * échouer en 502 après coup. Liste propre
  * aux tickets, distincte de celle de `MediaService` : le ticket n'est jamais enregistré
  * (EF-29), et élargir `isSupportedMime` ferait accepter un PDF au scan photo.
  */
-export const RECEIPT_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/gif', 'application/pdf'] as const;
+export const RECEIPT_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'] as const;
 
 const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';

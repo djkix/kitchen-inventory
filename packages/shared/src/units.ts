@@ -6,6 +6,18 @@
 export const UNITS = ['PIECE', 'GRAM', 'KILOGRAM', 'MILLILITER', 'LITER', 'PACK', 'BOX', 'SACHET'] as const;
 export type Unit = (typeof UNITS)[number];
 
+/**
+ * Unités qui comptent des objets entiers. Le « 3 × » d'un ticket de caisse
+ * (EF-29) en désigne trois : trois paquets, trois boîtes, trois sachets, comme
+ * trois pièces. Les masses et les volumes en sont exclus — ajouter « 3 » à un
+ * produit suivi en grammes écrirait trois grammes.
+ */
+export const COUNTABLE_UNITS = ['PIECE', 'PACK', 'BOX', 'SACHET'] as const;
+
+export function isCountableUnit(unit: Unit): boolean {
+  return (COUNTABLE_UNITS as readonly Unit[]).includes(unit);
+}
+
 export type UnitFamily = 'count' | 'mass' | 'volume' | 'pack' | 'box' | 'sachet';
 
 export const UNIT_FAMILY: Record<Unit, UnitFamily> = {

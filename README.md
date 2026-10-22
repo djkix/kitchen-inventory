@@ -67,8 +67,13 @@ ticket**, reconnues et inconnues mêlées, pour suivre le papier : le nom du
 produit, le libellé imprimé en dessous, et le mouvement de stock « 2 → 3 ».
 Quand la ligne est ambiguë et que l'on vient de choisir son produit, la base
 n'est pas connue : la ligne affiche alors l'ajout seul (« +1 ») plutôt qu'un
-faux « 0 → 1 ». Hors des produits comptés à la pièce, l'unité s'affiche à côté
-de la quantité (« 2 → 3 kg », « +1 l »).
+faux « 0 → 1 ». Hors des produits comptés par objets entiers (pièce, paquet,
+boîte, sachet), l'unité s'affiche à côté de la quantité (« 2 → 3 kg »,
+« +1 l ») et la case de quantité reste **vide** : le « 3 × » du ticket compte
+des articles, pas des grammes, c'est donc à vous de dire combien.
+Le ticket lu vit à sa propre adresse (`/courses/<id>`) et le brouillon est
+gardé par le serveur : rafraîchir la page ou basculer d'application ne perd
+pas une lecture déjà payée.
 Une ligne reconnue arrive cochée ; une ligne ambiguë propose ses candidats (le
 plus proche du libellé en premier) et se coche dès qu'on en choisit un ; une
 ligne inconnue est marquée « Nouveau », ne se coche pas et ne se valide pas —
@@ -848,7 +853,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `VISION_DAILY_QUOTA` | Appels photo autorisés par jour (50) |
 | `VISION_MONTHLY_CAP_CENTS` | Plafond de dépense mensuel en centimes, partagé par le scan photo et les suggestions (500, soit 5 €) ; 0 le désactive. Couvre les jetons **et** les requêtes de recherche web |
 | `RECIPE_SUGGESTION_DAILY_QUOTA` | Fournées de suggestions de recettes autorisées par jour (20) |
-| `RECEIPT_DAILY_QUOTA` | Lectures de ticket de caisse autorisées par jour (10), compteur séparé du scan photo et des suggestions |
+| `RECEIPT_DAILY_QUOTA` | Lectures de ticket de caisse autorisées par jour (10), compteur séparé du scan photo et des suggestions, affiché dans Réglages › Reconnaissance (tuile « Tickets aujourd'hui ») |
 | `FALLBACK_MODEL` | Modèle essayé **une seule fois** quand Gemini refuse pour quota épuisé, les quotas étant comptés par modèle. Vide (défaut) : pas de repli, le refus remonte tel quel. Valeur de départ seulement — le choix fait dans Réglages prime |
 | `GEMINI_RPD`, `GEMINI_RPM` | Limites de requêtes par jour et par minute du projet Google, telles que `aistudio.google.com/rate-limit` les annonce. **Purement indicatives** : elles ne bloquent rien, elles servent à afficher « 15 / 500 » au lieu de « 15 » dans Réglages. Aucune API ne permet de les lire, d'où la recopie à la main ; laissées vides, l'écran rend le compte seul |
 | `OFF_USER_AGENT` | En-tête demandé par Open Food Facts |
@@ -884,7 +889,7 @@ rapprochée du catalogue (`MATCHED`, `AMBIGUOUS` ou `UNKNOWN`, avec ses
 candidats et la quantité déjà en stock dans l'emplacement). `GET
 /api/v1/receipts/:id` le relit. Rien n'entre au stock à ce stade. Le fichier
 n'est jamais conservé et aucun prix n'est stocké ; une quantité lue hors de
-1 à 99 est ramenée à 1. L'appel compte dans `RECEIPT_DAILY_QUOTA` et dans le
+0,01 à 99 est ramenée à 1. L'appel compte dans `RECEIPT_DAILY_QUOTA` et dans le
 plafond mensuel partagé, y compris quand le ticket est illisible (la lecture
 est facturée quand même).
 
@@ -907,8 +912,10 @@ Les libellés jamais reconnus s'accumulent pour qu'on les rattache quand on veut
 …/pending-labels/attach` (`{ "label", "productId" }`, 204) apprend le libellé :
 les tickets suivants le reconnaissent, sans passer par la recherche. Rattacher
 de nouveau un libellé déjà appris change son produit. Rien ne se fait pendant le
-scan ni sur l'écran d'un ticket. Un produit suivi autrement qu'à la pièce reste
-proposé comme candidat (`AMBIGUOUS`) plutôt que reconnu d'office.
+scan ni sur l'écran d'un ticket. Un produit suivi en masse ou en volume reste
+proposé comme candidat (`AMBIGUOUS`) plutôt que reconnu d'office ; les unités
+qui comptent des objets entiers (pièce, paquet, boîte, sachet) sont reconnues
+d'office, le « 3 × » du ticket en désignant trois.
 
 **Export.** `GET /api/v1/export/inventory.csv` et `/inventory.json`, derrière
 la session ou un jeton de service.
@@ -1059,7 +1066,7 @@ release-please.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.30.0 | 2026-10-22 | **Le ticket de caisse remplit le stock, et la liste de courses est abandonnée.** L'onglet Courses n'est plus une liste à cocher : on y choisit l'emplacement, on photographie le ticket (ou on dépose un PDF), et les lignes s'affichent dans l'ordre du ticket — produit reconnu, libellé imprimé, quantité corrigeable, et le mouvement de stock « 2 → 3 », ou « +1 » seul quand le produit de la ligne vient d'être choisi et que sa base n'est pas connue, avec l'unité à côté de la quantité dès que le produit ne se compte pas à la pièce. Une ligne reconnue arrive cochée, une ligne ambiguë propose ses candidats, une ligne inconnue est marquée « Nouveau » et reste à scanner ; on décoche ce qui ne doit pas entrer, on valide, et les quantités montent dans le Stock sans date de péremption. Les libellés jamais reconnus se rattachent à un produit depuis la liste repliée sous l'écran, et la pastille de l'onglet les compte : ils seront reconnus aux tickets suivants. Un parcours bout en bout (P7) rejoue tout cela dans un vrai navigateur. Le cahier des charges est amendé (sections 3, 4, 12, 14 et 26) : EF-12 (seuils et liste de courses) et EF-24 (ajout des manquants aux courses) sont abandonnées, EF-29 ajoutée — l'inventaire sert à savoir ce qui dort au fond du placard et ce qu'on peut en cuisiner, pas à suivre ce qu'il reste à acheter ([détail](CHANGELOG.md)) |
+| 0.30.0 | 2026-10-22 | **Le ticket de caisse remplit le stock, et la liste de courses est abandonnée.** L'onglet Courses n'est plus une liste à cocher : on y choisit l'emplacement, on photographie le ticket (ou on dépose un PDF), et les lignes s'affichent dans l'ordre du ticket — produit reconnu, libellé imprimé, quantité corrigeable, et le mouvement de stock « 2 → 3 », ou « +1 » seul quand le produit de la ligne vient d'être choisi et que sa base n'est pas connue, avec l'unité à côté de la quantité dès que le produit ne se compte pas à la pièce. Une ligne reconnue arrive cochée, une ligne ambiguë propose ses candidats, une ligne inconnue est marquée « Nouveau » et reste à scanner ; on décoche ce qui ne doit pas entrer, on valide, et les quantités montent dans le Stock sans date de péremption. Les libellés jamais reconnus se rattachent à un produit depuis la liste repliée sous l'écran, et la pastille de l'onglet les compte : ils seront reconnus aux tickets suivants. Un ticket lu garde son adresse (`/courses/<id>`) et son brouillon côté serveur : rafraîchir ou changer d'application ne perd pas une lecture payée. Paquet, boîte et sachet comptent des objets entiers comme la pièce, donc une ligne y est reconnue d'office ; hors de ces unités la case de quantité reste vide, à remplir. Réglages › Reconnaissance gagne une tuile « Tickets aujourd'hui » (du jour, du mois, dépense) : le quota de lecture n'était annoncé nulle part. Un parcours bout en bout (P7) rejoue tout cela dans un vrai navigateur. Le cahier des charges est amendé (sections 3, 4, 12, 14 et 26) : EF-12 (seuils et liste de courses) et EF-24 (ajout des manquants aux courses) sont abandonnées, EF-29 ajoutée — l'inventaire sert à savoir ce qui dort au fond du placard et ce qu'on peut en cuisiner, pas à suivre ce qu'il reste à acheter ([détail](CHANGELOG.md)) |
 | 0.29.1 | 2026-10-22 | `docker-compose.yml` et `.env.example` transmettent enfin `FALLBACK_MODEL`, `GEMINI_RPD` et `GEMINI_RPM` : les trois variables ajoutées la veille existaient côté application mais n'étaient pas passées au conteneur, donc le modèle de repli restait inerte et le compteur d'appels sans dénominateur, quoi qu'on mette dans le `.env` |
 | 0.29.0 | 2026-10-22 | **Réglages : tout replié, puces de couleur, version en haut à droite, et la conso des recettes enfin visible.** Les cinq sections sont désormais repliées à l'arrivée, y compris Reconnaissance et Comptes : le résumé de chaque en-tête porte l'information — « 2 actifs · 1 en attente » se lit section fermée, donc rien d'actionnable ne disparaît. Chaque section porte une puce de couleur (cyan pour Reconnaissance, émeraude pour Comptes, ambre pour Inventaire, indigo pour Foyer, violet pour Export) : cinq replis identiques manquaient de repère visuel. Ces teintes sont **cantonnées à cet écran** et n'entrent pas dans les jetons du thème, qui réservent le rouge, l'orange et l'ambre à la péremption et les bleus à la température de stockage — sens qui restent intacts partout ailleurs. La version de l'application passe du bas de l'écran à l'en-tête, en haut à droite : au bas d'un écran devenu pliable, il fallait dérouler pour l'atteindre. Enfin, les appels **recettes** ont leur propre tuile — du jour, du mois, et leur dépense. Les tuiles « photos » les excluent délibérément, pour ne pas fausser le taux d'automatisation du scan ; mais faute de ligne propre, leur consommation n'était lisible nulle part, seulement fondue dans le coût du mois |
 | 0.28.0 | 2026-10-21 | **Dire quelle limite Gemini refuse, et basculer de modèle plutôt que d'abandonner.** Un 429 n'est plus traduit par un « Quota Gemini atteint » indifférencié : l'application lit le refus que Google envoie — `quotaId` nomme la limite franchie, `retryDelay` donne la reprise — et dit « Trop de demandes coup sur coup. Réessayez dans 12 secondes. » ou « Le quota Gemini du jour est épuisé. Il repart à minuit, heure du Pacifique. » Aucune limite n'est recopiée dans le code : aucune API ne permet de les lire, et une table recopiée diverge en silence — c'est ce qui a rendu le plafond de dépense inopérant six jours durant. Un **modèle de repli** se choisit dans Réglages › Reconnaissance : quand le quota du modèle retenu est épuisé, l'application reprend **une seule fois** sur ce second modèle, les quotas de Gemini étant comptés par modèle. Jamais de cascade, et jamais pour une autre panne — une clé refusée échouerait à l'identique sur le repli. Le scan annonce la bascule à l'écran : « Quota du modèle habituel épuisé : cette lecture vient de … ». Enfin, Réglages affiche le nombre d'appels réellement partis chez le fournisseur, aujourd'hui et dans la dernière minute, scan et recettes confondus — c'est ainsi que Google les compte. Renseignez `GEMINI_RPD` et `GEMINI_RPM` d'après la console Google pour lire « 15 / 500 » au lieu de « 15 » ; laissées vides, l'écran rend le compte seul, un rapport à une valeur inventée valant moins que pas de rapport |

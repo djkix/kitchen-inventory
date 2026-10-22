@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { matchReceiptLine, normalizeReceiptLabel } from './receipt-match.js';
+import { COUNTABLE_UNITS } from '../units.js';
+import { coversReceiptLabel, matchReceiptLine, normalizeReceiptLabel } from './receipt-match.js';
 
 describe('receipt-match (EF-29)', () => {
   it('un alias connu l’emporte sur toute recherche', () => {
@@ -78,6 +79,40 @@ describe('receipt-match (EF-29)', () => {
       { id: 'b', name: 'Riz basmati bio', defaultUnit: 'PIECE' },
     ]);
     expect(r.state).toBe('AMBIGUOUS');
+  });
+
+  // Revue finale, point 4 : paquet, boîte et sachet comptent des objets entiers
+  // comme la pièce — le « 3 × » du ticket en désigne trois.
+  it('la liste des unités comptées est bien celle-ci', () => {
+    expect([...COUNTABLE_UNITS]).toEqual(['PIECE', 'PACK', 'BOX', 'SACHET']);
+  });
+
+  for (const unit of ['PIECE', 'PACK', 'BOX', 'SACHET'] as const) {
+    it(`un produit suivi en ${unit} se coche d’office`, () => {
+      const r = matchReceiptLine('RIZ BASMATI 1KG', null, [{ id: 'p', name: 'Riz basmati', defaultUnit: unit }]);
+      expect(r).toEqual({ state: 'MATCHED', productId: 'p', candidateIds: ['p'] });
+      expect(matchReceiptLine('RIZ BASMATI', { id: 'a', name: 'Riz basmati', defaultUnit: unit }, [])).toMatchObject({ state: 'MATCHED', productId: 'a' });
+    });
+  }
+
+  // Revue finale, point 3 : sans découpage sur la ponctuation, « NAT.X4 » reste
+  // un seul mot — deux clés pour le même produit, et un libellé que rien ne couvre.
+  it('la ponctuation sépare les mots : point, pourcentage et barre de fraction', () => {
+    expect(normalizeReceiptLabel('YAOURT NAT.X4')).toBe(normalizeReceiptLabel('YAOURT NAT. X4'));
+    expect(normalizeReceiptLabel('CREME 30% 20CL')).toBe('creme');
+    expect(normalizeReceiptLabel('LAIT 1/2 ECREME')).toBe('lait ecreme');
+  });
+
+  it('un nombre collé au libellé n’empêche plus le rapprochement', () => {
+    const r = matchReceiptLine('CREME 30% FRAICHE', null, [{ id: 'c', name: 'Crème fraîche', defaultUnit: 'PIECE' }]);
+    expect(r).toEqual({ state: 'MATCHED', productId: 'c', candidateIds: ['c'] });
+  });
+
+  it('coversReceiptLabel dit la même chose que la règle', () => {
+    expect(coversReceiptLabel('OLIVE VIERGE', 'Huile d’olive vierge')).toBe(true);
+    expect(coversReceiptLabel('OLIVE VIERGE', 'Huile d’olive')).toBe(false);
+    expect(coversReceiptLabel('CREME 30%', 'Crème fraîche')).toBe(true);
+    expect(coversReceiptLabel('500G', 'Riz')).toBe(false);
   });
 
   it('normalise contenance, casse et accents', () => {
