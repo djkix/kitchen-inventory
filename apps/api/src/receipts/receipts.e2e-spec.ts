@@ -160,17 +160,6 @@ describe('quota journalier de tickets (EF-29)', () => {
   });
 });
 
-describe('repli de modèle et fournisseur désactivé (EF-29)', () => {
-  const { ctx, upload } = setup({ VISION_MODEL: 'modele-principal', FALLBACK_MODEL: 'modele-repli' });
-
-  it('bascule une fois sur le modèle de repli quand le quota du premier est épuisé', async () => {
-    ctx.http.on('modele-principal', () => json({ error: { details: [{ violations: [{ quotaId: 'GenerateRequestsPerMinutePerProjectPerModel' }] }] } }, 429));
-    ctx.http.on('modele-repli', () => geminiFixture('receipts/gemini-ticket.json'));
-    await upload().expect(201);
-    expect(ctx.http.calls.map((c) => c.url.match(/models\/([^:]+):/)?.[1])).toEqual(['modele-principal', 'modele-repli']);
-  });
-});
-
 describe('lecture de ticket sans fournisseur (EF-29)', () => {
   const { ctx, upload } = setup({ VISION_PROVIDER: 'none' });
 

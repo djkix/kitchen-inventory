@@ -2,6 +2,8 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { VISION_PROVIDERS } from '@kitchen/shared';
 import { z } from 'zod';
+import { isLightModel } from '../gemini/gemini-models.js';
+import { DEFAULT_LIMITS } from '../gemini/gemini-quota.js';
 
 /**
  * Variables d'environnement de la section 9, validées au démarrage. Une valeur
@@ -16,22 +18,19 @@ const configSchema = z.object({
   PUBLIC_URL: z.string().url().default('http://localhost:3000'),
   VISION_PROVIDER: z.enum(VISION_PROVIDERS).default('none'),
   VISION_API_KEY: z.string().optional(),
-  VISION_MODEL: z.string().optional(),
-  // Modèle des appels recettes (suggestions et réécriture), séparé de la reconnaissance
-  // photo : celle-ci lit des étiquettes, celles-là cherchent sur le web. Défaut
-  // `gemini-3.5-flash-lite`, le moins cher des modèles utilisables ici.
-  SUGGESTION_MODEL: z.string().optional(),
-  /** Modèle essayé une fois quand Gemini refuse pour quota ; vide = pas de repli. */
-  FALLBACK_MODEL: z.string().optional(),
+  // Repli seulement : le modèle est choisi à chaque appel dans la liste en
+  // direct de Google (Flash et Flash-Lite stables, du plus récent au plus
+  // ancien). Celui-ci ne sert que si la liste est indisponible. Pro refusé.
+  VISION_MODEL: z.string().refine(isLightModel, { message: 'seuls les modèles Gemini Flash ou Flash-Lite sont acceptés' }).optional(),
   /**
-   * Limites du projet Google, telles que la console les annonce
-   * (aistudio.google.com/rate-limit). Purement indicatives : elles ne bloquent
-   * rien, elles servent à afficher « 15 / 500 » au lieu de « 15 ». Laissées
-   * vides, l'écran n'affiche que le compte — mieux vaut pas de rapport qu'un
-   * rapport à une valeur fausse.
+   * Limites par défaut de chaque modèle chez Google (niveau gratuit : 5
+   * requêtes et 250 000 jetons par minute, 20 requêtes par jour). Vérifiées
+   * **avant** l'appel ; un administrateur les règle modèle par modèle dans
+   * Réglages, et son réglage prime.
    */
-  GEMINI_RPD: z.coerce.number().int().min(0).optional(),
-  GEMINI_RPM: z.coerce.number().int().min(0).optional(),
+  GEMINI_RPM: z.coerce.number().int().min(1).default(DEFAULT_LIMITS.rpm),
+  GEMINI_TPM: z.coerce.number().int().min(1).default(DEFAULT_LIMITS.tpm),
+  GEMINI_RPD: z.coerce.number().int().min(1).default(DEFAULT_LIMITS.rpd),
   // Recherche web réelle pour les suggestions. Valeur de départ : un
   // administrateur la remplace depuis Réglages, et son choix prime.
   SUGGESTION_WEB_SEARCH: z

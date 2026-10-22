@@ -16,8 +16,6 @@ const base = {
   automaticRate30d: 0.84,
   cacheShare30d: 0.21,
   pendingIdentification: 0,
-  providerCallsToday: 15,
-  providerCallsLastMinute: 5,
   recipeCallsToday: 3,
   recipeCallsThisMonth: 12,
   recipeCostCentsThisMonth: 18,
@@ -28,28 +26,15 @@ const base = {
   receiptDailyQuota: 10,
 };
 
-/**
- * Compteur indicatif du 2026-10-21. La propriété qui compte : sans limite
- * renseignée, l'écran rend le compte **seul**. Un rapport à une valeur
- * inventée serait pire que pas de rapport du tout — c'est la leçon de la
- * table de prix, qui a menti six jours durant.
- */
-describe('compteur d’appels au fournisseur', () => {
-  it('affiche le compte seul quand les limites ne sont pas renseignées', () => {
-    stats.data = { ...base, providerDailyLimit: null, providerMinuteLimit: null };
-    render(<StatsPanel />);
-    expect(screen.getByText('15')).toBeTruthy();
-    expect(screen.getByText('5 dans la dernière minute')).toBeTruthy();
-    expect(screen.queryByText(/15 \//)).toBeNull();
-  });
-
+/** Tuiles de la section 21 ; ce que Google compte est sur la carte des modèles Gemini. */
+describe('tuiles de reconnaissance', () => {
   /**
    * Les tuiles « photos » excluent les recettes pour ne pas fausser le taux
    * d'automatisation du scan ; sans ligne propre, leur consommation n'était
    * lisible nulle part (question de djkix, 2026-10-22).
    */
   it('donne aux recettes leur propre compte, distinct des photos', () => {
-    stats.data = { ...base, providerDailyLimit: null, providerMinuteLimit: null };
+    stats.data = { ...base };
     render(<StatsPanel />);
     expect(screen.getByText('3 / 20')).toBeTruthy();
     expect(screen.getByText(/12 ce mois · 0,18/)).toBeTruthy();
@@ -59,17 +44,10 @@ describe('compteur d’appels au fournisseur', () => {
 
   /** Même raison pour les tickets (EF-29) : « quota atteint » ne disait pas sur combien. */
   it('donne aux tickets leur propre compte et annonce leur quota', () => {
-    stats.data = { ...base, providerDailyLimit: null, providerMinuteLimit: null };
+    stats.data = { ...base };
     render(<StatsPanel />);
     expect(screen.getByText('Tickets aujourd’hui')).toBeTruthy();
     expect(screen.getByText('2 / 10')).toBeTruthy();
     expect(screen.getByText(/4 ce mois · 0,09/)).toBeTruthy();
-  });
-
-  it('affiche le rapport dès que la console Google a été recopiée', () => {
-    stats.data = { ...base, providerDailyLimit: 500, providerMinuteLimit: 15 };
-    render(<StatsPanel />);
-    expect(screen.getByText('15 / 500')).toBeTruthy();
-    expect(screen.getByText('5 / 15 dans la minute')).toBeTruthy();
   });
 });

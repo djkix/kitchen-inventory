@@ -1,38 +1,15 @@
 import type { HttpClient } from '../../common/http-client.js';
+import { GeminiPausedError } from '../../gemini/gemini-errors.js';
 import { parseSuggestion, userPrompt, VISION_SYSTEM_PROMPT } from './prompt.js';
 import { ProviderError, type RecognitionInput, type RecognitionOutput, type RecognitionProvider } from './recognition-provider.js';
 
 /**
- * Modèle de la photo quand ni `VISION_MODEL` ni le choix de Réglages ne
- * tranchent. Porté à `gemini-3.8-flash` le 2026-10-21 (demande de djkix) :
- * disponible depuis le 2 septembre 2026, il lit une étiquette au moins aussi
- * bien que la 3.5. Son tarif n'est pas encore dans `PRICES_USD_PER_MTOK` — le
- * repli par famille le facture au tarif Flash, ce pour quoi il a été écrit.
- *
- * Les recettes gardent Flash-Lite (voir `gemini-suggestion.provider.ts`) :
- * elles consomment bien plus de jetons de sortie, et Flash-Lite porte sur le
- * palier gratuit un quota journalier nettement plus large.
+ * Modèle quand l'appelant n'en désigne pas. En service, il en désigne
+ * toujours un : `GeminiService.call` le choisit dans la liste en direct de
+ * Google (2026-10-22).
  */
 const DEFAULT_MODEL = 'gemini-3.8-flash';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
-
-/**
- * Schéma de réponse au format accepté par l'API Gemini (sous-ensemble
- * OpenAPI : `nullable` plutôt que des tableaux de types).
- */
-const GEMINI_RESPONSE_SCHEMA = {
-  type: 'OBJECT',
-  required: ['name', 'originalName', 'brand', 'category', 'packaging', 'expiryDate', 'confidence'],
-  properties: {
-    name: { type: 'STRING' },
-    originalName: { type: 'STRING', nullable: true },
-    brand: { type: 'STRING', nullable: true },
-    category: { type: 'STRING', nullable: true },
-    packaging: { type: 'STRING', nullable: true },
-    expiryDate: { type: 'STRING', nullable: true, description: 'AAAA-MM-JJ' },
-    confidence: { type: 'NUMBER' },
-  },
-} as const;
 
 /**
  * Prix publics indicatifs en dollars par million de jetons, pour le compteur de
@@ -72,121 +49,6 @@ export function priceFor(model: string): { input: number; output: number; audio:
   if (model.includes('flash')) return PRICES_USD_PER_MTOK['gemini-3.5-flash'];
   if (model.includes('pro')) return PRICES_USD_PER_MTOK['gemini-3.5-pro'];
   return undefined;
-}
-
-/** Ce qu'un 429 de Gemini saturé nous apprend : quelle limite, et pour combien de temps. */
-export interface QuotaRefusal {
-  /** `minute` et `day` sont les deux quotas distincts de l'API ; `unknown` quand le corps est muet. */
-  scope: 'minute' | 'day' | 'unknown';
-  /** Secondes à attendre, arrondies au supérieur. `null` quand Google n'en annonce pas. */
-  retryAfterSeconds: number | null;
-}
-
-interface RpcDetail {
-  '@type'?: string;
-  retryDelay?: string;
-  violations?: Array<{ quotaId?: string }>;
-}
-
-/**
- * Décode le refus plutôt que de deviner les limites.
- *
- * Aucune API ne permet de lire les quotas d'un projet, et les recopier dans le
- * code les ferait diverger en silence — c'est précisément ce qui a rendu le
- * plafond de dépense inopérant du 2026-10-15 au 2026-10-21. Le corps du 429,
- * lui, dit la vérité du moment : `QuotaFailure.violations[].quotaId` nomme la
- * limite franchie, `RetryInfo.retryDelay` donne la reprise.
- *
- * Ne jette jamais : un corps illisible rend `unknown`, et l'appelant retombe
- * sur le message générique.
- */
-export function parseQuotaRefusal(body: unknown): QuotaRefusal {
-  const details = (body as { error?: { details?: RpcDetail[] } } | null)?.error?.details;
-  if (!Array.isArray(details)) return { scope: 'unknown', retryAfterSeconds: null };
-
-  const quotaIds = details.flatMap((d) => (d.violations ?? []).map((v) => v.quotaId ?? ''));
-  // Google nomme ses quotas « …PerMinutePerProjectPerModel », « …PerDay… ».
-  const scope = quotaIds.some((id) => /PerMinute/i.test(id))
-    ? 'minute'
-    : quotaIds.some((id) => /PerDay/i.test(id))
-      ? 'day'
-      : 'unknown';
-
-  const delay = details.find((d) => typeof d.retryDelay === 'string')?.retryDelay;
-  const seconds = delay === undefined ? null : Number.parseFloat(delay);
-  // Arrondi au supérieur : annoncer « 0 seconde » pour un délai de 0,5 s ferait
-  // réessayer trop tôt, donc refuser une seconde fois.
-  const retryAfterSeconds = seconds === null || Number.isNaN(seconds) ? null : Math.ceil(seconds);
-
-  return { scope, retryAfterSeconds };
-}
-
-/** Message français d'un refus de quota, dit à l'utilisateur tel quel. */
-export function quotaRefusalMessage(refusal: QuotaRefusal): string {
-  if (refusal.scope === 'day') return 'Le quota Gemini du jour est épuisé. Il repart à minuit, heure du Pacifique.';
-  if (refusal.scope === 'minute') {
-    const s = refusal.retryAfterSeconds;
-    if (s === null) return 'Trop de demandes coup sur coup. Patientez un instant avant de réessayer.';
-    return `Trop de demandes coup sur coup. Réessayez dans ${s} seconde${s > 1 ? 's' : ''}.`;
-  }
-  return 'Quota Gemini atteint';
-}
-
-/**
- * Lit le corps d'un 429 et jette le refus dit juste. Partagée par les trois
- * appelants de l'API (photo, suggestions, réécriture) : la même ligne y était
- * recopiée, et chacune jetait « Quota Gemini atteint » sans distinguer la
- * minute de la journée — deux situations qui n'appellent pas le même geste.
- */
-export async function throwQuotaRefusal(response: Response): Promise<never> {
-  const body: unknown = await response.json().catch(() => null);
-  const refusal = parseQuotaRefusal(body);
-  throw new QuotaRefusalError(quotaRefusalMessage(refusal), refusal);
-}
-
-/**
- * Refus de quota, distingué des autres pannes du fournisseur : c'est le seul
- * cas où reprendre sur un autre modèle a un sens, les quotas étant comptés
- * par modèle. Une clé refusée ou un modèle inexistant échoueraient à
- * l'identique sur le repli, et le reprendre coûterait un second appel pour
- * rien.
- */
-export class QuotaRefusalError extends ProviderError {
-  constructor(
-    message: string,
-    public readonly refusal: QuotaRefusal,
-  ) {
-    super(message);
-    this.name = 'QuotaRefusalError';
-  }
-}
-
-/**
- * Un appel, puis **une seule** reprise sur le modèle de repli si — et seulement
- * si — le refus est un quota épuisé. Les quotas de Gemini étant comptés par
- * modèle, basculer rouvre un réservoir intact ; c'est le seul refus pour lequel
- * cela a un sens. Une clé refusée, un modèle inexistant ou une coupure réseau
- * échoueraient à l'identique sur le repli, et le reprendre coûterait un second
- * appel pour rien.
- *
- * Jamais de cascade : le refus du repli remonte tel quel. Transformer un refus
- * en six appels facturés serait pire que le refus.
- *
- * Rend le modèle réellement utilisé, pour que l'écran puisse le dire — une
- * application qui change de modèle en silence fait lire un résultat sans qu'on
- * sache d'où il vient.
- */
-export async function withQuotaFallback<T>(
-  primary: string | undefined,
-  fallback: string | undefined,
-  run: (model: string | undefined) => Promise<T>,
-): Promise<{ result: T; modelUsed: string | undefined; fellBack: boolean }> {
-  try {
-    return { result: await run(primary), modelUsed: primary, fellBack: false };
-  } catch (error) {
-    if (!(error instanceof QuotaRefusalError) || fallback === undefined || fallback === primary) throw error;
-    return { result: await run(fallback), modelUsed: fallback, fellBack: true };
-  }
 }
 
 export interface GeminiResponse {
@@ -229,7 +91,12 @@ export function countSearchQueries(raw: GeminiResponse): number {
   return (raw.candidates ?? []).reduce((total, candidate) => total + (candidate.groundingMetadata?.webSearchQueries?.length ?? 0), 0);
 }
 
-/** Google Gemini via l'API REST `generateContent`, sortie JSON contrainte par `responseSchema`. */
+/**
+ * Google Gemini via l'API REST `generateContent`. La forme du JSON est dite
+ * dans la consigne, avec `responseMimeType` mais sans `responseSchema` : Google
+ * refuse en 400 un schéma imbriqué, et la réponse est de toute façon validée
+ * par Zod (`parseSuggestion`).
+ */
 export class GeminiProvider implements RecognitionProvider {
   readonly name = 'gemini';
   readonly enabled = true;
@@ -263,15 +130,14 @@ export class GeminiProvider implements RecognitionProvider {
           generationConfig: {
             maxOutputTokens: 1024,
             responseMimeType: 'application/json',
-            responseSchema: GEMINI_RESPONSE_SCHEMA,
           },
         }),
       });
     } catch (error) {
+      if (error instanceof GeminiPausedError) throw error;
       throw new ProviderError('Fournisseur de vision Gemini injoignable', error);
     }
     if (response.status === 401 || response.status === 403) throw new ProviderError('Clé API Gemini refusée');
-    if (response.status === 429) await throwQuotaRefusal(response);
     if (!response.ok) throw new ProviderError(`Fournisseur de vision Gemini en erreur (${response.status})`);
 
     const raw = (await response.json()) as GeminiResponse;
@@ -286,7 +152,7 @@ export class GeminiProvider implements RecognitionProvider {
 }
 
 /**
- * Avertissement de démarrage : un `VISION_MODEL` ou un `SUGGESTION_MODEL` absent de `PRICES_USD_PER_MTOK`
+ * Avertissement de démarrage : un `VISION_MODEL` absent de `PRICES_USD_PER_MTOK`
  * fait rendre `null` à `estimateCostCents`, si bien qu'aucun appel n'est chiffré
  * et que le plafond mensuel ne compte plus rien — silencieusement. Rend le
  * message à journaliser, ou `null` s'il n'y a rien à signaler.

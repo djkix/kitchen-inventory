@@ -22,6 +22,8 @@ import { HTTP_CLIENT, type HttpClient } from '../common/http-client.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RecipesModule } from '../recipes/recipes.module.js';
+import { GeminiModule } from '../gemini/gemini.module.js';
+import { GeminiService } from '../gemini/gemini.service.js';
 import { SettingsModule } from '../settings/settings.module.js';
 import type { RequestUser } from '../auth/request-user.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
@@ -63,7 +65,7 @@ class SuggestionsTestModule {
   static forRoot(config: AppConfig, httpClient: HttpClient): DynamicModule {
     return {
       module: SuggestionsTestModule,
-      imports: [ConfigModule.forRoot(config), LoggerModule.forRoot({ pinoHttp: { level: 'silent' } }), PrismaModule, SettingsModule, RecipesModule, SuggestionsModule],
+      imports: [ConfigModule.forRoot(config), LoggerModule.forRoot({ pinoHttp: { level: 'silent' } }), PrismaModule, SettingsModule, GeminiModule, RecipesModule, SuggestionsModule],
       providers: [{ provide: HTTP_CLIENT, useValue: httpClient }],
       exports: [HTTP_CLIENT],
     };
@@ -80,6 +82,11 @@ function buildConfig(overrides: Partial<NodeJS.ProcessEnv> = {}): AppConfig {
     LOG_LEVEL: 'silent',
     VISION_PROVIDER: 'gemini',
     VISION_API_KEY: 'test-key',
+    // Liste des modèles indisponible dans ces tests : le repli sert, et les
+    // coûts attendus sont ceux de Flash-Lite.
+    VISION_MODEL: 'gemini-3.5-flash-lite',
+    GEMINI_RPM: '1000',
+    GEMINI_RPD: '1000',
     ...overrides,
   });
 }
@@ -124,6 +131,8 @@ describe('SuggestionsService (EF-26)', () => {
     ctx = await NestFactory.createApplicationContext(SuggestionsTestModule.forRoot(config, http.client), { logger: false, abortOnError: false });
     const db = ctx.get(PrismaService);
     await truncateAll(db);
+    // Pause et compteurs ont été relus avant la remise à zéro de la base.
+    ctx.get(GeminiService).forget();
     return { service: ctx.get(SuggestionsService), db };
   }
 
@@ -284,27 +293,20 @@ describe('SuggestionsService (EF-26)', () => {
     expect(String(http.calls[1]?.init?.body)).toContain('Ne propose que des recettes de type « Dessert »');
   });
 
-  it('appelle le modèle choisi dans les réglages, sans redémarrage (2026-10-06)', async () => {
-    // Le modèle était figé à la construction du fournisseur, un singleton Nest :
-    // un réglage changé à l'écran n'aurait valu qu'au redémarrage du conteneur.
-    // Il est désormais relu à chaque fournée. Ce test le prouve en regardant
-    // l'URL appelée, seul endroit où le nom du modèle apparaisse réellement.
-    const { service, db } = await createService({ SUGGESTION_MODEL: 'modele-de-l-environnement' });
+  it('appelle le modèle le plus récent de la liste en direct de Google, jamais Pro (2026-10-22)', async () => {
+    const { service, db } = await createService();
     const locationId = await seedLocation(db);
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+    const gen = ['generateContent'];
+    http.on('/v1beta/models?', () =>
+      json({
+        models: ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-9-pro', 'gemini-9-flash-preview-01-2027'].map((m) => ({ name: `models/${m}`, supportedGenerationMethods: gen })),
+      }),
+    );
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
 
     await service.list(QUERY);
-    expect(http.calls[0]?.url).toContain('modele-de-l-environnement');
-
-    await db.setting.upsert({
-      where: { key: 'suggestionModel' },
-      create: { key: 'suggestionModel', value: 'modele-choisi-a-l-ecran' },
-      update: { value: 'modele-choisi-a-l-ecran' },
-    });
-    // `refresh` force une nouvelle fournée : sans lui le cache servirait la précédente.
-    await service.list({ ...QUERY, refresh: true });
-    expect(http.calls[1]?.url).toContain('modele-choisi-a-l-ecran');
+    expect(http.calls[0]?.url).toContain('/models/gemini-3.8-flash:generateContent');
   });
 
   it('fait entrer les recherches web dans le plafond mensuel (2026-10-07)', async () => {
@@ -836,6 +838,28 @@ describe('SuggestionsService (EF-26)', () => {
     expect(second.fromCache).toBe(true);
     expect(second.notice).toMatch(/quota/i);
     expect(http.calls).toHaveLength(1);
+  });
+
+  it('Gemini en pause : sert le réservoir avec l’heure de reprise, sans appeler (2026-10-22)', async () => {
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+
+    let call = 0;
+    http.on('generateContent', () => {
+      call += 1;
+      return call === 1
+        ? geminiFixture('suggestions/gemini-batch-creme.json')
+        : json({ error: { code: 429, details: [{ violations: [{ quotaId: 'GenerateRequestsPerMinutePerProjectPerModel' }] }, { retryDelay: '40s' }] } }, 429);
+    });
+    await service.list({ refresh: false, maxMinutes: 30 });
+    const paused = await service.list({ refresh: false, maxMinutes: 60 });
+    const again = await service.list({ refresh: false, maxMinutes: 15 });
+
+    expect(paused.fromCache).toBe(true);
+    expect(paused.notice).toMatch(/^Gemini est en pause \(quota dépassé chez Google\) : reprise à \d\d:\d\d\. Les recettes déjà connues/);
+    expect(again.notice).toMatch(/en pause/);
+    expect(http.calls).toHaveLength(2);
   });
 
   it('refuse l’appel au-delà du plafond mensuel, en servant le réservoir', async () => {

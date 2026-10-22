@@ -1,5 +1,6 @@
 import type { HttpClient } from '../common/http-client.js';
-import { countSearchQueries, estimateCostCents, throwQuotaRefusal, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
+import { GeminiPausedError } from '../gemini/gemini-errors.js';
+import { countSearchQueries, estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { buildSuggestionPrompt, buildVoicePrompt, InvalidBatchJsonError, parseModelBatch, parseVoiceBatch, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
 import {
@@ -163,10 +164,10 @@ export class GeminiSuggestionProvider {
         }),
       });
     } catch (error) {
+      if (error instanceof GeminiPausedError) throw error;
       throw new ProviderError('Fournisseur de suggestions Gemini injoignable', error);
     }
     if (response.status === 401 || response.status === 403) throw new ProviderError('Clé API Gemini refusée');
-    if (response.status === 429) await throwQuotaRefusal(response);
     if (!response.ok) throw new ProviderError(`Fournisseur de suggestions Gemini en erreur (${response.status})`);
 
     return (await response.json()) as GeminiResponse;

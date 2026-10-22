@@ -8,6 +8,7 @@ import { createApp } from '../src/app.js';
 import { BootstrapService } from '../src/bootstrap/bootstrap.service.js';
 import { loadConfig, type AppConfig } from '../src/common/config.js';
 import type { HttpClient } from '../src/common/http-client.js';
+import { GeminiService } from '../src/gemini/gemini.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { truncateAll } from './db.js';
 import { fakeGoogleCredential, fakeGoogleVerifier, type FakeIdentity } from './google-verifier.double.js';
@@ -38,6 +39,10 @@ export async function createTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}, 
     MEDIA_DIR: mediaDir,
     VISION_PROVIDER: 'none',
     LOG_LEVEL: 'silent',
+    // Les limites de Google ne sont pas l'objet des tests d'usage : larges par
+    // défaut, resserrées par les tests du limiteur.
+    GEMINI_RPM: '1000',
+    GEMINI_RPD: '1000',
     ...overrides,
   });
   const app = await createApp(config, httpClient, fakeGoogleVerifier);
@@ -66,6 +71,7 @@ export async function createTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}, 
     reset: async () => {
       await truncateAll(prisma);
       await bootstrap.seedReferenceData();
+      app.get(GeminiService).forget();
     },
     close: async () => {
       await app.close();

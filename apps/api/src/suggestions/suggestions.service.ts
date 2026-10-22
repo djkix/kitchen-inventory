@@ -39,7 +39,8 @@ import { ProviderError } from '../recognition/providers/recognition-provider.js'
 import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { InvalidRewriteError, type GeminiRecipeRewriter, type RecipeRewriteInput } from './gemini-recipe-rewriter.js';
-import { withQuotaFallback } from '../recognition/providers/gemini.provider.js';
+import { GeminiPausedError, geminiRefusal } from '../gemini/gemini-errors.js';
+import { GeminiService } from '../gemini/gemini.service.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
 import { SuggestionPoolService, type PoolFilter, type PoolRecipe } from './suggestion-pool.service.js';
 import {
@@ -241,6 +242,7 @@ export class SuggestionsService {
     @Inject(RECIPE_REWRITER) private readonly rewriter: GeminiRecipeRewriter,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly settings: SettingsService,
+    private readonly gemini: GeminiService,
   ) {}
 
   /**
@@ -336,13 +338,23 @@ export class SuggestionsService {
         // qu'il ne les repropose pas. Sur relance, `entries` est vide par
         // construction (la lecture a été sautée) : il faut donc relire.
         const known = query.refresh ? await this.pool.read(orientationFilter(query)) : entries;
-        const fetched = await this.fetchAndStore(signature, seeds, query, known.map((entry) => entry.recipe.title));
-        fresh = new Set(await this.pool.ingest(fetched.recipes, fetched.model));
-        // Relecture obligatoire, jamais la réponse brute du modèle : une recette
-        // web dont la page n'existe pas a été jetée à l'ingestion (D4) et ne
-        // doit à aucun moment atteindre l'écran.
-        entries = await this.readPool(query);
-        fromCache = false;
+        try {
+          const fetched = await this.fetchAndStore(signature, seeds, query, known.map((entry) => entry.recipe.title));
+          fresh = new Set(await this.pool.ingest(fetched.recipes, fetched.model));
+          // Relecture obligatoire, jamais la réponse brute du modèle : une recette
+          // web dont la page n'existe pas a été jetée à l'ingestion (D4) et ne
+          // doit à aucun moment atteindre l'écran.
+          entries = await this.readPool(query);
+          fromCache = false;
+        } catch (error) {
+          // Gemini en pause ou quota atteint : même repli que le quota de
+          // l'application, le réservoir entier, avec l'heure de reprise.
+          if (!(error instanceof GeminiPausedError)) throw error;
+          const fallback = await this.readPool({ refresh: false });
+          if (fallback.length === 0) throw geminiRefusal(error);
+          entries = fallback;
+          notice = `${error.message} Les recettes déjà connues sont affichées, toutes orientations confondues.`;
+        }
       }
     }
 
@@ -395,9 +407,7 @@ export class SuggestionsService {
     let output: VoiceSuggestionOutput;
     try {
       const settings = await this.settings.get();
-      // Même repli que le scan : le quota se compte par modèle, donc basculer
-      // rouvre un réservoir intact. Une seule reprise, jamais une cascade.
-      ({ result: output } = await withQuotaFallback(settings.suggestionModel, settings.fallbackModel, (model) =>
+      ({ result: output } = await this.gemini.call((model) =>
         this.provider.suggestFromVoice({
           seeds: seeds.map((s) => s.name),
           count: SUGGESTION_BATCH_SIZE + SUGGESTION_REQUEST_BUFFER,
@@ -408,6 +418,7 @@ export class SuggestionsService {
         }),
       ));
     } catch (error) {
+      if (error instanceof GeminiPausedError) throw geminiRefusal(error);
       if (error instanceof SuggestionProviderError) await this.logAttempts(error.attempts, false);
       else await this.logFailure(error, Date.now() - started);
       throw ApiError.providerUnavailable(error instanceof ProviderError ? error.message : 'Fournisseur de suggestions injoignable');
@@ -617,13 +628,11 @@ export class SuggestionsService {
     const started = Date.now();
     let output: SuggestionOutput;
     try {
-      // Modèle relu à chaque fournée : un changement dans les réglages vaut
-      // immédiatement, sans redémarrage du conteneur.
       const settings = await this.settings.get();
-      ({ result: output } = await withQuotaFallback(settings.suggestionModel, settings.fallbackModel, (model) =>
-        this.provider.suggest({ ...request, model, webSearch: settings.suggestionWebSearch }),
-      ));
+      ({ result: output } = await this.gemini.call((model) => this.provider.suggest({ ...request, model, webSearch: settings.suggestionWebSearch })));
     } catch (error) {
+      // Rien n'est parti : l'appelant se replie sur le réservoir.
+      if (error instanceof GeminiPausedError) throw error;
       // Une reprise déjà facturée doit être inscrite même quand tout échoue
       // ensuite : le fournisseur porte ses tentatives sur l'erreur.
       if (error instanceof SuggestionProviderError) {
@@ -922,10 +931,11 @@ export class SuggestionsService {
       const started = Date.now();
       let rewritten: RecipeRewrite;
       try {
-        const output = await this.rewriter.rewrite(rewriteInput, await this.settings.suggestionModel());
+        const { result: output } = await this.gemini.call((model) => this.rewriter.rewrite(rewriteInput, model));
         await this.logCall(output, true, Date.now() - started, this.rewriter.name);
         rewritten = output.recipe;
       } catch (error) {
+        if (error instanceof GeminiPausedError) throw geminiRefusal(error);
         await this.logFailure(error, Date.now() - started, this.rewriter.name);
         // Gemini a répondu mais le contenu est inexploitable (JSON illisible,
         // hors schéma) : distinct d'un fournisseur ou d'un transport en échec

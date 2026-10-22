@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
+import { GeminiService } from '../gemini/gemini.service.js';
 import { HTTP_CLIENT, type HttpClient } from '../common/http-client.js';
 import { RecipesModule } from '../recipes/recipes.module.js';
 import { SettingsModule } from '../settings/settings.module.js';
@@ -16,9 +17,8 @@ import { SuggestionsService } from './suggestions.service.js';
  * la reconnaissance). Il réutilise la clé de la reconnaissance photo
  * (`VISION_API_KEY`) quand celle-ci est elle-même configurée sur Gemini :
  * aucune variable d'environnement séparée n'est introduite pour une seconde
- * clé que le cahier des charges ne prévoit pas. Le modèle, lui, est distinct
- * (`SUGGESTION_MODEL`, remplaçable depuis les réglages) : lire une étiquette et
- * chercher une recette sur le web n'appellent pas le même modèle.
+ * clé que le cahier des charges ne prévoit pas. Le modèle est choisi à chaque
+ * appel par `GeminiService`, dont le client HTTP compte les quotas.
  *
  * Les trois fournisseurs sont construits par fabrique parce qu'ils prennent le
  * client HTTP injectable, rejoué par fixtures dans les tests (section 19).
@@ -31,12 +31,12 @@ import { SuggestionsService } from './suggestions.service.js';
     SuggestionPoolService,
     {
       provide: GeminiSuggestionProvider,
-      inject: [APP_CONFIG, HTTP_CLIENT],
-      useFactory: (config: AppConfig, httpClient: HttpClient) =>
+      inject: [APP_CONFIG, GeminiService],
+      useFactory: (config: AppConfig, gemini: GeminiService) =>
         new GeminiSuggestionProvider({
           apiKey: config.VISION_PROVIDER === 'gemini' ? config.VISION_API_KEY : undefined,
           baseURL: config.VISION_PROVIDER === 'gemini' ? config.VISION_BASE_URL : undefined,
-          httpClient,
+          httpClient: gemini.http,
         }),
     },
     {
@@ -46,12 +46,12 @@ import { SuggestionsService } from './suggestions.service.js';
     },
     {
       provide: RECIPE_REWRITER,
-      inject: [APP_CONFIG, HTTP_CLIENT],
-      useFactory: (config: AppConfig, httpClient: HttpClient) =>
+      inject: [APP_CONFIG, GeminiService],
+      useFactory: (config: AppConfig, gemini: GeminiService) =>
         new GeminiRecipeRewriter({
           apiKey: config.VISION_PROVIDER === 'gemini' ? config.VISION_API_KEY : undefined,
           baseURL: config.VISION_PROVIDER === 'gemini' ? config.VISION_BASE_URL : undefined,
-          httpClient,
+          httpClient: gemini.http,
         }),
     },
   ],

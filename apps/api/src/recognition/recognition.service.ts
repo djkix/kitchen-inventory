@@ -6,10 +6,10 @@ import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { MediaService } from '../media/media.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProductsService } from '../products/products.service.js';
-import { SettingsService } from '../settings/settings.service.js';
 import { OpenFoodFactsClient } from './open-food-facts.client.js';
 import { ProviderError, RECOGNITION_PROVIDER, type RecognitionProvider } from './providers/recognition-provider.js';
-import { withQuotaFallback } from './providers/gemini.provider.js';
+import { GeminiPausedError, geminiRefusal } from '../gemini/gemini-errors.js';
+import { GeminiService } from '../gemini/gemini.service.js';
 
 const OFF_PROVIDER = 'open_food_facts';
 
@@ -30,7 +30,7 @@ export class RecognitionService {
     private readonly logger: Logger,
     @Inject(RECOGNITION_PROVIDER) private readonly provider: RecognitionProvider,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
-    private readonly settings: SettingsService,
+    private readonly gemini: GeminiService,
   ) {}
 
   /** Niveaux 1 à 3. `null` si le code est inconnu partout : le client bascule sur la photo. */
@@ -93,17 +93,10 @@ export class RecognitionService {
     const imagePath = await this.media.save(image, mimeType, 'scans');
     const started = Date.now();
     try {
-      // Le modèle est relu à chaque appel : un changement dans les réglages
-      // vaut immédiatement, sans redémarrage du conteneur.
-      const model = await this.settings.visionModel();
-      // Repli sur un second modèle quand le quota du premier est épuisé : les
-      // quotas de Gemini se comptent par modèle, donc basculer rouvre un
-      // réservoir intact. Une seule reprise, et le modèle retenu est rendu à
-      // l'appelant pour que l'écran puisse le dire.
-      const fallback = await this.settings.fallbackModel();
-      const { result: output, modelUsed, fellBack } = await withQuotaFallback(model, fallback, (m) =>
-        this.provider.recognize({ image, mimeType, hint, model: m }),
-      );
+      // Modèle choisi par `GeminiService` dans la liste en direct de Google,
+      // avec bascule quand un quota l'arrête ; le modèle retenu est rendu à
+      // l'appelant pour que l'écran dise qu'il a fallu basculer.
+      const { result: output, model: modelUsed, fellBack } = await this.gemini.call((model) => this.provider.recognize({ image, mimeType, hint, model }));
       const latencyMs = Date.now() - started;
       const log = await this.prisma.recognitionLog.create({
         data: {
@@ -129,7 +122,7 @@ export class RecognitionService {
         rejected: output.suggestion.confidence < VISION_REJECT_THRESHOLD,
         // Dit à l'écran quand il a fallu basculer : sinon on lirait un
         // résultat d'un autre modèle sans savoir pourquoi il a changé.
-        ...(fellBack && modelUsed !== undefined ? { fallbackModelUsed: modelUsed } : {}),
+        ...(fellBack ? { fallbackModelUsed: modelUsed } : {}),
       };
     } catch (error) {
       const latencyMs = Date.now() - started;
@@ -138,6 +131,8 @@ export class RecognitionService {
         data: { imagePath, barcode: barcode ?? null, provider: this.provider.name, succeeded: false, latencyMs, rawResult: toJson({ error: String(error instanceof Error ? error.message : error) }) },
       });
       this.logger.warn({ provider: this.provider.name, latencyMs, err: error }, 'Échec du fournisseur de vision');
+      // Gemini en pause ou quota atteint : rien n'est parti, l'heure de reprise est dite.
+      if (error instanceof GeminiPausedError) throw geminiRefusal(error, { imagePath, rawId: log.id });
       const message = error instanceof ProviderError ? error.message : 'Fournisseur de vision injoignable';
       throw ApiError.providerUnavailable(message, { imagePath, rawId: log.id });
     }
@@ -177,12 +172,7 @@ export class RecognitionService {
       this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, purpose: 'VISION', succeeded: false, correctedTo: null, imagePath: { not: null } } }),
     ]);
     const cacheHits = await this.prisma.recognitionLog.count({ where: { createdAt: { gte: thirtyDaysAgo }, provider: 'cache', purpose: 'VISION' } });
-    // Ce que Google compte, lui, ne distingue ni le scan ni les recettes : un
-    // appel est un appel. Le cache est exclu — il n'est jamais parti chez le
-    // fournisseur, c'est tout son intérêt.
-    const [providerCallsToday, providerCallsLastMinute, recipeCallsToday, recipeCallsThisMonth, recipeSpend, receiptCallsToday, receiptCallsThisMonth, receiptSpend] = await Promise.all([
-      this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, createdAt: { gte: dayStart } } }),
-      this.prisma.recognitionLog.count({ where: { provider: { in: visionProviders }, createdAt: { gte: new Date(now.getTime() - 60_000) } } }),
+    const [recipeCallsToday, recipeCallsThisMonth, recipeSpend, receiptCallsToday, receiptCallsThisMonth, receiptSpend] = await Promise.all([
       // Les recettes ont leur propre compte : exclues des tuiles « photos »
       // pour ne pas fausser le taux d'automatisation, elles n'apparaissaient
       // jusqu'ici nulle part en propre.
@@ -207,10 +197,6 @@ export class RecognitionService {
       cacheShare30d: attempts > 0 ? Math.round((cacheHits / attempts) * 1000) / 1000 : null,
       pendingIdentification,
       provider: this.provider.name,
-      providerCallsToday,
-      providerCallsLastMinute,
-      providerDailyLimit: this.config.GEMINI_RPD ?? null,
-      providerMinuteLimit: this.config.GEMINI_RPM ?? null,
       recipeCallsToday,
       recipeCallsThisMonth,
       recipeCostCentsThisMonth: Math.round((recipeSpend._sum.costCents?.toNumber() ?? 0) * 100) / 100,

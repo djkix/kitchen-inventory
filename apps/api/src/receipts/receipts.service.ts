@@ -7,11 +7,11 @@ import { toNumber } from '../common/decimal.js';
 import type { RequestUser } from '../auth/request-user.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { toProductDto } from '../products/product.mapper.js';
-import { withQuotaFallback } from '../recognition/providers/gemini.provider.js';
+import { GeminiPausedError, geminiRefusal } from '../gemini/gemini-errors.js';
+import { GeminiService } from '../gemini/gemini.service.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
 import { StockService } from '../stock/stock.service.js';
-import { SettingsService } from '../settings/settings.service.js';
 import { GeminiReceiptReader, ReceiptReadError } from './gemini-receipt.reader.js';
 
 const PROVIDER = 'gemini';
@@ -26,7 +26,7 @@ export class ReceiptsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reader: GeminiReceiptReader,
-    private readonly settings: SettingsService,
+    private readonly gemini: GeminiService,
     private readonly stock: StockService,
     private readonly logger: Logger,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
@@ -42,10 +42,10 @@ export class ReceiptsService {
     const started = Date.now();
     let read;
     try {
-      const model = await this.settings.visionModel();
-      const fallback = await this.settings.fallbackModel();
-      read = (await withQuotaFallback(model, fallback, (m) => this.reader.read(file, mimeType, m))).result;
+      read = (await this.gemini.call((model) => this.reader.read(file, mimeType, model))).result;
     } catch (error) {
+      // Gemini en pause ou quota atteint : rien n'est parti, rien à journaliser ; l'heure de reprise est dite.
+      if (error instanceof GeminiPausedError) throw geminiRefusal(error);
       // Un ticket illisible a quand même été facturé : le coût entre au plafond mensuel.
       const billed = error instanceof ReceiptReadError;
       await this.log({ error: String(error instanceof Error ? error.message : error), ...(billed ? { response: error.raw } : {}) }, billed ? error.costCents : null, false, Date.now() - started);

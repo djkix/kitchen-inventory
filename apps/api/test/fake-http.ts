@@ -32,7 +32,10 @@ export class FakeHttp {
 
   get client(): HttpClient {
     return async (url, init) => {
-      this.calls.push({ url, init });
+      // La liste des modèles (`GeminiService`, gratuite, hors quota) n'est pas
+      // comptée : les tests lisent `calls` comme « ce qui est parti chez le
+      // fournisseur ». Sans route, elle échoue et le modèle de repli sert.
+      if (!/\/v1beta\/models\?/.test(url)) this.calls.push({ url, init });
       const route = this.routes.find((r) => r.match(url));
       if (!route) throw new Error(`Aucune fixture pour ${url}`);
       return route.handler(url, init);

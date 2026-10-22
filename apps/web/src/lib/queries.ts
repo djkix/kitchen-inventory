@@ -3,9 +3,9 @@ import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient, type Infi
 import type {
   AccountDto,
   AuthStatus,
-  AvailableModels,
   CategoryDto,
   CurrentUser,
+  GeminiStatus,
   LocationNode,
   Paginated,
   ProductDto,
@@ -44,7 +44,7 @@ export const queryKeys = {
   locations: ['locations'] as const,
   categories: ['categories'] as const,
   settings: ['settings'] as const,
-  availableModels: ['settings', 'models'] as const,
+  geminiStatus: ['settings', 'gemini'] as const,
   accounts: ['accounts'] as const,
   serviceTokens: ['service-tokens'] as const,
   recognitionStats: ['recognition', 'stats'] as const,
@@ -159,13 +159,13 @@ export function useSettingsQuery() {
  * Sans reprise automatique : un échec est une information à afficher, pas une
  * panne à masquer par des tentatives répétées.
  */
-export function useAvailableModelsQuery(enabled: boolean) {
+/** État des modèles Gemini (admins) : relu toutes les 30 s, les quotas de la minute bougent vite. */
+export function useGeminiStatusQuery() {
   return useQuery({
-    queryKey: queryKeys.availableModels,
-    queryFn: () => api.get<AvailableModels>('/settings/models'),
-    staleTime: 10 * 60_000,
+    queryKey: queryKeys.geminiStatus,
+    queryFn: () => api.get<GeminiStatus>('/settings/gemini'),
+    refetchInterval: 30_000,
     retry: false,
-    enabled,
   });
 }
 

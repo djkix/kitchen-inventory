@@ -152,12 +152,26 @@ devient inutilisable.
 
 ### 💶 Dépense et garde-fous
 
-Les appels au modèle sont bornés par trois mécanismes visibles dans Réglages :
-un **quota journalier** par usage (photo, recettes, tickets), un **plafond
-mensuel en euros** partagé par tous, et un **modèle de repli** essayé une fois
-quand un quota Google est épuisé. Un refus de Google est traduit précisément :
-« Trop de demandes coup sur coup, réessayez dans 12 secondes » plutôt qu'un
-message indifférencié.
+L'application **choisit seule le modèle** : à chaque appel, elle lit la liste
+en direct de Google, ne garde que les **Flash et Flash-Lite** stables (jamais
+Pro), du plus récent au plus ancien, et prend le premier disponible. Avant
+d'envoyer quoi que ce soit, elle vérifie les **limites de Google par modèle**
+(requêtes et jetons par minute, requêtes par jour, au jour du Pacifique comme
+Google) ; un modèle épuisé pour la journée fait **basculer** sur le suivant.
+Après un refus de Google (429 ou 503), une **pause commune** de la durée
+annoncée suspend tous les appels.
+
+L'IA ne bloque jamais : un refus dit **l'heure de reprise**, arrondie à la
+minute supérieure et avec le jour nommé (« reprise jeudi à 09:00 »), et
+l'écran garde son alternative — code-barres ou fiche à la main (la photo reste
+à identifier), saisie manuelle du ticket, recettes déjà connues.
+
+S'y ajoutent un **quota journalier** par usage (photo, recettes, tickets) et un
+**plafond mensuel en euros** partagé par tous. Réglages › Reconnaissance montre
+aux administrateurs les modèles dans l'ordre d'emploi, leur consommation du
+jour et de la minute, l'épuisement ou la pause en cours, et permet de régler
+les trois limites de chaque modèle. Chaque requête envoyée est journalisée
+(modèle, statut, jetons, durée).
 
 ### 📱 Et aussi
 
@@ -478,15 +492,14 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `GOOGLE_CLIENT_ID` | Client ID OAuth « Application web » de la console Google Cloud, **public** (pas de client secret avec ce flux). Vide = la connexion Google est indisponible et le bouton ne s'affiche pas, l'application devenant inaccessible autrement que par la porte de secours. Obtention : [Première connexion](#première-connexion) |
 | `GOOGLE_CERTS_URL` | **Réservée au montage de tests bout en bout, à ne jamais poser ici.** Elle remplace les clés publiques qui valident les jetons Google : qui sert ces clés signe des jetons que l'application accepte. Posée, elle est signalée par un avertissement au démarrage et par `google_certs_url` dans le `degraded` de `/health` |
 | `VISION_PROVIDER` | `none` ou `gemini` |
-| `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.8-flash`) ; `VISION_BASE_URL` sert pour un proxy. Comme `SUGGESTION_MODEL`, `VISION_MODEL` n'est qu'une valeur de départ : le choix fait dans Réglages prime |
-| `SUGGESTION_MODEL` | Modèle des appels recettes — suggestions et réécriture (défaut `gemini-3.5-flash-lite`). Distinct de `VISION_MODEL` : lire une étiquette et chercher une recette sur le web n'appellent pas le même modèle. Comme `VISION_MODEL`, c'est une **valeur de départ** : un administrateur peut la remplacer depuis Réglages, et le choix enregistré prime |
+| `VISION_API_KEY`, `VISION_BASE_URL` | Clé Gemini, partagée par la photo, les tickets et les recettes ; `VISION_BASE_URL` sert pour un proxy |
+| `VISION_MODEL` | Modèle de **repli** (défaut `gemini-3.8-flash`), utilisé seulement si la liste des modèles de Google est indisponible : le reste du temps, l'application choisit elle-même parmi les Flash et Flash-Lite stables. Un modèle Pro empêche le démarrage |
 | `SUGGESTION_WEB_SEARCH` | `true` ou `false` (**défaut**) : recherche web réelle pour les suggestions. Éteinte par défaut car facturée à la requête, hors quota gratuit : une clé sans facturation la refuse par un 429, et l'écran reste vide au lieu de montrer des recettes web. Valeur de départ seulement — un administrateur bascule l'option depuis Réglages, et son choix prime |
 | `VISION_DAILY_QUOTA` | Appels photo autorisés par jour (50) |
 | `VISION_MONTHLY_CAP_CENTS` | Plafond de dépense mensuel en centimes, partagé par le scan photo et les suggestions (500, soit 5 €) ; 0 le désactive. Couvre les jetons **et** les requêtes de recherche web |
 | `RECIPE_SUGGESTION_DAILY_QUOTA` | Fournées de suggestions de recettes autorisées par jour (20) |
 | `RECEIPT_DAILY_QUOTA` | Lectures de ticket de caisse autorisées par jour (10), compteur séparé du scan photo et des suggestions, affiché dans Réglages › Reconnaissance (tuile « Tickets aujourd'hui ») |
-| `FALLBACK_MODEL` | Modèle essayé **une seule fois** quand Gemini refuse pour quota épuisé, les quotas étant comptés par modèle. Vide (défaut) : pas de repli, le refus remonte tel quel. Valeur de départ seulement — le choix fait dans Réglages prime |
-| `GEMINI_RPD`, `GEMINI_RPM` | Limites de requêtes par jour et par minute du projet Google, telles que `aistudio.google.com/rate-limit` les annonce. **Purement indicatives** : elles ne bloquent rien, elles servent à afficher « 15 / 500 » au lieu de « 15 » dans Réglages. Aucune API ne permet de les lire, d'où la recopie à la main ; laissées vides, l'écran rend le compte seul |
+| `GEMINI_RPM`, `GEMINI_TPM`, `GEMINI_RPD` | Limites de Google appliquées par défaut à **chaque modèle** et vérifiées avant l'appel : requêtes par minute (5), jetons par minute (250 000), requêtes par jour du Pacifique (20) — le niveau gratuit. Un administrateur les règle modèle par modèle dans Réglages › Reconnaissance, et son réglage prime |
 | `OFF_USER_AGENT` | En-tête demandé par Open Food Facts |
 | `EXPIRY_ALERT_DAYS` | Seuil d'alerte par défaut (7), modifiable dans les réglages |
 | `LOG_LEVEL` | Niveau des journaux JSON sur la sortie standard |
@@ -700,6 +713,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.31.0 | 2026-10-22 | L'application choisit seule son modèle Gemini (Flash ou Flash-Lite), respecte les quotas de Google avant l'appel, bascule de modèle et dit l'heure de reprise |
 | 0.30.0 | 2026-10-22 | Le ticket de caisse remplit le stock, et la liste de courses est abandonnée |
 | 0.29.1 | 2026-10-22 | `docker-compose.yml` et `.env.example` transmettent enfin `FALLBACK_MODEL`, `GEMINI_RPD` et `GEMINI_RPM` : les trois variables ajoutées la veille existaient côté application mais n'étaient pas… |
 | 0.29.0 | 2026-10-22 | Réglages : tout replié, puces de couleur, version en haut à droite, et la conso des recettes enfin visible |

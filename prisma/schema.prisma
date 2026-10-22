@@ -474,6 +474,22 @@ model RecognitionLog {
   @@index([purpose, createdAt])
 }
 
+// Journal des requêtes réellement envoyées à Gemini (approche de Ma Cave,
+// 2026-10-22) : une ligne par `generateContent`, quel que soit l'usage. Sert
+// au limiteur par modèle (compteur du jour rechargé au démarrage) et à l'écran
+// des modèles. Le coût reste sur `RecognitionLog`, qui sait à quel usage il
+// revient. `httpStatus` nul : aucune réponse (réseau, délai).
+model GeminiCall {
+  id         String   @id @default(cuid())
+  model      String
+  httpStatus Int?
+  tokens     Int?
+  durationMs Int
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // Trace des orientations déjà demandées au modèle (D2 amendée par D11, spec
 // du 2026-10-15) : plus un cache — le réservoir l'a remplacé (D8) — et plus un
 // journal des réponses, que `RecognitionLog.rawResult` tient par appel. Une

@@ -10,7 +10,7 @@ import { API_BASE, api, errorMessage } from '../../lib/api';
 import { queryKeys, useAccountsQuery, useRecognitionStatsQuery, useSettingsQuery } from '../../lib/queries';
 import { AccountsSection, SignOutEverywhereRow } from './accounts-section';
 import { AccordionSection, SectionBadge } from './accordion-section';
-import { ModelRow } from './model-row';
+import { GeminiModelsSection } from './gemini-models-section';
 import { WebSearchRow } from './web-search-row';
 import { VersionBadge } from '../../components/shell/version-badge';
 import { StatsPanel } from './stats-panel';
@@ -69,24 +69,7 @@ export function SettingsScreen() {
       <div className="flex flex-col gap-3 px-4">
         <AccordionSection title="Reconnaissance" badge={<RecognitionBadge />} dotColor={SECTION_DOTS.reconnaissance}>
           <StatsPanel />
-          <ModelRow
-            label="Modèle de la photo"
-            hint="Lecture des étiquettes lors du scan"
-            settingKey="visionModel"
-            isAdmin={auth.isAdmin}
-          />
-          <ModelRow
-            label="Modèle des recettes"
-            hint="Recherche et réécriture des suggestions"
-            settingKey="suggestionModel"
-            isAdmin={auth.isAdmin}
-          />
-          <ModelRow
-            label="Modèle de repli"
-            hint="Essayé une fois si le quota du modèle choisi est épuisé"
-            settingKey="fallbackModel"
-            isAdmin={auth.isAdmin}
-          />
+          {auth.isAdmin && <GeminiModelsSection />}
           <WebSearchRow isAdmin={auth.isAdmin} />
         </AccordionSection>
 

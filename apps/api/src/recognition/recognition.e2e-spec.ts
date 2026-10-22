@@ -226,7 +226,7 @@ describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
   });
   afterAll(() => t.close());
 
-  it('appelle generateContent avec la clé en en-tête et un schéma JSON, puis journalise le coût', async () => {
+  it('appelle generateContent avec la clé en en-tête et le JSON par la consigne, puis journalise le coût', async () => {
     http.on('generativelanguage.googleapis.com', () => geminiFixture('vision-gochujang.json'));
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').field('hint', 'pot rouge').expect(200);
     expect(res.body.suggestion).toMatchObject({ name: 'Pâte de piment coréenne (gochujang)', originalName: '고추장 (gochujang)', expiryDate: '2027-03-15' });
@@ -237,7 +237,9 @@ describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
     expect(new Headers(call?.init?.headers).get('x-goog-api-key')).toBe('AIza-test');
     const body = JSON.parse(String(call?.init?.body));
     expect(body.generationConfig.responseMimeType).toBe('application/json');
-    expect(body.generationConfig.responseSchema.required).toContain('confidence');
+    // JSON demandé par la consigne, sans responseSchema (400 de Google sur un schéma imbriqué).
+    expect(body.generationConfig.responseMimeType).toBe('application/json');
+    expect(body.generationConfig.responseSchema).toBeUndefined();
     expect(body.contents[0].parts[0].inlineData.mimeType).toBe('image/png');
     expect(JSON.stringify(body)).toContain('pot rouge');
     const log = await t.prisma.recognitionLog.findFirstOrThrow();
@@ -245,15 +247,9 @@ describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
     expect(log.costCents?.toNumber()).toBeGreaterThan(0);
     const stats = await agent.get('/api/v1/recognition/stats').expect(200);
     expect(stats.body).toMatchObject({ visionCallsToday: 1, provider: 'gemini' });
-    // Compteur indicatif du 2026-10-21 : ce que Google compte, lui, ne
-    // distingue ni le scan ni les recettes. Sans limite renseignée, on rend le
-    // compte seul plutôt qu'un rapport à une valeur inventée.
-    expect(stats.body).toMatchObject({
-      providerCallsToday: 1,
-      providerCallsLastMinute: 1,
-      providerDailyLimit: null,
-      providerMinuteLimit: null,
-    });
+    // Ce que Google compte, tous usages confondus, est au journal Gemini
+    // (`GET /settings/gemini`), plus dans les statistiques de reconnaissance.
+    expect(await t.prisma.geminiCall.count({ where: { model: 'gemini-3.8-flash', httpStatus: 200 } })).toBe(1);
     // Un scan photo ne compte pas pour les recettes : les deux usages ont des
     // quotas distincts, et les mêler rendrait les deux chiffres faux.
     expect(stats.body).toMatchObject({ recipeCallsToday: 0, recipeCallsThisMonth: 0, recipeCostCentsThisMonth: 0, recipeDailyQuota: 20 });

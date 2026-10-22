@@ -1,30 +1,7 @@
 import { z } from 'zod';
 
-/**
- * Un nom de modèle reste une chaîne libre côté schéma : la liste des modèles
- * servis par la clé est connue du serveur, pas du schéma partagé, et elle
- * change au rythme du fournisseur. La chaîne vide vaut « pas de choix » et
- * rend la main à la variable d'environnement puis au défaut du code.
- */
-const modelName = z.string().trim().max(120);
-
 export const settingsSchema = z.object({
   expiryAlertDays: z.number().int().min(0).max(365),
-  /** Modèle de la reconnaissance photo ; absent quand ni la base ni l'environnement n'en fixent un. */
-  visionModel: modelName.optional(),
-  /** Modèle des appels recettes (suggestions et réécriture). */
-  suggestionModel: modelName.optional(),
-  /**
-   * Modèle de repli, essayé une seule fois quand Gemini refuse pour quota
-   * épuisé. Les quotas étant comptés par modèle, basculer rouvre un réservoir
-   * intact. Absent (le défaut) : aucun repli, le refus remonte tel quel.
-   *
-   * Une seule reprise, jamais une cascade : transformer un refus en six appels
-   * facturés serait pire que le refus lui-même. Et le modèle qui a réellement
-   * répondu est dit à l'écran — une application qui change de comportement
-   * sans le dire fait lire un résultat sans savoir d'où il vient.
-   */
-  fallbackModel: modelName.optional(),
   /**
    * Recherche web réelle pour les suggestions (outil `google_search`). Activée,
    * une partie des recettes vient de pages trouvées en ligne ; désactivée, le
@@ -39,15 +16,42 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const updateSettingsSchema = settingsSchema.partial();
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 
-/** Un modèle proposé au choix, tel que le fournisseur le déclare (`GET /settings/models`). */
-export const availableModelSchema = z.object({
-  id: z.string(),
+/** Limites d'un modèle chez Google, réglées par un administrateur (`PUT /settings/gemini/limits`). */
+export const geminiLimitsSchema = z.object({
+  rpm: z.number().int().min(1).max(100_000),
+  tpm: z.number().int().min(1).max(100_000_000),
+  rpd: z.number().int().min(1).max(1_000_000),
 });
-export type AvailableModel = z.infer<typeof availableModelSchema>;
+export type GeminiLimitsValue = z.infer<typeof geminiLimitsSchema>;
 
-export const availableModelsSchema = z.object({
-  models: z.array(availableModelSchema),
-  /** Raison pour laquelle la liste est vide, à afficher telle quelle ; absente quand tout va bien. */
-  unavailable: z.string().optional(),
+export const geminiLimitsInputSchema = geminiLimitsSchema.extend({ model: z.string().trim().min(1).max(120) });
+export type GeminiLimitsInput = z.infer<typeof geminiLimitsInputSchema>;
+
+/**
+ * État de Gemini pour l'écran des modèles (`GET /settings/gemini`). Les
+ * modèles sont dans l'ordre d'emploi : l'application prend le premier qui
+ * n'est pas bloqué et bascule sur le suivant quand un quota l'arrête.
+ */
+export const geminiStatusSchema = z.object({
+  /** Modèle qui servirait maintenant ; `null` en pause ou si tous sont bloqués. */
+  current: z.string().nullable(),
+  models: z.array(
+    z.object({
+      model: z.string(),
+      limits: geminiLimitsSchema,
+      minuteRequests: z.number().int(),
+      minuteTokens: z.number().int(),
+      /** Requêtes du jour du Pacifique, celui de Google. */
+      dayRequests: z.number().int(),
+      blockedUntil: z.string().nullable(),
+      blockedMessage: z.string().nullable(),
+    }),
+  ),
+  /** Pause commune après un 429 ou un 503 de Google. */
+  pause: z.object({ until: z.string(), message: z.string() }).nullable(),
+  /** Prochain minuit du Pacifique : remise à zéro des quotas du jour. */
+  dayResetsAt: z.string(),
+  /** Liste de Google indisponible : raison, à afficher telle quelle. */
+  error: z.string().optional(),
 });
-export type AvailableModels = z.infer<typeof availableModelsSchema>;
+export type GeminiStatus = z.infer<typeof geminiStatusSchema>;

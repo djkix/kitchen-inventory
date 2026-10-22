@@ -153,7 +153,9 @@ export function useScanFlow({ locationId }: Options) {
           const today = error.detail<number>('callsToday');
           const quota = error.detail<number>('dailyQuota');
           const counter = today !== undefined && quota !== undefined ? ` (${today}/${quota} aujourd’hui)` : '';
-          setPhase({ kind: 'blocked', reason: 'quota', message: `${error.message}${counter}.`, barcode, imagePath: null });
+          // Gemini en pause ou quota du modèle atteint : le message porte déjà
+          // l'heure de reprise, et la photo est gardée à identifier.
+          setPhase({ kind: 'blocked', reason: 'quota', message: `${error.message.replace(/\.$/, '')}${counter}.`, barcode, imagePath: error.detail<string>('imagePath') ?? null });
         } else if (isApiError(error, 'provider_unavailable')) {
           setPhase({
             kind: 'blocked',

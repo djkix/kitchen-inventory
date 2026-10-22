@@ -23,7 +23,6 @@ export async function createApp(config: AppConfig, httpClient?: HttpClient, goog
   // il doit au moins se voir au démarrage.
   for (const warning of [
     unpricedModelWarning(config.VISION_PROVIDER, config.VISION_MODEL),
-    unpricedModelWarning(config.VISION_PROVIDER, config.SUGGESTION_MODEL, 'SUGGESTION_MODEL'),
     googleCertsOverrideWarning(config),
   ]) {
     if (warning) logger.warn(warning);

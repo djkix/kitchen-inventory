@@ -16,6 +16,7 @@ import { ApiErrorFilter } from './common/api-error.filter.js';
 import { ConfigModule } from './common/config.module.js';
 import type { AppConfig } from './common/config.js';
 import { defaultHttpClient, HTTP_CLIENT, type HttpClient } from './common/http-client.js';
+import { GeminiModule } from './gemini/gemini.module.js';
 import { HealthModule } from './health/health.module.js';
 import { LocationsModule } from './locations/locations.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -81,6 +82,7 @@ export class AppModule {
         PreferencesModule,
         ProductsModule,
         SettingsModule,
+        GeminiModule,
         StockModule,
         RecipesModule,
         SuggestionsModule,

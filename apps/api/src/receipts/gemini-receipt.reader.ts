@@ -1,6 +1,7 @@
 import { receiptQuantitySchema } from '@kitchen/shared';
 import type { HttpClient } from '../common/http-client.js';
-import { estimateCostCents, throwQuotaRefusal, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
+import { GeminiPausedError } from '../gemini/gemini-errors.js';
+import { estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 
 export type RawReceiptLine = { label: string; quantity: number };
@@ -22,20 +23,9 @@ Rends chaque ligne imprimée dans l'ordre du ticket, avec :
 - label : le libellé recopié tel qu'il est imprimé, abréviations comprises, sans le corriger ni le développer ;
 - quantity : le nombre d'unités achetées (« 3 x RIZ » donne 3), 1 si rien n'est indiqué ;
 - kind : PRODUCT pour un produit alimentaire, OTHER pour tout le reste (sacs, consigne, remises, total, sous-total, TVA, fidélité, moyen de paiement, rendu monnaie, produits non alimentaires).
-N'invente aucune ligne.`;
-
-const RESPONSE_SCHEMA = {
-  type: 'ARRAY',
-  items: {
-    type: 'OBJECT',
-    required: ['label', 'quantity', 'kind'],
-    properties: {
-      label: { type: 'STRING' },
-      quantity: { type: 'NUMBER' },
-      kind: { type: 'STRING', enum: ['PRODUCT', 'OTHER'] },
-    },
-  },
-} as const;
+N'invente aucune ligne.
+Réponds UNIQUEMENT par un tableau JSON strict, sans texte autour, de cette forme :
+[{"label": "RIZ BASMATI 1KG", "quantity": 3, "kind": "PRODUCT"}, {"label": "SAC CABAS", "quantity": 1, "kind": "OTHER"}]`;
 
 /** Échec survenu APRÈS une réponse facturée : porte le coût, comme `SuggestionProviderError` porte ses tentatives. */
 export class ReceiptReadError extends ProviderError {
@@ -72,14 +62,16 @@ export class GeminiReceiptReader {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents: [{ role: 'user', parts: [{ inlineData: { mimeType, data: file.toString('base64') } }, { text: 'Lis ce ticket.' }] }],
-          generationConfig: { maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
+          // Forme dite dans la consigne, sans `responseSchema` : Google refuse en
+          // 400 un schéma imbriqué (tableau d'objets). Réponse validée ci-dessous.
+          generationConfig: { maxOutputTokens: 8192, responseMimeType: 'application/json' },
         }),
       });
     } catch (error) {
+      if (error instanceof GeminiPausedError) throw error;
       throw new ProviderError('Fournisseur de lecture de ticket Gemini injoignable', error);
     }
     if (response.status === 401 || response.status === 403) throw new ProviderError('Clé API Gemini refusée');
-    if (response.status === 429) await throwQuotaRefusal(response);
     if (!response.ok) throw new ProviderError(`Fournisseur de lecture de ticket Gemini en erreur (${response.status})`);
 
     const raw = (await response.json()) as GeminiResponse;
@@ -110,11 +102,18 @@ function interpret(raw: GeminiResponse): RawReceiptLine[] {
   return lines;
 }
 
-/** Ne garde que les produits, dans l'ordre ; une quantité absente, invalide ou hors bornes (hallucination) vaut 1. */
+/**
+ * Ne garde que les produits, dans l'ordre ; une quantité absente, invalide ou
+ * hors bornes (hallucination) vaut 1. Sans `responseSchema`, le modèle peut
+ * clôturer le JSON (```json) ou envelopper le tableau (`{"items": […]}`) :
+ * les deux sont tolérés.
+ */
 function parseLines(text: string): RawReceiptLine[] {
   let data: unknown;
   try {
-    data = JSON.parse(text);
+    data = JSON.parse(text.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, ''));
+    const wrapped = (data as { items?: unknown } | null)?.items;
+    if (!Array.isArray(data) && Array.isArray(wrapped)) data = wrapped;
   } catch {
     throw new ProviderError('Le fournisseur n’a pas renvoyé de lecture exploitable pour ce ticket');
   }

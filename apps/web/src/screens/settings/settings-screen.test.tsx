@@ -23,7 +23,7 @@ vi.mock('../../lib/queries', () => ({
 vi.mock('../../components/ui/toast', () => ({ useToast: () => ({ show: vi.fn() }) }));
 vi.mock('../../components/shell/version-badge', () => ({ VersionBadge: () => null }));
 vi.mock('./stats-panel', () => ({ StatsPanel: () => null }));
-vi.mock('./model-row', () => ({ ModelRow: () => null }));
+vi.mock('./gemini-models-section', () => ({ GeminiModelsSection: () => null }));
 vi.mock('./web-search-row', () => ({ WebSearchRow: () => null }));
 vi.mock('./accounts-section', () => ({
   AccountsSection: () => <div>section-comptes</div>,

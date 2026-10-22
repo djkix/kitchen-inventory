@@ -199,6 +199,17 @@ tools/             utilitaires hors application
   (section 26, 2026-10-22). Parcours bout en bout P7 (`e2e/p7-ticket.spec.ts`),
   la doublure de Gemini reconnaissant la lecture de ticket à son
   `responseSchema`.
+- Approche IA Gemini livrée (2026-10-22, spec
+  `docs/specs/2026-10-22-approche-ia-gemini.md`) : `apps/api/src/gemini`
+  choisit seul le modèle dans la liste en direct de Google (Flash et Flash-Lite
+  stables, jamais Pro), vérifie avant l'appel les limites par modèle (requêtes
+  et jetons par minute, requêtes par jour du Pacifique, réglables dans
+  Réglages), bascule sur le modèle suivant au quota du jour, pose une pause
+  commune après un 429 ou un 503, et journalise chaque requête (`GeminiCall`,
+  migration `0015_gemini_call`). Tout refus rend un 429 avec l'heure de
+  reprise. Les quatre fournisseurs reçoivent `GeminiService.http` et passent
+  par `GeminiService.call`. Plus de `responseSchema` : JSON par la consigne.
+  `SUGGESTION_MODEL` et `FALLBACK_MODEL` ont disparu.
 
 ## Développement local
 

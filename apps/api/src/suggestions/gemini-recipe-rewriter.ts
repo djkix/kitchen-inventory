@@ -1,6 +1,7 @@
 import { recipeRewriteSchema, UNITS, type RecipeRewrite } from '@kitchen/shared';
 import type { HttpClient } from '../common/http-client.js';
-import { estimateCostCents, throwQuotaRefusal, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
+import { GeminiPausedError } from '../gemini/gemini-errors.js';
+import { estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { stripJsonFences } from './prompt.js';
 
@@ -105,14 +106,14 @@ export class GeminiRecipeRewriter {
           // `temperature`, `top_p` et `top_k` sont dépréciés côté Gemini : sans
           // effet depuis la 3.6 Flash, ils deviendront une erreur. Le modèle
           // applique ses propres valeurs, qui sont les bonnes.
-          generationConfig: { maxOutputTokens: 4096 },
+          generationConfig: { maxOutputTokens: 4096, responseMimeType: 'application/json' },
         }),
       });
     } catch (error) {
+      if (error instanceof GeminiPausedError) throw error;
       throw new ProviderError('Fournisseur de suggestions Gemini injoignable', error);
     }
     if (response.status === 401 || response.status === 403) throw new ProviderError('Clé API Gemini refusée');
-    if (response.status === 429) await throwQuotaRefusal(response);
     if (!response.ok) throw new ProviderError(`Fournisseur de suggestions Gemini en erreur (${response.status})`);
 
     const raw = (await response.json()) as GeminiResponse;

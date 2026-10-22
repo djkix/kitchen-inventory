@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
-import { HTTP_CLIENT, type HttpClient } from '../common/http-client.js';
+import { GeminiService } from '../gemini/gemini.service.js';
 import { StockModule } from '../stock/stock.module.js';
 import { SettingsModule } from '../settings/settings.module.js';
 import { GeminiReceiptReader } from './gemini-receipt.reader.js';
@@ -14,12 +14,12 @@ import { ReceiptsService } from './receipts.service.js';
     ReceiptsService,
     {
       provide: GeminiReceiptReader,
-      inject: [APP_CONFIG, HTTP_CLIENT],
-      useFactory: (config: AppConfig, httpClient: HttpClient) =>
+      inject: [APP_CONFIG, GeminiService],
+      useFactory: (config: AppConfig, gemini: GeminiService) =>
         new GeminiReceiptReader({
           apiKey: config.VISION_PROVIDER === 'gemini' ? config.VISION_API_KEY : undefined,
           baseURL: config.VISION_PROVIDER === 'gemini' ? config.VISION_BASE_URL : undefined,
-          httpClient,
+          httpClient: gemini.http,
         }),
     },
   ],
