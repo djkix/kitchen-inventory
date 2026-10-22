@@ -1,5 +1,5 @@
-import { normalizeReceiptLabel, receiptQuantitySchema, roundQuantity, type LocationNode, type ProductDto, type ReceiptDto, type ReceiptLineDto } from '@kitchen/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { normalizeReceiptLabel, receiptQuantitySchema, roundQuantity, UNIT_LABELS_FR, type LocationNode, type ProductDto, type ReceiptDto, type ReceiptLineDto } from '@kitchen/shared';
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Button } from '../../components/ui/button';
@@ -8,9 +8,9 @@ import { PinIcon } from '../../components/ui/icons';
 import { useToast } from '../../components/ui/toast';
 import { errorMessage, newClientOpId } from '../../lib/api';
 import { cn } from '../../lib/cn';
-import { queryKeys } from '../../lib/queries';
+import { flattenLocations, queryKeys, useLocationsQuery } from '../../lib/queries';
 import { receiptsApi } from '../../lib/receipts-api';
-import { readScanLocation, writeScanLocation, type ScanLocation } from '../../lib/scan-session';
+import { readScanLocation, reconcileScanLocation, type ScanLocation } from '../../lib/scan-session';
 import { LocationPicker } from '../scan/location-picker';
 import { PendingLabelsSection } from './pending-labels-section';
 
@@ -36,25 +36,38 @@ export function orderCandidates(label: string, candidates: readonly ProductDto[]
   return [...candidates].sort((a, b) => Number(covers(b)) - Number(covers(a)));
 }
 
+/** Lire et valider changent les libellés en attente : la liste et la pastille de l'onglet doivent suivre. */
+function invalidatePendingLabels(queryClient: QueryClient) {
+  return Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.pendingLabels }), queryClient.invalidateQueries({ queryKey: queryKeys.pendingLabelCount })]);
+}
+
 /** EF-29 : un ticket de caisse photographié devient des entrées de stock. */
 export function ReceiptScreen() {
-  const [location, setLocation] = useState<ScanLocation | null>(() => readScanLocation());
+  // Le dernier emplacement du scan sert de défaut, jamais réécrit : choisir un
+  // emplacement pour un ticket ne doit pas déplacer le prochain scan. Il est
+  // vérifié contre la liste réelle avant la photo, qui coûte un appel au modèle.
+  const [picked, setPicked] = useState<ScanLocation | null>(null);
+  const locations = useLocationsQuery();
+  const location = useMemo(
+    () => (locations.data ? reconcileScanLocation(picked ?? readScanLocation(), flattenLocations(locations.data)) : null),
+    [locations.data, picked],
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [receipt, setReceipt] = useState<ReceiptDto | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
+  const queryClient = useQueryClient();
   const read = useMutation({
     mutationFn: (file: File) => receiptsApi.read(file, location?.id ?? ''),
     onSuccess: (data) => {
       setReceipt(data);
+      void invalidatePendingLabels(queryClient);
     },
   });
-  const queryClient = useQueryClient();
 
   const choose = (node: LocationNode) => {
     const next = { id: node.id, name: node.name };
-    setLocation(next);
-    writeScanLocation(next);
+    setPicked(next);
     setPickerOpen(false);
   };
 
@@ -118,6 +131,7 @@ function initialState(line: ReceiptLineDto): LineState {
 
 function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () => void }) {
   const toast = useToast();
+  const queryClient = useQueryClient();
   const lines = useMemo(() => [...receipt.lines].sort((a, b) => a.position - b.position), [receipt.lines]);
   const [state, setState] = useState<Record<string, LineState>>(() => Object.fromEntries(lines.map((l) => [l.id, initialState(l)])));
   // Un identifiant par ligne, tiré une fois : un rejeu après coupure ne double rien.
@@ -137,6 +151,7 @@ function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () =>
         lines: selected.map(({ line, productId, quantity }) => ({ id: line.id, productId, quantity, clientOpId: (opIds.current[line.id] ??= newClientOpId()) })),
       }),
     onSuccess: ({ added }) => {
+      void invalidatePendingLabels(queryClient);
       toast.show({ message: added === 0 ? 'Rien de nouveau : ce ticket était déjà validé.' : `${added} produit${added > 1 ? 's' : ''} ajouté${added > 1 ? 's' : ''} au stock`, tone: 'success' });
       onDone();
     },
@@ -162,6 +177,10 @@ function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () =>
           const name = chosen?.name ?? line.rawLabel;
           const qty = parseQuantity(s.quantity);
           const unknown = line.state === 'UNKNOWN';
+          // `currentQuantity` est calculé d'après le produit de la ligne côté serveur : nul tant
+          // qu'elle est ambiguë. Une ligne dont on a choisi le produit n'a donc aucune base connue.
+          const baselineKnown = line.state === 'MATCHED';
+          const unit = chosen && chosen.defaultUnit !== 'PIECE' ? UNIT_LABELS_FR[chosen.defaultUnit] : null;
           return (
             <li key={line.id} className="flex flex-col gap-2 p-3">
               <div className="flex items-start gap-3">
@@ -198,7 +217,8 @@ function ReceiptReview({ receipt, onDone }: { receipt: ReceiptDto; onDone: () =>
                     />
                     {chosen && (
                       <span className="tnum text-[13px] text-muted">
-                        {fmt(line.currentQuantity)} → {qty === null ? '?' : fmt(line.currentQuantity + qty)}
+                        {baselineKnown ? `${fmt(line.currentQuantity)} → ${qty === null ? '?' : fmt(line.currentQuantity + qty)}` : `+${qty === null ? '?' : fmt(qty)}`}
+                        {unit && ` ${unit}`}
                       </span>
                     )}
                   </div>
