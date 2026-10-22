@@ -1,546 +1,177 @@
-# Kitchen Inventory — inventaire alimentaire maison
+<div align="center">
 
-Application web auto-hébergée qui inventorie les produits comestibles de la
-maison par scan depuis le téléphone, suit les dates de péremption et suggère
-des recettes à partir de ce qui est réellement en stock, trouvées sur le web
-ou composées par une IA.
+# 🥫 Kitchen Inventory
 
-## Le principe
+**Inventaire alimentaire maison — scan · péremptions · recettes · ticket de caisse**
 
-On se place devant un placard, on choisit l'emplacement une fois, puis on
-enchaîne les scans : la caméra reste ouverte, chaque code-barres reconnu ajoute
-un article avec quantité 1 et une annulation possible pendant cinq secondes.
-Quand un produit n'a pas de code-barres lisible ou n'est connu d'aucune base,
-une photo suffit : un modèle de vision propose une fiche (nom français, nom
-d'origine translittéré, marque, catégorie, date de péremption lue sur
-l'emballage), que l'on valide ou corrige. La correction est mémorisée : au
-second scan, plus aucune IA n'est appelée.
+[![Version](https://img.shields.io/badge/version-0.30.0-emerald?style=for-the-badge)](https://github.com/djkix/kitchen-inventory)
+[![Stack](https://img.shields.io/badge/stack-React_19_·_NestJS_·_PostgreSQL-blue?style=for-the-badge)](#stack-technique)
+[![License](https://img.shields.io/badge/license-MIT-slate?style=for-the-badge)](#licence)
 
-La reconnaissance suit une cascade, du moins cher au plus coûteux :
+*Savoir ce qu'il y a au fond du placard, et ce qu'on peut en cuisiner. Auto-hébergé, pensé pour le téléphone.*
 
-1. décodage du code-barres dans le navigateur, sans réseau ;
-2. cache local des produits déjà rencontrés ;
-3. [Open Food Facts](https://world.openfoodfacts.org), base publique sans clé ;
-4. modèle de vision (Google Gemini ; le modèle se choisit dans Réglages),
-   derrière une interface qui permet de changer de fournisseur sans toucher
-   au reste.
+<br />
 
-Le tout tourne à la maison : trois conteneurs, PostgreSQL, un dossier de
-photos. Seules les photos d'articles envoyées au fournisseur de vision quittent
-le réseau, jamais l'inventaire.
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Kitchen Inventory                               v0.30.0     │
+├──────────────────────────────────────────────────────────────┤
+│  🔍 Rechercher un article…                                   │
+│                                                              │
+│  Cellier › Étagère haute          Périme bientôt (3)         │
+│  ─────────────────────────        ──────────────────         │
+│  Riz basmati            ×2        Crème fraîche    J-2       │
+│  Lentilles vertes       ×1        Jambon blanc     J-4       │
+│  Huile d'olive          ×2        Yaourts nature   J-6       │
+│                                                              │
+│  Suggestions   « il me reste du poulet… » 🎤                 │
+│  Dahl de lentilles      prête · 12 notes · 25 min            │
+│  Riz cantonais          presque · il manque 1 ingrédient     │
+├──────────────────────────────────────────────────────────────┤
+│   Stock      Recettes     [ 📷 ]     Courses     Réglages    │
+└──────────────────────────────────────────────────────────────┘
+```
 
-## Sommaire
+<br />
 
-- [Fonctionnalités](#fonctionnalités)
-- [Installation](#installation)
-- [Première connexion](#première-connexion)
-- [Accès de secours](#accès-de-secours)
-- [Mise à jour](#mise-à-jour)
-- [Sauvegarde et restauration](#sauvegarde-et-restauration)
-- [Configuration](#configuration)
-- [Intégrations](#intégrations)
-- [Développement](#développement)
-- [Stack technique](#stack-technique)
-- [Derniers changements](#derniers-changements)
-- [Licence](#licence)
+[Fonctionnalités](#fonctionnalités) ·
+[Installation](#installation) ·
+[Première connexion](#première-connexion) ·
+[Configuration](#configuration) ·
+[Développement](#développement) ·
+[Historique](#derniers-changements)
+
+</div>
+
+---
+
+## Vue d'ensemble
+
+**Kitchen Inventory** répond à deux questions : *qu'est-ce que j'ai ?* et
+*qu'est-ce que je peux en faire ?* Son terrain est le fond du placard — les
+produits qui se gardent, ceux dont on a perdu la trace — plus que le frigo,
+qu'on ouvre tous les jours.
+
+| Onglet | À quoi il sert |
+|--------|----------------|
+| 🥫 **Stock** | Articles par emplacement, recherche tolérante aux fautes, vue « périme bientôt » |
+| 🍲 **Recettes** | Suggestions construites sur le stock réel, puis bibliothèque du foyer |
+| 📷 **Scan** | Code-barres en rafale, ou photo d'étiquette quand le code ne suffit pas |
+| 🧾 **Courses** | Un ticket de caisse photographié remplit l'inventaire d'un geste |
+| ⚙️ **Réglages** | Emplacements, comptes, modèles d'IA, quotas et dépense, export |
+
+Tout tourne à la maison : trois conteneurs, PostgreSQL, un dossier de photos.
+Seules les photos envoyées au fournisseur de vision quittent le réseau —
+jamais l'inventaire.
+
+### La cascade de reconnaissance
+
+Du moins cher au plus coûteux, pour qu'un scan ordinaire ne coûte rien :
+
+1. **Code-barres** décodé dans le navigateur, sans réseau ;
+2. **Cache local** des produits déjà rencontrés ;
+3. **[Open Food Facts](https://world.openfoodfacts.org)**, base publique sans clé ;
+4. **Modèle de vision** (Google Gemini), derrière une interface qui permet d'en changer.
+
+Une correction est mémorisée : au second scan du même code, aucune IA n'est
+appelée.
+
+---
 
 ## Fonctionnalités
 
-**Scan en rafale.** Code-barres EAN-8, EAN-13, UPC et QR décodés dans le
-navigateur (`BarcodeDetector` natif, repli ZXing en WebAssembly). Retour
-haptique et sonore, emplacement courant collant, annulation cinq secondes.
-Chaque lecture ouvre un tiroir de validation : le produit reconnu est affiché
-avec sa photo et sa marque, la quantité est ajustable au pas de son unité
-(une pièce, 100 g, 0,1 l), et rien n'entre en stock avant confirmation. La
-date de péremption peut s'y saisir dans le même geste, par un raccourci
-(« +3 j », « +1 sem », « +1 mois ») ou en date libre avec le choix DLC/DDM —
-mais rien n'est obligatoire : valider sans y toucher reste le même bouton,
-au même endroit. Une date oubliée se rattrape ensuite depuis le bandeau
-« Ajouté : … », sans quitter la caméra. Un article déjà validé n'est relu
-que lorsqu'il a quitté le champ de la caméra.
+### 📷 Scan et reconnaissance
 
-**Courses : le ticket de caisse.** L'onglet Courses se remplit depuis un ticket
-photographié (photo ou PDF, 8 Mo au plus). On choisit d'abord l'emplacement,
-une fois pour tout le ticket (celui du scan est repris), puis on prend la
-photo avec l'appareil du téléphone. Les lignes s'affichent **dans l'ordre du
-ticket**, reconnues et inconnues mêlées, pour suivre le papier : le nom du
-produit, le libellé imprimé en dessous, et le mouvement de stock « 2 → 3 ».
-Quand la ligne est ambiguë et que l'on vient de choisir son produit, la base
-n'est pas connue : la ligne affiche alors l'ajout seul (« +1 ») plutôt qu'un
-faux « 0 → 1 ». Hors des produits comptés par objets entiers (pièce, paquet,
-boîte, sachet), l'unité s'affiche à côté de la quantité (« 2 → 3 kg »,
-« +1 l ») et la case de quantité reste **vide** : le « 3 × » du ticket compte
-des articles, pas des grammes, c'est donc à vous de dire combien.
-Le ticket lu vit à sa propre adresse (`/courses/<id>`) et le brouillon est
-gardé par le serveur : rafraîchir la page ou basculer d'application ne perd
-pas une lecture déjà payée.
-Une ligne reconnue arrive cochée ; une ligne ambiguë propose ses candidats (le
-plus proche du libellé en premier) et se coche dès qu'on en choisit un, sauf si le produit n'est pas compté par objets entiers (il reste décoché tant que vous n'avez pas saisi la quantité et coché la ligne) ; une
-ligne inconnue est marquée « Nouveau », ne se coche pas et ne se valide pas —
-on la scanne ensuite par son code-barres. La quantité se corrige sur la ligne
-(le modèle peut mal lire un « 3 × »), et le « → » suit. Le bouton annonce
-« Ajouter N produits » ; les entrées se font sans date de péremption. Rouvrir un ticket déjà validé affiche « Ce ticket a déjà été validé » sans bouton d'ajout. Un ticket
-illisible affiche le message du serveur. Sous la liste, « Libellés à
-rattacher » (replié) recense les libellés jamais reconnus : on en rattache un à
-un produit, ce qui n'agit que sur les tickets suivants — le ticket affiché
-n'est pas relu. La pastille de l'onglet compte les libellés distincts en
-attente.
+**En rafale.** On choisit l'emplacement une fois, la caméra reste ouverte, et
+chaque code reconnu ajoute un article — annulable pendant cinq secondes. EAN-8,
+EAN-13, UPC et QR, décodés dans le navigateur.
 
-**Reconnaissance photo.** La prise de vue passe par l'appareil photo du
-téléphone, pour profiter de l'autofocus, du flash et de la stabilisation : une
-étiquette dorée ou gravée dans un placard peu éclairé se lit nettement mieux
-qu'avec une capture du flux vidéo. Étiquettes japonaises, coréennes, chinoises
-et thaïes lues et traduites ; le nom d'origine est conservé avec ses
-idéogrammes. Entre 50 et 80 % de confiance, la fiche est proposée avec des
-champs « à vérifier » ; sous 50 %, l'application demande une nouvelle photo
-plutôt que d'inventer. Deux garde-fous de dépense : un quota d'appels par jour
-et un plafond mensuel en euros, tous deux visibles dans les réglages. La photo
-reste disponible même quand la caméra du navigateur est refusée, cas d'un accès
-sans HTTPS où le scan de code-barres, lui, est impossible.
+**Par photo** quand le code manque ou qu'aucune base ne le connaît : un modèle
+propose une fiche (nom français, nom d'origine translittéré, marque, catégorie,
+date lue sur l'emballage), qu'on valide ou corrige. La DLC se saisit dans le
+même tiroir : trois raccourcis (+3 j, +1 sem, +1 mois) ou une date libre.
 
-**Stock et péremption.** Un produit (le référentiel) se distingue d'un lot (un
-exemplaire physique avec sa date et son emplacement). DLC dépassée en rouge,
-DDM dépassée en orange, date estimée signalée par une icône pour les
-périssables non emballés. À l'ouverture d'un produit, la date effective tient
-compte de la durée après ouverture de sa catégorie. Vue « périme bientôt »
-avec seuil réglable.
+### 🧾 Le ticket de caisse
 
-**Mouvements autoritaires.** La quantité d'un lot est la somme de ses
-mouvements (entrée, consommation, ajustement, perte) ; chaque écriture porte un
-identifiant d'opération, donc rejouer une requête ne compte jamais deux fois.
-Une consommation qui dépasse le stock est ramenée au disponible, avec un
-message explicite.
+L'onglet **Courses** remplit l'inventaire sans scanner article par article. On
+choisit l'emplacement, on photographie le ticket — ou on dépose un PDF reçu par
+courriel — et les lignes s'affichent **dans l'ordre du papier**, pour qu'on
+puisse suivre le ticket en main.
 
-**Emplacements imbriqués** à profondeur libre : pièce, meuble, étagère, bac,
-autant de niveaux que voulu. La suppression est refusée tant qu'il reste du
-stock, avec la proposition de le déplacer vers le parent.
+| État de la ligne | Ce qui se passe |
+|------------------|-----------------|
+| **Reconnue** | Cochée, avec le mouvement de quantité : « 2 → 3 » |
+| **Ambiguë** | Jamais cochée en silence : on choisit parmi les candidats |
+| **Inconnue** | Décochée, libellé brut affiché — à scanner au code-barres plus tard |
 
-**Recherche tolérante** aux fautes, aux synonymes et aux accents : « nouilles »
-trouve « ramen », « tomat » trouve « Tomates pelées », « creme » trouve
-« Crème fraîche » même saisi sans accent depuis un téléphone, la recherche
-porte aussi sur le nom d'origine et la marque.
+Le libellé brut du ticket figure sous chaque nom, pour vérifier. La quantité se
+corrige sur la ligne. Les libellés jamais reconnus s'accumulent dans une liste
+qu'on rattache quand on veut, et l'onglet en porte le compte : une fois appris,
+le même libellé est reconnu sur tous les tickets suivants.
 
-**Multi-utilisateur** sur un inventaire partagé, comptes locaux, sessions
-révocables, verrouillage après échecs répétés, jeton de service en lecture
-seule pour Home Assistant. Export CSV et JSON.
+### 🥫 Stock et péremption
 
-**Module recettes.** L'onglet **Recettes** de la barre du bas ouvre toujours
-l'écran **Suggestions**, la porte d'entrée du module ; **Mes recettes** reste
-à une tape, par la bascule en tête (visible sans défilement, le volet actif
-se distingue par la bordure, le fond et le poids du texte, et un lecteur
-d'écran l'annonce). Le dernier volet consulté n'est plus mémorisé : l'onglet
-ouvre toujours Suggestions, jamais un volet où une visite précédente aurait
-laissé l'application.
+Un **produit** (le référentiel) se distingue d'un **lot** (un exemplaire, avec
+sa date et son emplacement). La quantité d'un lot est la somme de ses
+mouvements, jamais une valeur écrite directement — une consommation insère un
+mouvement puis recalcule.
 
-À l'arrivée sur **Suggestions**, une question bloquante demande le type de
-plat recherché — entrée, plat, dessert, accompagnement, apéritif,
-petit-déjeuner, boisson — avant d'afficher quoi que ce soit d'autre : ni
-liste, ni filtres, ni squelette de chargement. La réponse oriente la
-recherche initiale : l'application compose un point de départ depuis le
-stock réel (huit ingrédients au plus, les plus structurants, trois places
-tournant d'un jour à l'autre pour renouveler les idées), interroge Google
-Gemini en lui demandant de ne proposer que ce type de plat, et affiche une
-douzaine de recettes — certaines trouvées sur de vrais sites,
-d'autres composées par le modèle, chaque carte disant laquelle : le nom du
-site pour une recette dont **la page a réellement été lue**, « composée par
-l'IA, non vérifiée » sinon. Une recette annoncée comme trouvée sur le web
-dont la page ne répond pas est écartée avant d'atteindre l'écran : le modèle
-ne peut pas faire passer un lien inventé pour une recette qui existe.
+**Emplacements imbriqués** à profondeur libre : pièce, meuble, étagère, bac.
+**Recherche tolérante** aux fautes, aux synonymes et aux accents (« nouilles »
+trouve « ramen »). **Vue « périme bientôt »**, avec un seuil d'alerte réglable.
 
-Une fois la fournée affichée, l'orientation vit derrière un **bouton
-« Filtres »** posé à droite du champ d'ingrédients, portant le nombre
-d'orientations actives (« Filtres (2 actifs) ») et ouvrant un **panneau par
-le bas** — exactement comme sur « Mes recettes ». Rien n'a été retiré : les
-quatre sélecteurs natifs y vivent inchangés, sur deux lignes de deux (type de
-plat et cuisine, puis durée et facilité), avec « Tout effacer ». C'est la
-place permanente qui disparaît, et la liste de recettes commence enfin en
-haut de l'écran. Un retour arrière ferme le panneau au lieu de quitter
-l'écran. Les quatre relancent une vraie recherche ciblée auprès du modèle à
-chaque changement — être rangés dans un panneau n'en fait pas des filtres
-locaux —, y compris le **type de plat**, désormais au même titre que la
-**cuisine** (asiatique, méditerranéenne…), la **durée** (≤ 15, ≤ 30,
-≤ 60 min) et la **facilité** : la fournée demandée au modèle ne contenant
-déjà qu'un seul type, un simple filtre local sur ce même type n'aurait plus
-rien eu à faire. Le sélecteur de type reflète dès l'arrivée celui répondu à
-la question, et repartir d'un autre type se fait depuis ce panneau, sans
-repasser par la question.
-**Vos ingrédients à vous, sur la ligne des filtres.** Un champ de saisie, vide
-par défaut, permet de dicter ce que la recette doit utiliser : « pommes de
-terre, merguez ». Chaque terme validé — par Entrée ou par une virgule —
-devient une **pastille** visible, portant une croix pour la retirer : on voit
-donc ce qui part, au lieu de découvrir après l'appel au modèle que « poulet
-tomate » tapé sans virgule avait été compris comme un seul ingrédient de ce
-nom. Le retour arrière sur un champ vide retire la dernière pastille, et un
-terme tapé sans être validé part quand même avec la recherche. Dès les
-premières lettres, les **produits de votre catalogue** sont proposés en
-dessous (« pou » → « Poulet fermier ») : un terme choisi dans la liste porte
-exactement un libellé connu, donc le rapprochement aux recettes ne dépend
-plus de l'orthographe du jour. La liste propose, elle n'impose jamais — « reste
-de merguez » n'est dans aucun catalogue et reste parfaitement saisissable.
-Cinq ingrédients au plus, trente caractères chacun : l'écran refuse le terme
-de trop en disant pourquoi, sans rien envoyer. Ce qui est tapé est **imposé** : seules des recettes
-utilisant tous ces éléments sont proposées — l'objet est d'écouler un reste,
-pas de recevoir des idées vaguement proches. Du texte libre, et non une
-sélection dans l'inventaire : un reste de merguez n'a pas de code-barres, il
-est né du repas d'hier, et c'est précisément ce que le stock ne sait pas dire.
-Le stock continue d'être pris en compte, en complément. L'application cherche
-d'abord dans le réservoir les recettes qui portent ces ingrédients et
-n'interroge le modèle que si elle en trouve moins de six : retaper la même
-demande ne coûte rien, et le singulier comme le pluriel y mènent à la même
-recette (« pomme de terre » trouve « Pommes de terre nouvelles »). Un
-ingrédient que vous venez de déclarer n'est jamais annoncé comme manquant —
-la fiche de la recette l'affiche « Déclaré » et non « Manquant » ; le taux de
-couverture, lui, reste calculé sur le stock réel, si bien qu'une recette peut afficher « 3 sur 4 » sans lister
-aucun manquant — un chiffre prudent plutôt qu'un chiffre inventé. Une
-combinaison trop rare peut ne rien rendre : l'écran le dit alors, au lieu
-d'afficher une liste vide et muette. Le champ vide ne change rien au
-comportement habituel.
+### 🍲 Recettes
 
-**Demande parlée.** Une icône de micro, dans l'en-tête de l'écran
-Suggestions, ouvre un écran à part : on appuie, on parle — « il me reste du
-poulet, et un peu de sauce tomate, je veux faire un plat italien, qu'est-ce
-que tu me proposes » —, et l'application rend des recettes qui croisent ce
-qui a été dit **avec le stock réel**. C'est ce croisement qui justifie la
-fonction : l'application Gemini, elle, ne connaît pas le contenu du placard.
+**Suggestions** construites sur le stock réel : chaque carte porte son taux de
+couverture, ce qui manque, la durée et la difficulté. Orientables par cuisine,
+durée ou facilité. Les recettes rapportées entrent dans un **réservoir
+permanent** — elles ne s'effacent plus, et le modèle n'est rappelé que s'il en
+reste trop peu.
 
-L'enregistrement part à Gemini, qui l'écoute, le comprend et propose dans le
-**même appel** : il n'y a pas d'étape de confirmation de la transcription.
-Ce que le modèle a compris — les ingrédients entendus, l'orientation déduite
-— est donc affiché **au-dessus des résultats**, pour qu'un contresens se
-voie tout de suite. Les ingrédients entendus sont traités comme déclarés :
-jamais annoncés comme manquants, exactement comme ceux tapés à la main, le
-taux de couverture restant calculé sur le stock réel.
+**Vos ingrédients à vous.** Un champ à pastilles, avec autocomplétion depuis le
+catalogue : « poulet, tomates » ne rend que des recettes utilisant **tous** ces
+éléments — l'objet est d'écouler un reste.
 
-L'audio **n'est conservé nulle part** : ni fichier, ni colonne en base, ni
-trace dans le journal des appels, qui ne garde que la réponse du modèle. Il
-traverse le serveur et disparaît. En contrepartie, et c'est assumé, la parole
-part bien vers l'API de Google : c'est le prix de la fonction.
+**Demande parlée.** Une icône de micro ouvre un écran à part : on dit *« il me
+reste du poulet et un peu de sauce tomate, je veux faire un plat italien »*, et
+Gemini écoute, comprend et propose dans le même appel. L'audio n'est conservé
+nulle part.
 
-L'enregistrement est borné à **60 secondes** et à **4 Mo** — il s'arrête tout
-seul à l'échéance, et le serveur refuse au-delà, avec une phrase en français.
-Chaque refus a la sienne : micro refusé, micro absent, micro déjà pris,
-enregistrement vide, modèle qui n'a rien compris, quota atteint. Une demande
-parlée appelle **toujours** le modèle — une phrase est unique, il n'y a rien à
-retrouver au réservoir — et consomme donc un appel du quota journalier et du
-plafond mensuel, comme une relance ; les recettes rendues entrent au
-réservoir, rien de payé n'est jeté. L'entrée audio y est facturée à son
-propre tarif, plus élevé que le texte : à défaut de ventilation par modalité
-dans la réponse de l'API, tout l'appel est compté au tarif audio — un plafond
-de protection a le droit de surestimer, jamais de sous-compter en silence.
+**Mes recettes** est la bibliothèque du foyer : classée par note, filtrable
+(difficulté, cuisine, temps, plat, régime), avec favoris, notation par membre
+et glissement vers la gauche pour archiver. Cuisiner une recette décrémente le
+stock, ajusté au nombre de parts.
 
-**Les recettes trouvées ne s'effacent plus.** Chaque recette rapportée par le
-modèle entre dans un réservoir permanent, dédoublonnée par son titre et son
-lien : elle y reste sans limite d'âge. À chaque visite, l'application lit ce
-réservoir, recalcule la couverture contre le stock du moment
-(« 3 ingrédients sur 4 ») et classe les recettes web vérifiées avant les
-compositions. L'écran en affiche une douzaine, les mieux classées, et le bouton
-« Charger plus » donne accès aux suivantes : le réservoir peut en contenir
-des centaines, la première page reste de la même taille qu'au premier jour. Tout ce que le modèle rapporte entre au réservoir, y
-compris ce qui ne tient pas sur la page — rien de ce qui est payé n'est
-jeté. Le modèle n'est rappelé que dans deux cas : le réservoir
-rend moins de six recettes pour l'orientation demandée, ou vous appuyez
-vous-même sur « Chercher de nouvelles recettes ». Consommer un article du
-stock ne déclenche plus de nouvelle recherche payante.
+### 🔐 Comptes
 
-**Tout le réservoir se parcourt.** Sous la liste, un bouton
-« Charger plus (12 sur 37) » — le même geste et la même formulation que
-« Mes recettes » — allonge la page de douze recettes à chaque appui, jusqu'à
-soixante. Il disparaît dès que tout ce que le réservoir connaît pour
-l'orientation est affiché. Charger plus ne relit que le réservoir : aucun
-appel au modèle n'en découle, et donc aucune dépense. Au-delà de soixante
-recettes, ce sont les orientations (cuisine, durée, facilité) qui servent à
-retrouver ce que l'on cherche, pas une page plus longue.
+Connexion par **compte Google**, sans aucun mot de passe. Une adresse inconnue
+crée une demande qui attend la validation d'un administrateur, dans Réglages ›
+Comptes. Le statut est vérifié à chaque requête : une révocation coupe l'accès
+immédiatement. Une [porte de secours](#accès-de-secours) existe si Google
+devient inutilisable.
 
-**Une relance montre ce qu'elle rapporte.** Les recettes que l'appel vient
-de ramener passent en tête de la liste, devant les anciennes même mieux
-couvertes : sans cela, une nouveauté se rangeait derrière les douze déjà
-affichées et l'écran ne bougeait pas. L'ordre habituel (web vérifiées
-d'abord, puis par couverture) reprend de lui-même au geste suivant ; rien
-n'est mémorisé.
+### 💶 Dépense et garde-fous
 
-**Les propositions sont diversifiées.** Le modèle doit rendre des plats
-nettement différents les uns des autres — jamais deux variantes de la même
-recette — en variant l'ingrédient principal, la technique de cuisson et la
-base. Les titres déjà au réservoir pour l'orientation demandée (les
-quarante plus récents) lui sont cités avec consigne de ne pas les
-reproposer. L'orientation demandée reste impérative : diversifier, c'est
-varier à l'intérieur du filtre, pas l'ignorer.
+Les appels au modèle sont bornés par trois mécanismes visibles dans Réglages :
+un **quota journalier** par usage (photo, recettes, tickets), un **plafond
+mensuel en euros** partagé par tous, et un **modèle de repli** essayé une fois
+quand un quota Google est épuisé. Un refus de Google est traduit précisément :
+« Trop de demandes coup sur coup, réessayez dans 12 secondes » plutôt qu'un
+message indifférencié.
 
-Quand une page est lue, son contenu est recopié en base **une fois pour
-toutes** : le site n'est jamais recontacté, ni pour revérifier, ni au moment
-où vous conservez la recette. En contrepartie, une recette dont la page
-disparaît ensuite reste utilisable, mais son lien meurt — et une recette
-corrigée par son auteur après coup ne sera pas suivie.
+### 📱 Et aussi
 
-Une même orientation n'est pas redemandée au modèle plus d'une fois par
-24 heures. Si elle ne rend rien, l'écran le dit, annonce à partir de quand
-une nouvelle recherche partira d'elle-même, et propose le bouton de relance :
-jamais un écran vide et muet.
-Les épices, le sel et le poivre ne sont jamais retenus comme point de départ
-(l'huile et le vinaigre le restent) ; les dates de péremption n'interviennent
-à aucun titre dans les suggestions.
+Installable en **PWA** (plein écran, icône sur l'écran d'accueil), avec un
+bandeau qui propose la mise à jour sans jamais recharger la page sous les
+doigts. **Export** CSV et JSON. **Jetons de service** en lecture seule pour
+Home Assistant ou un script.
 
-Le titre d'une recette tient sur deux lignes au plus, sans jamais être
-tronqué sur une seule — aussi bien sur une carte de suggestion que sur une
-carte de « Mes recettes ».
+**Limites connues.** Mode hors ligne, alertes de péremption par notification et
+export enrichi restent à faire. La liste de courses alimentée par des seuils
+(EF-12) et l'ajout des ingrédients manquants d'une recette (EF-24) ont été
+**abandonnés** le 2026-10-22 au profit du ticket de caisse.
 
-**Le geste « page précédente » ferme le tiroir ouvert**, au lieu de quitter
-l'écran : sur un téléphone, un glissement vers la gauche depuis le tiroir d'une
-suggestion basculait jusque-là sur l'écran précédemment consulté. Tous les
-tiroirs de l'application se referment ainsi, et un tiroir fermé autrement
-(croix, Échap, Annuler) ne laisse pas de retour « fantôme » derrière lui.
-
-La fiche d'une suggestion montre les ingrédients et ce qui manque (chacun avec
-sa photo, s'il est rapproché d'un produit connu, et la pastille colorée de
-l'emplacement de son lot le plus proche de péremption quand il est en stock).
-Les étapes d'une recette **composée par l'IA** y sont déjà visibles, puisque
-« Je fais cette recette » n'a alors rien de plus à aller chercher ; une recette
-**trouvée sur le web**, elle, n'affiche encore aucune étape à ce stade — sa
-page n'est lue qu'à la conservation, et la fiche l'annonce honnêtement plutôt
-que d'en inventer. Le tiroir porte **deux boutons** : à gauche **« Je fais
-cette recette »**, l'action, qui conserve et mène directement à la fiche (où se
-règle le nombre de parts) ; à droite **« Annuler »**, qui ferme et revient aux
-suggestions sans rien enregistrer, et reste indisponible tant qu'une
-conservation est en cours. « Je fais cette recette » — un seul geste, pas une
-consultation puis une conservation séparée —
-récupère la page de la recette
-(HTTPS uniquement, 5 secondes maximum), lit ses données structurées
-`schema.org/Recipe` quand elles existent, et la fait **réécrire par Gemini au
-format propre à l'application** — l'application n'envoie jamais vers le site
-d'origine, pour une recette composée les étapes déjà produites sont reprises
-telles quelles. La difficulté est alors recalculée par le barème du foyer
-(elle peut changer d'un cran par rapport à celle affichée avant conservation).
-La recette entre dans **Mes recettes**. Le socle du foyer — cuisson,
-historique, notation par membre — existe toujours côté serveur, mais la fiche
-est passée en lecture seule et ne l'atteint plus (voir plus bas).
-
-Gemini rend une durée de préparation et une durée de cuisson séparées (`null`
-quand la recette n'en a pas, comme une salade, ou que le modèle ne les
-distingue pas — jamais un zéro qui se lirait « cuisson : 0 minute ») en plus
-de la durée totale affichée sur les cartes, et chaque étape de cuisson doit
-préciser température du four, intensité du feu et durée : une étape qui ne le
-ferait pas est jugée inexploitable. Les deux durées, une fois la recette
-conservée, s'affichent sur la fiche recette quand elles sont renseignées (à
-côté du temps actif et du repos) et sur la fiche d'une suggestion.
-
-**Favoris et note directe.** Une étoile à cocher (pleine contre vide, jamais la
-seule couleur, annoncée par `aria-pressed`) marque une recette comme favorite —
-une seule liste partagée par le foyer, pas de favori par personne : qui la
-retire la retire pour tout le monde. Elle se coche aussi bien sur la fiche que
-sur chaque carte de « Mes recettes », indépendamment de la note : on peut
-adorer une recette compliquée sans vouloir la refaire chaque semaine, et
-marquer une recette banale qu'on fait tout le temps. Une **note du foyer**
-(partagée, pas une note par personne) existe en base et sert au tri par
-défaut ; elle se lit sur chaque carte de « Mes recettes », mais **ne s'affiche
-plus sur la fiche**, où ses cinq étoiles prenaient trop de place sur un
-téléphone. La notation d'une réalisation, elle, est intacte : nominative, par
-membre, depuis l'historique de la fiche. **Règle de préséance**, partout où une
-note s'affiche (carte, fiche, tri par note) : la note directe prime quand elle
-existe ; sinon la moyenne des réalisations prend le relais ; si ni l'une ni
-l'autre n'existe, rien ne s'affiche — jamais deux chiffres concurrents sous les
-yeux. La note par réalisation continue d'exister telle quelle, à part : c'est
-l'avis sur un repas réellement cuisiné, par membre du foyer, conservé dans
-l'historique.
-
-**Mes recettes**, classées **par défaut selon la note** (les mieux notées en
-tête, note directe et moyenne des réalisations classées ensemble par la même
-règle de préséance, puis les non notées, titre à l'alphabet en dernier
-recours) — le stock n'intervient pas dans ce tri par défaut. La recherche par
-titre est tolérante aux accents et à la casse, comme la recherche produits
-(« crepes » trouve « Crêpes »). Le tri reste mémorisé par utilisateur avec les
-filtres, mais **son sélecteur n'est plus affiché** : la liste commence en haut
-de l'écran, sur le tri que le foyer a mémorisé. Les filtres, eux, vivent
-derrière un **bouton « Filtres »** posé à droite de la recherche, portant le
-nombre de filtres actifs (« Filtres (2 actifs) ») et ouvrant un **panneau par
-le bas** : rien n'a été retiré, c'est la place permanente qui disparaît. On y
-retrouve les six sélecteurs (type de plat, cuisine, durée, facilité, régime,
-note minimale), une seule valeur active par facette, et les cinq bascules
-(valeurs sûres, réalisables maintenant, déjà faites, **favoris**, archivées).
-
-**Effacer une recette de la liste.** Un glissement vers la gauche sur une carte
-découvre une action rouge ; la toucher demande confirmation, et la recette est
-alors **archivée** — elle quitte « Mes recettes », garde son historique et ses
-notes, et la bascule « Archivées » la retrouve entière. Rien n'est supprimé.
-Le glissement seul n'efface jamais : il se déclenche par accident en faisant
-défiler au pouce. Et comme un glissement n'existe ni au clavier, ni au lecteur
-d'écran, ni à la souris, la même action se découvre aussi au **focus** (une
-tabulation) et au **survol**. Limite connue : rien à l'écran n'indique que le
-glissement existe, comme pour tous les glissements de liste.
-
-Chaque carte affiche son
-**taux de couverture et son groupe** (prête, presque, incomplète) calculés
-depuis le stock réel, même si ce groupe ne change plus l'ordre ni la visibilité
-de la liste. Chaque carte affiche aussi la note retenue par la règle de
-préséance ci-dessus et le nombre de réalisations (« Faite N fois · il y a X
-jours · ★ Y », ou « Jamais faite » sans note ni compteur, ou encore « Jamais
-faite · ★ Y » pour une recette jamais cuisinée mais déjà notée directement).
-
-Il n'y a **plus de création manuelle** : le bouton d'ajout a disparu, et le
-formulaire ne sert plus qu'à **modifier** une recette déjà conservée (titre,
-cuisine, type de plat, régimes, portions, temps, étapes, ingrédients). Une
-recette de famille qu'on ne trouve pas sur le web n'a, de ce fait, plus sa
-place dans l'application.
-
-La fiche d'une recette conservée affiche chaque ingrédient avec, quand elle
-existe, la photo du produit rapproché et une pastille colorée (par icône
-autant que par teinte — la couleur ne porte jamais seule l'information)
-désignant l'emplacement de son lot le plus proche de péremption : ambiant,
-frais ou congelé.
-
-En tête de fiche, un **seul bloc** rassemble les repères : la cuisine, la
-**durée totale** et la **difficulté** — des blocs colorés, sur deux échelles
-distinctes (du céladon de l'accent à l'orange d'avertissement, selon que c'est
-court et facile ou long et exigeant), la couleur ne portant jamais
-l'information seule, le texte (« 30 min », « Facile ») restant écrit en toutes
-lettres —, l'étoile de **favori**, le détail des durées (préparation, cuisson,
-temps actif, repos) et le **nombre de parts**. Les durées absentes **ne
-s'affichent pas** du tout : une recette sans repos n'affiche pas « Repos »,
-plutôt qu'un tiret à lire pour rien.
-
-Le **nombre de parts** reste ajustable (champ numérique, initialisé aux
-portions de la recette) : le modifier recalcule aussitôt la quantité de chaque
-ligne et son état face au stock (une ligne tout juste suffisante à quatre
-parts peut devenir insuffisante à huit — voir la limite connue ci-dessous).
-C'est sa seule fonction, et elle ne touche que l'affichage.
-
-**La fiche est en lecture seule** depuis la 0.24.0 (demande du propriétaire,
-en connaissance de ce qu'elle perd). Hors l'étoile de favori, elle ne porte
-plus aucune action : ni « Cuisiner », ni « J'ai fait cette recette », ni
-« Modifier », « Archiver », « Restaurer » ou « Supprimer », et plus de bloc
-Historique ni de notation. Ces fonctions restent entières côté serveur —
-cuisson avec décrément du stock, réalisations, notation par membre, archivage,
-restauration, suppression, modification — et les écrans correspondants restent
-dans le dépôt, prêts à être réaffichés ; ce qui disparaît, c'est le chemin qui
-y menait depuis cet écran. L'écran de modification n'a plus de lien qui y
-mène : il n'est atteignable qu'en tapant son adresse. Sur « Mes recettes »,
-l'effacement par glissement (qui archive) et le bandeau de rappel de notation
-ne changent pas.
-
-La **cuisson**, qui ne se déclenche plus depuis la fiche mais reste servie par
-l'API, ouvre dans son tiroir : portions
-réalisées ajustables, chaque ligne décrémentable cochée par défaut, choix du
-produit retenu (celui qui périme le plus tôt, modifiable) pour toute ligne
-substituable ou visant directement une catégorie, et note facultative à cinq
-étoiles. La mise à l'échelle des quantités affichées (fiche comme tiroir) suit
-une seule règle partagée, exclut du
-choix les lots dont la date de péremption est dépassée (comme le calcul de
-couverture) et suit la fusion d'un produit s'il en a rejoint un autre
-depuis. Une ligne décochée ou sans quantité chiffrée (hors inventaire)
-n'émet aucun mouvement ; une ligne chiffrée qui ne résout aucun produit (cas
-catégorie sans choix) est signalée plutôt qu'ignorée en silence. Si le stock
-ne suffit pas, la quantité retirée est ramenée au disponible plutôt que de
-faire échouer la cuisson, et le tiroir le signale en clair ; cuisiner une
-recette archivée est refusé. Une réalisation sans aucun décrément reste
-possible par l'API. Le bloc Historique (moyenne, nombre de réalisations,
-tendance, puis chaque réalisation avec qui a cuisiné et la note de chaque
-membre du foyer) reste dans le dépôt : chaque membre note une réalisation de
-1 à 5 étoiles, une
-fois, modifiable pendant les **sept jours** qui suivent, puis en lecture
-seule — y compris une réalisation passée, directement depuis son bouton
-« Noter » dans l'historique, sans repasser par une cuisson — mais la fiche ne
-rend plus ce bloc. Sur l'écran Mes
-recettes, un bandeau invite à noter la dernière
-réalisation récente encore sans note (pas celle d'une recette depuis
-archivée) ; il se ferme pour la journée et se rouvre le lendemain tant qu'il
-reste quelque chose à noter. Une recette jamais cuisinée ne montre plus un
-historique vide sans explication : le bloc dit qu'aucune réalisation n'est
-enregistrée.
-
-Une recette jamais cuisinée se supprime réellement ; une recette déjà
-réalisée ne se supprime pas (la suppression échoue avec le nombre de
-réalisations) mais s'archive, avec restauration possible — l'historique et
-les notes sont conservés, la recette archivée ne ressort plus dans les
-listes ni les calculs sauf à la chercher explicitement. Une réalisation qui a
-décrémenté le stock ne se supprime jamais : la correction se fait depuis la
-fiche article, comme pour tout autre mouvement.
-
-Le formulaire de modification (`/recettes/:id/modifier`, plus relié à aucun
-bouton depuis le passage de la fiche en lecture seule) permet d'ajuster titre, cuisine (choisie ou créée à la volée), type de plat,
-régimes, portions, les quatre temps, étapes et ingrédients. Chaque ingrédient
-se rattache à un produit existant par la même recherche que le reste de
-l'application, à une catégorie, ou reste en texte libre. La difficulté suit
-automatiquement les étapes et le temps actif ; une correction manuelle la
-gèle définitivement, y compris lors des modifications suivantes. Les
-ingrédients envoyés remplacent entièrement les précédents. Quitter le
-formulaire avec des changements non enregistrés demande confirmation. Voir
-`docs/cahier-des-charges.md`, section 12.
-
-**Limites connues.** Pas d'ajout des ingrédients manquants à une liste de
-courses : il n'y a pas de liste de courses, EF-12 et EF-24 sont abandonnées
-(2026-10-22) au profit du ticket de caisse ;
-un ingrédient rapproché par approximation (« crème » → *Crème fraîche épaisse
-30 %*) est affiché comme probable, compte comme disponible dans la couverture,
-et se confirme ou se corrige au moment de cuisiner, jamais avant ; une recette
-composée par l'IA peut inventer une proportion, annoncé par sa mention
-« proposée par l'IA », jamais masqué. Augmenter le nombre de parts d'une
-recette ne fait jamais basculer son groupe global (prête, presque,
-incomplète) vers « presque » ou « incomplète » : seul l'état de chaque ligne
-d'ingrédient suit les parts, une recette dont chaque produit a au moins un
-lot en stock — même insuffisant pour le nombre choisi — reste annoncée
-« Prête ». Sans fournisseur d'IA configuré
-(`VISION_PROVIDER=none`), l'écran Suggestions n'appelle rien : il l'explique
-et renvoie vers les **Réglages** ; le scan photo affiche de même son écran
-dédié plutôt qu'un message passager. Voir `docs/decisions/`.
-
-**Choix des modèles.** Réglages › Reconnaissance propose aux administrateurs
-deux lignes de choix : le modèle de la photo et celui des recettes. La liste
-n'est pas écrite dans le code — elle est demandée au fournisseur, et ne montre
-que les modèles que la clé configurée sert réellement, réduits à la **famille
-Flash** de la ligne courante : ni instantanés datés, ni aperçus, ni familles
-parole, image ou vidéo, qui répondent pourtant à la même API — ni modèles Pro.
-L'API Gemini, facturée sur la clé, servirait pourtant un Pro sans rien
-demander : elle ne dépend pas de l'abonnement Google AI Plus, qui ne gouverne
-que l'appli Gemini et le Mode IA de la recherche. C'est précisément pour cela
-que le filtre existe — rien côté Google n'empêcherait de retenir un modèle
-plusieurs fois plus cher pour lire une étiquette ou composer une recette, deux
-tâches que Flash fait très bien. Si ce filtre ne laissait
-rien passer — famille renommée, convention changée — la liste complète reprend
-la main plutôt que d'afficher un choix vide. Un nom de modèle
-inexistant ne peut donc plus être retenu : c'était la cause de l'écran de
-recettes resté vide du 2026-10-04 au 2026-10-06, invisible pour les tests
-puisque tous répondent à une doublure locale. « Défaut du serveur » efface le
-choix et rend la main à `VISION_MODEL` et `SUGGESTION_MODEL`. Le modèle est
-relu à chaque appel : un changement vaut sans redémarrer le conteneur. La
-liste dit quels modèles la clé sert, pas lesquels savent chercher sur le web —
-un modèle inadapté reste proposé, et l'écran Suggestions affiche alors le
-message du fournisseur.
-
-**Tarif d'un modèle choisi dans Réglages.** Le sélecteur propose tout modèle
-Gemini de la famille Flash que la clé déclare, sans liste figée, pour qu'une
-nouvelle génération apparaisse sans modification du code. Le tarif, lui, est
-connu par nom exact pour cinq modèles, puis **par famille** : un nom inconnu
-contenant « flash-lite », « flash » ou « pro » est facturé au tarif de cette
-famille. Sans ce repli, un alias comme `gemini-flash-latest` sortait de la
-table : chaque appel était inscrit au journal sans coût et le plafond mensuel
-comptait zéro, en silence — c'est ce qui s'est produit du 2026-10-15 au
-2026-10-21. Un modèle d'une autre famille reste non chiffré, et
-l'avertissement au démarrage le signale.
-
-**Recherche web, et son interrupteur.** Les suggestions s'appuient sur l'outil
-de recherche de Gemini : une partie des recettes vient de pages réelles, le
-reste est composé par le modèle. Cette recherche est facturée **par requête**,
-séparément des jetons, et n'entre donc pas dans `VISION_MONTHLY_CAP_CENTS` :
-le plafond mensuel de l'application ne la couvre pas. Certaines clés la
-refusent aussi, ce qui fait échouer toutes les suggestions. Réglages ›
-Reconnaissance porte donc un interrupteur « Recherche web des recettes »,
-réservé aux administrateurs. Désactivé, le modèle compose toutes les recettes
-lui-même, sans lien vers un site : moins fidèle à l'esprit de la
-fonctionnalité, mais gratuit et toujours utile. Quand la recherche est active,
-chaque requête réellement exécutée par le modèle est comptée dans le plafond
-mensuel, au tarif public de 35 $ pour mille : elles
-pèsent bien plus que les jetons, et le plafond les ignorait jusqu'à la 0.12.0.
-
-**Comptes et connexion.** On entre avec un compte Google, et avec rien
-d'autre : plus de mot de passe nulle part dans l'interface. Une adresse
-inconnue qui se connecte crée une **demande** — aucune session n'est ouverte,
-rien de l'inventaire n'est visible — qu'un administrateur valide dans
-Réglages › Comptes. Il peut aussi refuser, révoquer un accès (les sessions en
-cours sont coupées), rétablir un compte refusé, ou déconnecter tous les
-appareils d'un membre. Le statut est vérifié à chaque requête, pas seulement à
-la connexion. Sur une base vide, la première connexion Google crée
-l'administrateur et les emplacements par défaut. Une porte de secours en ligne
-de commande, lancée dans le conteneur, reste disponible si Google devient
-inutilisable : voir [Accès de secours](#accès-de-secours).
+---
 
 ## Installation
 
@@ -1064,46 +695,49 @@ release-please.
 
 ## Derniers changements
 
+Une ligne par version ; le détail complet est dans [CHANGELOG.md](CHANGELOG.md),
+engendré par release-please depuis les messages de commit.
+
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.30.0 | 2026-10-22 | **Le ticket de caisse remplit le stock, et la liste de courses est abandonnée.** L'onglet Courses n'est plus une liste à cocher : on y choisit l'emplacement, on photographie le ticket (ou on dépose un PDF), et les lignes s'affichent dans l'ordre du ticket — produit reconnu, libellé imprimé, quantité corrigeable, et le mouvement de stock « 2 → 3 », ou « +1 » seul quand le produit de la ligne vient d'être choisi et que sa base n'est pas connue, avec l'unité à côté de la quantité dès que le produit ne se compte pas à la pièce. Une ligne reconnue arrive cochée, une ligne ambiguë propose ses candidats, une ligne inconnue est marquée « Nouveau » et reste à scanner ; on décoche ce qui ne doit pas entrer, on valide, et les quantités montent dans le Stock sans date de péremption. Les libellés jamais reconnus se rattachent à un produit depuis la liste repliée sous l'écran, et la pastille de l'onglet les compte : ils seront reconnus aux tickets suivants. Un ticket lu garde son adresse (`/courses/<id>`) et son brouillon côté serveur : rafraîchir ou changer d'application ne perd pas une lecture payée. Paquet, boîte et sachet comptent des objets entiers comme la pièce, donc une ligne y est reconnue d'office ; hors de ces unités la case de quantité reste vide, à remplir. Réglages › Reconnaissance gagne une tuile « Tickets aujourd'hui » (du jour, du mois, dépense) : le quota de lecture n'était annoncé nulle part. Un parcours bout en bout (P7) rejoue tout cela dans un vrai navigateur. Le cahier des charges est amendé (sections 3, 4, 12, 14 et 26) : EF-12 (seuils et liste de courses) et EF-24 (ajout des manquants aux courses) sont abandonnées, EF-29 ajoutée — l'inventaire sert à savoir ce qui dort au fond du placard et ce qu'on peut en cuisiner, pas à suivre ce qu'il reste à acheter ([détail](CHANGELOG.md)) |
-| 0.29.1 | 2026-10-22 | `docker-compose.yml` et `.env.example` transmettent enfin `FALLBACK_MODEL`, `GEMINI_RPD` et `GEMINI_RPM` : les trois variables ajoutées la veille existaient côté application mais n'étaient pas passées au conteneur, donc le modèle de repli restait inerte et le compteur d'appels sans dénominateur, quoi qu'on mette dans le `.env` |
-| 0.29.0 | 2026-10-22 | **Réglages : tout replié, puces de couleur, version en haut à droite, et la conso des recettes enfin visible.** Les cinq sections sont désormais repliées à l'arrivée, y compris Reconnaissance et Comptes : le résumé de chaque en-tête porte l'information — « 2 actifs · 1 en attente » se lit section fermée, donc rien d'actionnable ne disparaît. Chaque section porte une puce de couleur (cyan pour Reconnaissance, émeraude pour Comptes, ambre pour Inventaire, indigo pour Foyer, violet pour Export) : cinq replis identiques manquaient de repère visuel. Ces teintes sont **cantonnées à cet écran** et n'entrent pas dans les jetons du thème, qui réservent le rouge, l'orange et l'ambre à la péremption et les bleus à la température de stockage — sens qui restent intacts partout ailleurs. La version de l'application passe du bas de l'écran à l'en-tête, en haut à droite : au bas d'un écran devenu pliable, il fallait dérouler pour l'atteindre. Enfin, les appels **recettes** ont leur propre tuile — du jour, du mois, et leur dépense. Les tuiles « photos » les excluent délibérément, pour ne pas fausser le taux d'automatisation du scan ; mais faute de ligne propre, leur consommation n'était lisible nulle part, seulement fondue dans le coût du mois |
-| 0.28.0 | 2026-10-21 | **Dire quelle limite Gemini refuse, et basculer de modèle plutôt que d'abandonner.** Un 429 n'est plus traduit par un « Quota Gemini atteint » indifférencié : l'application lit le refus que Google envoie — `quotaId` nomme la limite franchie, `retryDelay` donne la reprise — et dit « Trop de demandes coup sur coup. Réessayez dans 12 secondes. » ou « Le quota Gemini du jour est épuisé. Il repart à minuit, heure du Pacifique. » Aucune limite n'est recopiée dans le code : aucune API ne permet de les lire, et une table recopiée diverge en silence — c'est ce qui a rendu le plafond de dépense inopérant six jours durant. Un **modèle de repli** se choisit dans Réglages › Reconnaissance : quand le quota du modèle retenu est épuisé, l'application reprend **une seule fois** sur ce second modèle, les quotas de Gemini étant comptés par modèle. Jamais de cascade, et jamais pour une autre panne — une clé refusée échouerait à l'identique sur le repli. Le scan annonce la bascule à l'écran : « Quota du modèle habituel épuisé : cette lecture vient de … ». Enfin, Réglages affiche le nombre d'appels réellement partis chez le fournisseur, aujourd'hui et dans la dernière minute, scan et recettes confondus — c'est ainsi que Google les compte. Renseignez `GEMINI_RPD` et `GEMINI_RPM` d'après la console Google pour lire « 15 / 500 » au lieu de « 15 » ; laissées vides, l'écran rend le compte seul, un rapport à une valeur inventée valant moins que pas de rapport |
-| 0.28.0 | 2026-10-21 | **Réglages en sections pliables.** L'écran faisait plusieurs hauteurs de téléphone et l'on y descendait à l'aveugle : Reconnaissance, Comptes, Inventaire, Foyer et Export deviennent des sections repliables, et chaque en-tête porte son résumé — « gemini · 4 / 50 photos aujourd'hui », « 2 actifs · 1 en attente », « Alerte à 3 jours » — ce qui évite de déplier pour savoir. Seule « Reconnaissance » est ouverte à l'arrivée, parce que c'est ce qu'on vient consulter le plus souvent — et « Comptes » s'ouvre d'elle-même tant qu'une demande d'accès attend, puisque c'est la seule chose de cet écran qui réclame une action. « Compte » reste dépliée en permanence : s'en aller ne doit pas demander un geste de plus. Construit sur l'élément `<details>` du navigateur — ouverture, clavier et annonce aux lecteurs d'écran sont natifs, et le contenu replié reste dans la page, donc la recherche du navigateur le trouve toujours. Aucune couleur n'a été ajoutée : le thème réserve le rouge, l'orange et l'ambre à la péremption, les bleus à la température de stockage et le céladon aux actions, si bien qu'une puce décorative dans l'une de ces teintes aurait vidé de son sens la seule chose qui compte dans une application de stock. La puce de section s'allume donc en céladon à l'ouverture, et reste sourde sinon. Aucun réglage ne change de place ni de comportement |
-| 0.27.1 | 2026-10-21 | Correctif : depuis le 15 octobre, **aucun appel à Gemini n'était chiffré et le plafond mensuel de 5 € comptait zéro**. Le sélecteur de modèle de Réglages propose toute la famille Flash servie par la clé, filtre volontairement ouvert ; la table de prix, elle, était une liste fermée de cinq noms exacts. `gemini-flash-latest`, choisi ce jour-là pour la photo comme pour les recettes, n'y figurait pas : chaque appel était journalisé sans coût, et le plafond — qui ne compte que ce qui est chiffré — n'a plus rien arrêté. Le tarif se résout désormais par nom exact, puis par famille : un nom inconnu contenant « flash-lite », « flash » ou « pro » prend le tarif de cette famille. Le repli suppose qu'une génération ne renchérit pas, ce que vérifient les tarifs actuels ; si Google augmente, le compte sera bas d'autant, mais bas et non nul, et l'écart se lira au journal. L'avertissement de démarrage passe par la même résolution et ne se déclenche donc plus pour un alias désormais tarifé |
-| 0.27.0 | 2026-10-21 | **Demande parlée.** Un micro dans l'en-tête de l'écran Suggestions ouvre un écran à part : on appuie, on dit « il me reste du poulet, et un peu de sauce tomate, je veux faire un plat italien », et l'application rend des recettes qui croisent la phrase avec le stock réel. L'enregistrement part à Gemini, qui écoute, comprend et propose dans le même appel : ce qu'il a compris est affiché au-dessus des résultats, faute d'étape de confirmation, et les ingrédients entendus ne sont jamais annoncés comme manquants. L'audio n'est conservé nulle part — ni fichier, ni colonne, ni journal. L'enregistrement est borné à 60 secondes et 4 Mo, refusé au-delà côté écran comme côté serveur, et chaque refus a son message en français : micro refusé, micro absent, micro déjà pris, enregistrement vide, demande non comprise, quota atteint. Une demande parlée appelle toujours le modèle et consomme un appel du quota journalier comme du plafond mensuel ; les recettes rendues entrent au réservoir. L'entrée audio est désormais facturée à son propre tarif, trois fois celui du texte sur Flash-Lite, et, quand l'API ne ventile pas les jetons par modalité, tout l'appel est compté au tarif audio — le plafond mensuel sous-comptait sinon en silence. Le champ d'ingrédients à pastilles ne change pas, aucune migration. Corrections de revue : le tarif audio s'applique aussi quand l'API ventile les jetons **sans** mentionner l'audio (une ventilation réduite à une ligne « texte » faisait sinon facturer un appel audio au tiers de son prix, en silence) ; une réponse acceptée puis refusée par le modèle — filtre de sécurité, réponse tronquée — est désormais chiffrée et inscrite au journal, car Google la facture ; l'enregistrement ne peut plus se bloquer à la soixantième seconde ; « Réessayer » disparaît après un échec, au profit de la seule chose possible — réenregistrer, puisque l'audio n'est pas conservé ; et la limite par adresse passe de vingt à cinq par minute, la précédente ne mordant jamais avant le quota journalier |
-| 0.27.0 | 2026-10-20 | Le défilement de Suggestions finissait par demander plus de recettes que le schéma partagé n'en autorise : le serveur répondait « corps de requête invalide », et le bouton « Réessayer » de l'écran d'erreur rejouait la même requête invalide — une boucle dont on ne sortait pas. La page demandée est désormais bornée au plafond, et la sentinelle de défilement disparaît une fois celui-ci atteint |
-| 0.27.0 | 2026-10-20 | Le défilement infini de Suggestions ne chargeait qu'une seule page de plus, puis s'arrêtait : l'observateur se débranchait après son premier déclenchement et ne se rebranchait jamais. Il est désormais réarmé à chaque page reçue. Et quand le plafond d'affichage est atteint — soixante recettes à la fois, parce que chaque recette affichée coûte un rapprochement de tous ses ingrédients contre le catalogue de produits — l'écran le dit au lieu de s'arrêter en silence |
-| 0.27.0 | 2026-10-20 | Sur Suggestions, le bouton « Charger plus » n'est plus affiché : le défilement infini charge la suite tout seul, et le bouton restait pourtant visible en permanence tant qu'il restait des pages. Il devient atteignable à la tabulation seulement — la sentinelle de défilement ne se déclenche ni au clavier ni pour un lecteur d'écran, et le masquer purement aurait retiré la fonction à ceux qui n'utilisent pas la souris |
-| 0.26.0 | 2026-10-20 | La fiche recette perd le nom de la cuisine en tête et le titre « Ingrédients » au-dessus de la liste, pour gagner deux lignes : une liste d'ingrédients se reconnaît sans qu'on la nomme. La section garde son nom pour les lecteurs d'écran, qui ne le devinent pas |
-| 0.25.0 | 2026-10-20 | Sur la fiche recette, le nombre de parts prend le même gabarit que les durées — étiquette « Parts » au-dessus, valeur en dessous, alignée sur la même ligne de base — au lieu d'un champ habillé deux fois plus haut que ses voisins, qui cassait la ligne pour un seul chiffre. Deux chiffres au plus, vingt parts au maximum depuis cet écran (le serveur en accepte toujours cinquante : une recette déjà enregistrée au-delà reste affichée telle quelle). | 0.25.0 | 2026-10-20 | Le texte d'aide du champ d'ingrédients de l'écran Suggestions devient « ingrédients », au lieu de l'exemple « pommes de terre, merguez » : depuis que le bouton « Filtres » partage la ligne, il reste environ 185 px pour ce champ sur un téléphone, et un exemple à deux aliments s'y faisait couper en plein milieu — un exemple tronqué enseignant la syntaxe de travers |
-| 0.24.0 | 2026-10-20 | **La fiche recette passe en lecture seule.** Les repères de tête n'en font plus qu'un : cuisine, durée totale, difficulté, étoile de favori, détail des durées (préparation, cuisson, temps actif, repos) et nombre de parts se lisent dans un seul bloc, au lieu de deux encadrés successifs. Une **durée absente ne s'affiche plus du tout** — une recette sans repos n'affiche pas « Repos » suivi d'un tiret. Le **nombre de parts** reste ajustable et continue de mettre les quantités des ingrédients à l'échelle : c'est désormais sa seule fonction. Disparaissent de l'écran : les boutons **« Cuisiner »** et **« J'ai fait cette recette »**, la rangée **« Modifier » / « Archiver » / « Supprimer » / « Restaurer »**, et le bloc **Historique** avec sa notation par réalisation. Conséquence assumée, demandée en connaissance de cause : on ne peut plus, depuis cette fiche, cuisiner avec décrément du stock, enregistrer une réalisation, noter, modifier, archiver, restaurer ni supprimer une recette, et l'écran de modification n'est plus relié à aucun bouton. Rien n'est retiré du serveur : toutes ces fonctions restent servies par l'API, avec leurs tests, et les composants correspondants (tiroir de cuisson, historique, tiroir de notation) restent dans le dépôt, prêts à être réaffichés. Sur « Mes recettes », l'effacement par glissement (qui archive) et le bandeau de rappel de notation ne changent pas. Aucune route, aucune migration |
-| 0.23.0 | 2026-10-20 | L'écran **Suggestions** reprend l'affichage de « Mes recettes » : les quatre sélecteurs d'orientation (type de plat, cuisine, durée, facilité), qui occupaient en permanence une moitié d'écran de téléphone avant la première recette, passent derrière un **bouton « Filtres »** unique posé à droite du champ d'ingrédients, portant le nombre d'orientations actives et ouvrant un panneau par le bas. Rien n'est retiré : les quatre sélecteurs et « Tout effacer » y vivent inchangés, chaque geste relance toujours une vraie recherche, le bouton « Chercher » du champ d'ingrédients garde sa place, et un retour arrière ferme le panneau au lieu de quitter l'écran |
-| 0.22.0 | 2026-10-19 | « Mes recettes » et la fiche recette reprises pour le téléphone, où l'application est utilisée en très grande majorité. Sur une suggestion, le bouton unique « Plus d'informations » fait place à **deux boutons**, « Je fais cette recette » et « Annuler » (détail plus bas) : l'ancien libellé promettait une lecture là où le geste enregistre définitivement la recette, et il a fait hésiter. Sur la liste, les onze contrôles de filtre qui occupaient en permanence le haut de l'écran passent derrière un **bouton « Filtres »** unique, posé à droite de la recherche, portant le nombre de filtres actifs et ouvrant un panneau par le bas : rien n'est retiré — les six sélecteurs et les cinq bascules y vivent inchangés —, c'est la place permanente qui disparaît, et la liste commence enfin en haut de l'écran. Le sélecteur **« Trier par » n'est plus affiché** : le tri reste mémorisé par utilisateur, par défaut la note, mais il ne prend plus de place (conséquence assumée : on ne peut plus en changer depuis cet écran). Une recette **s'efface d'un glissement vers la gauche** sur sa carte, qui découvre une action rouge, suivie d'une confirmation — effacer veut dire **archiver** : la recette quitte la liste, garde son historique et ses notes, et la bascule « Archivées » la retrouve entière, rien n'est supprimé de la base. Le glissement seul n'efface jamais, et comme il n'existe ni au clavier, ni au lecteur d'écran, ni à la souris, la même action se découvre aussi au focus et au survol ; chaque bouton est nommé par sa recette (« Supprimer Bibimbap simplifié »), jamais « Supprimer » seul au milieu d'une liste. Sur la fiche, les cinq étoiles de **note du foyer ne s'affichent plus** — elles prenaient trop de place ; la note reste en base, lisible sur les cartes de la liste et toujours le tri par défaut, et la notation après cuisson, par membre, reste intacte dans l'historique. Le **nombre de parts** rejoint le bloc des durées (préparation, cuisson, temps actif, repos), toujours ajustable et toujours le même nombre du premier coup d'œil jusqu'au tiroir de cuisson. **Durée totale et difficulté deviennent des blocs colorés**, sur deux échelles distinctes, avec des jetons du thème et jamais une couleur en dur : la couleur ne porte pas l'information seule, le texte reste écrit. Aucune route ni migration nouvelle — l'effacement utilise l'archivage qui existe depuis le socle du module recettes. Le tiroir d'une suggestion, donc : à gauche **« Je fais cette recette »**, qui conserve et mène droit à la fiche où se règle le nombre de parts ; à droite **« Annuler »**, qui ferme et revient aux suggestions sans rien enregistrer, et reste indisponible tant que la conservation est en cours. Enfin, le **geste « page précédente » ferme le tiroir ouvert** au lieu de quitter l'écran : un glissement vers la gauche depuis le tiroir d'une suggestion basculait sur « Mes recettes » dès qu'on y était passé avant. Rien dans l'application n'écoutait ce glissement — c'est le navigateur qui remontait l'historique, faute d'entrée posée à l'ouverture du tiroir. Le correctif vit dans le composant de tiroir partagé, donc les dix-sept tiroirs de l'application en bénéficient ; fermer par la croix, par Échap ou par Annuler retire l'entrée, pour qu'un Retour ne reste jamais sans effet, et une navigation volontaire (vers la fiche d'une recette conservée) n'est pas avalée au passage. Toute la pile de tiroirs se partage **une seule** entrée : un tiroir qui en remplace un autre — « Code-barres inconnu » puis « Nouveau produit », au scan — la reprend au lieu d'en poser une seconde, sans quoi le second se refermait aussitôt et la saisie manuelle devenait inatteignable. Enfin, l'effacement d'une recette se découvre réellement à la souris : le survol était confié à une règle CSS que rien ne garantissait, et le bouton, quoique présent, ne pouvait être cliqué ni par une souris ni par un outil de test |
-| 0.21.0 | 2026-10-19 | Le champ d'ingrédients de l'écran Suggestions passe aux **pastilles** et s'accompagne d'une autocomplétion depuis votre catalogue de produits. Chaque terme validé, par Entrée ou par une virgule, devient une pastille visible portant une croix pour la retirer : « poulet tomate » tapé sans virgule était jusqu'ici compris comme un seul ingrédient de ce nom, sans que rien à l'écran ne le dise — on lisait « Aucune recette avec ces ingrédients » après avoir payé l'appel au modèle. Dès les premières lettres, les produits du catalogue sont proposés sous le champ (« pou » → « Poulet fermier »), navigables aux flèches et fermés par Échap ; un terme choisi dans la liste porte exactement un libellé connu, donc le rapprochement ne dépend plus de l'orthographe. La saisie libre reste entière : « reste de merguez » n'est dans aucun catalogue et s'écrit comme avant. Le retour arrière sur un champ vide retire la dernière pastille, un terme tapé sans être validé part quand même avec la recherche, et les bornes (cinq ingrédients, trente caractères) sont refusées à l'écran, avec leur raison, au lieu d'être rejetées par le serveur. Ni l'API ni la base ne changent : les termes repartent dans la même chaîne séparée par des virgules. Les ingrédients dictés tapés d'un seul tenant, sans virgule — « poulet tomate » — retrouvent désormais les recettes qui contiennent les deux. Un terme multi-mots est d'abord cherché tel quel dans un libellé, puis mot à mot dans l'ensemble des ingrédients de la recette : l'écran annonçait « aucune recette » pour du poulet et de la tomate, après avoir payé l'appel au modèle dont les recettes venaient d'être écartées. La recherche web des recettes est désormais **éteinte par défaut**. Elle était activée depuis la 0.12.0 au motif que c'était la fonctionnalité demandée et non une option — mais elle est facturée à la requête, hors quota gratuit, et une clé sans facturation la refuse : allumée sur une instance non facturée, elle ne produit pas des recettes web, elle produit un écran vide. Le réglage de Réglages › Reconnaissance dit maintenant ce que son activation exige. Le choix d'un administrateur continue de primer sur cette valeur de départ. Un parcours bout en bout joue désormais ce champ dans un vrai navigateur : pastilles, retrait par la croix, autocomplétion du catalogue, recherche limitée aux recettes qui portent tous les termes, et l'explication affichée quand une combinaison ne rend rien |
-| 0.20.0 | 2026-10-19 | Les suggestions partent désormais aussi des ingrédients que vous dictez : un champ de texte libre, au-dessus des filtres de l'écran Suggestions, où l'on tape « pommes de terre, merguez » (cinq ingrédients au plus, trente caractères chacun, séparés par des virgules). Ce qui est saisi est imposé — seules des recettes utilisant **tous** ces éléments sont proposées, l'objet étant d'écouler un reste et non de recevoir des idées vaguement proches. Du texte libre et non une sélection dans l'inventaire : un reste de merguez n'a pas de code-barres. Le stock reste pris en compte, en complément, et le modèle reçoit clairement ce qui est imposé et ce qui est seulement disponible. Le réservoir est lu d'abord, filtré sur ces ingrédients : le modèle n'est appelé que s'il en reste moins de six, donc retaper la même demande ne coûte rien. Chaque combinaison a son propre verrou de 24 heures, « merguez, pommes de terre » et « pommes de terre, merguez » comptant pour une seule et même demande. Le singulier et le pluriel mènent à la même recette (« pomme de terre » trouve « Pommes de terre nouvelles », « oeuf » trouve « Œufs ») : sans quoi, selon la façon de taper, on repayait un appel au lieu de lire le réservoir. Un ingrédient que l'on vient de déclarer n'est jamais annoncé comme manquant — ni dans la liste des manques de la carte, ni dans la fiche de la recette, qui l'affiche « Déclaré » —, tandis que le taux de couverture reste calculé sur le stock réel — une recette peut donc afficher « 3 sur 4 » sans lister de manquant, un chiffre prudent valant mieux qu'un chiffre inventé à partir d'une déclaration invérifiable. Une combinaison trop rare rend peu ou rien : l'écran en dit la raison au lieu d'afficher une liste vide et muette. Quand le quota journalier ou le plafond mensuel est atteint, la liste de repli affichée le dit désormais explicitement : les ingrédients demandés n'y sont pas pris en compte. Le champ vide ne change rien au comportement actuel, et aucune modification de la base de données n'est nécessaire |
-| 0.19.0 | 2026-10-19 | Tout le réservoir de recettes se parcourt enfin : sous la liste des suggestions, un bouton « Charger plus (12 sur 37) » — même geste et même formulation que « Mes recettes » — allonge la page de douze recettes à chaque appui, jusqu'à soixante, et disparaît quand tout ce que le réservoir connaît pour l'orientation est affiché. Jusqu'ici l'écran n'en montrait que douze et rien ne permettait de voir les autres : un réservoir de trente-sept recettes en cachait vingt-cinq, définitivement, alors que c'est tout l'intérêt de les conserver. Charger plus ne relit que le réservoir, sans jamais appeler le modèle ni dépenser quoi que ce soit, et la fenêtre de classement suit la page demandée — sans quoi les recettes au-delà des trente-six premières n'auraient jamais été ni classées ni rendues. Les suggestions se diversifient : le modèle doit désormais rendre des plats nettement différents les uns des autres, jamais deux variantes d'une même recette, en variant l'ingrédient principal, la technique et la base — le prompt disait jusqu'ici l'inverse en toutes lettres (« aucune variété n'est exigée »), ce qui faisait tourner les propositions autour d'un même plat. Les titres déjà connus pour l'orientation demandée (les quarante plus récents) lui sont cités avec consigne de ne pas les reproposer. Et une relance montre enfin ce qu'elle rapporte : les recettes que l'appel vient de ramener passent en tête de la liste, devant les anciennes même mieux couvertes ; l'ordre habituel reprend au geste suivant, sans rien mémoriser. L'écran Suggestions annonce sous la liste combien de recettes le réservoir connaît pour l'orientation affichée et combien il en contient en tout, et le bouton « Chercher de nouvelles recettes » y est désormais atteignable même quand des résultats s'affichent : il n'existait que dans l'état vide, si bien qu'un réservoir suffisant pour remplir une page ne pouvait plus jamais grandir. Une recette conservée depuis une suggestion arrive désormais avec une cuisine : celle de sa région (Européenne, Asiatique, Méditerranéenne…), créée à la première conservation. Le sélecteur « Cuisine » de « Mes recettes » parle donc du même vocabulaire que celui des Suggestions, et se remplit tout seul — jusqu'ici une recette conservée n'avait aucune cuisine, et ce filtre ne pouvait correspondre à aucune d'elles. L'écran de connexion devient une carte centrée verticalement et horizontalement, et porte le nom de l'application, désormais « Kitchen Inventory » partout — écran de connexion, titre du document et manifeste (l'étiquette sous l'icône de l'écran d'accueil reste « Kitchen », que le système tronque) — il était jusque-là poussé contre le bas de l'écran, ce qui se lisait comme un défaut de mise en page plutôt que comme une intention, et rien n'y disait de quelle application il s'agissait |
-| 0.18.0 | 2026-10-18 | Connexion par compte Google, et plus de mot de passe nulle part dans l'interface (section 10). Le flux est celui du « jeton d'identité » : une seule valeur à configurer, `GOOGLE_CLIENT_ID`, publique, sans client secret — les étapes exactes de la console Google Cloud sont dans le README, section « Première connexion ». Les routes `POST /auth/login`, `POST /auth/setup`, `POST /me/password` et `POST /users` disparaissent, ainsi que l'écran d'installation, l'écran Utilisateurs et le verrouillage après cinq échecs, devenu sans objet. L'inscription est ouverte, l'accès ne l'est pas : une adresse inconnue qui se connecte crée une demande, ne voit rien de l'inventaire, et attend qu'un administrateur la valide dans Réglages › Comptes — quatre listes (en attente, actifs, refusés avec « Rétablir », et son propre compte). Un compte refusé ou révoqué n'est jamais supprimé, il garde son historique, et se reconnecter lui rend le même message qu'une demande ordinaire : la page de connexion ne sert pas à énumérer les adresses du foyer. Le statut du compte est vérifié à chaque requête, pas seulement à la connexion : une révocation coupe l'accès immédiatement. Sur une base vide, la première connexion Google crée l'administrateur et les emplacements par défaut. Un jeton dont l'audience n'est pas le Client ID configuré, dont l'adresse n'est pas vérifiée, ou dont l'identité Google ne correspond pas à celle déjà enregistrée pour cette adresse, est refusé. Porte de secours si Google devient inutilisable : `docker compose exec app node tools/acces-secours.js adresse@example.org` pose un mot de passe affiché une seule fois, valable une heure, utilisable une seule fois, sur une route que l'interface ne présente nulle part — le terminal web de Dockge garde ce mot de passe dans son historique de défilement, fermer l'onglet après usage. L'administration se partage : sur la ligne d'un compte actif, « Promouvoir » et « Retirer admin » changent le rôle, avec trois garde-fous (jamais son propre rôle, jamais le dernier administrateur actif, jamais un compte non actif) — sans quoi seul le tout premier compte connecté aurait été administrateur, à jamais. Une connexion Google réussie referme au passage la porte de secours restée ouverte. Les jetons de service appartiennent au foyer et non à une personne : révoquer un compte ne les coupe pas, il faut les supprimer. Migrations `0011_connexion_google` et `0012_acces_secours`. Un parcours bout en bout P6 rejoue l'inscription et la validation, et la construction de l'image vérifie désormais que la commande de secours démarre bien dedans |
-| 0.17.0 | 2026-10-15 | Le menu de choix des modèles, dans Réglages › Reconnaissance, se limite désormais à la famille Flash : l'API Gemini ne dépend pas de l'abonnement Google AI Plus et servirait un modèle Pro sans rien demander, facturé sur la clé. Réservoir permanent de suggestions (EF-25, EF-26) : les recettes rapportées par Gemini ne s'effacent plus, elles entrent dans une table dédiée, dédoublonnées, sans limite d'âge. À chaque visite l'application lit ce réservoir, recalcule la couverture contre le stock du moment et n'appelle le modèle que si moins de six recettes correspondent à l'orientation, ou sur relance explicite — consommer un article ne déclenche plus de recherche payante, la signature de recherche ne dépendant plus du stock. Une recette annoncée comme trouvée sur le web n'est retenue que si sa page répond : le contenu est recopié en base une fois pour toutes, le site n'est plus jamais recontacté, pas même au moment de conserver la recette. Les compositions du modèle restent, affichées « composée par l'IA, non vérifiée » et classées après les recettes vérifiées. Une orientation déjà cherchée dans les 24 h n'est pas redemandée : l'écran annonce la cause, l'échéance, et offre un bouton « Chercher de nouvelles recettes ». Le cache de fournée de 24 h disparaît. Migration `0009_suggestion_pool`. Les filtres de « Mes recettes » adoptent par ailleurs la présentation de Suggestions : les six rangées de pastilles défilantes deviennent six sélecteurs natifs par paires, type de plat d'abord, une seule valeur active par facette ; les cinq bascules rapides restent des pastilles sur une rangée Suggestions : l'écran n'affiche plus qu'une douzaine de recettes à la fois, les mieux classées, au lieu de tout le réservoir — une visite ne ralentit plus à mesure qu'il grossit. Le bouton « Chercher de nouvelles recettes » repart bien à chaque appui, y compris après être allé voir « Mes recettes » et revenu. Un stock momentanément vide n'empêche plus de consulter le réservoir : les recettes déjà trouvées restent affichées, avec une couverture nulle. Les seize recettes demandées au modèle entrent toutes au réservoir, au lieu de douze sur seize. La colonne `payload` des fournées, que plus personne ne lisait, est retirée (migration `0010_suggestion_batch_sans_payload`) |
-| 0.16.0 | 2026-10-11 | Parcours dirigé des suggestions sur mobile (EF-25). L'onglet Recettes ouvre toujours Suggestions ; la mémorisation du dernier volet consulté est retirée. À l'arrivée, une question bloquante demande le type de plat avant d'afficher quoi que ce soit d'autre, et oriente la recherche initiale — le modèle ne proposant alors plus que ce type. Les quatre rangées de pastilles d'orientation (type de plat, cuisine, durée, facilité) font place à quatre sélecteurs natifs sur deux lignes de deux, qui ne prennent plus la moitié d'un écran de téléphone ; les quatre relancent désormais une recherche à chaque changement, y compris le type de plat, qui ne pouvait plus se contenter de filtrer une fournée déjà réduite à ce même type. Le titre d'une recette tient désormais sur deux lignes au plus, sans jamais être tronqué sur une seule, aussi bien sur une carte de suggestion que sur « Mes recettes » |
-| 0.15.0 | 2026-10-08 | Favoris et note directe sur une recette (EF-21). Une étoile à cocher marque une recette comme favorite — liste unique partagée par le foyer — depuis sa fiche et chaque carte de « Mes recettes », indépendamment de la note. La fiche gagne cinq étoiles de note directe, posables sans aucune réalisation enregistrée. Partout où une note s'affiche (carte, fiche, tri), la note directe prime désormais sur la moyenne des réalisations, qui prend le relais en son absence ; la note par réalisation reste par ailleurs inchangée, pour l'historique. Pastille « Favoris » dans les filtres rapides de « Mes recettes ». La fiche d'une recette jamais cuisinée explique désormais l'absence d'historique au lieu de l'afficher vide |
-| 0.14.0 | 2026-10-08 | Lot recettes « complétude et usage ». Gemini rend une durée de préparation et une durée de cuisson séparées (`null` quand la recette n'en a pas, jamais un zéro qui se lirait « cuisson : 0 minute »), affichées sur la fiche recette et sur une suggestion ; chaque étape de cuisson doit préciser température du four, intensité du feu et durée, sous peine d'être jugée inexploitable. Chaque ingrédient affiche la photo du produit rapproché et une pastille colorée de l'emplacement de son lot le plus proche de péremption. « Déjà faites » rejoint les pastilles de filtre rapide de Mes recettes, dont chaque carte affiche déjà note et réalisations. Une réalisation passée se note depuis l'historique de la fiche, sans repasser par une cuisson. « Plus d'informations » remplace « Conserver » sur une suggestion (même geste, même effet). Le nombre de parts affiché sur la fiche recette est désormais ajustable : les quantités par ligne et l'état de chaque ingrédient suivent, et ce même nombre préremplit le tiroir de cuisson — un seul champ du début à la fin. L'onglet Recettes de la barre du bas ouvre désormais un écran à deux volets, Suggestions et Mes recettes, avec une bascule en tête visible sans défilement ; l'application se souvient du dernier volet ouvert (ou retombe sur Suggestions si le stockage est indisponible) |
-| 0.13.0 | 2026-10-08 | Les suggestions sont classées par type de plat — entrée, plat, dessert, accompagnement, apéritif, petit-déjeuner, boisson — sur la taxonomie qui existait déjà pour « Mes recettes », et qu'une suggestion conservée emporte avec elle. Le type devient la première rangée de filtres des deux écrans, devant la cuisine ; sur Suggestions il filtre la fournée déjà chargée, sans appel ni dépense, et propose une relance ciblée seulement quand il ne reste rien |
-| 0.12.3 | 2026-10-08 | La liste des modèles proposée dans Réglages se limite à la ligne courante de Gemini. La clé en déclare une soixantaine — instantanés datés, aperçus, familles parole, image et vidéo — et les dérouler tous pour choisir entre deux modèles utilisables n'était pas tenable au téléphone. Le filtre reste permissif sur le numéro de version, pour qu'une nouvelle génération apparaisse sans modification du code, et rend la liste complète s'il ne laisse rien passer |
-| 0.12.2 | 2026-10-07 | Nettoyage après audit d'over-engineering : suppression des adaptateurs Anthropic, OpenAI et Ollama, jamais configurés ni exercés hors de leurs propres tests, et de la dépendance `@anthropic-ai/sdk` qui ne servait qu'au premier. `VISION_PROVIDER` n'accepte plus que `none` et `gemini` ; l'interface de fournisseur est conservée, c'est elle qui rend un autre fournisseur ajoutable le jour venu. Disparaissent aussi l'interface de fournisseur de suggestions (une seule implémentation), trois fabriques qui ne faisaient que déléguer, la variable `SEARCH_COST_USD_PER_1K` (devenue une constante au même titre que la table de prix), `TZ` dans le schéma de configuration (Node la lit seul) et un libellé de modèle transporté jusqu'au navigateur sans jamais être affiché. Environ 250 lignes et une dépendance en moins, à comportement identique |
-| 0.12.1 | 2026-10-07 | Retrait de `temperature` des trois appels Gemini (reconnaissance photo, suggestions, réécriture). Google l'a déprécié avec `top_p` et `top_k` : sans effet depuis Gemini 3.6 Flash, ces paramètres renverront une erreur sur les modèles à venir. Le modèle applique désormais ses propres valeurs. Aucun `thinking_budget` n'était utilisé, rien d'autre à migrer |
-| 0.12.0 | 2026-10-07 | Interrupteur « Recherche web des recettes » dans Réglages › Reconnaissance, pour les administrateurs. La recherche web est facturée par requête, hors du plafond mensuel de l'application, et certaines clés la refusent — c'est ce refus qui faisait échouer toutes les suggestions chez djkix. Désactivée, le modèle compose les recettes lui-même, avec une consigne explicite de ne pas inventer de lien vers un site. Activée par défaut : c'est la fonctionnalité demandée, pas une option. Les requêtes de recherche entrent désormais dans le plafond mensuel : facturées par requête et non par jeton, elles lui échappaient entièrement, si bien qu'il annonçait une protection qu'il n'assurait pas dès que la recherche était active. Une fournée de douze recettes coûte plus cher en recherches qu'en jetons |
-| 0.11.0 | 2026-10-06 | Les administrateurs choisissent les modèles depuis Réglages, section Reconnaissance : une ligne pour la photo, une pour les recettes. La liste proposée est celle que la clé sert réellement, interrogée auprès du fournisseur — un nom de modèle inexistant ne peut donc plus être saisi, ce qui était la cause de l'écran de recettes vide. Le choix prime sur `VISION_MODEL` et `SUGGESTION_MODEL`, et « Défaut du serveur » rend la main à ces variables. Le modèle est relu à chaque appel : un changement vaut immédiatement, sans redémarrage du conteneur |
-| 0.10.0 | 2026-10-06 | Le numéro de version ne s'affiche plus qu'au bas de l'écran Réglages, au lieu de chaque écran et de la page de connexion : c'est une information d'administration, et le bandeau « Nouvelle version disponible » continue de signaler partout qu'une mise à jour attend. L'écran Suggestions reprend désormais le message du serveur quand la recherche échoue — « en erreur (404) », « en erreur (429) » — au lieu d'un « le modèle n'a pas pu répondre » qui ne distinguait pas un modèle mal configuré d'un quota épuisé ou d'une coupure réseau, et obligeait à aller lire les journaux du serveur |
-| 0.9.2 | 2026-10-05 | Correctif : aucune suggestion de recette n'avait jamais abouti depuis la 0.8.0. Les appels partaient vers `gemini-3.5-pro`, un modèle que l'API Gemini ne sert pas — six tentatives, six 404, et un écran « Mes recettes » vide sans que rien ne l'explique. Le modèle des recettes devient `gemini-3.5-flash-lite` par défaut et se règle à part de la reconnaissance photo, par `SUGGESTION_MODEL` : les deux usages n'ont ni le même besoin ni le même prix. Vingt fois moins cher que le modèle visé, il laisse beaucoup plus de marge sous le plafond mensuel. Aucun test ne pouvait voir cette panne : tous parlent à une doublure locale qui répond quel que soit le nom du modèle |
-| 0.9.1 | 2026-10-05 | Correctif d'accessibilité : les cartes de recette et de suggestion n'avaient aucun nom annoncé par les lecteurs d'écran, et étaient introuvables par une requête rôle + nom — Chromium ne remonte pas le contenu d'un rôle `article` dans le nom calculé d'un lien ou d'un bouton ancêtre (EF-23). C'est ainsi qu'un test de bout en bout avait perdu une recette qu'il venait de conserver, contournement visible dans `e2e/p5-suggestions.spec.ts` jusqu'ici. Les deux cartes restent entièrement tactiles (usage à une main en cuisine) et portent désormais un nom explicite — titre et état de couverture (« Prête à 100 % »), la même information que le badge coloré, en mots |
-| 0.9.0 | 2026-10-05 | La date de péremption se saisit désormais directement dans le tiroir de validation du scan (EF-02), ce que djkix avait demandé puis fait reporter deux fois : sous la quantité, trois raccourcis (« +3 j », « +1 sem », « +1 mois ») ou un lien « autre date » pour la date libre et le choix DLC/DDM. Rien n'est obligatoire — valider sans y toucher reste le même geste qu'avant, même bouton, même nombre de taps — et le bandeau « + DLC » après l'ajout reste disponible pour rattraper un oubli |
-| 0.8.3 | 2026-10-05 | Tests des parcours de bout en bout : vingt-huit scénarios rejouent désormais l'application entière dans un vrai navigateur — ranger les courses en scannant, saisir une date de péremption, consommer un article, chercher dans le stock, demander des suggestions de recettes — contre l'image Docker réellement livrée, sans aucun appel à internet. Ils tournent automatiquement après chaque fusion et doivent passer avant toute publication : une panne du genre de celles trouvées ici (« Mes recettes » vide, recherche sourde aux accents) se verra désormais avant d'arriver sur le mini-PC |
-| 0.8.2 | 2026-10-05 | Correctif : la recherche du stock ignore désormais les accents (EF-11). « creme » trouvait « Crème fraîche » côté produits mais pas côté stock, car la requête était désaccentuée puis comparée telle quelle au texte brut en base. La comparaison passe désormais par `unaccent_lite()` (déjà utilisée pour la détection de doublons) appliquée au texte stocké, via une résolution d'identifiants en SQL brut réinjectés dans le filtre existant ; au passage, `unaccent_lite()` ne savait pas déplier les ligatures Œ/œ/Æ/æ (deux lettres) avec `translate()`, qui ne sait remplacer qu'un caractère par un seul autre — « oeufs » ne trouvait donc pas « Œufs » ; migration `0007_unaccent_lite_ligatures` |
-| 0.8.1 | 2026-10-05 | Correctif : « Mes recettes » n'affichait jamais une recette conservée. Le filtre `archived=false` envoyé par l'écran était converti en `true` (`Boolean("false")` vaut `true` en JavaScript), si bien que seule la liste des recettes archivées était rendue. Trouvé par les tests bout en bout, qu'aucun test d'API ne pouvait révéler puisqu'ils passent un vrai booléen |
-| 0.8.0 | 2026-10-04 | Recettes suggérées à partir du stock (EF-26) : écran Suggestions en entrée du module, point de départ composé depuis le stock réel, recherche web et composition par Gemini, orientation par région/durée/facilité relançant une recherche ciblée, conservation d'une suggestion réécrite au format de l'application dans Mes recettes (EF-25) ; création manuelle retirée, le formulaire ne sert plus qu'à modifier ; `VISION_MONTHLY_CAP_CENTS` plafonne désormais scan et suggestions ensemble, porté à 5 € ; `RECIPE_SUGGESTION_DAILY_QUOTA` ; migrations `0005_recipe_suggestions` et `0006_recipe_client_op_id` ; une recette mal formée n'emporte plus la fournée entière, chaque appel au fournisseur est journalisé pour que quota et plafond soient justes, l'identité d'une suggestion vient de son contenu et non de son rang, code d'erreur `insufficient_stock` dédié ; le scan retrouve son écran dédié quand aucun fournisseur n'est configuré, et les fournées ne faussent plus ses statistiques |
-| 0.7.0 | 2026-10-04 | Module recettes (socle) : écran Recettes trié par note avec filtres et tris mémorisés (EF-21, EF-22, EF-23) ; fiche recette avec état de chaque ingrédient et historique noté par membre (EF-23, EF-28) ; cuisson avec décrément plafonné au stock, lots périmés écartés, fusion de produit suivie et choix du produit substitué, ou réalisation sans décrément (EF-18, EF-28) ; archivage d'une recette déjà cuisinée, cuisson d'une recette archivée refusée ; formulaire de saisie et de modification (EF-17) ; recherche de titre insensible aux accents (A22) ; ajout aux courses (EF-24), import par URL (EF-25) et génération par IA (EF-26) laissés au lot 2 |
+| 0.30.0 | 2026-10-22 | Le ticket de caisse remplit le stock, et la liste de courses est abandonnée |
+| 0.29.1 | 2026-10-22 | `docker-compose.yml` et `.env.example` transmettent enfin `FALLBACK_MODEL`, `GEMINI_RPD` et `GEMINI_RPM` : les trois variables ajoutées la veille existaient côté application mais n'étaient pas… |
+| 0.29.0 | 2026-10-22 | Réglages : tout replié, puces de couleur, version en haut à droite, et la conso des recettes enfin visible |
+| 0.28.0 | 2026-10-21 | Dire quelle limite Gemini refuse, et basculer de modèle plutôt que d'abandonner |
+| 0.28.0 | 2026-10-21 | Réglages en sections pliables, chaque en-tête portant son résumé |
+| 0.27.1 | 2026-10-21 | Correctif : depuis le 15 octobre, aucun appel à Gemini n'était chiffré et le plafond mensuel de 5 € comptait zéro |
+| 0.27.0 | 2026-10-21 | Demande parlée : on dicte ce qu'on a et ce qu'on veut, Gemini écoute et propose |
+| 0.27.0 | 2026-10-20 | Le défilement de Suggestions finissait par demander plus de recettes que le schéma partagé n'en autorise : le serveur répondait « corps de requête invalide », et le bouton « Réessayer » de l'écran… |
+| 0.27.0 | 2026-10-20 | Le défilement infini de Suggestions ne chargeait qu'une seule page de plus, puis s'arrêtait : l'observateur se débranchait après son premier déclenchement et ne se rebranchait jamais |
+| 0.27.0 | 2026-10-20 | Sur Suggestions, le bouton « Charger plus » n'est plus affiché : le défilement infini charge la suite tout seul, et le bouton restait pourtant visible en permanence tant qu'il restait des pages |
+| 0.26.0 | 2026-10-20 | La fiche recette perd le nom de la cuisine en tête et le titre « Ingrédients » au-dessus de la liste, pour gagner deux lignes : une liste d'ingrédients se reconnaît sans qu'on la nomme |
+| 0.25.0 | 2026-10-20 | Sur la fiche recette, le nombre de parts prend le même gabarit que les durées — étiquette « Parts » au-dessus, valeur en dessous, alignée sur la même ligne de base — au lieu d'un champ habillé… |
+| 0.24.0 | 2026-10-20 | La fiche recette passe en lecture seule, les informations utiles remontées en tête |
+| 0.23.0 | 2026-10-20 | L'écran Suggestions reprend l'affichage de « Mes recettes » : les quatre sélecteurs d'orientation (type de plat, cuisine, durée, facilité), qui occupaient en permanence une moitié d'écran de… |
+| 0.22.0 | 2026-10-19 | « Mes recettes » et la fiche recette reprises pour le téléphone, où l'application est utilisée en très grande majorité |
+| 0.21.0 | 2026-10-19 | Le champ d'ingrédients de l'écran Suggestions passe aux pastilles et s'accompagne d'une autocomplétion depuis votre catalogue de produits |
+| 0.20.0 | 2026-10-19 | Les suggestions partent désormais aussi des ingrédients que vous dictez : un champ de texte libre, au-dessus des filtres de l'écran Suggestions, où l'on tape « pommes de terre, merguez » (cinq… |
+| 0.19.0 | 2026-10-19 | Tout le réservoir de recettes se parcourt enfin : sous la liste des suggestions, un bouton « Charger plus (12 sur 37) » — même geste et même formulation que « Mes recettes » — allonge la page de… |
+| 0.18.0 | 2026-10-18 | Connexion par compte Google, et plus de mot de passe nulle part dans l'interface (section 10) |
+| 0.17.0 | 2026-10-15 | Le menu de choix des modèles, dans Réglages › Reconnaissance, se limite désormais à la famille Flash : l'API Gemini ne dépend pas de l'abonnement Google AI Plus et servirait un modèle Pro sans… |
+| 0.16.0 | 2026-10-11 | Parcours dirigé des suggestions sur mobile (EF-25) |
+| 0.15.0 | 2026-10-08 | Favoris et note directe sur une recette (EF-21) |
+| 0.14.0 | 2026-10-08 | Lot recettes « complétude et usage » : couverture, groupes et historique de réalisation |
+| 0.13.0 | 2026-10-08 | Les suggestions sont classées par type de plat — entrée, plat, dessert, accompagnement, apéritif, petit-déjeuner, boisson — sur la taxonomie qui existait déjà pour « Mes recettes », et qu'une… |
+| 0.12.3 | 2026-10-08 | La liste des modèles proposée dans Réglages se limite à la ligne courante de Gemini |
+| 0.12.2 | 2026-10-07 | Nettoyage après audit d'over-engineering : suppression des adaptateurs Anthropic, OpenAI et Ollama, jamais configurés ni exercés hors de leurs propres tests, et de la dépendance… |
+| 0.12.1 | 2026-10-07 | Retrait de `temperature` des trois appels Gemini (reconnaissance photo, suggestions, réécriture) |
+| 0.12.0 | 2026-10-07 | Interrupteur « Recherche web des recettes » dans Réglages › Reconnaissance, pour les administrateurs |
+| 0.11.0 | 2026-10-06 | Les administrateurs choisissent les modèles depuis Réglages, section Reconnaissance : une ligne pour la photo, une pour les recettes |
+| 0.10.0 | 2026-10-06 | Le numéro de version ne s'affiche plus qu'au bas de l'écran Réglages, au lieu de chaque écran et de la page de connexion : c'est une information d'administration, et le bandeau « Nouvelle version… |
+| 0.9.2 | 2026-10-05 | Correctif : aucune suggestion de recette n'avait jamais abouti depuis la 0.8.0 |
+| 0.9.1 | 2026-10-05 | Correctif d'accessibilité : les cartes de recette et de suggestion n'avaient aucun nom annoncé par les lecteurs d'écran, et étaient introuvables par une requête rôle + nom — Chromium ne remonte… |
+| 0.9.0 | 2026-10-05 | La date de péremption se saisit désormais directement dans le tiroir de validation du scan (EF-02), ce que djkix avait demandé puis fait reporter deux fois : sous la quantité, trois raccourcis («… |
+| 0.8.3 | 2026-10-05 | Tests des parcours de bout en bout : vingt-huit scénarios rejouent désormais l'application entière dans un vrai navigateur — ranger les courses en scannant, saisir une date de péremption,… |
+| 0.8.2 | 2026-10-05 | Correctif : la recherche du stock ignore désormais les accents (EF-11) |
+| 0.8.1 | 2026-10-05 | Correctif : « Mes recettes » n'affichait jamais une recette conservée |
+| 0.8.0 | 2026-10-04 | Recettes suggérées à partir du stock (EF-26) : écran Suggestions en entrée du module, point de départ composé depuis le stock réel, recherche web et composition par Gemini, orientation par… |
+| 0.7.0 | 2026-10-04 | Module recettes (socle) : écran Recettes trié par note avec filtres et tris mémorisés (EF-21, EF-22, EF-23) ; fiche recette avec état de chaque ingrédient et historique noté par membre (EF-23,… |
 | 0.6.1 | 2026-10-03 | Publication : « latest » ne suit plus que les versions publiées, les poussées sur main vont sous « main » |
 | 0.6.0 | 2026-10-03 | Bandeau de mise à jour : nouvelle version détectée et rechargement proposé, sans interrompre un scan |
 | 0.5.0 | 2026-09-21 | Version affichée au bas de chaque écran, alerte quand l'interface en cache est périmée ; publication de l'image limitée à amd64, l'architecture de l'hôte |
@@ -1113,22 +747,6 @@ release-please.
 | 0.2.1 | 2026-09-21 | Configuration : les variables vides transmises par Compose (`VISION_BASE_URL=`) sont ignorées au lieu de bloquer le démarrage |
 | 0.2.0 | 2026-09-21 | Reconnaissance photo : fournisseur Google Gemini (`gemini-3.5-flash`), retenu par défaut ; port hôte 8888 |
 | 0.1.0 | 2026-09-21 | Lot 1 : authentification, emplacements, produits, stock et mouvements, scan code-barres, Open Food Facts, vision, export, PWA mobile, stack Docker |
-
-**L'historique complet est dans [`CHANGELOG.md`](./CHANGELOG.md)**, généré
-automatiquement par release-please à chaque version publiée. La version en
-service est affichée au bas de l'écran **Réglages**, et renvoyée par
-`GET /api/v1/health` (champ `version`). Elle n'apparaît plus sur les autres
-écrans : c'est une information d'administration, et le bandeau de mise à jour
-ci-dessous suffit à signaler qu'une version plus récente attend.
-
-Quand une nouvelle version est déployée, l'application la détecte et propose un
-bandeau « Nouvelle version disponible · Recharger » au-dessus de la barre de
-navigation. La vérification a lieu au lancement, toutes les trente minutes
-application ouverte, et à chaque retour au premier plan — sans quoi une version
-déployée en journée n'arriverait sur le téléphone qu'au prochain démarrage
-complet. Le rechargement n'est jamais imposé : il interromprait une session de
-scan, et le bandeau reste d'ailleurs masqué derrière l'écran de scan.
-
 ## Licence
 
 MIT, voir `LICENSE`.
