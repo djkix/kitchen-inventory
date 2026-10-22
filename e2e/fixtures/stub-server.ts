@@ -94,6 +94,11 @@ const OFF_NOT_FOUND: OffMapping = { file: 'off-not-found.json', status: 404 };
 
 const VISION_FIXTURE = 'vision-gochujang.json';
 const SUGGESTIONS_FIXTURE = 'suggestions/gemini-batch.json';
+// Ticket de caisse (EF-29) : deux produits suivis en pièces, que le jeu de
+// développement connaît (« Yaourt nature », « Beurre doux »). Le rapprochement
+// n'accepte « reconnu d'office » que pour une unité PIECE, d'où ce choix plutôt
+// que la fixture riz/lait des tests d'API, qui donnerait deux lignes ambiguës.
+const RECEIPT_FIXTURE = 'receipts/gemini-ticket-pieces.json';
 
 /**
  * Appels réellement servis sur `generateContent`, par usage. Exposés sur
@@ -103,7 +108,7 @@ const SUGGESTIONS_FIXTURE = 'suggestions/gemini-batch.json';
  * fier au `fromCache` que le serveur se pose à lui-même — c'est précisément
  * ce drapeau que le parcours est censé mettre à l'épreuve.
  */
-const callCounts = { suggestions: 0, vision: 0 };
+const callCounts = { suggestions: 0, vision: 0, receipts: 0 };
 
 async function readFixture(file: string): Promise<string> {
   return readFile(resolve(FIXTURES_DIR, file), 'utf8');
@@ -142,11 +147,12 @@ function wrapGeminiText(text: string): unknown {
 
 interface GeminiRequestBody {
   tools?: unknown[];
+  generationConfig?: { responseSchema?: { items?: { properties?: Record<string, unknown> } } };
   contents?: Array<{ parts?: Array<{ inlineData?: unknown }> }>;
 }
 
 /**
- * Les deux usages de Gemini (reconnaissance photo et suggestions de recettes)
+ * Les trois usages de Gemini (reconnaissance photo, ticket de caisse et suggestions de recettes)
  * arrivent sur la même route `generateContent` ; on les distingue par le
  * corps de la requête, jamais par un ordre d'appel supposé :
  *  - la reconnaissance photo porte une image en `inlineData` dans les parts
@@ -162,6 +168,18 @@ interface GeminiRequestBody {
  * dépend d'aucun réglage : on route donc sur elle, et le reste est du module
  * recettes, avec ou sans outil.
  */
+/**
+ * La lecture d'un ticket porte elle aussi une image (ou un PDF) en
+ * `inlineData` : elle ressemble à la reconnaissance photo. Ce qui la distingue
+ * est son `responseSchema` (liste d'objets `label` / `quantity` / `kind`,
+ * GeminiReceiptReader), que la reconnaissance photo n'envoie pas. Elle doit
+ * donc être testée AVANT `isVisionRequest`.
+ */
+function isReceiptRequest(body: GeminiRequestBody): boolean {
+  const properties = body.generationConfig?.responseSchema?.items?.properties;
+  return isVisionRequest(body) && properties !== undefined && 'label' in properties && 'kind' in properties;
+}
+
 function isSuggestionRequest(body: GeminiRequestBody): boolean {
   return !isVisionRequest(body);
 }
@@ -177,6 +195,12 @@ async function handleGenerateContent(req: IncomingMessage, res: ServerResponse):
     body = raw ? (JSON.parse(raw) as GeminiRequestBody) : {};
   } catch {
     sendJson(res, 400, { error: 'corps JSON invalide' });
+    return;
+  }
+  if (isReceiptRequest(body)) {
+    callCounts.receipts += 1;
+    const text = await readFixture(RECEIPT_FIXTURE);
+    sendRawJson(res, 200, JSON.stringify(wrapGeminiText(text)));
     return;
   }
   if (isSuggestionRequest(body)) {

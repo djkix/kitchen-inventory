@@ -51,9 +51,9 @@ Le périmètre se lit en deux fonctions complémentaires : inventorier (lot 1), 
 - Suggestions de recettes construites à partir du stock disponible, trouvées sur le web ou composées par IA, catégorisées par origine, durée et facilité (amendé le 2026-10-04).
 - Filtres sur les suggestions : difficulté, type de cuisine (origine), temps, type de plat, régime alimentaire.
 - Priorité donnée aux recettes qui consomment les articles proches de leur date de péremption.
-- Ajout en un geste des ingrédients manquants à la liste de courses.
+- ~~Ajout en un geste des ingrédients manquants à la liste de courses~~ — abandonné le 2026-10-22 (EF-24).
 - Décrément du stock après cuisson, ajusté au nombre de portions réalisées.
-- Seuils de réapprovisionnement, alertes de péremption, mode hors ligne, export.
+- ~~Seuils de réapprovisionnement~~ (abandonnés le 2026-10-22, EF-12), alertes de péremption, mode hors ligne, export.
 
 Le module recettes est détaillé en section 12.
 
@@ -61,7 +61,7 @@ Le module recettes est détaillé en section 12.
 
 - Génération de recettes par IA à partir du stock, import de recettes depuis une URL, notation.
 - Statistiques de consommation et prévision de réachat.
-- Import de tickets de caisse par OCR.
+- ~~Import de tickets de caisse par OCR~~ — avancé au lot 2 le 2026-10-22, lecture par le modèle (EF-29).
 - Intégration Home Assistant.
 
 **Explicitement hors périmètre**
@@ -77,11 +77,11 @@ Quatre parcours structurent l'application ; le parcours « rangement des courses
 
 **P1 — Inventaire initial.** L'utilisateur se place devant un placard, sélectionne l'emplacement courant une fois, puis enchaîne les scans en rafale. La caméra reste ouverte entre deux articles. Chaque article reconnu est ajouté avec quantité 1 et l'emplacement présélectionné ; un bandeau permet de corriger dans les 5 secondes.
 
-**P2 — Rangement des courses.** Même mode rafale, mais avec saisie ou capture de la DLC quand le produit est périssable. L'application propose la date lue sur l'emballage par OCR, l'utilisateur valide ou corrige.
+**P2 — Rangement des courses.** Même mode rafale, mais avec saisie ou capture de la DLC quand le produit est périssable. L'application propose la date lue sur l'emballage par OCR, l'utilisateur valide ou corrige. **Voie du ticket (amendé le 2026-10-22, EF-29).** Quand les courses sont nombreuses, l'utilisateur photographie le ticket de caisse au lieu de scanner chaque article : il choisit l'emplacement une fois pour tout le ticket, voit les lignes dans l'ordre du ticket, décoche ce qui ne doit pas entrer, corrige une quantité au besoin, puis valide d'un geste. Les produits reconnus montent en stock sans date de péremption ; ce que l'application ne reconnaît pas reste à scanner par son code-barres, et un libellé inconnu se rattache ensuite à un produit pour être reconnu aux tickets suivants.
 
-**P3 — Consommation.** Depuis la recherche ou par scan, l'utilisateur décrémente la quantité. Un appui long sur un article propose « tout consommer ». Un article à zéro bascule en liste de courses si un seuil est défini.
+**P3 — Consommation.** Depuis la recherche ou par scan, l'utilisateur décrémente la quantité. Un appui long sur un article propose « tout consommer ».
 
-**P4 — Consultation.** Depuis le téléphone en magasin ou devant les fourneaux : recherche par nom, filtre par emplacement, vue « périme bientôt », vue « à racheter ».
+**P4 — Consultation.** Depuis le téléphone en magasin ou devant les fourneaux : recherche par nom, filtre par emplacement, vue « périme bientôt ».
 
 ```mermaid
 flowchart LR
@@ -114,7 +114,7 @@ Le chemin nominal tient en deux gestes : viser, valider. Toute étape supplémen
 | EF-09 | Lister les articles périmant sous X jours, X paramétrable | Must |
 | EF-10 | Décrémenter le stock par scan ou depuis la fiche, avec historique des mouvements | Must |
 | EF-11 | Rechercher en texte libre, tolérant aux fautes et aux synonymes (« nouilles » trouve « ramen ») | Must |
-| EF-12 | Définir un seuil minimum par produit et alimenter une liste de courses | Should |
+| EF-12 | ~~Définir un seuil minimum par produit et alimenter une liste de courses~~ — abandonnée le 2026-10-22 | — |
 | EF-13 | Gérer plusieurs comptes utilisateurs sur un inventaire partagé | Should |
 | EF-14 | Corriger une reconnaissance erronée et mémoriser la correction pour le même code-barres | Should |
 | EF-15 | Fonctionner en mode dégradé sans connexion Internet : scan et saisie mis en file, synchronisés au retour | Should |
@@ -122,7 +122,8 @@ Le chemin nominal tient en deux gestes : viser, valider. Toute étape supplémen
 | EF-17 | Proposer des recettes réalisables avec le stock disponible | Should |
 | EF-18 | Décrémenter le stock après validation d'une recette cuisinée | Should |
 | EF-19 | Notifier les péremptions par push, e-mail ou webhook | Could |
-| EF-20 | Importer un ticket de caisse photographié et en extraire les lignes | Could |
+| EF-20 | Importer un ticket de caisse photographié et en extraire les lignes (amendé le 2026-10-22 : réalisée par EF-29) | Could |
+| EF-29 | Remplir le stock depuis un ticket de caisse photographié ou en PDF : lecture des lignes par le modèle, rapprochement au catalogue par une règle pure (reconnu, ambigu, inconnu), validation ligne par ligne dans l'emplacement choisi, libellés inconnus rattachables pour être reconnus ensuite (ajouté le 2026-10-22) | Must |
 
 La colonne priorité suit MoSCoW : les *Must* conditionnent la recette du lot 1. Les exigences propres aux recettes sont numérotées EF-21 à EF-28 en section 12.
 
@@ -372,7 +373,7 @@ Le champ `principal` est ce qui fait la qualité des suggestions : sans lui, l'a
 | EF-21 | Filtrer les suggestions par difficulté, sur une échelle fixe à quatre niveaux | Must du lot 2 |
 | EF-22 | Filtrer par type de cuisine, en multi-sélection, sur une liste extensible | Must du lot 2 |
 | EF-23 | Afficher pour chaque recette le taux de couverture et la liste des ingrédients manquants | Must du lot 2 |
-| EF-24 | Ajouter les ingrédients manquants à la liste de courses en une action | Should |
+| EF-24 | ~~Ajouter les ingrédients manquants à la liste de courses en une action~~ — abandonnée le 2026-10-22 | — |
 | EF-25 | Extraire une recette d'une page web par lecture des données structurées, au service de EF-26 (amendé le 2026-10-04 : mécanisme interne, non fonctionnalité distincte) | Must |
 | EF-26 | Suggérer des recettes par IA à partir du stock, catégorisées par origine, durée et facilité, l'orientation demandée relançant une recherche ciblée (amendé le 2026-10-04 : porte d'entrée du module) | Must |
 | EF-27 | ~~Prioriser les recettes qui consomment des articles proches de péremption~~ — retirée le 2026-10-04 | — |
@@ -422,8 +423,8 @@ flowchart TD
 | Fiche article | Photo, nom, marque, quantité, unité, emplacement, date et son caractère estimé ou lu, historique des mouvements | Modifier, consommer, déplacer, supprimer |
 | Suggestions | Écran d'entrée du module (amendé le 2026-10-04). Fournée de recettes construite sur le stock, chaque carte portant origine, durée, facilité, couverture, manquants et provenance. Orientation par région, durée ou facilité, qui relance une recherche ciblée | Parcourir, orienter, rafraîchir, conserver |
 | Mes recettes | Bibliothèque des recettes conservées. Liste unique triée par note, choix du tri (note, couverture, les plus faites, les moins récentes), barre de filtres persistante (difficulté, cuisine, temps, plat, régime) et pastilles rapides | Filtrer, trier, ouvrir, cuisiner, modifier |
-| Fiche recette | Ingrédients avec état en stock ou manquant, étapes, difficulté, temps | Cuisiner, ajouter les manquants aux courses, noter |
-| Courses | Liste cochable, articles issus des seuils et des recettes distingués | Cocher, ajouter, vider les cochés |
+| Fiche recette | Ingrédients avec état en stock ou manquant, étapes, difficulté, temps | Cuisiner, noter |
+| Courses | Écran du ticket de caisse (amendé le 2026-10-22, EF-29) : choix de l'emplacement, photo ou PDF du ticket, lignes dans l'ordre du ticket avec produit reconnu, libellé imprimé, quantité corrigeable et mouvement de stock (« 2 → 3 », ou « +1 » seul quand la base n'est pas connue ; l'unité s'ajoute hors pièces). Dessous, liste repliée des libellés en attente de rattachement, dont le nombre orne l'onglet | Photographier, cocher ou décocher, corriger une quantité, choisir un candidat, valider, rattacher un libellé |
 | Périme bientôt | Vue dédiée atteignable depuis Stock et depuis une notification | Consommer, jeter, voir les recettes associées |
 | Réglages | Emplacements, comptes (demandes en attente, actifs, refusés), seuil d'alerte, fournisseur de vision, sauvegardes | Créer, modifier, valider ou révoquer un compte |
 
@@ -724,7 +725,7 @@ Quatre lots, chacun utilisable en l'état. Le lot 1 doit être en service dans l
 
 *Recette du lot 1* : inventorier un placard complet de 50 articles en moins de 20 minutes, dont au moins 10 produits asiatiques sans code-barres exploitable, avec un taux de reconnaissance mesuré supérieur à 80 %.
 
-**Lot 2 — Quotidien.** Seuils et liste de courses, alertes de péremption, mode hors ligne, apprentissage par correction, export, et le module recettes avec ses filtres difficulté et type de cuisine (section 12).
+**Lot 2 — Quotidien.** Ticket de caisse (EF-29, amendé le 2026-10-22 ; seuils et liste de courses abandonnés), alertes de péremption, mode hors ligne, apprentissage par correction, export, et le module recettes avec ses filtres difficulté et type de cuisine (section 12).
 
 *Recette du lot 2* : après deux semaines d'usage réel par deux personnes, écart entre stock affiché et stock réel inférieur à 15 %, et au moins trois recettes réalisables proposées à partir du stock courant, filtres actifs.
 
@@ -774,6 +775,7 @@ ici, daté et motivé, plutôt que laissé à l'appréciation du code.
 
 | Date | Section | Amendement | Motif |
 | --- | --- | --- | --- |
+| 2026-10-22 | 3, 4, 12, 14, EF-12, EF-24, EF-29 | La liste de courses est abandonnée : EF-12 (seuils et liste de courses) et EF-24 (ajout des ingrédients manquants aux courses) sont retirées, et non redéfinies. L'écran Courses change de nature : c'est désormais l'écran du ticket de caisse, plus la liste des libellés en attente de rattachement. EF-29 est ajoutée : un ticket photographié ou en PDF est lu par le modèle, ses lignes sont rapprochées au catalogue par une règle pure de `packages/shared`, et l'utilisateur coche, corrige et valide pour faire monter le stock dans l'emplacement choisi, sans date de péremption. Le parcours P2 gagne cette voie ; les mentions d'un basculement en liste de courses (P3) et d'une vue « à racheter » (P4) disparaissent. L'entité `shopping_list_item` et le champ `seuil_min` restent au schéma, sans usage, et aucune migration ne les retire. | djkix : « L'objectif de cette application est d'avoir en tête quel produit j'ai, et qu'est-ce que je peux faire avec. Pour les produits fréquents, yaourt, œuf ou autre, je n'ai pas besoin de cette application car je sais en gros ce que j'ai dans mon frigo. Ce qui n'est pas le cas de ce que j'ai au fond de mon placard que je n'ai pas ouvert depuis trois mois. » L'inventaire sert à savoir ce qui dort au fond du placard et ce qu'on peut en cuisiner, pas à suivre ce qui reste à acheter. La liste de courses répondait à ce second besoin ; le ticket répond au premier, en remplaçant deux heures de scans par cinq secondes de lecture. Spécification et décisions de `docs/specs/2026-10-22-ticket-de-caisse.md`. |
 | 2026-10-18 | 10 | Le mot de passe cesse d'être le mécanisme d'authentification : on se connecte par compte Google (flux « jeton d'identité », `GOOGLE_CLIENT_ID` public, pas de client secret), le jeton est vérifié côté serveur et l'application ouvre sa propre session. `POST /auth/login`, `POST /auth/setup`, `POST /me/password` et `POST /users` sont retirées, ainsi que l'écran d'installation et le verrouillage après cinq échecs. Un compte porte désormais un statut (`PENDING`, `ACTIVE`, `REVOKED`) : une adresse inconnue crée une demande qui n'ouvre aucune session, et c'est un administrateur qui valide dans Réglages › Comptes ; le statut est contrôlé à chaque requête. Sur une base vide, la première connexion Google crée l'administrateur et les emplacements par défaut. Argon2id ne sert plus qu'au mot de passe à usage unique de la porte de secours (`tools/acces-secours.ts`, une heure, un seul usage, `POST /auth/recovery`), que la première connexion Google réussie efface. L'administration se partage par `POST /accounts/:id/role`, réservé aux administrateurs (jamais son propre rôle, jamais le dernier administrateur actif, jamais un compte non actif). Les jetons de service (section 11) restent des jetons d'intégration du foyer : ils n'appartiennent à personne et révoquer un compte ne les coupe pas. | Demande de djkix : « pour la connexion (compte de l'application), je veux utiliser des adresses mail Google. Il me faut la possibilité de m'enregistrer ou de me loguer via une adresse gmail (plus de mdp). » Le mécanisme est repris tel quel de son autre application pour qu'il n'existe pas deux façons de se connecter à Google dans sa maison logicielle. La validation par un administrateur est l'écart assumé : l'application est publiée sur Internet et une inscription réellement ouverte y publierait le contenu des placards. Décisions D1 à D9 et amendements D10 et D11 de `docs/specs/2026-10-18-connexion-google.md`, issus des revues de sécurité (réponses indistinctes pour `PENDING` et `REVOKED`, refus sur discordance de `sub`, statut vérifié à chaque requête, retrait de la création de compte par `POST /users`, puis partage de l'administration et nature des jetons de service). |
 | 2026-10-08 | 12, EF-28 | EF-28 n'exige plus d'avoir cuisiné une recette pour pouvoir la noter : une note directe (une étoile de favori, cinq étoiles de note, sur la fiche et sur chaque carte de « Mes recettes ») s'ajoute à la note par réalisation, qui reste inchangée. Partout où une note s'affiche (carte, fiche, tri par note), la note directe prime quand elle existe, la moyenne des réalisations prend le relais sinon. | djkix avait demandé à pouvoir noter une recette et ne trouvait nulle part où le faire : `RecipeRating` était rattaché à `RecipeLog`, donc tant qu'aucune réalisation n'était enregistrée, aucun bouton « Noter » n'existait. L'exigence, écrite avant le module, supposait à tort qu'on ne juge une recette qu'après l'avoir faite. Décisions D1 à D5 de `docs/specs/2026-10-08-favoris-et-note-directe.md`. |
 | 2026-10-07 | 22 | `VISION_PROVIDER` n'accepte plus que `none` et `gemini`. Les adaptateurs Anthropic, OpenAI et Ollama sont supprimés, ainsi que la dépendance `@anthropic-ai/sdk`. L'interface `RecognitionProvider` est conservée : c'est elle, et non ces adaptateurs, qui rend un autre fournisseur ajoutable le jour où il en faudra un. | Gemini est le fournisseur retenu depuis le 2026-09-21. Les trois autres n'ont jamais été configurés ni exercés hors de leurs propres tests : ils portaient une flexibilité que personne n'a utilisée, au prix d'une dépendance et de deux cents lignes à maintenir. Audit d'over-engineering du 2026-10-07. |
