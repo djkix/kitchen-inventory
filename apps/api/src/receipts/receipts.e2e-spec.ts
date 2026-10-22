@@ -45,7 +45,12 @@ describe('lecture d’un ticket de caisse (EF-29)', () => {
     const riz = (await ctx.agent.post('/api/v1/products').send({ name: 'Riz basmati' }).expect(201)).body;
     await ctx.agent.post('/api/v1/products').send({ name: 'Lait demi-écrémé' }).expect(201);
     await ctx.agent.post('/api/v1/products').send({ name: 'Lait entier' }).expect(201);
+    // Deux lots actifs de dates différentes (sinon `POST /stock` les fusionnerait) : 2 + 1 = 3.
     await ctx.agent.post('/api/v1/stock').send({ productId: riz.id, locationId: ctx.locationId, quantity: 2 }).expect(201);
+    await ctx.agent.post('/api/v1/stock').send({ productId: riz.id, locationId: ctx.locationId, quantity: 1, expiryDate: '2030-01-01', dateType: 'USE_BY' }).expect(201);
+    // Un lot archivé du même emplacement, directement par Prisma : exclu du total.
+    const archived = (await ctx.agent.post('/api/v1/stock').send({ productId: riz.id, locationId: ctx.locationId, quantity: 7, expiryDate: '2030-02-02', dateType: 'USE_BY' }).expect(201)).body;
+    await ctx.t.prisma.stockItem.update({ where: { id: (archived.item ?? archived).id }, data: { archivedAt: new Date() } });
     // Un lot du même produit dans un autre emplacement ne compte pas.
     const other = (await ctx.t.prisma.location.findMany()).find((l) => l.id !== ctx.locationId)!;
     await ctx.agent.post('/api/v1/stock').send({ productId: riz.id, locationId: other.id, quantity: 5 }).expect(201);
@@ -58,7 +63,7 @@ describe('lecture d’un ticket de caisse (EF-29)', () => {
       [2, 'XYZZY', 'UNKNOWN'],
     ]);
     const [matched, ambiguous, unknown] = res.body.lines;
-    expect(matched).toMatchObject({ quantity: 3, currentQuantity: 2, product: { id: riz.id } });
+    expect(matched).toMatchObject({ quantity: 3, currentQuantity: 3, product: { id: riz.id } });
     expect(ambiguous.product).toBeNull();
     expect(ambiguous.candidates.map((c: { name: string }) => c.name).sort()).toEqual(['Lait demi-écrémé', 'Lait entier']);
     expect(unknown).toMatchObject({ product: null, candidates: [], currentQuantity: 0 });

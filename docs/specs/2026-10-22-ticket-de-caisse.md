@@ -181,6 +181,13 @@ Les huit premiers répondent à une relecture technique de cette spécification.
   date ne peut donc pas rejoindre un lot daté créé par un scan. Le « 2 → 3 »
   affiché est le total du produit dans cet emplacement, lots confondus — c'est
   le chiffre que l'utilisateur a en tête, et il reste vrai.
+- **Le fichier est limité à 8 Mo.** Le scan photo plafonne à 4 Mo, mais un
+  ticket en PDF de plusieurs pages, ou une photo longue d'un ticket plié, les
+  dépasse aisément ; 8 Mo laisse passer ces cas sans accepter n'importe quoi.
+- **La route est limitée à 10 requêtes par minute et par adresse.** Entre le
+  scan photo (30) et les suggestions (5) : un ticket se lit à la fois, donc
+  bien moins vite qu'une rafale de photos, mais plus souvent qu'une demande de
+  recettes. Le quota journalier reste le vrai garde-fou de dépense.
 - **Les lignes lues sont conservées côté serveur** entre la lecture et la
   validation, sans l'image et sans les prix. Un ticket de trente lignes prend
   des dizaines de secondes à lire et se valide sur un téléphone : sans cela,
