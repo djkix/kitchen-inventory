@@ -69,13 +69,13 @@ import { emptySuggestionPool, seedReadWebRecipes, suggestionCalls } from './supp
  *
  * **Question bloquante à l'entrée** (décision D2 du 2026-10-11,
  * `apps/web/src/screens/suggestions/dish-type-question.tsx`) : aucun appel à
- * `GET /suggestions` ne part tant qu'un type de plat n'a pas été choisi, et
+ * `POST /suggestions` ne part tant qu'un type de plat n'a pas été choisi, et
  * ni liste, ni squelette, ni barre de filtres ne s'affichent avant. Tout
  * parcours qui atterrit sur `/recettes` répond donc d'abord par
  * `answerDishTypeQuestion(page)`. La réponse est gardée dans une variable de
  * module, effacée par tout rechargement complet : après `page.reload()`, la
  * question est reposée — c'est ce qui fait d'un rechargement une vraie
- * « seconde visite », avec son propre appel à `GET /suggestions`.
+ * « seconde visite », avec son propre appel à `POST /suggestions`.
  *
  * Sélecteurs, avec leur source :
  * - `getByRole('link', { name: 'Recettes' })` — `apps/web/src/components/
@@ -146,10 +146,10 @@ interface SuggestionBatchResponse {
   readonly notice: string | null;
 }
 
-/** Attend la réponse de `GET /suggestions` déclenchée par `trigger`, et la retourne déjà décodée. */
+/** Attend la réponse de `POST /suggestions` déclenchée par `trigger`, et la retourne déjà décodée. */
 async function waitForSuggestionsResponse(page: Page, trigger: () => Promise<unknown>): Promise<SuggestionBatchResponse> {
   const [response] = await Promise.all([
-    page.waitForResponse((candidate) => /\/api\/v1\/suggestions(\?|$)/.test(candidate.url()) && candidate.request().method() === 'GET'),
+    page.waitForResponse((candidate) => /\/api\/v1\/suggestions(\?|$)/.test(candidate.url()) && candidate.request().method() === 'POST'),
     trigger(),
   ]);
   return (await response.json()) as SuggestionBatchResponse;
@@ -158,7 +158,7 @@ async function waitForSuggestionsResponse(page: Page, trigger: () => Promise<unk
 /**
  * Répond à la question bloquante d'entrée (D2) : condition pour que
  * `SuggestionsScreen` affiche autre chose (liste, filtres, erreur) et pour
- * qu'un appel à `GET /suggestions` parte. « Plat » convient à tous les tests
+ * qu'un appel à `POST /suggestions` parte. « Plat » convient à tous les tests
  * qui n'ont pas de raison d'en choisir un autre : c'est le type que porte
  * chacune des douze recettes de la fixture.
  */

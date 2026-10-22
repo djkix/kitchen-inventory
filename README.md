@@ -535,6 +535,13 @@ Les garde-fous qui ne se voient pas à l'écran :
   passe toujours. **`PUBLIC_URL` doit donc être exactement l'adresse tapée
   dans le navigateur** (schéma, nom et port) ; en développement, le serveur
   Vite sur `localhost` est accepté en plus.
+- **Suggestions : la lecture ne coûte rien.** `GET /api/v1/suggestions` ne
+  fait que relire le réservoir (couverture recalculée contre le stock) : il
+  n'appelle jamais Gemini et n'écrit rien, `refresh` y est ignoré. La
+  recherche qui peut appeler le modèle et consommer le quota est
+  `POST /api/v1/suggestions` (orientation dans le corps JSON), celle qu'utilise
+  l'écran ; un jeton de service, en lecture seule, ne peut donc pas la
+  déclencher.
 
 ## Intégrations
 

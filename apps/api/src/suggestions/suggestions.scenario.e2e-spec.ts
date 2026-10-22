@@ -173,7 +173,7 @@ describe('scénario de réussite figé des suggestions', () => {
   });
 
   it('sélectionne les cinq produits structurants, sans le sel ni le paprika', async () => {
-    await agent.get('/api/v1/suggestions').expect(200);
+    await agent.post('/api/v1/suggestions').expect(200);
 
     const call = http.calls.find((c) => c.url.includes('generateContent'));
     const body = JSON.parse(String(call?.init?.body));
@@ -185,7 +185,7 @@ describe('scénario de réussite figé des suggestions', () => {
   });
 
   it('rend la fournée attendue, recette par recette', async () => {
-    const res = await agent.get('/api/v1/suggestions').expect(200);
+    const res = await agent.post('/api/v1/suggestions').expect(200);
 
     // Dans l'ordre exact de `comparePoolEntries` (D7) : les huit recettes web
     // vérifiées d'abord, les quatre compositions ensuite ; couverture
@@ -226,7 +226,7 @@ describe('scénario de réussite figé des suggestions', () => {
   });
 
   it('rapproche « crème » en absent et « parmesan râpé » en probable', async () => {
-    const res = await agent.get('/api/v1/suggestions').expect(200);
+    const res = await agent.post('/api/v1/suggestions').expect(200);
 
     // Cherchée par son titre, jamais par un rang : l'ordre vient du réservoir.
     const gratin = res.body.items.find((i: { title: string }) => i.title === 'Gratin à la crème de parmesan');
@@ -281,7 +281,7 @@ describe('scénario de réussite figé des suggestions', () => {
    * existence.
    */
   it('encadre le seuil de similarité : juste au-dessus résout probable, juste en dessous résout absent', async () => {
-    const res = await agent.get('/api/v1/suggestions').expect(200);
+    const res = await agent.post('/api/v1/suggestions').expect(200);
 
     const rizPilaf = res.body.items.find((i: { title: string }) => i.title === 'Riz pilaf nature');
     expect(rizPilaf).toBeDefined();
@@ -296,7 +296,7 @@ describe('scénario de réussite figé des suggestions', () => {
   });
 
   it('conserve la première recette en Recipe IMPORTED sans jamais rappeler le site, difficulté recalculée au barème du foyer', async () => {
-    const list = await agent.get('/api/v1/suggestions').expect(200);
+    const list = await agent.post('/api/v1/suggestions').expect(200);
     // Identifiant rendu par la liste, dérivé du contenu de la recette : jamais
     // un rang — la recette est donc retrouvée par son titre, pas par sa place.
     const spaghetti = list.body.items.find((i: { title: string }) => i.title === 'Spaghetti à la tomate');

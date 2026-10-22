@@ -248,7 +248,16 @@ export class SuggestionsService {
    * moment (EF-25, EF-26). La liste ne porte rien au nom de l'utilisateur : la
    * recherche est celle du foyer, pas une personnalisation.
    */
-  async list(query: SuggestionQuery): Promise<SuggestionBatchDto> {
+  /**
+   * `allowModelCall: false` (lecture de `GET /suggestions`, revue de sécurité
+   * du 2026-10-22) : le réservoir seul, jamais d'appel au modèle ni
+   * d'écriture, relance ignorée. Une lecture ne doit ni dépenser le quota ni
+   * écrire en base — un lien, une image ou un jeton de service en lecture
+   * seule déclenchaient sinon un appel payant.
+   */
+  async list(rawQuery: SuggestionQuery, options: { allowModelCall?: boolean } = {}): Promise<SuggestionBatchDto> {
+    const allowModelCall = options.allowModelCall ?? true;
+    const query: SuggestionQuery = allowModelCall ? rawQuery : { ...rawQuery, refresh: false };
     // Vérifié avant toute lecture du stock : inutile de composer une requête
     // si le fournisseur ne pourra de toute façon pas répondre. Garde partagée
     // avec `RecognitionService.recognizeImage` (`assertProviderEnabled`).
@@ -287,14 +296,14 @@ export class SuggestionsService {
     // Lecture évitée quand le réservoir suffit ou que la relance est explicite :
     // il n'y a alors rien à verrouiller.
     const askedAt = query.refresh || entries.length >= SUGGESTION_POOL_FLOOR ? null : await this.lastAskedAt(signature);
-    const mustAsk = query.refresh || (entries.length < SUGGESTION_POOL_FLOOR && askedAt === null);
+    const mustAsk = allowModelCall && (query.refresh || (entries.length < SUGGESTION_POOL_FLOOR && askedAt === null));
 
     // Le prix de D11, dit à l'écran : une orientation que le modèle n'a jamais
     // su satisfaire reste vide jusqu'au bout des 24 heures. Sans ce message,
     // l'utilisateur voyait un écran vide sans la moindre cause (revue de la
     // tâche 4, tour 2) — et la seule sortie, la relance explicite, ne se
     // devine pas.
-    if (!mustAsk && askedAt !== null && entries.length === 0) {
+    if (allowModelCall && !mustAsk && askedAt !== null && entries.length === 0) {
       notice =
         `Aucune recette pour cette orientation ; elle a déjà été cherchée récemment, et une nouvelle recherche ne partira pas d’elle-même avant le ${formatDeadline(new Date(askedAt.getTime() + SAME_ORIENTATION_TTL_MS))}. ` +
         'Changez d’orientation, ou relancez la recherche vous-même.';
