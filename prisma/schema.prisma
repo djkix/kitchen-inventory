@@ -53,6 +53,7 @@ model User {
   sessions      Session[]
   preferences   UserPreference[]
   recipeRatings RecipeRating[]
+  receipts      Receipt[]
 }
 
 // Réglages propres à un utilisateur, là où « Setting » vaut pour l'instance.
@@ -117,6 +118,7 @@ model Location {
   sortOrder   Int        @default(0)
 
   stockItems StockItem[]
+  receipts   Receipt[]
 
   @@index([parentId])
   @@index([path])
@@ -162,6 +164,8 @@ model Category {
 
 model Product {
   id         String  @id @default(cuid())
+  receiptAliases ReceiptLabelAlias[]
+  receiptLines   ReceiptLine[]
   barcode    String? @unique
   name       String
   // Nom d'origine tel qu'imprimé : conserve les idéogrammes (EF-04).
@@ -446,6 +450,7 @@ model RecipeRating {
 enum AiPurpose {
   VISION
   RECIPE_SUGGESTION
+  RECEIPT
 }
 
 // Conserve aussi les échecs : ce sont les cas à rejouer quand le modèle change.
@@ -510,4 +515,65 @@ model SuggestionPoolRecipe {
 
   @@index([dishType])
   @@index([firstSeenAt])
+}
+
+// ------------------------------------------------------------ ticket de caisse
+
+enum ReceiptStatus {
+  DRAFT
+  VALIDATED
+}
+
+enum ReceiptLineState {
+  MATCHED
+  AMBIGUOUS
+  UNKNOWN
+}
+
+// Apprentissage des libellés (EF-29) : « POULET RTI 1KG » corrigé une fois vers
+// un produit n'est plus redemandé. La clé unique est le libellé normalisé.
+model ReceiptLabelAlias {
+  id        String   @id @default(cuid())
+  label     String   @unique
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+// Un ticket en brouillon se relit et se corrige avant d'entrer au stock ; il ne
+// porte aucun prix (non-objectif du cahier).
+model Receipt {
+  id          String        @id @default(cuid())
+  locationId  String
+  location    Location      @relation(fields: [locationId], references: [id])
+  status      ReceiptStatus @default(DRAFT)
+  createdById String
+  createdBy   User          @relation(fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+
+  lines ReceiptLine[]
+
+  @@index([locationId])
+  @@index([createdById])
+}
+
+model ReceiptLine {
+  id        String  @id @default(cuid())
+  receiptId String
+  receipt   Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  // Conserve l'ordre d'impression du ticket.
+  position  Int
+  rawLabel  String
+  quantity  Decimal @db.Decimal(10, 2)
+  // NULL tant que la ligne est AMBIGUOUS ou UNKNOWN.
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+  state     ReceiptLineState
+  // Produits possibles d'une ligne ambiguë.
+  candidateIds String[]
+
+  @@index([receiptId, position])
+  @@index([productId])
 }
