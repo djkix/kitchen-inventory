@@ -469,10 +469,15 @@ docker compose exec app node tools/nutriscore-rattrapage.js
 ```
 
 Elle n'interroge que les produits qui ont un code-barres et aucun repère,
-à raison d'une requête toutes les 0,7 seconde pour rester dans les usages
-d'Open Food Facts, et affiche le compte à la fin. Elle est relançable sans
-risque. `--tout` reprend aussi les produits déjà renseignés, pour suivre une
-mise à jour d'Open Food Facts.
+une requête toutes les six secondes, et affiche le compte à la fin. Comptez
+donc une dizaine de minutes pour cent articles : c'est une opération unique,
+et Open Food Facts coupe le robinet (HTTP 429) bien avant la limite qu'il
+annonce. Si cela arrive quand même, la commande attend et réessaie, puis
+s'arrête en le disant ; relancez-la plus tard, elle ne reprend que les
+produits encore sans repère et continue donc où elle s'était arrêtée.
+`OFF_RATTRAPAGE_DELAY_MS` règle la pause entre deux requêtes, `--tout`
+reprend aussi les produits déjà renseignés pour suivre une mise à jour
+d'Open Food Facts.
 
 ## Sauvegarde et restauration
 
@@ -736,6 +741,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.32.1 | 2026-10-23 | Le rattrapage Nutri-Score attend quand Open Food Facts limite les requêtes, au lieu de perdre l'article |
 | 0.32.0 | 2026-10-23 | La fiche article affiche le Nutri-Score et les repères nutritionnels d'Open Food Facts |
 | 0.31.0 | 2026-10-22 | L'application choisit seule son modèle Gemini (Flash ou Flash-Lite), respecte les quotas de Google avant l'appel, bascule de modèle et dit l'heure de reprise |
 | 0.30.0 | 2026-10-22 | Le ticket de caisse remplit le stock, et la liste de courses est abandonnée |

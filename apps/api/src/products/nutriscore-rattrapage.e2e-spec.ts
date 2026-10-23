@@ -57,6 +57,43 @@ describe('tools/nutriscore-rattrapage.ts (EF-30)', () => {
     expect((await t.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).nutriscoreGrade).toBe('d');
   });
 
+  it('attend puis réessaie quand Open Food Facts limite les requêtes', async () => {
+    const product = await seed({ name: 'Nutella', barcode: '3017620422003' });
+    let first = true;
+    const tally = await rattraper(
+      t.prisma,
+      {
+        all: false,
+        delayMs: 0,
+        pause429Ms: 0,
+        fetch: () => {
+          if (first) {
+            first = false;
+            return Promise.resolve(new Response('', { status: 429 }));
+          }
+          return Promise.resolve(json({ status: 1, product: { nutriscore_grade: 'a' } }));
+        },
+      },
+      out,
+    );
+    expect(tally).toMatchObject({ updated: 1, failed: 0 });
+    expect((await t.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).nutriscoreGrade).toBe('a');
+  });
+
+  it('s’arrête en disant comment reprendre quand le débit ne repart pas', async () => {
+    await seed({ name: 'Aaa', barcode: '3017620422003' });
+    await seed({ name: 'Bbb', barcode: '8801043015608' });
+    const tally = await rattraper(
+      t.prisma,
+      { all: false, delayMs: 0, pause429Ms: 0, fetch: () => Promise.resolve(new Response('', { status: 429 })) },
+      out,
+    );
+    // Le deuxième produit n'est jamais interrogé : inutile de marteler.
+    expect(tally.examined).toBe(1);
+    expect(tally.updated).toBe(0);
+    expect(lines.join('\n')).toContain('Relancez la commande plus tard');
+  });
+
   it('compte un échec réseau sans arrêter le catalogue', async () => {
     await seed({ name: 'Aaa', barcode: '3017620422003' });
     await seed({ name: 'Bbb', barcode: '8801043015608' });
