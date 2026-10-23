@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.0](https://github.com/djkix/kitchen-inventory/compare/v0.33.0...v0.34.0) (2026-10-23)
+
+
+### Features
+
+* **web:** thème clair, thème sombre, ou le réglage du téléphone (section 8) ([9783e8a](https://github.com/djkix/kitchen-inventory/commit/9783e8a27c98546c5c93feb61702b55230086c77))
+
 ## [0.33.0](https://github.com/djkix/kitchen-inventory/compare/v0.32.0...v0.33.0) (2026-10-23)
 
 
