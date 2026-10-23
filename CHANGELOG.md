@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.32.0](https://github.com/djkix/kitchen-inventory/compare/v0.31.0...v0.32.0) (2026-10-23)
+
+
+### Features
+
+* **stock:** Nutri-Score et repères nutritionnels sur la fiche article (EF-30) ([74eb2fa](https://github.com/djkix/kitchen-inventory/commit/74eb2fa1dbca8b8a44d4f9ff7790fbb5a3448808))
+
+
+### Bug Fixes
+
+* **docker:** toutes les commandes de tools/ entrent dans l'image (EF-30) ([c28ebc0](https://github.com/djkix/kitchen-inventory/commit/c28ebc0e645953f21d31b95366e9b9f1fcea97cd))
+
 ## [0.31.0](https://github.com/djkix/kitchen-inventory/compare/v0.30.0...v0.31.0) (2026-10-22)
 
 
