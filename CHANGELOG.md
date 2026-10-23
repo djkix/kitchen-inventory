@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.33.0](https://github.com/djkix/kitchen-inventory/compare/v0.32.0...v0.33.0) (2026-10-23)
+
+
+### Features
+
+* **nutrition:** rattrapage au scan et d'un bouton, Nutri-Score sur les recettes (EF-30) ([4b5913a](https://github.com/djkix/kitchen-inventory/commit/4b5913a9d5dd1a06dc40f2ca0c07b60ee75e9897))
+
+
+### Bug Fixes
+
+* **rattrapage:** attendre quand Open Food Facts limite les requêtes (EF-30) ([644e4d5](https://github.com/djkix/kitchen-inventory/commit/644e4d5b31c3e9aeb8d1078c37c2f9882ae098ee))
+
 ## [0.32.0](https://github.com/djkix/kitchen-inventory/compare/v0.31.0...v0.32.0) (2026-10-23)
 
 
