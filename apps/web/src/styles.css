@@ -46,6 +46,42 @@
   color-scheme: dark;
 }
 
+/*
+ * Thème clair (2026-10-23). Les mêmes jetons, retournés : `ink` devient le
+ * papier, `surface` la carte posée dessus, et les couleurs d'état passent de
+ * « teinte sombre + texte vif » à « teinte pâle + texte foncé », pour garder
+ * le contraste dans les deux sens. Le fond n'est pas blanc pur : sous une
+ * lampe de cuisine, il éblouit.
+ *
+ * Un seul sélecteur, et non un doublon sous `prefers-color-scheme` : c'est
+ * `lib/theme.ts` qui résout la préférence (clair, sombre ou automatique) et
+ * pose `data-theme` sur `<html>`, y compris avant le premier rendu depuis
+ * `index.html`. La feuille de style n'a donc qu'un seul cas à décrire.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-ink: #f7f5ef;
+  --color-surface: #ffffff;
+  --color-raised: #e6e2d7;
+  --color-line: #ddd8ca;
+  --color-fg: #141a19;
+  --color-muted: #5d6b68;
+  --color-faint: #7a847f;
+  --color-accent: #1f6f60;
+  --color-accent-deep: #d8ece6;
+  --color-danger: #b3261e;
+  --color-danger-deep: #fce3e3;
+  --color-warn: #9a5700;
+  --color-warn-deep: #fde8cf;
+  --color-soon: #7a5d00;
+  --color-soon-deep: #fdf0c8;
+  --color-chilled: #0d5d85;
+  --color-chilled-deep: #d9eefb;
+  --color-frozen: #1e6477;
+  --color-frozen-deep: #ddf2f8;
+}
+
 html,
 body {
   height: 100%;
@@ -83,8 +119,13 @@ body {
   outline-offset: 2px;
 }
 
+/* L'icône du sélecteur de date est noire : éclaircie sur fond sombre seulement. */
 input[type='date']::-webkit-calendar-picker-indicator {
   filter: invert(0.85);
+}
+
+:root[data-theme='light'] input[type='date']::-webkit-calendar-picker-indicator {
+  filter: none;
 }
 
 @keyframes sheet-up {

@@ -378,8 +378,15 @@ Google ne laisse que l'[accès de secours](#accès-de-secours).
 
 ### 3. Sur le téléphone
 
-« Ajouter à l'écran d'accueil » installe l'application (PWA). Le thème sombre
-est activé par défaut, pensé pour un cellier peu éclairé.
+« Ajouter à l'écran d'accueil » installe l'application (PWA). L'apparence suit
+par défaut le réglage du téléphone — qui bascule lui-même à l'heure ou au
+capteur de lumière, selon ce que vous y avez choisi. Réglages › Apparence
+impose le thème clair ou le thème sombre, par appareil : le téléphone du
+cellier et le portable du bureau n'ont aucune raison de partager le leur.
+
+Le web n'a pas accès au capteur de lumière (l'API n'existe pas sur iOS et reste
+expérimentale ailleurs) : « automatique » veut donc dire « comme le système »,
+ce qui en revient au même dès que le téléphone est réglé pour basculer seul.
 
 ## Accès de secours
 
@@ -751,6 +758,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.34.0 | 2026-10-23 | Thème clair, thème sombre, ou suivi du réglage du téléphone |
 | 0.33.0 | 2026-10-23 | Les repères nutritionnels se rattrapent au scan et d'un bouton dans Réglages, et le Nutri-Score apparaît sur les ingrédients des recettes |
 | 0.32.1 | 2026-10-23 | Le rattrapage Nutri-Score attend quand Open Food Facts limite les requêtes, au lieu de perdre l'article |
 | 0.32.0 | 2026-10-23 | La fiche article affiche le Nutri-Score et les repères nutritionnels d'Open Food Facts |

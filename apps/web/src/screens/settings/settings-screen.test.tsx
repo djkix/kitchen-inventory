@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { ThemeProvider } from '../../hooks/use-theme';
 import { describe, expect, it, vi } from 'vitest';
 import { SettingsScreen } from './settings-screen';
 
@@ -34,9 +35,11 @@ describe('SettingsScreen', () => {
   it('monte la section Comptes et la coupure de ses propres sessions', () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <MemoryRouter>
-          <SettingsScreen />
-        </MemoryRouter>
+        <ThemeProvider>
+          <MemoryRouter>
+            <SettingsScreen />
+          </MemoryRouter>
+        </ThemeProvider>
       </QueryClientProvider>,
     );
     expect(screen.getByText('section-comptes')).toBeTruthy();
@@ -77,9 +80,11 @@ describe('SettingsScreen', () => {
 function renderScreen() {
   return render(
     <QueryClientProvider client={new QueryClient()}>
-      <MemoryRouter>
-        <SettingsScreen />
-      </MemoryRouter>
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsScreen />
+        </MemoryRouter>
+      </ThemeProvider>
     </QueryClientProvider>,
   );
 }

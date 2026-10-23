@@ -11,6 +11,8 @@ import { queryKeys, useAccountsQuery, useRecognitionStatsQuery, useSettingsQuery
 import { AccountsSection, SignOutEverywhereRow } from './accounts-section';
 import { AccordionSection, SectionBadge } from './accordion-section';
 import { NutritionBackfillRow } from './nutrition-backfill-row';
+import { ThemeRow } from './theme-row';
+import { useTheme } from '../../hooks/use-theme';
 import { GeminiModelsSection } from './gemini-models-section';
 import { WebSearchRow } from './web-search-row';
 import { VersionBadge } from '../../components/shell/version-badge';
@@ -29,6 +31,7 @@ const SECTION_DOTS = {
   reconnaissance: '#38bdf8',
   comptes: '#10b981',
   inventaire: '#f59e0b',
+  apparence: '#e879f9',
   foyer: '#6366f1',
   export: '#a855f7',
 } as const;
@@ -75,6 +78,10 @@ export function SettingsScreen() {
         </AccordionSection>
 
         <AccountsAccordion />
+
+        <AccordionSection title="Apparence" badge={<ThemeBadge />} dotColor={SECTION_DOTS.apparence}>
+          <ThemeRow />
+        </AccordionSection>
 
         <AccordionSection title="Inventaire" badge={<AlertBadge />} dotColor={SECTION_DOTS.inventaire}>
           <NavRow to="/reglages/emplacements" label="Emplacements" hint="Placards, frigo, cellier : profondeur libre" />
@@ -130,6 +137,12 @@ function RecognitionBadge() {
 }
 
 /** Résumé d'« Inventaire » : le seuil d'alerte, seul réglage de la section. */
+function ThemeBadge() {
+  const theme = useTheme();
+  const label = theme.choice === 'auto' ? `Automatique · ${theme.resolved === 'light' ? 'clair' : 'sombre'}` : theme.choice === 'light' ? 'Clair' : 'Sombre';
+  return <SectionBadge>{label}</SectionBadge>;
+}
+
 function AlertBadge() {
   const settings = useSettingsQuery();
   if (!settings.data) return null;

@@ -16,6 +16,7 @@ import { ExpiringScreen } from './screens/expiring/expiring-screen';
 import { SettingsScreen } from './screens/settings/settings-screen';
 import { ReceiptScreen } from './screens/shopping/receipt-screen';
 import { SuggestionsScreen } from './screens/suggestions/suggestions-screen';
+import { ThemeProvider } from './hooks/use-theme';
 
 // Écrans secondaires chargés à la demande : l'onglet Stock arrive le premier.
 const ScanScreen = lazy(() => import('./screens/scan/scan-screen').then((m) => ({ default: m.ScanScreen })));
@@ -44,40 +45,42 @@ const queryClient = new QueryClient({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <BrowserRouter>
-          <UnauthenticatedRedirect />
-          <Suspense fallback={<LoadingScreen />}>
-          <Routes>
-            <Route path="/connexion" element={<LoginScreen />} />
-            <Route element={<RequireAuth />}>
-              <Route element={<AppShell />}>
-                <Route index element={<StockScreen />} />
-                <Route path="/stock/:id" element={<ItemScreen />} />
-                <Route path="/perime-bientot" element={<ExpiringScreen />} />
-                <Route path="/recettes" element={<SuggestionsScreen />} />
-                <Route path="/recettes/bibliotheque" element={<RecipesScreen />} />
-                {/* Avant `/recettes/:id` par le classement du routeur : un segment
-                    statique l'emporte sur un segment dynamique. */}
-                <Route path="/recettes/parler" element={<VoiceRequestScreen />} />
-                <Route path="/recettes/:id" element={<RecipeScreen />} />
-                <Route path="/recettes/:id/modifier" element={<RecipeFormScreen />} />
-                <Route path="/courses" element={<ReceiptScreen />} />
-                {/* Un ticket lu vit sur son adresse : rafraîchir ou revenir à
-                    l'onglet ne perd pas une lecture déjà payée (EF-29). */}
-                <Route path="/courses/:id" element={<ReceiptScreen />} />
-                <Route path="/reglages" element={<SettingsScreen />} />
-                <Route path="/reglages/emplacements" element={<LocationsScreen />} />
-                <Route path="/reglages/jetons" element={<ServiceTokensScreen />} />
-                <Route path="/produits/nouveau" element={<ProductFormScreen />} />
+      <ThemeProvider>
+          <ToastProvider>
+          <BrowserRouter>
+            <UnauthenticatedRedirect />
+            <Suspense fallback={<LoadingScreen />}>
+            <Routes>
+              <Route path="/connexion" element={<LoginScreen />} />
+              <Route element={<RequireAuth />}>
+                <Route element={<AppShell />}>
+                  <Route index element={<StockScreen />} />
+                  <Route path="/stock/:id" element={<ItemScreen />} />
+                  <Route path="/perime-bientot" element={<ExpiringScreen />} />
+                  <Route path="/recettes" element={<SuggestionsScreen />} />
+                  <Route path="/recettes/bibliotheque" element={<RecipesScreen />} />
+                  {/* Avant `/recettes/:id` par le classement du routeur : un segment
+                      statique l'emporte sur un segment dynamique. */}
+                  <Route path="/recettes/parler" element={<VoiceRequestScreen />} />
+                  <Route path="/recettes/:id" element={<RecipeScreen />} />
+                  <Route path="/recettes/:id/modifier" element={<RecipeFormScreen />} />
+                  <Route path="/courses" element={<ReceiptScreen />} />
+                  {/* Un ticket lu vit sur son adresse : rafraîchir ou revenir à
+                      l'onglet ne perd pas une lecture déjà payée (EF-29). */}
+                  <Route path="/courses/:id" element={<ReceiptScreen />} />
+                  <Route path="/reglages" element={<SettingsScreen />} />
+                  <Route path="/reglages/emplacements" element={<LocationsScreen />} />
+                  <Route path="/reglages/jetons" element={<ServiceTokensScreen />} />
+                  <Route path="/produits/nouveau" element={<ProductFormScreen />} />
+                </Route>
+                <Route path="/scan" element={<ScanScreen />} />
               </Route>
-              <Route path="/scan" element={<ScanScreen />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </ToastProvider>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </ToastProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

@@ -11,6 +11,25 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon.svg" />
     <title>Kitchen Inventory</title>
+    <!--
+      Thème posé avant le premier rendu : sans ce script, l'application
+      s'afficherait une fraction de seconde en sombre avant de passer au clair.
+      Volontairement dupliqué de `lib/theme.ts` plutôt qu'importé : un module
+      chargé ici arriverait trop tard pour éviter le scintillement.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('kitchen.theme');
+        } catch (error) {
+          stored = null;
+        }
+        var theme = stored === 'light' || stored === 'dark' ? stored : window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.dataset.theme = theme;
+        document.querySelector('meta[name="theme-color"]').content = theme === 'light' ? '#f7f5ef' : '#111716';
+        document.querySelector('meta[name="color-scheme"]').content = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
