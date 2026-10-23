@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { normalizeProductName, VISION_REJECT_THRESHOLD, VISION_REVIEW_THRESHOLD, type ProductDto, type RecognitionStats, type ScanBarcodeResult, type ScanImageResult } from '@kitchen/shared';
+import { Prisma } from '@prisma/client';
 import { Logger } from 'nestjs-pino';
 import { ApiError, assertProviderEnabled } from '../common/api-error.js';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
@@ -13,6 +14,11 @@ import { GeminiService } from '../gemini/gemini.service.js';
 
 const OFF_PROVIDER = 'open_food_facts';
 
+/** Au plus un rafraîchissement nutritionnel toutes les six secondes, scan en rafale compris. */
+const NUTRITION_REFRESH_SPACING_MS = 6_000;
+/** Après un refus de débit, on laisse Open Food Facts respirer un quart d'heure. */
+const NUTRITION_RATE_LIMIT_PAUSE_MS = 15 * 60_000;
+
 /**
  * Fournisseurs facturables, pour les compteurs et le plafond de dépense — partagée
  * avec `SuggestionsService` (même plafond mensuel, EF-26) plutôt que dupliquée.
@@ -22,6 +28,13 @@ export const VISION_PROVIDER_NAMES = ['gemini'];
 /** Cascade de reconnaissance de la section 5 : cache local → Open Food Facts → vision. */
 @Injectable()
 export class RecognitionService {
+  /**
+   * Statique : la cadence vaut pour le processus, pas pour une instance. En
+   * pratique il n'y en a qu'une, mais c'est la ressource distante qu'on
+   * ménage, pas la nôtre.
+   */
+  private static nutritionPausedUntil = 0;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly products: ProductsService,
@@ -38,6 +51,7 @@ export class RecognitionService {
     const cached = await this.products.findByBarcode(barcode);
     if (cached) {
       await this.prisma.recognitionLog.create({ data: { barcode, provider: 'cache', succeeded: true, latencyMs: 0 } });
+      this.refreshNutritionInBackground(cached);
       return { product: cached, source: 'cache' };
     }
     const started = Date.now();
@@ -65,6 +79,39 @@ export class RecognitionService {
       data: { barcode, provider: OFF_PROVIDER, succeeded: true, latencyMs: Date.now() - started, rawResult: toJson(lookup.raw), correctedTo: product.id, imagePath },
     });
     return { product, source: 'off' };
+  }
+
+  /**
+   * Repères nutritionnels d'une fiche entrée avant EF-30 (2026-10-23) :
+   * rescanner un produit déjà connu les rattrape, sans que djkix ait à lancer
+   * quoi que ce soit.
+   *
+   * Hors du chemin de la réponse, volontairement : la cible est de cinq
+   * secondes par article (section 1) et Open Food Facts met parfois plusieurs
+   * secondes à répondre. Les repères arrivent donc pour la fois d'après, ce
+   * qui suffit — on consulte une fiche bien après l'avoir scannée.
+   */
+  private refreshNutritionInBackground(product: ProductDto): void {
+    if (!product.barcode || product.nutriscoreGrade || product.nutrientLevels) return;
+    if (Date.now() < RecognitionService.nutritionPausedUntil) return;
+    // Un scan en rafale ne doit pas déclencher vingt requêtes : Open Food
+    // Facts coupe le débit bien avant la limite qu'il annonce, et un refus
+    // met la fenêtre entière en pause plutôt que de la gaspiller.
+    RecognitionService.nutritionPausedUntil = Date.now() + NUTRITION_REFRESH_SPACING_MS;
+    void this.off
+      .lookupNutrition(product.barcode)
+      .then(async (nutrition) => {
+        if (nutrition === 'rate-limited') {
+          RecognitionService.nutritionPausedUntil = Date.now() + NUTRITION_RATE_LIMIT_PAUSE_MS;
+          return;
+        }
+        if (!nutrition) return;
+        await this.prisma.product.update({
+          where: { id: product.id },
+          data: { nutriscoreGrade: nutrition.grade, nutrientLevels: nutrition.levels ?? Prisma.DbNull },
+        });
+      })
+      .catch((error: unknown) => this.logger.warn({ err: error, barcode: product.barcode }, 'Rafraîchissement des repères nutritionnels impossible'));
   }
 
   /** Niveau 4 : photo envoyée au fournisseur de vision, sous quota journalier. */

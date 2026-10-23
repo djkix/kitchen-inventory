@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CoverageGroup, IngredientState } from '../rules/coverage.js';
 import type { MatchState } from '../rules/ingredient-match.js';
 import { clientOpIdSchema, idSchema, positiveQuantitySchema, unitSchema } from './common.js';
+import type { NutriscoreGrade } from './products.js';
 import {
   normalizeIngredientTerms,
   splitIngredientTerms,
@@ -287,6 +288,8 @@ export interface SuggestionIngredientDto {
   state: IngredientState;
   /** Photo du produit rapproché, pour identifier le contenant d'un coup d'œil ; `null` sans produit. */
   productImagePath: string | null;
+  /** Nutri-Score du produit rapproché (EF-30) ; `null` sans produit ou sans note chez Open Food Facts. */
+  productNutriscoreGrade: NutriscoreGrade | null;
   /** Emplacement du lot qui sera consommé en premier ; `null` si l'ingrédient n'est pas en stock. */
   locationName: string | null;
   /** Clé de couleur de la pastille : la température de cet emplacement, `null` si non renseignée. */

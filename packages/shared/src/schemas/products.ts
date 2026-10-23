@@ -71,6 +71,21 @@ export type CreateProductInput = z.infer<typeof createProductSchema>;
 export const updateProductSchema = createProductSchema.omit({ recognitionLogId: true }).partial();
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 
+/** Avancement du rattrapage des repères nutritionnels (EF-30), suivi par Réglages. */
+export interface NutritionBackfillStatus {
+  running: boolean;
+  examined: number;
+  updated: number;
+  withoutData: number;
+  failed: number;
+  /** Vrai dès qu'Open Food Facts a refusé une requête pour cause de débit. */
+  rateLimited: boolean;
+  finishedAt: string | null;
+}
+
+export const nutritionBackfillSchema = z.object({ all: z.boolean().default(false) });
+export type NutritionBackfillInput = z.infer<typeof nutritionBackfillSchema>;
+
 export const productListQuerySchema = paginationQuerySchema.extend({
   q: z.string().trim().max(120).optional(),
   category: idSchema.optional(),

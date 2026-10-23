@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { FakeHttp, geminiFixture, TINY_PNG } from '../../test/fake-http.js';
@@ -22,11 +22,31 @@ describe('scan par code-barres (EF-01, EF-02, EF-14)', () => {
   afterAll(() => t.close());
 
   it('résout un code-barres connu depuis le cache local sans appel réseau', async () => {
-    await agent.post('/api/v1/products').send({ name: 'Nutella', barcode: '3017620422003' }).expect(201);
+    // Fiche complète : rien ne manque, donc aucun rafraîchissement de fond.
+    await agent
+      .post('/api/v1/products')
+      .send({ name: 'Nutella', barcode: '3017620422003', nutriscoreGrade: 'e', nutrientLevels: { salt: 'low' } })
+      .expect(201);
     const res = await agent.post('/api/v1/scan/barcode').send({ barcode: '3017620422003' }).expect(200);
     expect(res.body.source).toBe('cache');
     expect(res.body.product.name).toBe('Nutella');
     expect(http.calls).toHaveLength(0);
+  });
+
+  it('rattrape en fond les repères nutritionnels d’une fiche entrée avant EF-30', async () => {
+    http.fixture('/api/v2/product/3017620422003', 'off-3017620422003.json');
+    const created = await agent.post('/api/v1/products').send({ name: 'Nutella', barcode: '3017620422003' }).expect(201);
+    expect(created.body.nutriscoreGrade).toBeNull();
+
+    // La réponse du scan ne l'attend pas : elle part du cache, telle quelle.
+    const res = await agent.post('/api/v1/scan/barcode').send({ barcode: '3017620422003' }).expect(200);
+    expect(res.body.source).toBe('cache');
+
+    await vi.waitFor(async () => {
+      const product = await t.prisma.product.findUniqueOrThrow({ where: { id: created.body.id } });
+      expect(product.nutriscoreGrade).toBe('e');
+      expect(product.nutrientLevels).toEqual({ fat: 'high', 'saturated-fat': 'high', sugars: 'high', salt: 'low' });
+    });
   });
 
   it('interroge Open Food Facts pour un code inconnu et met le produit en cache', async () => {

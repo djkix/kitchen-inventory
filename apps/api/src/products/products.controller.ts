@@ -1,12 +1,34 @@
 import { Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
-import { createProductSchema, mergeProductSchema, productListQuerySchema, updateProductSchema, type CreateProductInput, type MergeProductInput, type Paginated, type ProductDto, type ProductListQuery, type UpdateProductInput } from '@kitchen/shared';
+import { createProductSchema, mergeProductSchema, nutritionBackfillSchema, productListQuerySchema, updateProductSchema, type CreateProductInput, type MergeProductInput, type NutritionBackfillInput, type NutritionBackfillStatus, type Paginated, type ProductDto, type ProductListQuery, type UpdateProductInput } from '@kitchen/shared';
+import { AdminOnly } from '../auth/request-user.js';
 import { ApiError } from '../common/api-error.js';
 import { ZodBody, ZodQuery } from '../common/zod-validation.pipe.js';
+import { NutritionBackfillService } from './nutrition-backfill.service.js';
 import { ProductsService } from './products.service.js';
 
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly products: ProductsService) {}
+  constructor(
+    private readonly products: ProductsService,
+    private readonly backfill: NutritionBackfillService,
+  ) {}
+
+  /**
+   * Rattrapage des repères nutritionnels (EF-30), derrière le bouton de
+   * Réglages › Inventaire. Déclaré avant `:id`, sans quoi Nest lirait
+   * « nutrition » comme un identifiant de produit.
+   */
+  @Get('nutrition/backfill')
+  backfillStatus(): NutritionBackfillStatus {
+    return this.backfill.read();
+  }
+
+  @Post('nutrition/backfill')
+  @HttpCode(202)
+  @AdminOnly()
+  startBackfill(@ZodBody(nutritionBackfillSchema) body: NutritionBackfillInput): NutritionBackfillStatus {
+    return this.backfill.start(body.all);
+  }
 
   @Get()
   list(@ZodQuery(productListQuerySchema) query: ProductListQuery): Promise<Paginated<ProductDto>> {

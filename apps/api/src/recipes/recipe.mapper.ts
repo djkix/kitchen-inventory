@@ -1,4 +1,4 @@
-import type { CoverageGroup, IngredientState, RecipeDto, RecipeIngredientDto, RecipeStatsDto, RecipeSummaryDto } from '@kitchen/shared';
+import { parseNutriscoreGrade, type CoverageGroup, type IngredientState, type RecipeDto, type RecipeIngredientDto, type RecipeStatsDto, type RecipeSummaryDto } from '@kitchen/shared';
 import type { Prisma } from '@prisma/client';
 import { toNumber } from '../common/decimal.js';
 
@@ -69,6 +69,7 @@ export function toRecipeIngredientDto(
     // Photo du produit visé, indépendante du stock (EF-23) : un ingrédient
     // rapproché d'un produit connu garde sa photo même s'il n'en reste plus.
     productImagePath: ingredient.product?.imagePath ?? null,
+    productNutriscoreGrade: parseNutriscoreGrade(ingredient.product?.nutriscoreGrade),
     locationName: coverage.locationName,
     locationTemperature: coverage.locationTemperature,
   };

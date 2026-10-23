@@ -1,5 +1,6 @@
 import type { ProductDto } from '@kitchen/shared';
-import { gradeColors, nutrientSentence } from '../../lib/nutrition-ui';
+import { NutriscoreBadge } from '../../components/ui/nutriscore-badge';
+import { nutrientSentence } from '../../lib/nutrition-ui';
 
 /**
  * Repères nutritionnels de la fiche article (EF-30) : la lettre Nutri-Score et
@@ -15,13 +16,7 @@ export function NutritionBlock({ product }: { product: ProductDto }) {
   return (
     <section aria-label="Repères nutritionnels" className="flex items-center gap-3 rounded-card bg-surface px-4 py-3">
       {product.nutriscoreGrade ? (
-        <span
-          style={gradeColors(product.nutriscoreGrade)}
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-[17px] font-semibold uppercase"
-          aria-hidden
-        >
-          {product.nutriscoreGrade}
-        </span>
+        <NutriscoreBadge grade={product.nutriscoreGrade} />
       ) : (
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-raised text-[17px] text-faint" aria-hidden>
           —

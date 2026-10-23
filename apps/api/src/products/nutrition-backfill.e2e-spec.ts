@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { json } from '../../test/fake-http.js';
-import { rattraper } from '../../../../tools/nutriscore-rattrapage.js';
+import { rattraper } from './nutrition-backfill.js';
 
 /** Réponse d'Open Food Facts réduite aux deux champs demandés par la commande. */
 const offNutrition = (body: unknown) => () => Promise.resolve(json(body));
 
-describe('tools/nutriscore-rattrapage.ts (EF-30)', () => {
+describe('rattrapage des repères nutritionnels (EF-30)', () => {
   let t: TestApp;
   const lines: string[] = [];
   const out = (line: string) => void lines.push(line);

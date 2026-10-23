@@ -10,6 +10,7 @@ import { formatMinutes, formatQuantity } from '../../lib/quantity-ui';
 import { queryKeys } from '../../lib/queries';
 import { suggestionsApi } from '../../lib/suggestions-api';
 import { provenanceLabel } from './suggestion-card';
+import { NutriscoreBadge } from '../../components/ui/nutriscore-badge';
 
 interface SuggestionSheetProps {
   suggestion: SuggestionDto | null;
@@ -152,13 +153,12 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
                     </p>
                   )}
                 </div>
-                {imageUrl && (
-                  <img
-                    src={imageUrl}
-                    alt=""
-                    loading="lazy"
-                    className="ml-auto h-12 w-12 shrink-0 rounded-card object-cover"
-                  />
+                {(imageUrl || ingredient.productNutriscoreGrade) && (
+                  <div className="ml-auto flex shrink-0 flex-col items-end gap-1">
+                    {imageUrl && <img src={imageUrl} alt="" loading="lazy" className="h-12 w-12 rounded-card object-cover" />}
+                    {/* EF-30 : sous la photo, le Nutri-Score du produit rapproché. */}
+                    {ingredient.productNutriscoreGrade && <NutriscoreBadge grade={ingredient.productNutriscoreGrade} size="sm" />}
+                  </div>
                 )}
               </li>
             );

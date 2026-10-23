@@ -122,10 +122,13 @@ trouve « ramen »). **Vue « périme bientôt »**, avec un seuil d'alerte rég
 
 **Repères nutritionnels** sur la fiche article : la lettre Nutri-Score et ce
 qui est élevé (sel, sucres, graisses), repris d'Open Food Facts au scan du
-code-barres, sans appel supplémentaire ni calcul maison. Open Food Facts ne
-note que les produits dont il a la table nutritionnelle complète : l'épicerie
-peu référencée revient souvent sans note, et la fiche le dit plutôt que de
-masquer la ligne.
+code-barres, sans appel supplémentaire ni calcul maison. La lettre apparaît
+aussi sous la photo de chaque ingrédient d'une recette ou d'une suggestion.
+Rescanner un produit entré avant que la fonctionnalité existe le rattrape tout
+seul, en arrière-plan ; **Réglages › Inventaire › Repères nutritionnels** passe
+tout le catalogue d'un bouton. Open Food Facts ne note que les produits dont il
+a la table nutritionnelle complète : l'épicerie peu référencée revient souvent
+sans note, et la fiche le dit plutôt que de masquer la ligne.
 
 ### 🍲 Recettes
 
@@ -458,11 +461,18 @@ Chaque version publiée sur GitHub est accompagnée d'une note de changement
 (`CHANGELOG.md`, généré par release-please) ; les migrations incluses sont
 visibles dans `prisma/migrations`.
 
-### Rattraper les repères nutritionnels (une fois, après la 0.32.0)
+### Rattraper les repères nutritionnels
 
 Les produits entrés au catalogue avant la 0.32.0 n'ont ni Nutri-Score ni
 niveaux : la réponse d'Open Food Facts conservée à l'époque ne contenait pas
-ces champs. Une commande les redemande, une seule fois :
+ces champs. Trois façons de les récupérer, de la plus simple à la plus brute :
+
+1. **Ne rien faire.** Rescanner le code-barres d'un produit déjà connu
+   rattrape ses repères en arrière-plan, sans ralentir le scan.
+2. **Le bouton**, dans Réglages › Inventaire › Repères nutritionnels
+   (administrateurs) : il passe tout le catalogue et affiche l'avancement.
+   C'est le chemin normal.
+3. **La commande**, quand l'interface n'est pas accessible :
 
 ```bash
 docker compose exec app node tools/nutriscore-rattrapage.js
@@ -741,6 +751,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.33.0 | 2026-10-23 | Les repères nutritionnels se rattrapent au scan et d'un bouton dans Réglages, et le Nutri-Score apparaît sur les ingrédients des recettes |
 | 0.32.1 | 2026-10-23 | Le rattrapage Nutri-Score attend quand Open Food Facts limite les requêtes, au lieu de perdre l'article |
 | 0.32.0 | 2026-10-23 | La fiche article affiche le Nutri-Score et les repères nutritionnels d'Open Food Facts |
 | 0.31.0 | 2026-10-22 | L'application choisit seule son modèle Gemini (Flash ou Flash-Lite), respecte les quotas de Google avant l'appel, bascule de modèle et dit l'heure de reprise |

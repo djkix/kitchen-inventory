@@ -27,15 +27,15 @@ const suggestion: SuggestionDto = {
   ingredients: [
     {
       label: 'Crème', quantity: 200, unit: 'MILLILITER', match: 'probable', productId: 'p1', productName: 'Crème fraîche épaisse 30%',
-      state: 'available', declared: false, productImagePath: null, locationName: null, locationTemperature: null,
+      state: 'available', declared: false, productImagePath: null, productNutriscoreGrade: null, locationName: null, locationTemperature: null,
     },
     {
       label: 'Œufs', quantity: 3, unit: 'PIECE', match: 'sure', productId: 'p2', productName: 'Œufs',
-      state: 'available', declared: false, productImagePath: null, locationName: null, locationTemperature: null,
+      state: 'available', declared: false, productImagePath: null, productNutriscoreGrade: null, locationName: null, locationTemperature: null,
     },
     {
       label: 'Farine', quantity: null, unit: null, match: 'absent', productId: null, productName: null,
-      state: 'missing', declared: false, productImagePath: null, locationName: null, locationTemperature: null,
+      state: 'missing', declared: false, productImagePath: null, productNutriscoreGrade: null, locationName: null, locationTemperature: null,
     },
   ],
 };
@@ -292,7 +292,7 @@ describe('SuggestionSheet, ingrédient déclaré', () => {
           label: 'Merguez', quantity: 4, unit: 'PIECE', match: 'absent', productId: null, productName: null,
           // L'état venu du stock reste `missing` : la règle de couverture
           // partagée n'est pas touchée, et le taux affiché reste prudent.
-          state: 'missing', declared: true, productImagePath: null, locationName: null, locationTemperature: null,
+          state: 'missing', declared: true, productImagePath: null, productNutriscoreGrade: null, locationName: null, locationTemperature: null,
         },
       ],
     };

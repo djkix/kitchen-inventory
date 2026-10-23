@@ -10,6 +10,7 @@ import { API_BASE, api, errorMessage } from '../../lib/api';
 import { queryKeys, useAccountsQuery, useRecognitionStatsQuery, useSettingsQuery } from '../../lib/queries';
 import { AccountsSection, SignOutEverywhereRow } from './accounts-section';
 import { AccordionSection, SectionBadge } from './accordion-section';
+import { NutritionBackfillRow } from './nutrition-backfill-row';
 import { GeminiModelsSection } from './gemini-models-section';
 import { WebSearchRow } from './web-search-row';
 import { VersionBadge } from '../../components/shell/version-badge';
@@ -78,6 +79,7 @@ export function SettingsScreen() {
         <AccordionSection title="Inventaire" badge={<AlertBadge />} dotColor={SECTION_DOTS.inventaire}>
           <NavRow to="/reglages/emplacements" label="Emplacements" hint="Placards, frigo, cellier : profondeur libre" />
           <AlertDaysRow isAdmin={auth.isAdmin} />
+          <NutritionBackfillRow isAdmin={auth.isAdmin} />
         </AccordionSection>
 
         {auth.isAdmin && (

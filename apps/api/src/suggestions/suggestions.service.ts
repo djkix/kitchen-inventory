@@ -27,6 +27,8 @@ import {
   type Unit,
   type VoiceSuggestionBatchDto,
   voiceAudioRejection,
+  parseNutriscoreGrade,
+  type NutriscoreGrade,
 } from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
 import { ApiError, assertProviderEnabled } from '../common/api-error.js';
@@ -784,7 +786,8 @@ export class SuggestionsService {
           match: match.state,
           productId: match.productId,
           productName: match.productName,
-          productImagePath: match.productId ? (imagePathByProduct.get(match.productId) ?? null) : null,
+          productImagePath: match.productId ? (imagePathByProduct.get(match.productId)?.imagePath ?? null) : null,
+          productNutriscoreGrade: match.productId ? (imagePathByProduct.get(match.productId)?.nutriscoreGrade ?? null) : null,
           locationName: entry?.locationName ?? null,
           locationTemperature: entry?.locationTemperature ?? null,
           state: outcomeById.get(id)?.state ?? 'untracked',
@@ -829,11 +832,11 @@ export class SuggestionsService {
     });
   }
 
-  /** Photo de chaque produit rapproché (EF-23), en une seule requête pour toute la fournée. */
-  private async productImagePaths(productIds: readonly string[]): Promise<Map<string, string | null>> {
+  /** Photo et Nutri-Score de chaque produit rapproché (EF-23, EF-30), en une requête pour toute la fournée. */
+  private async productImagePaths(productIds: readonly string[]): Promise<Map<string, { imagePath: string | null; nutriscoreGrade: NutriscoreGrade | null }>> {
     if (productIds.length === 0) return new Map();
-    const products = await this.prisma.product.findMany({ where: { id: { in: [...productIds] } }, select: { id: true, imagePath: true } });
-    return new Map(products.map((p) => [p.id, p.imagePath]));
+    const products = await this.prisma.product.findMany({ where: { id: { in: [...productIds] } }, select: { id: true, imagePath: true, nutriscoreGrade: true } });
+    return new Map(products.map((p) => [p.id, { imagePath: p.imagePath, nutriscoreGrade: parseNutriscoreGrade(p.nutriscoreGrade) }]));
   }
 
   /**

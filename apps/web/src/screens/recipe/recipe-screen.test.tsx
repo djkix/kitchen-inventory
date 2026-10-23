@@ -63,7 +63,7 @@ const recipe: RecipeDto = {
       state: 'available',
       availableQuantity: 500,
       candidates: [],
-      productImagePath: null,
+      productImagePath: null, productNutriscoreGrade: null,
       locationName: null,
       locationTemperature: null,
     },
