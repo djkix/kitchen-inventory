@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.35.0](https://github.com/djkix/kitchen-inventory/compare/v0.34.0...v0.35.0) (2026-10-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sauvegarde:** `NAS_OPTIONS` et `NAS_CHEMIN` sont obligatoires dans `.env` (sans NAS : `NAS_TYPE=none`, `NAS_OPTIONS=bind` et un dossier local). `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_INTERVAL_SECONDS` et `docker/backup.sh` à côté du compose ne servent plus.
+
+### Features
+
+* **sauvegarde:** sauvegarde chaque nuit vers le NAS, et « Sauvegarder maintenant » (section 9) ([99fc7a8](https://github.com/djkix/kitchen-inventory/commit/99fc7a8cd546186c8e4ceac35c772283fb4d2af1))
+
+
+### Bug Fixes
+
+* **sauvegarde:** le développement local démarre sans NAS ([761dc1d](https://github.com/djkix/kitchen-inventory/commit/761dc1dc34118d69631b4d2433722366939c29ae))
+
+
+### Miscellaneous Chores
+
+* publier la sauvegarde vers le NAS en 0.35.0 ([9e6d5bd](https://github.com/djkix/kitchen-inventory/commit/9e6d5bd560a199d189153cb89d091d5304e1b201))
+
 ## [0.34.0](https://github.com/djkix/kitchen-inventory/compare/v0.33.0...v0.34.0) (2026-10-23)
 
 
