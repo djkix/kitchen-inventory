@@ -602,3 +602,26 @@ model ReceiptLine {
   @@index([receiptId, position])
   @@index([productId])
 }
+
+// Tentatives de sauvegarde vers le NAS (section 9), inscrites par
+// docker/backup/backup.sh en SQL brut — d'où l'identifiant entier généré par
+// la base. Message technique seulement (« étape base (code 1) »), jamais de
+// contenu de l'inventaire. Lue par Réglages › Sauvegarde.
+model BackupAttempt {
+  id         Int      @id @default(autoincrement())
+  startedAt  DateTime
+  finishedAt DateTime
+  succeeded  Boolean
+  message    String
+  // Taille du dump de la base, pour une tentative réussie.
+  dumpBytes  Int?
+
+  @@index([finishedAt])
+}
+
+// « Sauvegarder maintenant » (Réglages, administrateurs) : une ligne posée par
+// l'API, effacée par docker/backup/schedule.sh au passage suivant (5 minutes).
+model BackupRequest {
+  id          Int      @id @default(autoincrement())
+  requestedAt DateTime @default(now())
+}

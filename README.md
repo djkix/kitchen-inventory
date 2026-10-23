@@ -188,7 +188,8 @@ les trois limites de chaque modèle. Chaque requête envoyée est journalisée
 Installable en **PWA** (plein écran, icône sur l'écran d'accueil), avec un
 bandeau qui propose la mise à jour sans jamais recharger la page sous les
 doigts. **Export** CSV et JSON. **Jetons de service** en lecture seule pour
-Home Assistant ou un script.
+Home Assistant ou un script. **Sauvegarde** chaque nuit vers un NAS, sept jours
+gardés, et à la demande depuis Réglages.
 
 **Limites connues.** Mode hors ligne, alertes de péremption par notification et
 export enrichi restent à faire. La liste de courses alimentée par des seuils
@@ -215,13 +216,14 @@ export enrichi restent à faire. La liste de courses alimentée par des seuils
 mkdir kitchen-inventory && cd kitchen-inventory
 curl -fsSLO https://raw.githubusercontent.com/djkix/kitchen-inventory/main/docker-compose.yml
 curl -fsSLO https://raw.githubusercontent.com/djkix/kitchen-inventory/main/.env.example
-mkdir -p docker && curl -fsSL -o docker/backup.sh https://raw.githubusercontent.com/djkix/kitchen-inventory/main/docker/backup.sh
 cp .env.example .env
 ```
 
 Renseigner `.env` : `SECRET_KEY` et `POSTGRES_PASSWORD` (générés avec
 `openssl rand -hex 32`), `PUBLIC_URL` (l'adresse HTTPS publique) et
-`IMAGE_TAG`. Ce dernier accepte `latest`, qui suit la dernière version
+`IMAGE_TAG`, ainsi que `NAS_OPTIONS` et `NAS_CHEMIN`, sans lesquelles
+`docker compose` refuse de démarrer (voir [Sauvegarde et
+restauration](#sauvegarde-et-restauration)). `IMAGE_TAG` accepte `latest`, qui suit la dernière version
 publiée, ou un numéro figé comme `0.6.1` si vous préférez décider de chaque
 montée de version. `latest` ne reçoit jamais un commit de développement : les
 poussées sur `main` sont publiées sous l'étiquette `main`, réservée aux
@@ -247,8 +249,7 @@ fournisseur de vision désactivé apparaît dans `degraded` sans empêcher le
 service : un placard s'inventorie très bien sans IA.
 
 Sous [Dockge](https://github.com/louislam/dockge), coller le contenu de
-`docker-compose.yml` et de `.env` dans une nouvelle stack ; le script de
-sauvegarde doit être présent dans `docker/backup.sh` à côté du compose. **Ne
+`docker-compose.yml` et de `.env` dans une nouvelle stack. **Ne
 pas y recopier de fragment de `docker-compose.e2e.yml`** : ce fichier de tests
 pose `GOOGLE_CERTS_URL`, qui déplace la racine de confiance de
 l'authentification (voir [Configuration](#configuration)).
@@ -498,26 +499,77 @@ d'Open Food Facts.
 
 ## Sauvegarde et restauration
 
-Le service `backup` produit chaque jour un dump PostgreSQL compressé
-(`db-<horodatage>.sql.gz`) et une archive du dossier média
-(`media-<horodatage>.tar.gz`) dans `BACKUP_DIR`, avec purge au-delà de
-`BACKUP_RETENTION_DAYS` (30 jours). Placer ce répertoire sur un autre disque
-que `PGDATA_DIR`.
+Chaque jour après 3 h (heure de `TZ`), le service `backup` copie tout ce qu'il
+faut pour remonter l'application dans un dossier daté d'un NAS, monté en NFS
+(volume `nas`, réglé par `NAS_OPTIONS` et `NAS_CHEMIN` dans `.env`). Il tourne
+sur la même image que `app`. **Sans chiffrement** : le `.env` (secrets compris)
+y est en clair, lisible par qui a accès au dossier partagé.
 
-Restauration à blanc, à tester **avant** la mise en service :
-
-```bash
-docker compose exec -T db psql -U "$POSTGRES_USER" -c 'CREATE DATABASE kitchen_restore'
-gunzip -c backups/db-<horodatage>.sql.gz | docker compose exec -T db psql -U "$POSTGRES_USER" -d kitchen_restore
+```
+<dossier>/
+├── 2026-10-23/
+│   ├── base/kitchen.dump     pg_dump -Fc de la base complète
+│   ├── media/                photos et fichiers envoyés
+│   ├── config/               fichier compose et .env de la stack
+│   └── sauvegarde.txt        version, début, fin, tailles
+├── …                         sept dossiers datés au plus
+└── derniere -> 2026-10-23    la plus récente réussie
 ```
 
-Restauration complète (service arrêté) :
+- Le NAS doit ouvrir le partage à l'hôte Docker en NFS, en lecture/écriture,
+  avec « mappage de tous les utilisateurs ». Adresse et chemin vont dans `.env`,
+  jamais dans le dépôt.
+- Un média inchangé est un lien physique vers celui de la veille : sept jours
+  occupent à peu près la place d'un seul.
+- Une tentative ratée ne supprime rien. Une nuit manquée (hôte ou NAS éteint)
+  est rattrapée dès que le service tourne ; après un échec, il réessaie une
+  heure plus tard. Une seule sauvegarde tourne à la fois.
+- **Si l'hôte redémarre avant le NAS**, le montage échoue et Docker ne relance
+  pas le conteneur : il reste arrêté. Remède, le NAS allumé :
+  `docker compose up -d backup`.
+- Chaque tentative est inscrite en base. **Réglages › Sauvegarde**
+  (administrateurs) montre la dernière réussite et la taille de la base, et
+  signale une dernière tentative en échec ou l'absence de réussite depuis
+  36 h.
+- **« Sauvegarder maintenant »**, au même endroit, part dans les 5 minutes
+  (avant une mise à jour risquée, par exemple) et remplace celle du jour. Tout
+  de suite, depuis le serveur : `docker compose exec backup /app/backup/backup.sh`.
+  Journal : `docker compose logs --since 24h backup`.
+
+Le volume s'appelle `<projet>_nas`, `<projet>` étant le nom de la stack (le
+nom du dossier, `kitchen` par exemple). Restauration à blanc dans une base à
+part, à tester **avant** la mise en service :
+
+```bash
+docker compose exec -T db createdb -U "$POSTGRES_USER" kitchen_restore
+docker compose run --rm --no-deps --entrypoint sh backup -c \
+  'pg_restore --no-owner -d "${DATABASE_URL%/*}/kitchen_restore" /nas/derniere/base/kitchen.dump'
+```
+
+Restauration complète, depuis le dossier daté voulu (`<date>`, ou `derniere`) :
 
 ```bash
 docker compose stop app backup
-gunzip -c backups/db-<horodatage>.sql.gz | docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
-tar xzf backups/media-<horodatage>.tar.gz -C ./media
-docker compose start app backup
+docker compose run --rm --no-deps --entrypoint sh backup -c \
+  'pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" /nas/<date>/base/kitchen.dump'
+docker run --rm -v <projet>_nas:/n:ro -v "$PWD/media":/m alpine \
+  sh -c 'cp -R /n/<date>/media/. /m/ && chown -R 1000:1000 /m'
+docker compose up -d
+```
+
+`$POSTGRES_USER` vient du `.env` (le charger dans le shell, ou l'écrire en
+clair) ; `$DATABASE_URL` est celle du conteneur, entre apostrophes. Avec un
+`MEDIA_DIR` autre que `./media`, remplacer `"$PWD/media"`.
+
+Sur un hôte reconstruit, il n'y a encore ni `.env` ni volume : créer le volume
+à la main avec les options de `.env`, puis reprendre `config/` (ou la copier
+depuis l'explorateur du NAS) avant les commandes ci-dessus.
+
+```bash
+docker volume create --driver local --opt type=nfs \
+  --opt o=addr=<IP du NAS>,nfsvers=4.1,soft,timeo=150,retrans=3 \
+  --opt device=:/volumeN/<partage>/<dossier> <projet>_nas
+docker run --rm -v <projet>_nas:/n:ro alpine tar cf - -C /n/<date>/config . | tar xf -
 ```
 
 > **Si l'application redémarre sur une base vide** — restauration ratée, dump
@@ -548,6 +600,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `OFF_USER_AGENT` | En-tête demandé par Open Food Facts |
 | `EXPIRY_ALERT_DAYS` | Seuil d'alerte par défaut (7), modifiable dans les réglages |
 | `LOG_LEVEL` | Niveau des journaux JSON sur la sortie standard |
+| `NAS_OPTIONS`, `NAS_CHEMIN` | **Obligatoires.** Options de montage NFS (`addr=<IP du NAS>,nfsvers=4.1,soft,timeo=150,retrans=3`) et chemin exporté (`:/volumeN/<partage>/<dossier>`) du NAS qui reçoit la sauvegarde. Sans NAS : `NAS_TYPE=none`, `NAS_OPTIONS=bind` et un dossier local dans `NAS_CHEMIN` |
 
 Les journaux ne contiennent jamais de cookie, de jeton Google, de mot de
 passe de secours ni de contenu d'image. Chaque appel au fournisseur de vision est journalisé avec sa latence,
@@ -758,6 +811,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.35.0 | 2026-10-23 | Sauvegarde chaque nuit vers un NAS, sept jours gardés, et « Sauvegarder maintenant » dans Réglages |
 | 0.34.0 | 2026-10-23 | Thème clair, thème sombre, ou suivi du réglage du téléphone |
 | 0.33.0 | 2026-10-23 | Les repères nutritionnels se rattrapent au scan et d'un bouton dans Réglages, et le Nutri-Score apparaît sur les ingrédients des recettes |
 | 0.32.1 | 2026-10-23 | Le rattrapage Nutri-Score attend quand Open Food Facts limite les requêtes, au lieu de perdre l'article |

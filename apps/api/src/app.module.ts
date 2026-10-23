@@ -5,6 +5,7 @@ import { MediaModule } from './media/media.module.js';
 import { RecognitionModule } from './recognition/recognition.module.js';
 import { randomUUID } from 'node:crypto';
 import { AccountsModule } from './accounts/accounts.module.js';
+import { BackupModule } from './backup/backup.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { OAuth2Client } from 'google-auth-library';
 import { GOOGLE_TOKEN_VERIFIER, GoogleIdTokenVerifier, type GoogleTokenVerifier } from './auth/google-token.verifier.js';
@@ -74,6 +75,7 @@ export class AppModule {
         PrismaModule,
         AuthModule,
         AccountsModule,
+        BackupModule,
         UsersModule,
         ServiceTokensModule,
         LocationsModule,

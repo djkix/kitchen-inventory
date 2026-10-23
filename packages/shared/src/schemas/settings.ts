@@ -55,3 +55,16 @@ export const geminiStatusSchema = z.object({
   error: z.string().optional(),
 });
 export type GeminiStatus = z.infer<typeof geminiStatusSchema>;
+
+/**
+ * État de la sauvegarde vers le NAS (`GET /backup`, administrateurs), lu dans
+ * la table que remplit le service `backup` (docker/backup/).
+ */
+export interface BackupStatus {
+  /** Dernière sauvegarde réussie : fin et taille du dump de la base. */
+  lastSuccess: { finishedAt: string; dumpBytes: number | null } | null;
+  /** « Sauvegarder maintenant » attend d'être pris par le service (5 minutes au plus). */
+  requested: boolean;
+  /** Ce qui demande l'attention de l'administrateur, en phrases ; vide si tout va bien. */
+  warnings: string[];
+}

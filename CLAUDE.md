@@ -211,6 +211,15 @@ tools/             utilitaires hors application
   par `GeminiService.call`. Plus de `responseSchema` : JSON par la consigne.
   `SUGGESTION_MODEL` et `FALLBACK_MODEL` ont disparu.
 
+- Sauvegarde vers le NAS livrée (section 9, amendement du 2026-10-23) : le
+  service `backup` tourne sur l'image applicative (`docker/backup/`,
+  `schedule.sh` toutes les 5 minutes, `backup.sh` pour une sauvegarde,
+  `test.sh` joué par la CI dans l'image construite). Dossier daté sur le NAS
+  (volume NFS `nas`), sept jours, liens physiques pour les médias, verrou ;
+  tentatives dans `BackupAttempt`, demandes dans `BackupRequest` (migration
+  `0017_backup`), Réglages › Sauvegarde pour les administrateurs
+  (`apps/api/src/backup`, `GET /backup`, `POST /backup/request`).
+
 ## Développement local
 
 Ni Docker ni PostgreSQL ne sont requis pour les tests : `npm test` démarre une
