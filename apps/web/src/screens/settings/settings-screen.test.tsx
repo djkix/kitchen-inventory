@@ -26,6 +26,7 @@ vi.mock('../../components/shell/version-badge', () => ({ VersionBadge: () => nul
 vi.mock('./stats-panel', () => ({ StatsPanel: () => null }));
 vi.mock('./gemini-models-section', () => ({ GeminiModelsSection: () => null }));
 vi.mock('./web-search-row', () => ({ WebSearchRow: () => null }));
+vi.mock('./backup-section', () => ({ BackupBadge: () => null, BackupSection: () => null }));
 vi.mock('./accounts-section', () => ({
   AccountsSection: () => <div>section-comptes</div>,
   SignOutEverywhereRow: () => <div>deconnexion-partout</div>,

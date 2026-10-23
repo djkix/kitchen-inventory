@@ -10,6 +10,7 @@ import { API_BASE, api, errorMessage } from '../../lib/api';
 import { queryKeys, useAccountsQuery, useRecognitionStatsQuery, useSettingsQuery } from '../../lib/queries';
 import { AccountsSection, SignOutEverywhereRow } from './accounts-section';
 import { AccordionSection, SectionBadge } from './accordion-section';
+import { BackupBadge, BackupSection } from './backup-section';
 import { NutritionBackfillRow } from './nutrition-backfill-row';
 import { ThemeRow } from './theme-row';
 import { useTheme } from '../../hooks/use-theme';
@@ -33,12 +34,13 @@ const SECTION_DOTS = {
   inventaire: '#f59e0b',
   apparence: '#e879f9',
   foyer: '#6366f1',
+  sauvegarde: '#64748b',
   export: '#a855f7',
 } as const;
 
 /**
  * Écran Réglages (section 14) : emplacements, comptes, seuil d'alerte,
- * reconnaissance, export, compte.
+ * reconnaissance, sauvegarde, export, compte.
  *
  * Les sections sont pliables depuis la refonte du 2026-10-21 : l'écran faisait
  * plusieurs hauteurs de téléphone et l'on descendait à l'aveugle. Chaque
@@ -92,6 +94,12 @@ export function SettingsScreen() {
         {auth.isAdmin && (
           <AccordionSection title="Foyer" badge={<SectionBadge>Home Assistant, scripts</SectionBadge>} dotColor={SECTION_DOTS.foyer}>
             <NavRow to="/reglages/jetons" label="Jetons de service" hint="Accès lecture pour Home Assistant, scripts…" />
+          </AccordionSection>
+        )}
+
+        {auth.isAdmin && (
+          <AccordionSection title="Sauvegarde" badge={<BackupBadge />} dotColor={SECTION_DOTS.sauvegarde}>
+            <BackupSection />
           </AccordionSection>
         )}
 

@@ -1,6 +1,7 @@
 # Stack de production (section 9) : trois services, image publiée sur GHCR.
 # Le TLS et le nom de domaine sont assurés par le reverse proxy existant, qui
-# n'a besoin que du port de « app ». Copier .env.example vers .env d'abord.
+# n'a besoin que du port de « app ». Copier .env.example vers .env d'abord :
+# NAS_OPTIONS et NAS_CHEMIN y sont obligatoires (sauvegarde vers le NAS).
 services:
   app:
     image: ghcr.io/djkix/kitchen-inventory:${IMAGE_TAG:-latest}
@@ -57,24 +58,40 @@ services:
       timeout: 5s
       retries: 5
 
-  # Dump quotidien de la base et archive des médias, rétention 30 jours.
+  # Sauvegarde vers le NAS : chaque jour après 3 h (heure de TZ), base, médias
+  # et configuration de la stack dans un dossier daté, sept jours gardés, sans
+  # chiffrement (docker/backup/). Même image que « app ». Rien n'en dépend :
+  # NAS éteint, seul ce conteneur ne démarre pas, et Réglages › Sauvegarde le
+  # signale au bout de 36 h.
   backup:
-    image: postgres:16-alpine
+    image: ghcr.io/djkix/kitchen-inventory:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    init: true
+    user: node
+    entrypoint: ["/app/backup/schedule.sh"]
+    # « app » saine a joué les migrations : la table BackupAttempt existe avant
+    # la première inscription.
     depends_on:
-      db:
+      app:
         condition: service_healthy
     environment:
-      PGHOST: db
-      PGPORT: "5432"
-      PGUSER: ${POSTGRES_USER}
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-      PGDATABASE: ${POSTGRES_DB}
-      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
-      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Une base injoignable ne bloque pas la boucle de schedule.sh : 10 s pour se connecter.
+      PGCONNECT_TIMEOUT: "10"
       TZ: ${TZ:-Europe/Paris}
     volumes:
-      - ./docker/backup.sh:/usr/local/bin/backup.sh:ro
-      - ${BACKUP_DIR:-./backups}:/backups
-      - ${MEDIA_DIR:-./media}:/media:ro
-    entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh"]
+      - ${MEDIA_DIR:-./media}:/data/media:ro
+      # Le dossier de la stack, pour en copier le fichier compose et le .env.
+      - ./:/stack:ro
+      - nas:/nas
+
+volumes:
+  # NAS du réseau local, en NFS ; adresse et chemin dans le .env, jamais dans le
+  # dépôt. Sans NAS (développement) : NAS_TYPE=none, NAS_OPTIONS=bind et
+  # NAS_CHEMIN=un dossier local existant.
+  nas:
+    driver: local
+    driver_opts:
+      type: ${NAS_TYPE:-nfs}
+      o: ${NAS_OPTIONS:?NAS_OPTIONS vide, par exemple addr=<IP du NAS>,nfsvers=4.1,soft,timeo=150,retrans=3}
+      device: ${NAS_CHEMIN:?NAS_CHEMIN vide, par exemple :/volumeN/<partage>/<dossier>}

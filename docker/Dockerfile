@@ -48,7 +48,9 @@ WORKDIR /app
 
 # su-exec : l'entrypoint démarre root pour ajuster les droits du volume média,
 # puis bascule sur l'utilisateur « node » avant de lancer quoi que ce soit.
-RUN apk add --no-cache su-exec
+# Client PostgreSQL 16 (même version majeure que la base), rsync et tzdata :
+# le service « backup » tourne sur cette même image (docker/backup/).
+RUN apk add --no-cache su-exec postgresql16-client rsync tzdata
 
 COPY package.json package-lock.json .npmrc ./
 COPY packages/shared/package.json packages/shared/
@@ -69,8 +71,10 @@ COPY --from=build /app/apps/web/dist ./web
 COPY --from=build /app/tools/dist/ ./
 COPY tools/package.json ./tools/package.json
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+# Sauvegarde vers le NAS : lancée par le service « backup », essayée par la CI.
+COPY docker/backup/ /app/backup/
 
-RUN chmod +x /usr/local/bin/entrypoint.sh \
+RUN chmod +x /usr/local/bin/entrypoint.sh /app/backup/*.sh \
   && mkdir -p /app/media \
   && chown -R node:node /app
 
