@@ -11,5 +11,5 @@
     "sourceMap": false,
     "types": ["node"]
   },
-  "include": ["acces-secours.ts"]
+  "include": ["acces-secours.ts", "nutriscore-rattrapage.ts"]
 }

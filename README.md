@@ -120,6 +120,13 @@ mouvement puis recalcule.
 **Recherche tolérante** aux fautes, aux synonymes et aux accents (« nouilles »
 trouve « ramen »). **Vue « périme bientôt »**, avec un seuil d'alerte réglable.
 
+**Repères nutritionnels** sur la fiche article : la lettre Nutri-Score et ce
+qui est élevé (sel, sucres, graisses), repris d'Open Food Facts au scan du
+code-barres, sans appel supplémentaire ni calcul maison. Open Food Facts ne
+note que les produits dont il a la table nutritionnelle complète : l'épicerie
+peu référencée revient souvent sans note, et la fiche le dit plutôt que de
+masquer la ligne.
+
 ### 🍲 Recettes
 
 **Suggestions** construites sur le stock réel : chaque carte porte son taux de
@@ -451,6 +458,22 @@ Chaque version publiée sur GitHub est accompagnée d'une note de changement
 (`CHANGELOG.md`, généré par release-please) ; les migrations incluses sont
 visibles dans `prisma/migrations`.
 
+### Rattraper les repères nutritionnels (une fois, après la 0.32.0)
+
+Les produits entrés au catalogue avant la 0.32.0 n'ont ni Nutri-Score ni
+niveaux : la réponse d'Open Food Facts conservée à l'époque ne contenait pas
+ces champs. Une commande les redemande, une seule fois :
+
+```bash
+docker compose exec app node tools/nutriscore-rattrapage.js
+```
+
+Elle n'interroge que les produits qui ont un code-barres et aucun repère,
+à raison d'une requête toutes les 0,7 seconde pour rester dans les usages
+d'Open Food Facts, et affiche le compte à la fin. Elle est relançable sans
+risque. `--tout` reprend aussi les produits déjà renseignés, pour suivre une
+mise à jour d'Open Food Facts.
+
 ## Sauvegarde et restauration
 
 Le service `backup` produit chaque jour un dump PostgreSQL compressé
@@ -713,6 +736,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.32.0 | 2026-10-23 | La fiche article affiche le Nutri-Score et les repères nutritionnels d'Open Food Facts |
 | 0.31.0 | 2026-10-22 | L'application choisit seule son modèle Gemini (Flash ou Flash-Lite), respecte les quotas de Google avant l'appel, bascule de modèle et dit l'heure de reprise |
 | 0.30.0 | 2026-10-22 | Le ticket de caisse remplit le stock, et la liste de courses est abandonnée |
 | 0.29.1 | 2026-10-22 | `docker-compose.yml` et `.env.example` transmettent enfin `FALLBACK_MODEL`, `GEMINI_RPD` et `GEMINI_RPM` : les trois variables ajoutées la veille existaient côté application mais n'étaient pas… |

@@ -185,6 +185,12 @@ model Product {
   // Surcharge la valeur de la catégorie quand elle est renseignée.
   afterOpeningDays Int?
 
+  // Repères nutritionnels d'Open Food Facts (EF-30), recopiés tels quels au
+  // scan : lettre « a » à « e », et niveaux `{fat, saturated-fat, sugars,
+  // salt}` valant `low`/`moderate`/`high`. Null tant qu'OFF ne les donne pas.
+  nutriscoreGrade String?
+  nutrientLevels  Json?
+
   minThreshold      Decimal? @db.Decimal(10, 2)
   imagePath         String?
   recognitionSource RecognitionSource @default(MANUAL)

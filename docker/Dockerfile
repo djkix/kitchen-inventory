@@ -62,8 +62,10 @@ RUN npm ci --omit=dev --workspace @kitchen/shared --workspace @kitchen/api \
 COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/web/dist ./web
-# `tools/acces-secours.js` et le module de hachage qu'il importe (D6) :
+# Les commandes serveur de `tools/` et ce qu'elles importent : la porte de
+# secours (D6) et le rattrapage des repères nutritionnels (EF-30).
 #   docker compose exec app node tools/acces-secours.js adresse@example.org
+#   docker compose exec app node tools/nutriscore-rattrapage.js
 COPY --from=build /app/tools/dist/ ./
 COPY tools/package.json ./tools/package.json
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh

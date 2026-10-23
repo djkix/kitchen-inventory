@@ -19,7 +19,7 @@ const locationNode = (id: string, name: string) => ({ id, name, parentId: null, 
 
 const product = (id: string, name: string, defaultUnit: ProductDto['defaultUnit'] = 'PIECE'): ProductDto => ({
   id, barcode: null, name, originalName: null, brand: null, categoryId: null, defaultUnit, netContent: null, netContentUnit: null,
-  afterOpeningDays: null, minThreshold: null, imagePath: null, recognitionSource: 'MANUAL', confidence: null, createdAt: '', updatedAt: '',
+  afterOpeningDays: null, minThreshold: null, imagePath: null, nutriscoreGrade: null, nutrientLevels: null, recognitionSource: 'MANUAL', confidence: null, createdAt: '', updatedAt: '',
 });
 const line = (over: Partial<ReceiptLineDto> & Pick<ReceiptLineDto, 'id' | 'position' | 'rawLabel' | 'state'>): ReceiptLineDto => ({
   quantity: 1, product: null, candidates: [], currentQuantity: 0, ...over,

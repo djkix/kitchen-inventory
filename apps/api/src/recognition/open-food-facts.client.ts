@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { CreateProductInput, Unit } from '@kitchen/shared';
+import { OFF_NUTRITION_FIELDS, parseNutrientLevels, parseNutriscoreGrade, type CreateProductInput, type Unit } from '@kitchen/shared';
 import { Logger } from 'nestjs-pino';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { HTTP_CLIENT, type HttpClient } from '../common/http-client.js';
@@ -14,6 +14,8 @@ interface OffProduct {
   quantity?: string;
   image_front_small_url?: string;
   image_front_url?: string;
+  nutriscore_grade?: string;
+  nutrient_levels?: unknown;
   [key: string]: unknown;
 }
 
@@ -71,7 +73,7 @@ export class OpenFoodFactsClient {
   ) {}
 
   async lookup(barcode: string): Promise<OffLookup | null> {
-    const fields = ['product_name', 'product_name_fr', 'brands', 'categories_tags', 'product_quantity', 'product_quantity_unit', 'quantity', 'image_front_small_url', 'image_front_url', ...ORIGINAL_NAME_LANGS.map((l) => `product_name_${l}`)];
+    const fields = ['product_name', 'product_name_fr', 'brands', 'categories_tags', 'product_quantity', 'product_quantity_unit', 'quantity', 'image_front_small_url', 'image_front_url', ...OFF_NUTRITION_FIELDS, ...ORIGINAL_NAME_LANGS.map((l) => `product_name_${l}`)];
     const url = `${this.config.OFF_BASE_URL}/api/v2/product/${encodeURIComponent(barcode)}?fields=${fields.join(',')}`;
     let body: OffResponse;
     try {
@@ -103,6 +105,8 @@ export class OpenFoodFactsClient {
         defaultUnit: 'PIECE',
         netContent: net?.value ?? null,
         netContentUnit: net?.unit ?? null,
+        nutriscoreGrade: parseNutriscoreGrade(p.nutriscore_grade),
+        nutrientLevels: parseNutrientLevels(p.nutrient_levels),
       },
       categoryName: matchCategory(p.categories_tags ?? []),
       imageUrl: p.image_front_small_url ?? p.image_front_url ?? null,

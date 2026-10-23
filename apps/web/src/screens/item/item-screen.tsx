@@ -19,6 +19,7 @@ import { ConsumeSheet } from './consume-sheet';
 import { DateSheet } from './date-sheet';
 import { MoveSheet } from './move-sheet';
 import { MovementHistory } from './movement-history';
+import { NutritionBlock } from './nutrition-block';
 
 type SheetName = 'consume' | 'move' | 'date' | null;
 
@@ -164,6 +165,8 @@ function ItemDetails({ item }: { item: StockItemDto }) {
             )}
           </button>
         </section>
+
+        <NutritionBlock product={item.product} />
 
         {(item.opened || (item.effectiveExpiry && item.effectiveExpiry !== item.expiryDate)) && (
           <p className="flex items-center gap-2 rounded-xl bg-surface px-4 py-2.5 text-[14px] text-muted">

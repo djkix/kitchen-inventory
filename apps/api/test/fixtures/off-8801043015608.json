@@ -7,9 +7,13 @@
     "product_name": "Shin Ramyun",
     "product_name_ko": "신라면",
     "brands": "Nongshim",
-    "categories_tags": ["en:noodles", "en:instant-noodles"],
+    "categories_tags": [
+      "en:noodles",
+      "en:instant-noodles"
+    ],
     "quantity": "120 g",
     "product_quantity": "120",
-    "product_quantity_unit": "g"
+    "product_quantity_unit": "g",
+    "nutriscore_grade": "unknown"
   }
 }

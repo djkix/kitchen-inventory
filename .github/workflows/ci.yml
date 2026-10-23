@@ -170,6 +170,20 @@ jobs:
           echo "$sortie" | grep -qF 'Usage : node tools/acces-secours.js <adresse e-mail>' \
             || { echo "::error::message d'usage absent"; exit 1; }
 
+      # Même garde pour le rattrapage Nutri-Score (EF-30) : `tools/tsconfig.json`
+      # liste les fichiers à compiler un par un, et un oubli n'y lève aucune
+      # erreur — la commande manque simplement de l'image.
+      - name: La commande de rattrapage démarre dans l'image
+        run: |
+          set -o pipefail
+          sortie="$(docker run --rm --entrypoint node \
+            -e DATABASE_URL=postgresql://inutilise:inutilise@127.0.0.1:1/inutilise \
+            "$IMAGE" tools/nutriscore-rattrapage.js --inconnu 2>&1)" && code=0 || code=$?
+          echo "$sortie"
+          test "$code" -eq 1 || { echo "::error::code de sortie attendu 1, obtenu $code"; exit 1; }
+          echo "$sortie" | grep -qF 'Usage : node tools/nutriscore-rattrapage.js [--tout]' \
+            || { echo "::error::message d'usage absent"; exit 1; }
+
   # Parcours bout en bout (section 19), sur le montage jetable de la tâche 1
   # (docker-compose.e2e.yml) : jamais l'image publiée, jamais un réseau réel
   # (Open Food Facts et Gemini sont remplacés par la doublure du service

@@ -41,7 +41,10 @@ describe('scan par code-barres (EF-01, EF-02, EF-14)', () => {
       netContent: 400,
       netContentUnit: 'GRAM',
       recognitionSource: 'OPEN_FOOD_FACTS',
+      nutriscoreGrade: 'e',
     });
+    // EF-30 : les repères nutritionnels sont recopiés tels quels, sans calcul.
+    expect(res.body.product.nutrientLevels).toEqual({ fat: 'high', 'saturated-fat': 'high', sugars: 'high', salt: 'low' });
     expect(res.body.product.imagePath).toMatch(/^products\//);
     const offCall = http.calls.find((c) => c.url.includes('/api/v2/product/'));
     expect(new Headers(offCall?.init?.headers).get('user-agent')).toContain('KitchenInventory');
@@ -57,6 +60,9 @@ describe('scan par code-barres (EF-01, EF-02, EF-14)', () => {
     http.fixture('/api/v2/product/8801043015608', 'off-8801043015608.json');
     const res = await agent.post('/api/v1/scan/barcode').send({ barcode: '8801043015608' }).expect(200);
     expect(res.body.product).toMatchObject({ name: 'Shin Ramyun', originalName: '신라면', brand: 'Nongshim' });
+    // EF-30 : « unknown » n'est pas une note, c'est une absence de note.
+    expect(res.body.product.nutriscoreGrade).toBeNull();
+    expect(res.body.product.nutrientLevels).toBeNull();
     expect(res.body.product.category?.name).toBe('Épicerie sèche');
   });
 
