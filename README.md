@@ -221,8 +221,8 @@ cp .env.example .env
 
 Renseigner `.env` : `SECRET_KEY` et `POSTGRES_PASSWORD` (générés avec
 `openssl rand -hex 32`), `PUBLIC_URL` (l'adresse HTTPS publique) et
-`IMAGE_TAG`, ainsi que `NAS_OPTIONS` et `NAS_CHEMIN`, sans lesquelles
-`docker compose` refuse de démarrer (voir [Sauvegarde et
+`IMAGE_TAG`, ainsi que `NAS_OPTIONS` et `NAS_CHEMIN` : sans elles, le service
+`backup` ne démarre pas et `docker compose up` le signale (voir [Sauvegarde et
 restauration](#sauvegarde-et-restauration)). `IMAGE_TAG` accepte `latest`, qui suit la dernière version
 publiée, ou un numéro figé comme `0.6.1` si vous préférez décider de chaque
 montée de version. `latest` ne reçoit jamais un commit de développement : les
@@ -600,7 +600,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `OFF_USER_AGENT` | En-tête demandé par Open Food Facts |
 | `EXPIRY_ALERT_DAYS` | Seuil d'alerte par défaut (7), modifiable dans les réglages |
 | `LOG_LEVEL` | Niveau des journaux JSON sur la sortie standard |
-| `NAS_OPTIONS`, `NAS_CHEMIN` | **Obligatoires.** Options de montage NFS (`addr=<IP du NAS>,nfsvers=4.1,soft,timeo=150,retrans=3`) et chemin exporté (`:/volumeN/<partage>/<dossier>`) du NAS qui reçoit la sauvegarde. Sans NAS : `NAS_TYPE=none`, `NAS_OPTIONS=bind` et un dossier local dans `NAS_CHEMIN` |
+| `NAS_OPTIONS`, `NAS_CHEMIN` | **Obligatoires en production** (inutiles avec `docker-compose.dev.yml`, qui écarte `backup`). Options de montage NFS (`addr=<IP du NAS>,nfsvers=4.1,soft,timeo=150,retrans=3`) et chemin exporté (`:/volumeN/<partage>/<dossier>`) du NAS qui reçoit la sauvegarde. Sans NAS : `NAS_TYPE=none`, `NAS_OPTIONS=bind` et un dossier local dans `NAS_CHEMIN` |
 
 Les journaux ne contiennent jamais de cookie, de jeton Google, de mot de
 passe de secours ni de contenu d'image. Chaque appel au fournisseur de vision est journalisé avec sa latence,
@@ -707,6 +707,8 @@ Construire l'image localement :
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
+
+Le service `backup` n'y démarre pas : aucune variable de NAS à régler.
 
 ### Tests bout en bout
 
