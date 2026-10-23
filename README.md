@@ -469,6 +469,31 @@ Chaque version publiée sur GitHub est accompagnée d'une note de changement
 (`CHANGELOG.md`, généré par release-please) ; les migrations incluses sont
 visibles dans `prisma/migrations`.
 
+### Les versions qui changent le fichier compose
+
+`docker compose pull` et le bouton « Update » de Dockge mettent à jour
+**l'image**, jamais le `compose.yaml` ni le `.env` : ces deux fichiers
+appartiennent à l'installation, pas au dépôt. Une version marquée
+**BREAKING** dans `CHANGELOG.md` en demande souvent une modification à la
+main — un service, un volume, une variable nouvelle.
+
+Tant qu'elle n'est pas faite, l'application tourne, mais sur l'ancienne
+définition : rien ne signale l'écart, et la nouveauté semble simplement ne pas
+marcher. C'est arrivé à la 0.35.0, dont la sauvegarde vers le NAS remplace le
+service `backup`.
+
+Le réflexe, devant une nouveauté qui n'apparaît pas après une mise à jour :
+comparer ce qui tourne à ce qu'annonce la version.
+
+```bash
+docker compose ps
+```
+
+Un service dont l'image ou la commande ne correspond plus à celles du
+[`docker-compose.yml` de la version](https://github.com/djkix/kitchen-inventory/blob/main/docker-compose.yml)
+dit que le compose local est resté en arrière. Le `CHANGELOG.md` de la version
+concernée liste ce qu'il faut reporter.
+
 ### Rattraper les repères nutritionnels
 
 Les produits entrés au catalogue avant la 0.32.0 n'ont ni Nutri-Score ni
