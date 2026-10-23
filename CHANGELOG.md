@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/djkix/kitchen-inventory/compare/v0.30.0...v0.31.0) (2026-10-22)
+
+
+### Features
+
+* **gemini:** modèle choisi seul, quotas avant l'appel, bascule et pause commune (EF-03, EF-26, EF-29) ([638bc93](https://github.com/djkix/kitchen-inventory/commit/638bc9345f44fcfa2580ca997e720ffb212723ed))
+
 ## [0.30.0](https://github.com/djkix/kitchen-inventory/compare/v0.29.0...v0.30.0) (2026-10-22)
 
 
