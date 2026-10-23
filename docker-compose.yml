@@ -1,7 +1,7 @@
 # Stack de production (section 9) : trois services, image publiée sur GHCR.
 # Le TLS et le nom de domaine sont assurés par le reverse proxy existant, qui
 # n'a besoin que du port de « app ». Copier .env.example vers .env d'abord :
-# NAS_OPTIONS et NAS_CHEMIN y sont obligatoires (sauvegarde vers le NAS).
+# NAS_OPTIONS et NAS_CHEMIN y sont obligatoires en production (sauvegarde vers le NAS).
 services:
   app:
     image: ghcr.io/djkix/kitchen-inventory:${IMAGE_TAG:-latest}
@@ -87,11 +87,13 @@ services:
 
 volumes:
   # NAS du réseau local, en NFS ; adresse et chemin dans le .env, jamais dans le
-  # dépôt. Sans NAS (développement) : NAS_TYPE=none, NAS_OPTIONS=bind et
-  # NAS_CHEMIN=un dossier local existant.
+  # dépôt. Vides, le montage échoue : `up` s'arrête sur « backup », qui seul ne
+  # démarre pas. docker-compose.dev.yml n'en a pas besoin : il écarte « backup ».
+  # Sans NAS en production : NAS_TYPE=none, NAS_OPTIONS=bind, NAS_CHEMIN=un
+  # dossier local existant.
   nas:
     driver: local
     driver_opts:
       type: ${NAS_TYPE:-nfs}
-      o: ${NAS_OPTIONS:?NAS_OPTIONS vide, par exemple addr=<IP du NAS>,nfsvers=4.1,soft,timeo=150,retrans=3}
-      device: ${NAS_CHEMIN:?NAS_CHEMIN vide, par exemple :/volumeN/<partage>/<dossier>}
+      o: ${NAS_OPTIONS:-}
+      device: ${NAS_CHEMIN:-}
