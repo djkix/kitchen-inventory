@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.36.1](https://github.com/djkix/kitchen-inventory/compare/v0.36.0...v0.36.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **notifications:** passer les clés VAPID au conteneur, et demander l'autorisation toute seule ([29910ad](https://github.com/djkix/kitchen-inventory/commit/29910ad3216272b59a6fe454b289eafc13b9c6f2))
+
 ## [0.36.0](https://github.com/djkix/kitchen-inventory/compare/v0.35.0...v0.36.0) (2026-11-02)
 
 
