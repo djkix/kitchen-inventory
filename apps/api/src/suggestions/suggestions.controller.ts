@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, OnModuleInit, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -12,7 +12,7 @@ import {
   type VoiceSuggestionBatchDto,
 } from '@kitchen/shared';
 import { aiRequestField } from '../ai-requests/ai-request-field.js';
-import { AiRequestService } from '../ai-requests/ai-request.service.js';
+import { DeferralService } from '../ai-requests/deferral.service.js';
 import { ApiError } from '../common/api-error.js';
 import { CurrentUser, type RequestUser } from '../auth/request-user.js';
 import { ZodBody, ZodQuery } from '../common/zod-validation.pipe.js';
@@ -26,16 +26,27 @@ import { SuggestionsService } from './suggestions.service.js';
  * vers le site d'origine, la recette reste dans l'application.
  */
 @Controller('suggestions')
-export class SuggestionsController {
+export class SuggestionsController implements OnModuleInit {
   constructor(
     private readonly suggestions: SuggestionsService,
-    private readonly requests: AiRequestService,
+    private readonly deferral: DeferralService,
   ) {}
+
+  onModuleInit(): void {
+    this.deferral.register('SUGGESTIONS', async ({ json }) => {
+      const batch = await this.suggestions.list(json as SuggestionQuery);
+      return { result: batch, count: batch.items.length };
+    });
+    this.deferral.register('VOICE', async ({ file, mimeType }) => {
+      const batch = await this.suggestions.listFromVoice(file!, mimeType!);
+      return { result: batch, count: batch.items.length };
+    });
+  }
 
   @Get()
   list(@ZodQuery(suggestionQuerySchema) query: SuggestionQuery, @CurrentUser() user: RequestUser): Promise<SuggestionBatchDto> {
-    return this.requests.track(
-      { id: query.requestId, userId: user.id, kind: 'SUGGESTIONS' },
+    return this.deferral.track(
+      { id: query.requestId, userId: user.id, kind: 'SUGGESTIONS', payload: () => ({ json: query }) },
       () => this.suggestions.list(query),
       (batch) => batch.items.length,
     );
@@ -71,8 +82,13 @@ export class SuggestionsController {
   @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: VOICE_MAX_BYTES + 1024, files: 1 } }))
   voice(@UploadedFile() file: Express.Multer.File | undefined, @Body() rawBody: unknown, @CurrentUser() user: RequestUser): Promise<VoiceSuggestionBatchDto> {
     if (!file) throw new ApiError(400, 'validation_failed', 'Enregistrement manquant (champ « audio »)');
-    return this.requests.track(
-      { id: aiRequestField(rawBody), userId: user.id, kind: 'VOICE' },
+    return this.deferral.track(
+      {
+        id: aiRequestField(rawBody),
+        userId: user.id,
+        kind: 'VOICE',
+        payload: () => ({ file: { buffer: file.buffer, mimeType: file.mimetype } }),
+      },
       () => this.suggestions.listFromVoice(file.buffer, file.mimetype),
       (batch) => batch.items.length,
     );

@@ -1,9 +1,9 @@
-import { Body, Controller, Get, HttpCode, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, OnModuleInit, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { scanBarcodeSchema, scanCorrectionSchema, scanImageHintSchema, type RecognitionStats, type ScanBarcodeInput, type ScanBarcodeResult, type ScanCorrectionInput, type ScanImageResult } from '@kitchen/shared';
 import { aiRequestField } from '../ai-requests/ai-request-field.js';
-import { AiRequestService } from '../ai-requests/ai-request.service.js';
+import { DeferralService } from '../ai-requests/deferral.service.js';
 import { CurrentUser, type RequestUser } from '../auth/request-user.js';
 import { ApiError } from '../common/api-error.js';
 import { ZodBody, ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -13,12 +13,19 @@ import { RecognitionService } from './recognition.service.js';
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 @Controller()
-export class ScanController {
+export class ScanController implements OnModuleInit {
   constructor(
     private readonly recognition: RecognitionService,
     private readonly media: MediaService,
-    private readonly requests: AiRequestService,
+    private readonly deferral: DeferralService,
   ) {}
+
+  onModuleInit(): void {
+    this.deferral.register('SCAN_IMAGE', async ({ file, mimeType, json }) => {
+      const hint = json as { hint?: string; barcode?: string };
+      return { result: await this.recognition.recognizeImage(file!, mimeType!, hint.hint, hint.barcode) };
+    });
+  }
 
   @Post('scan/barcode')
   @HttpCode(200)
@@ -39,8 +46,14 @@ export class ScanController {
       throw new ApiError(400, 'validation_failed', 'Format d’image non pris en charge (JPEG, PNG, WebP, HEIC)', [{ path: 'image', message: file.mimetype }]);
     }
     const hint = new ZodValidationPipe(scanImageHintSchema).transform(rawBody);
-    return this.requests.track({ id: aiRequestField(rawBody), userId: user.id, kind: 'SCAN_IMAGE' }, () =>
-      this.recognition.recognizeImage(file.buffer, file.mimetype, hint.hint, hint.barcode),
+    return this.deferral.track(
+      {
+        id: aiRequestField(rawBody),
+        userId: user.id,
+        kind: 'SCAN_IMAGE',
+        payload: () => ({ file: { buffer: file.buffer, mimeType: file.mimetype }, json: hint }),
+      },
+      () => this.recognition.recognizeImage(file.buffer, file.mimetype, hint.hint, hint.barcode),
     );
   }
 

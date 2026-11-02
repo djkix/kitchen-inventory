@@ -13,6 +13,12 @@ import { PrismaService } from '../prisma/prisma.service.js';
  * rien : la réponse HTTP a déjà porté le résultat (D2). Elle devient le seul
  * chemin vers lui dès que le téléphone a été posé.
  */
+
+export interface CloseOpts {
+  /** Vrai quand la clôture vient d'un rejeu : elle annonce alors toujours (D1b). */
+  wasDeferred?: boolean;
+}
+
 @Injectable()
 export class AiRequestService {
   private readonly logger = new Logger(AiRequestService.name);
@@ -35,39 +41,17 @@ export class AiRequestService {
     });
   }
 
-  /**
-   * Encadre un appel au modèle : ouvre la ligne, la clôt avec son résultat,
-   * et laisse remonter l'erreur telle quelle après l'avoir inscrite.
-   *
-   * Sans identifiant — une interface plus ancienne, ou une requête que
-   * l'utilisateur n'a pas déclenchée lui-même — rien n'est ouvert et rien
-   * n'est annoncé : le comportement d'avant, à l'octet près.
-   */
-  async track<T>(input: { id?: string; userId: string; kind: AiRequestKind }, run: () => Promise<T>, count?: (result: T) => number): Promise<T> {
-    const { id } = input;
-    if (!id) return run();
-    await this.open({ id, userId: input.userId, kind: input.kind });
-    try {
-      const result = await run();
-      await this.succeed(id, result, count?.(result));
-      return result;
-    } catch (error) {
-      await this.fail(id, error instanceof Error ? error.message : 'La demande a échoué.');
-      throw error;
-    }
+  async succeed(id: string, result: unknown, count?: number, opts: CloseOpts = {}): Promise<void> {
+    await this.close(id, { state: 'DONE', result: result as never }, count, opts);
   }
 
-  async succeed(id: string, result: unknown, count?: number): Promise<void> {
-    await this.close(id, { state: 'DONE', result: result as never }, count);
-  }
-
-  async fail(id: string, error: string): Promise<void> {
-    await this.close(id, { state: 'FAILED', error });
+  async fail(id: string, error: string, opts: CloseOpts = {}): Promise<void> {
+    await this.close(id, { state: 'FAILED', error }, undefined, opts);
   }
 
   /** Abandon d'une demande différée : annoncé avec sa raison (D6, D13). */
-  async abandon(id: string, reason: string): Promise<void> {
-    await this.close(id, { state: 'ABANDONED', error: reason });
+  async abandon(id: string, reason: string, opts: CloseOpts = {}): Promise<void> {
+    await this.close(id, { state: 'ABANDONED', error: reason }, undefined, opts);
   }
 
   /** Le téléphone a été posé : la réponse devra être annoncée (D1). */
@@ -89,7 +73,7 @@ export class AiRequestService {
    * ses pannes, et `notifiedAt` garantit qu'on ne sonne pas deux fois pour la
    * même demande.
    */
-  private async close(id: string, data: { state: AiRequestState; result?: never; error?: string }, count?: number): Promise<void> {
+  private async close(id: string, data: { state: AiRequestState; result?: never; error?: string }, count?: number, opts: CloseOpts = {}): Promise<void> {
     const row = await this.prisma.aiRequest.findUnique({ where: { id } });
     if (!row) return;
     const updated = await this.prisma.aiRequest.update({
@@ -97,7 +81,9 @@ export class AiRequestService {
       data: { ...data, retryAt: null, inputPath: null, inputMime: null, inputJson: Prisma.DbNull },
     });
     if (row.notifiedAt) return;
-    if (!shouldNotify({ leftScreen: updated.leftScreen, wasDeferred: row.state === 'DEFERRED' })) return;
+    // Le rejeu repasse la ligne en « en cours » avant de jouer : c'est
+    // l'appelant qui sait qu'elle venait du différé, pas l'état courant.
+    if (!shouldNotify({ leftScreen: updated.leftScreen, wasDeferred: opts.wasDeferred ?? row.state === 'DEFERRED' })) return;
     await this.prisma.aiRequest.update({ where: { id }, data: { notifiedAt: new Date() } });
     await this.push.sendToUser(updated.userId, notificationPayload({
       id,
@@ -119,3 +105,4 @@ function toDto(row: AiRequest): AiRequestStatusDto {
     retryAt: row.retryAt?.toISOString() ?? null,
   };
 }
+
