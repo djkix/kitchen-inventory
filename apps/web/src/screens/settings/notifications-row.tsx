@@ -1,63 +1,53 @@
 import { useEffect, useState } from 'react';
-import type { PushPublicKeyDto } from '@kitchen/shared';
 import { useToast } from '../../components/ui/toast';
-import { api, errorMessage } from '../../lib/api';
+import { errorMessage } from '../../lib/api';
+import { currentSubscription, ensurePushSubscription, publicKey, pushSupported, removePushSubscription } from '../../lib/push-subscription';
 
 /**
- * « Me prévenir quand une réponse est prête » (conception du 2026-11-02, D8).
+ * « Me prévenir quand une réponse est prête » (conception du 2026-11-02, D8,
+ * amendée le 2026-11-02).
  *
- * Dans Réglages, et non au moment où l'on quitte l'écran : la page y est en
- * train d'être gelée par le système, et une demande d'autorisation surgie à ce
- * moment-là serait refusée par réflexe. L'interrupteur vaut pour l'appareil où
- * l'on est, et le dit.
+ * L'autorisation n'est plus demandée **que** d'ici : la première demande au
+ * modèle faite sur l'appareil la demande d'elle-même, au moment où l'attente
+ * commence. Cet interrupteur reste la façon de revenir sur ce choix, de voir
+ * où l'on en est, et de comprendre pourquoi rien n'arrive — un appareil qui
+ * ne sait pas faire, un serveur sans clés, une autorisation refusée au
+ * téléphone, qu'une application web ne peut pas redemander elle-même.
  */
 export function NotificationsRow() {
   const toast = useToast();
-  const [publicKey, setPublicKey] = useState<string | null | undefined>(undefined);
+  const [key, setKey] = useState<string | null | undefined>(undefined);
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const supported = typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+  const supported = pushSupported();
+  const denied = supported && Notification.permission === 'denied';
 
   useEffect(() => {
-    void api
-      .get<PushPublicKeyDto>('/notifications/public-key')
-      .then((dto) => setPublicKey(dto.publicKey))
-      .catch(() => setPublicKey(null));
-    if (!supported) return;
-    void navigator.serviceWorker.ready
-      .then((registration) => registration.pushManager.getSubscription())
-      .then((existing) => setSubscribed(existing !== null))
-      .catch(() => undefined);
-  }, [supported]);
+    void publicKey().then(setKey);
+    void currentSubscription().then((existing) => setSubscribed(existing !== null));
+  }, []);
 
   const reason = !supported
     ? 'Cet appareil ne sait pas afficher de notifications. Sur iPhone, il faut d’abord installer l’application sur l’écran d’accueil.'
-    : publicKey === null
+    : key === null
       ? 'Les notifications ne sont pas configurées sur ce serveur.'
-      : null;
+      : denied && !subscribed
+        ? 'Les notifications sont refusées pour cette application. Réautorisez-les dans les réglages du téléphone : une page web ne peut pas le redemander elle-même.'
+        : null;
 
   const toggle = async () => {
     setBusy(true);
     try {
-      const registration = await navigator.serviceWorker.ready;
       if (subscribed) {
-        const existing = await registration.pushManager.getSubscription();
-        if (existing) {
-          await api.delete('/notifications/subscription', { endpoint: existing.endpoint });
-          await existing.unsubscribe();
-        }
+        await removePushSubscription();
         setSubscribed(false);
         return;
       }
-      if ((await Notification.requestPermission()) !== 'granted') {
-        toast.show({ message: 'Les notifications sont refusées pour cette application. Vous pouvez les réautoriser dans les réglages du téléphone.', tone: 'danger' });
-        return;
-      }
-      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: publicKey! });
-      await api.post('/notifications/subscription', subscription.toJSON());
-      setSubscribed(true);
-      toast.show({ message: 'Cet appareil sera prévenu quand une réponse est prête', tone: 'success', durationMs: 2500 });
+      const state = await ensurePushSubscription();
+      setSubscribed(state === 'subscribed');
+      if (state === 'subscribed') toast.show({ message: 'Cet appareil sera prévenu quand une réponse est prête', tone: 'success', durationMs: 2500 });
+      else if (state === 'denied') toast.show({ message: 'Les notifications sont refusées pour cette application. Réautorisez-les dans les réglages du téléphone.', tone: 'danger' });
     } catch (error) {
       toast.show({ message: errorMessage(error, 'L’abonnement n’a pas pu être enregistré'), tone: 'danger' });
     } finally {
@@ -73,14 +63,14 @@ export function NotificationsRow() {
           {reason ??
             (subscribed
               ? 'Cet appareil reçoit une notification quand une demande au modèle aboutit alors que vous avez quitté l’écran.'
-              : 'Posez votre téléphone pendant une demande : la notification vous dira que le résultat est là. Réglage propre à cet appareil.')}
+              : 'L’autorisation vous sera demandée à votre prochaine demande de recettes ou de lecture de ticket. Réglage propre à cet appareil.')}
         </span>
       </label>
       <input
         id="notifications"
         type="checkbox"
         role="switch"
-        disabled={busy || reason !== null || publicKey === undefined}
+        disabled={busy || reason !== null || key === undefined}
         checked={subscribed}
         onChange={() => void toggle()}
         className="size-6 shrink-0 accent-accent disabled:opacity-60"

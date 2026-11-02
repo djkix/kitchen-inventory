@@ -202,8 +202,13 @@ est gardée, repart toute seule à la reprise annoncée, et c'est son résultat 
 vous est annoncé. Au-delà d'une heure d'attente, l'application abandonne et
 vous le dit plutôt que de vous réveiller.
 
-L'interrupteur est dans **Réglages › Apparence**, et vaut pour l'appareil où
-vous êtes. Il demande l'autorisation du navigateur au moment où vous l'allumez.
+**L'autorisation se demande toute seule**, une fois par appareil, au moment où
+vous lancez votre première demande de recettes ou votre première lecture de
+ticket : c'est là qu'elle a du sens, et le geste qui l'a déclenchée est celui
+que les navigateurs exigent. Un refus n'est jamais redemandé de lui-même.
+L'interrupteur de **Réglages › Apparence** sert à revenir sur ce choix, à voir
+où vous en êtes, et à comprendre pourquoi rien n'arrive. Il vaut pour
+l'appareil où vous êtes.
 Sur iPhone, les notifications web n'existent que si l'application est installée
 sur l'écran d'accueil ; l'interrupteur le dit s'il ne peut pas fonctionner.
 Sans clés VAPID configurées sur le serveur, tout le reste marche et
@@ -520,6 +525,21 @@ Un service dont l'image ou la commande ne correspond plus à celles du
 [`docker-compose.yml` de la version](https://github.com/djkix/kitchen-inventory/blob/main/docker-compose.yml)
 dit que le compose local est resté en arrière. Le `CHANGELOG.md` de la version
 concernée liste ce qu'il faut reporter.
+
+**0.36.0** en est un autre cas, plus discret : les notifications ont besoin de
+trois variables nouvelles. Les poser dans le `.env` ne suffit pas — le service
+`app` énumère ce qu'il transmet, et il faut donc **aussi** ajouter les trois
+lignes au `compose.yaml` de l'installation, sous `environment` :
+
+```yaml
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@localhost}
+```
+
+Sans elles, l'application tourne normalement et l'interrupteur « Me prévenir
+quand une réponse est prête » reste éteint, en disant que les notifications ne
+sont pas configurées sur ce serveur.
 
 ### Rattraper les repères nutritionnels
 

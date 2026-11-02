@@ -1,4 +1,5 @@
 import { beginAiRequest, forgetAiRequest, watchAiRequest } from '../../lib/ai-request';
+import { ensurePushSubscription } from '../../lib/push-subscription';
 import type { ScanBarcodeResult, ScanImageResult } from '@kitchen/shared';
 import { useCallback, useRef, useState } from 'react';
 import { errorFeedback, scanFeedback } from '../../components/scanner/feedback';
@@ -132,6 +133,7 @@ export function useScanFlow({ locationId }: Options) {
         // d'une étiquette peut prendre une dizaine de secondes.
         const requestId = beginAiRequest();
         const stopWatching = watchAiRequest(requestId);
+        void ensurePushSubscription({ auto: true }).catch(() => undefined);
         formData.append('requestId', requestId);
         let result: ScanImageResult;
         try {
