@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.0](https://github.com/djkix/kitchen-inventory/compare/v0.36.1...v0.37.0) (2026-11-02)
+
+
+### Features
+
+* **notifications:** l'attente se dit en durée, et la notification n'est promise que si elle est autorisée ([b38b368](https://github.com/djkix/kitchen-inventory/commit/b38b36847352ce8d0418e39f1eb99f2ed0007c3d))
+
 ## [0.36.1](https://github.com/djkix/kitchen-inventory/compare/v0.36.0...v0.36.1) (2026-11-02)
 
 
