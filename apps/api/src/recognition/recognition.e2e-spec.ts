@@ -122,6 +122,21 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
   });
   afterAll(() => t.close());
 
+  // Conception du 2026-11-02 : la photo est l'un des quatre usages annoncés.
+  it('ouvre une ligne de demande quand l’écran en fournit l’identifiant', async () => {
+    const REQ = '55555555-5555-4555-8555-555555555555';
+    http.on('generateContent', () => geminiFixture('vision-gochujang.json'));
+    await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').field('requestId', REQ).expect(200);
+    const row = await t.prisma.aiRequest.findUniqueOrThrow({ where: { id: REQ } });
+    expect(row).toMatchObject({ kind: 'SCAN_IMAGE', state: 'DONE' });
+  });
+
+  it('sans identifiant, n’ouvre aucune ligne', async () => {
+    http.on('generateContent', () => geminiFixture('vision-gochujang.json'));
+    await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
+    expect(await t.prisma.aiRequest.count()).toBe(0);
+  });
+
   it('propose une fiche avec date de péremption, nom d’origine et catégorie rapprochée', async () => {
     http.on('generateContent', () => geminiFixture('vision-gochujang.json'));
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').field('hint', 'pot rouge').expect(200);

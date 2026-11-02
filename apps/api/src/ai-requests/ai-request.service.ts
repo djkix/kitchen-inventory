@@ -35,6 +35,28 @@ export class AiRequestService {
     });
   }
 
+  /**
+   * Encadre un appel au modèle : ouvre la ligne, la clôt avec son résultat,
+   * et laisse remonter l'erreur telle quelle après l'avoir inscrite.
+   *
+   * Sans identifiant — une interface plus ancienne, ou une requête que
+   * l'utilisateur n'a pas déclenchée lui-même — rien n'est ouvert et rien
+   * n'est annoncé : le comportement d'avant, à l'octet près.
+   */
+  async track<T>(input: { id?: string; userId: string; kind: AiRequestKind }, run: () => Promise<T>, count?: (result: T) => number): Promise<T> {
+    const { id } = input;
+    if (!id) return run();
+    await this.open({ id, userId: input.userId, kind: input.kind });
+    try {
+      const result = await run();
+      await this.succeed(id, result, count?.(result));
+      return result;
+    } catch (error) {
+      await this.fail(id, error instanceof Error ? error.message : 'La demande a échoué.');
+      throw error;
+    }
+  }
+
   async succeed(id: string, result: unknown, count?: number): Promise<void> {
     await this.close(id, { state: 'DONE', result: result as never }, count);
   }

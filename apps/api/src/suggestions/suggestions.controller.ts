@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -11,6 +11,8 @@ import {
   type SuggestionQuery,
   type VoiceSuggestionBatchDto,
 } from '@kitchen/shared';
+import { aiRequestField } from '../ai-requests/ai-request-field.js';
+import { AiRequestService } from '../ai-requests/ai-request.service.js';
 import { ApiError } from '../common/api-error.js';
 import { CurrentUser, type RequestUser } from '../auth/request-user.js';
 import { ZodBody, ZodQuery } from '../common/zod-validation.pipe.js';
@@ -25,11 +27,18 @@ import { SuggestionsService } from './suggestions.service.js';
  */
 @Controller('suggestions')
 export class SuggestionsController {
-  constructor(private readonly suggestions: SuggestionsService) {}
+  constructor(
+    private readonly suggestions: SuggestionsService,
+    private readonly requests: AiRequestService,
+  ) {}
 
   @Get()
-  list(@ZodQuery(suggestionQuerySchema) query: SuggestionQuery): Promise<SuggestionBatchDto> {
-    return this.suggestions.list(query);
+  list(@ZodQuery(suggestionQuerySchema) query: SuggestionQuery, @CurrentUser() user: RequestUser): Promise<SuggestionBatchDto> {
+    return this.requests.track(
+      { id: query.requestId, userId: user.id, kind: 'SUGGESTIONS' },
+      () => this.suggestions.list(query),
+      (batch) => batch.items.length,
+    );
   }
 
   /**
@@ -60,9 +69,13 @@ export class SuggestionsController {
   @Post('voice')
   @HttpCode(200)
   @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: VOICE_MAX_BYTES + 1024, files: 1 } }))
-  voice(@UploadedFile() file: Express.Multer.File | undefined): Promise<VoiceSuggestionBatchDto> {
+  voice(@UploadedFile() file: Express.Multer.File | undefined, @Body() rawBody: unknown, @CurrentUser() user: RequestUser): Promise<VoiceSuggestionBatchDto> {
     if (!file) throw new ApiError(400, 'validation_failed', 'Enregistrement manquant (champ « audio »)');
-    return this.suggestions.listFromVoice(file.buffer, file.mimetype);
+    return this.requests.track(
+      { id: aiRequestField(rawBody), userId: user.id, kind: 'VOICE' },
+      () => this.suggestions.listFromVoice(file.buffer, file.mimetype),
+      (batch) => batch.items.length,
+    );
   }
 
   @Post('keep')
@@ -70,3 +83,4 @@ export class SuggestionsController {
     return this.suggestions.keep(body, user);
   }
 }
+

@@ -1828,6 +1828,29 @@ describe('GET /suggestions (EF-26, tâche 7)', () => {
     expect(res.body.batchId).toBeUndefined();
         expect(res.body.items.length).toBeGreaterThan(0);
   });
+
+  // Conception du 2026-11-02 : l'identifiant n'est envoyé que lorsque
+  // l'utilisateur a lui-même demandé quelque chose, jamais à l'ouverture de
+  // l'écran. C'est donc lui qui décide si le résultat mérite une annonce.
+  it('ouvre une ligne de demande quand l’écran en fournit l’identifiant', async () => {
+    const REQ = '44444444-4444-4444-8444-444444444444';
+    const productId = await createProduct(agent, { name: 'Tomate' });
+    const placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
+    await createStock(agent, { productId, locationId: placardId, quantity: 5, unit: 'PIECE' });
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
+    await agent.get('/api/v1/suggestions').query({ requestId: REQ }).expect(200);
+    const row = await t.prisma.aiRequest.findUniqueOrThrow({ where: { id: REQ } });
+    expect(row).toMatchObject({ kind: 'SUGGESTIONS', state: 'DONE' });
+  });
+
+  it('sans identifiant, n’ouvre aucune ligne', async () => {
+    const productId = await createProduct(agent, { name: 'Tomate' });
+    const placardId = (await t.prisma.location.findUniqueOrThrow({ where: { path: '/cuisine/placard' } })).id;
+    await createStock(agent, { productId, locationId: placardId, quantity: 5, unit: 'PIECE' });
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
+    await agent.get('/api/v1/suggestions').expect(200);
+    expect(await t.prisma.aiRequest.count()).toBe(0);
+  });
 });
 
 describe('GET /suggestions, fournisseur désactivé (EF-26, tâche 7)', () => {
@@ -1960,6 +1983,26 @@ describe('POST /suggestions/voice (EF-25, EF-26, 2026-10-21)', () => {
     const res = await agent.post('/api/v1/suggestions/voice').attach('audio', AUDIO, { filename: 'demande.webm', contentType: 'audio/webm' }).expect(200);
     expect(res.body.heard.ingredients).toEqual(['poulet', 'sauce tomate']);
     expect(res.body.items.length).toBeGreaterThan(0);
+  });
+
+  // Conception du 2026-11-02 : la demande parlée est la plus longue des
+  // quatre, donc la première à mériter d'être annoncée.
+  it('ouvre une ligne de demande quand l’écran en fournit l’identifiant', async () => {
+    const REQ = '33333333-3333-4333-8333-333333333333';
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    await agent
+      .post('/api/v1/suggestions/voice')
+      .field('requestId', REQ)
+      .attach('audio', AUDIO, { filename: 'demande.webm', contentType: 'audio/webm' })
+      .expect(200);
+    const row = await t.prisma.aiRequest.findUniqueOrThrow({ where: { id: REQ } });
+    expect(row).toMatchObject({ kind: 'VOICE', state: 'DONE' });
+  });
+
+  it('sans identifiant, n’ouvre aucune ligne', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    await agent.post('/api/v1/suggestions/voice').attach('audio', AUDIO, { filename: 'demande.webm', contentType: 'audio/webm' }).expect(200);
+    expect(await t.prisma.aiRequest.count()).toBe(0);
   });
 
   it('refuse une requête sans enregistrement, en français', async () => {

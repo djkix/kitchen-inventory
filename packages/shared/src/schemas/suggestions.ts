@@ -94,6 +94,13 @@ export const suggestionIngredientsSchema = z
 export type SuggestionIngredients = z.infer<typeof suggestionIngredientsSchema>;
 
 export const suggestionQuerySchema = z.object({
+  /**
+   * Identifiant de la demande, engendré par l'écran (conception du
+   * 2026-11-02). Présent seulement quand l'utilisateur a lui-même demandé
+   * quelque chose — pastille, relance — et non à l'ouverture de l'écran :
+   * c'est lui qui décide si le résultat mérite d'être annoncé.
+   */
+  requestId: z.string().uuid().optional(),
   region: suggestionRegionSchema.optional(),
   maxMinutes: z.coerce
     .number()

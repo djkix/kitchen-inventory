@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AiRequestsModule } from '../ai-requests/ai-requests.module.js';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { GeminiService } from '../gemini/gemini.service.js';
 import { HTTP_CLIENT, type HttpClient } from '../common/http-client.js';
@@ -24,7 +25,7 @@ import { SuggestionsService } from './suggestions.service.js';
  * client HTTP injectable, rejoué par fixtures dans les tests (section 19).
  */
 @Module({
-  imports: [RecipesModule, SettingsModule],
+  imports: [RecipesModule, SettingsModule, AiRequestsModule],
   controllers: [SuggestionsController],
   providers: [
     SuggestionsService,

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AiRequestsModule } from '../ai-requests/ai-requests.module.js';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { GeminiService } from '../gemini/gemini.service.js';
 import { StockModule } from '../stock/stock.module.js';
@@ -8,7 +9,7 @@ import { ReceiptsController } from './receipts.controller.js';
 import { ReceiptsService } from './receipts.service.js';
 
 @Module({
-  imports: [SettingsModule, StockModule],
+  imports: [SettingsModule, StockModule, AiRequestsModule],
   controllers: [ReceiptsController],
   providers: [
     ReceiptsService,

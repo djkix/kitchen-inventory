@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AiRequestsModule } from '../ai-requests/ai-requests.module.js';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { GeminiService } from '../gemini/gemini.service.js';
 import { ProductsModule } from '../products/products.module.js';
@@ -9,7 +10,7 @@ import { RecognitionService } from './recognition.service.js';
 import { ScanController } from './scan.controller.js';
 
 @Module({
-  imports: [ProductsModule],
+  imports: [ProductsModule, AiRequestsModule],
   controllers: [ScanController],
   providers: [
     RecognitionService,
