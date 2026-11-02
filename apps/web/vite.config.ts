@@ -22,6 +22,13 @@ export default defineConfig({
       // par le code (voir lib/pwa.ts), pas injecté automatiquement.
       registerType: 'prompt',
       injectRegister: false,
+      // Service worker écrit à la main : `generateSW` ne sait pas recevoir un
+      // `push` (conception du 2026-11-02, D10). Tout le reste du
+      // comportement — mise en cache de la coque, bandeau de mise à jour — est
+      // reconduit à l'identique dans `src/sw.ts`.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       includeAssets: ['icon.svg', 'icon-maskable.svg'],
       manifest: {
         name: 'Kitchen Inventory',
@@ -41,12 +48,9 @@ export default defineConfig({
           { src: 'icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
         ],
       },
-      workbox: {
+      injectManifest: {
         // Coque applicative seulement : l'API et les médias ne passent jamais par le cache du service worker.
         globPatterns: ['**/*.{js,css,html,svg,wasm,woff2}'],
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
-        runtimeCaching: [],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
       },
     }),
