@@ -1,5 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { generateRequestDetails } from 'web-push';
+// `web-push` est un paquet CommonJS : import par défaut, jamais nommé. Un
+// import nommé passe la compilation et les tests — le transformateur de
+// vitest l'accommode — puis casse au démarrage en vrai ESM.
+import webpush from 'web-push';
 import type { PushSubscriptionInput } from '@kitchen/shared';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { HTTP_CLIENT, type HttpClient } from '../common/http-client.js';
@@ -74,7 +77,7 @@ export class PushService {
 
   private async sendTo(device: { id: string; endpoint: string; p256dh: string; auth: string }, payload: PushPayload): Promise<void> {
     try {
-      const details = generateRequestDetails(
+      const details = webpush.generateRequestDetails(
         { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } },
         JSON.stringify(payload),
         {

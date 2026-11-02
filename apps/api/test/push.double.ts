@@ -1,5 +1,5 @@
 import { createECDH, randomBytes } from 'node:crypto';
-import { generateVAPIDKeys } from 'web-push';
+import webpush from 'web-push';
 
 /**
  * Clés de test pour Web Push, **engendrées à chaque exécution** et jamais
@@ -10,7 +10,7 @@ import { generateVAPIDKeys } from 'web-push';
  * l'habitude d'en voir dans les tests est exactement celle qui fait passer un
  * vrai secret un jour.
  */
-export const VAPID = generateVAPIDKeys();
+export const VAPID = webpush.generateVAPIDKeys();
 
 /**
  * Abonnement plausible : une vraie paire de clés P-256 et un secret
