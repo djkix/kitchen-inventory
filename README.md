@@ -887,6 +887,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.36.1 | 2026-11-02 | Les clés de notification atteignent enfin le conteneur, et l'autorisation se demande toute seule sur le téléphone |
 | 0.36.0 | 2026-11-02 | Notification quand la réponse du modèle est prête, demande gardée puis rejouée si Gemini est saturé, et bascule de modèle sur une saturation |
 | 0.35.0 | 2026-10-23 | Sauvegarde chaque nuit vers un NAS, sept jours gardés, et « Sauvegarder maintenant » dans Réglages |
 | 0.34.0 | 2026-10-23 | Thème clair, thème sombre, ou suivi du réglage du téléphone |
