@@ -867,8 +867,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.37.0 | 2026-11-02 | Notification quand la réponse du modèle est prête, et demande gardée puis rejouée si Gemini est saturé |
-| 0.36.0 | 2026-11-02 | Un modèle saturé chez Google fait basculer sur le suivant, et la demande parlée se renvoie sans reparler |
+| 0.36.0 | 2026-11-02 | Notification quand la réponse du modèle est prête, demande gardée puis rejouée si Gemini est saturé, et bascule de modèle sur une saturation |
 | 0.35.0 | 2026-10-23 | Sauvegarde chaque nuit vers un NAS, sept jours gardés, et « Sauvegarder maintenant » dans Réglages |
 | 0.34.0 | 2026-10-23 | Thème clair, thème sombre, ou suivi du réglage du téléphone |
 | 0.33.0 | 2026-10-23 | Les repères nutritionnels se rattrapent au scan et d'un bouton dans Réglages, et le Nutri-Score apparaît sur les ingrédients des recettes |
