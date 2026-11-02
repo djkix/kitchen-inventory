@@ -888,6 +888,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.37.1 | 2026-11-02 | « Votre ticket repartira seul » : accord corrigé sur l'écran d'attente |
 | 0.37.0 | 2026-11-02 | Une demande gardée dit l'attente en durée, et ne promet une notification que si elle est autorisée |
 | 0.36.1 | 2026-11-02 | Les clés de notification atteignent enfin le conteneur, et l'autorisation se demande toute seule sur le téléphone |
 | 0.36.0 | 2026-11-02 | Notification quand la réponse du modèle est prête, demande gardée puis rejouée si Gemini est saturé, et bascule de modèle sur une saturation |
