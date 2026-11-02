@@ -333,8 +333,11 @@ export function SuggestionsErrorState({ error, onRetry }: { error: unknown; onRe
     return <ErrorState title="Demande non comprise" message={error.message} onRetry={onRetry} />;
   }
 
+  // Un `rate_limited` n'est pas toujours un quota : c'est aussi une pause de
+  // quelques minutes chez Google (saturation). Le titre reste donc neutre et
+  // c'est le message du serveur, qui porte l'heure de reprise, qui dit lequel.
   if (isApiError(error, 'rate_limited')) {
-    return <ErrorState title="Quota de suggestions atteint" message={error.message} onRetry={onRetry} />;
+    return <ErrorState title="Suggestions indisponibles pour le moment" message={error.message} onRetry={onRetry} />;
   }
 
   // `provider_unavailable`, `provider_invalid_response`, panne réseau ou erreur

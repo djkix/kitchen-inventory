@@ -14,6 +14,8 @@ const WINDOW_MS = 60_000;
 const requests = (n: number) => `${n} requête${n > 1 ? 's' : ''}`;
 /** Marge ajoutée à la reprise d'une fenêtre glissante : l'horloge de Google n'est pas la nôtre. */
 const MARGIN_MS = 1000;
+/** Après un 503 (« the model is overloaded ») : ce modèle est écarté cinq minutes. */
+const OVERLOAD_MS = 5 * 60_000;
 
 interface ModelState {
   requests: number[];
@@ -21,6 +23,7 @@ interface ModelState {
   day: string;
   dayRequests: number;
   exhaustedUntil: number;
+  overloadedUntil: number;
 }
 
 /**
@@ -35,6 +38,10 @@ export class GeminiLimiter {
   check(model: string, limits: GeminiLimits, now: Date, timeZone?: string): GeminiQuotaError | null {
     const s = this.state(model, now);
     const t = now.getTime();
+    if (s.overloadedUntil > t) {
+      const until = new Date(s.overloadedUntil);
+      return new GeminiQuotaError(until, 'overloaded', `Modèle saturé chez Google : reprise ${resumeAt(until, now, timeZone)}.`);
+    }
     if (s.exhaustedUntil > t || s.dayRequests + 1 > limits.rpd) {
       const until = nextPacificMidnight(now);
       return new GeminiQuotaError(until, 'day', `Quota Gemini du jour atteint (${requests(limits.rpd)}) : reprise ${resumeAt(until, now, timeZone)}.`);
@@ -75,6 +82,13 @@ export class GeminiLimiter {
     this.state(model, now).exhaustedUntil = nextPacificMidnight(now).getTime();
   }
 
+  /** 503 de Google : ce modèle est saturé, les autres restent ouverts. Jamais raccourci. */
+  markOverloaded(model: string, now: Date): Date {
+    const s = this.state(model, now);
+    s.overloadedUntil = Math.max(s.overloadedUntil, now.getTime() + OVERLOAD_MS);
+    return new Date(s.overloadedUntil);
+  }
+
   /** Requêtes déjà envoyées (journal), pour ne pas repartir de zéro au redémarrage. */
   seed(model: string, sentAt: readonly Date[], now: Date): void {
     const s = this.state(model, now);
@@ -101,7 +115,7 @@ export class GeminiLimiter {
     const day = pacificDay(now);
     let s = this.states.get(model);
     if (!s) {
-      s = { requests: [], tokens: [], day, dayRequests: 0, exhaustedUntil: 0 };
+      s = { requests: [], tokens: [], day, dayRequests: 0, exhaustedUntil: 0, overloadedUntil: 0 };
       this.states.set(model, s);
     }
     if (s.day !== day) Object.assign(s, { day, dayRequests: 0 });
@@ -138,5 +152,3 @@ export function pauseAfter429(body: unknown, now: Date): Date {
   return new Date(now.getTime() + Math.ceil(seconds) * 1000);
 }
 
-/** Après un 503 : Google est saturé, cinq minutes. */
-export const pauseAfter503 = (now: Date): Date => new Date(now.getTime() + 5 * 60_000);

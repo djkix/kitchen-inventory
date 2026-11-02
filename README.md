@@ -167,14 +167,19 @@ en direct de Google, ne garde que les **Flash et Flash-Lite** stables (jamais
 Pro), du plus récent au plus ancien, et prend le premier disponible. Avant
 d'envoyer quoi que ce soit, elle vérifie les **limites de Google par modèle**
 (requêtes et jetons par minute, requêtes par jour, au jour du Pacifique comme
-Google) ; un modèle épuisé pour la journée fait **basculer** sur le suivant.
-Après un refus de Google (429 ou 503), une **pause commune** de la durée
-annoncée suspend tous les appels.
+Google) ; un modèle **arrêté** fait **basculer** sur le suivant — qu'il soit
+épuisé pour la journée ou **saturé** chez Google (réponse 503 : il est alors
+écarté cinq minutes). Seul un dépassement de quota annoncé par Google qui ne
+vise pas un modèle en particulier pose une **pause commune**, de la durée
+annoncée, suspendant tous les appels.
 
 L'IA ne bloque jamais : un refus dit **l'heure de reprise**, arrondie à la
 minute supérieure et avec le jour nommé (« reprise jeudi à 09:00 »), et
 l'écran garde son alternative — code-barres ou fiche à la main (la photo reste
-à identifier), saisie manuelle du ticket, recettes déjà connues.
+à identifier), saisie manuelle du ticket, recettes déjà connues. Sur la
+**demande parlée**, l'enregistrement reste en mémoire tant que vous ne quittez
+pas l'écran : un bouton **« Réessayer »** renvoie la même demande une fois
+l'heure de reprise passée, sans avoir à reparler.
 
 S'y ajoutent un **quota journalier** par usage (photo, recettes, tickets) et un
 **plafond mensuel en euros** partagé par tous. Réglages › Reconnaissance montre
@@ -838,6 +843,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.36.0 | 2026-11-02 | Un modèle saturé chez Google fait basculer sur le suivant, et la demande parlée se renvoie sans reparler |
 | 0.35.0 | 2026-10-23 | Sauvegarde chaque nuit vers un NAS, sept jours gardés, et « Sauvegarder maintenant » dans Réglages |
 | 0.34.0 | 2026-10-23 | Thème clair, thème sombre, ou suivi du réglage du téléphone |
 | 0.33.0 | 2026-10-23 | Les repères nutritionnels se rattrapent au scan et d'un bouton dans Réglages, et le Nutri-Score apparaît sur les ingrédients des recettes |

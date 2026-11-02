@@ -1,8 +1,8 @@
 import { ApiError } from '../common/api-error.js';
 
 /**
- * Gemini ne peut pas être appelé avant `until` : pause commune après un 429 ou
- * un 503, ou quota atteint (local, ou journalier chez Google). Le message, en
+ * Gemini ne peut pas être appelé avant `until` : pause commune après un 429 non
+ * journalier, ou modèle arrêté (quota local, quota du jour, saturation). Le message, en
  * français, porte l'heure de reprise et se dit tel quel à l'utilisateur.
  */
 export class GeminiPausedError extends Error {
@@ -15,11 +15,11 @@ export class GeminiPausedError extends Error {
   }
 }
 
-/** Quota d'un modèle atteint : `day` fait basculer sur le modèle suivant. */
+/** Modèle indisponible : `day` et `overloaded` font basculer sur le suivant. */
 export class GeminiQuotaError extends GeminiPausedError {
   constructor(
     until: Date,
-    readonly reason: 'minute' | 'tokens' | 'day',
+    readonly reason: 'minute' | 'tokens' | 'day' | 'overloaded',
     message: string,
   ) {
     super(until, message);

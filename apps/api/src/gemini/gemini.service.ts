@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { GeminiPausedError, GeminiQuotaError } from './gemini-errors.js';
 import { isStableModel, orderModels } from './gemini-models.js';
-import { GeminiLimiter, isDailyQuota, pauseAfter429, pauseAfter503, type GeminiLimits } from './gemini-quota.js';
+import { GeminiLimiter, isDailyQuota, pauseAfter429, type GeminiLimits } from './gemini-quota.js';
 import { nextPacificMidnight, resumeAt } from './gemini-time.js';
 
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
@@ -32,8 +32,8 @@ type Pause = { until: Date; reason: string };
  *   sur le suivant quand un quota l'arrête ;
  * - `http` est le client que reçoivent les fournisseurs : avant chaque
  *   `generateContent`, pause commune et quota du modèle sont vérifiés ; après,
- *   les jetons sont comptés, la requête journalisée, et un 429 ou un 503 pose
- *   la pause commune (ou épuise le modèle pour la journée).
+ *   les jetons sont comptés, la requête journalisée, un 429 non journalier pose
+ *   la pause commune, et un 429 journalier ou un 503 n'arrête que ce modèle.
  *
  * Tout refus lève `GeminiPausedError`, dont le message porte l'heure de
  * reprise : l'utilisateur n'attend jamais un appel voué à l'échec.
@@ -78,8 +78,9 @@ export class GeminiService implements OnModuleInit {
   }
 
   /**
-   * Essaie les modèles dans l'ordre d'emploi : un quota atteint (local ou 429
-   * journalier de Google) passe au suivant, puisque Google compte par modèle.
+   * Essaie les modèles dans l'ordre d'emploi : un modèle arrêté — quota local,
+   * 429 journalier de Google, ou 503 de saturation — passe au suivant, puisque
+   * les uns comme l'autre sont propres au modèle.
    * Rien n'est envoyé pour un modèle refusé par le limiteur. Tous refusés :
    * le refus qui se lève le plus tôt remonte, avec son heure de reprise.
    */
@@ -134,7 +135,14 @@ export class GeminiService implements OnModuleInit {
       }
       throw await this.extendPause(pauseAfter429(body, now), 'quota dépassé chez Google');
     }
-    if (response.status === 503) throw await this.extendPause(pauseAfter503(this.now()), 'service saturé');
+    if (response.status === 503) {
+      // « The model is overloaded » : la saturation est propre au modèle, pas à
+      // Google. On écarte celui-ci cinq minutes et `call` essaie le suivant ;
+      // la demande n'échoue que si tous sont saturés.
+      const now = this.now();
+      const until = this.limiter.markOverloaded(model, now);
+      throw new GeminiQuotaError(until, 'overloaded', `Modèle saturé chez Google : reprise ${resumeAt(until, now)}.`);
+    }
     return response;
   };
 

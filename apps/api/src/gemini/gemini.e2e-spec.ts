@@ -28,7 +28,7 @@ const modelOf = (url: string) => /models\/([^:]+):generateContent/.exec(url)?.[1
 /**
  * Point de passage unique vers Gemini (approche de Ma Cave, 2026-10-22) :
  * liste en direct de Google, quotas vérifiés avant l'appel, bascule de modèle,
- * pause commune après 429/503, journal. Joué par la lecture de ticket, le plus
+ * pause commune après un 429 non journalier, journal. Joué par la lecture de ticket, le plus
  * simple des quatre usages — tous passent par le même `GeminiService`.
  */
 describe('Gemini : modèles, quotas, pause et journal', () => {
@@ -124,7 +124,7 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
   });
 
   it('photo pendant la pause : 429 avec l’heure de reprise, photo conservée à identifier', async () => {
-    http.on('generateContent', () => json({ error: { code: 503 } }, 503));
+    http.on('generateContent', () => quota429('GenerateRequestsPerMinutePerProjectPerModel', '37s'));
     await upload().expect(429);
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(429);
     expect(res.body.error.message).toMatch(/^Gemini est en pause/);
@@ -132,12 +132,30 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
     expect(http.calls).toHaveLength(1);
   });
 
-  it('503 : pause commune de cinq minutes', async () => {
-    http.on('generateContent', () => json({ error: { code: 503 } }, 503));
-    const first = await upload().expect(429);
-    expect(first.body.error.message).toContain('service saturé');
-    const until = new Date(first.body.error.details.retryAt).getTime() - Date.now();
+  it('503 : le modèle saturé est écarté cinq minutes et la même demande bascule', async () => {
+    http.on('gemini-3.8-flash:generateContent', () => json({ error: { code: 503 } }, 503));
+    http.on('gemini-3.5-flash-lite:generateContent', ticket);
+    await upload().expect(201);
+    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+    const status = (await agent.get('/api/v1/settings/gemini').expect(200)).body;
+    // Pas de pause commune : seul le modèle saturé est arrêté.
+    expect(status.pause).toBeNull();
+    expect(status.current).toBe('gemini-3.5-flash-lite');
+    expect(status.models[0].blockedMessage).toMatch(/^Modèle saturé chez Google : reprise à \d\d:\d\d\.$/);
+    const until = new Date(status.models[0].blockedUntil).getTime() - Date.now();
     expect(until).toBeGreaterThan(4 * 60_000);
+    expect(until).toBeLessThanOrEqual(5 * 60_000);
+  });
+
+  it('tous les modèles saturés : 429 avec l’heure de reprise, sans pause commune', async () => {
+    http.on('generateContent', () => json({ error: { code: 503 } }, 503));
+    const res = await upload().expect(429);
+    expect(res.body.error.message).toContain('Modèle saturé chez Google');
+    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+    // Rien n'est renvoyé tant que les deux sont écartés.
+    await upload().expect(429);
+    expect(http.calls).toHaveLength(2);
+    expect((await agent.get('/api/v1/settings/gemini').expect(200)).body.pause).toBeNull();
   });
 
   it('repart du journal au redémarrage : le quota du jour n’est pas remis à zéro', async () => {

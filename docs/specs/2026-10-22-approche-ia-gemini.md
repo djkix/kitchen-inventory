@@ -19,7 +19,17 @@ dit pas quand réessayer.
 | D1 | **Modèle automatique.** `GeminiService` lit la liste en direct de Google (`ListModels`, cache 1 h, 1 min après un échec), ne garde que `gemini-<version>-flash` et `-flash-lite` stables (ni Pro, ni aperçu, ni alias, ni instantané), du plus récent au plus ancien, Flash avant Flash-Lite. Les trois menus de Réglages (photo, recettes, repli) disparaissent, avec `SUGGESTION_MODEL` et `FALLBACK_MODEL`. `VISION_MODEL` n'est qu'un repli si la liste est indisponible ; un Pro empêche le démarrage. |
 | D2 | **Quotas par modèle, avant l'appel.** Limiteur en mémoire (l'API est un seul processus ; vérifier puis réserver sans `await` entre les deux suffit) : fenêtre glissante de 60 s pour les requêtes et les jetons, compteur du jour du Pacifique. Reprise = plus ancienne entrée + 60 s + 1 s, ou minuit du Pacifique. Limites : réglage du modèle (`Setting.geminiLimits`), sinon `GEMINI_RPM/TPM/RPD`, sinon 5 / 250 000 / 20. |
 | D3 | **Bascule.** `GeminiService.call(run)` essaie les modèles dans l'ordre ; un refus de quota (local, ou 429 « PerDay » de Google, qui épuise le modèle jusqu'à minuit du Pacifique) passe au suivant. Écart au guide d'origine : la bascule vaut aussi pour les limites par minute, puisque l'utilisateur attend devant l'écran et que chaque modèle a les siennes. Tous refusés : le refus qui se lève le plus tôt remonte. |
-| D4 | **Pause commune.** Un 429 non journalier pose une pause de `retryDelay` (une heure sans indication), un 503 de cinq minutes. Jamais raccourcie, gardée en mémoire et dans `Setting.geminiPause` (survit au redémarrage). |
+| D4 | **Pause commune.** Un 429 non journalier pose une pause de `retryDelay` (une heure sans indication). Jamais raccourcie, gardée en mémoire et dans `Setting.geminiPause` (survit au redémarrage). |
+
+> **Amendement du 2026-11-02 (D4).** Le 503 ne pose plus la pause commune. Le
+> 503 de Gemini est « *the model is overloaded* » : la saturation est propre au
+> modèle, et arrêter tous les appels pour cela revenait à refuser une demande
+> que le modèle suivant aurait honorée. Un 503 écarte désormais ce seul modèle
+> cinq minutes (`GeminiLimiter.markOverloaded`, en mémoire : un redémarrage
+> l'oublie, ce qui est sans conséquence à cette durée) et `GeminiService.call`
+> essaie le suivant. La demande n'échoue que si tous les modèles sont saturés,
+> et le refus porte alors l'heure de reprise du premier qui repart. La pause
+> commune reste réservée au 429 non journalier, qui, lui, vise le projet.
 | D5 | **Aucune file.** Tous les appels de Kitchen sont interactifs : un refus devient un 429 `rate_limited` dont le message porte l'heure de reprise (arrondie à la minute supérieure, jour nommé, jamais « demain ») et `details.retryAt`. L'écran garde son alternative : photo conservée à identifier, saisie manuelle du ticket, réservoir de suggestions avec l'heure de reprise en avis. |
 | D6 | **Journal.** Une ligne `GeminiCall` (modèle, statut HTTP, jetons, durée) par `generateContent` réellement envoyé, écrite par le client HTTP que reçoivent les quatre fournisseurs (`GeminiService.http`). Le compteur du jour est rechargé depuis ce journal au démarrage. Le coût reste sur `RecognitionLog`, qui connaît l'usage ; le plafond mensuel est inchangé. Une panne du journal ne casse jamais un appel. |
 | D7 | **JSON par la consigne.** `responseMimeType: application/json` sans `responseSchema` (Google refuse en 400 un schéma imbriqué) pour la photo, le ticket et la réécriture ; la forme est décrite dans la consigne, la réponse validée strictement (Zod pour la photo et la réécriture, contrôle ligne à ligne pour le ticket, qui tolère les clôtures ```json et `{"items": […]}`). Les suggestions, avec l'outil de recherche, restaient déjà sans schéma. |
