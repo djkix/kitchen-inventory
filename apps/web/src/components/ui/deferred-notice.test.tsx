@@ -52,7 +52,7 @@ describe('DeferredNotice', () => {
   it('nomme le ticket plutôt que les recettes', () => {
     pushGranted('granted');
     render(<DeferredNotice error={differe(3)} what="ticket" />);
-    expect(screen.getByText(/Votre ticket repartira/)).toBeTruthy();
+    expect(screen.getByText(/Votre ticket repartira seul /)).toBeTruthy();
     expect(screen.getByText(/3 minutes/)).toBeTruthy();
   });
 
