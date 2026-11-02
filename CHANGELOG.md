@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.1](https://github.com/djkix/kitchen-inventory/compare/v0.37.0...v0.37.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **web:** « votre ticket repartira seul », accord au masculin (EF-31) ([ab4c461](https://github.com/djkix/kitchen-inventory/commit/ab4c4610d960f38586877952fe5a6561ee236f3f))
+
 ## [0.37.0](https://github.com/djkix/kitchen-inventory/compare/v0.36.1...v0.37.0) (2026-11-02)
 
 
