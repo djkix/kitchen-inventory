@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.36.0](https://github.com/djkix/kitchen-inventory/compare/v0.35.0...v0.36.0) (2026-11-02)
+
+
+### Features
+
+* **api:** abonnements et envoi Web Push ([5c9e01b](https://github.com/djkix/kitchen-inventory/commit/5c9e01b81d9adfe6e0ab447a07b0e2eebde60f98))
+* **api:** les quatre usages du modèle ouvrent une demande (EF-25, EF-26) ([53822b2](https://github.com/djkix/kitchen-inventory/commit/53822b21ebd147708a666ccfc133d64afe019604))
+* **api:** lignes de demande au modèle et annonce du résultat ([7868041](https://github.com/djkix/kitchen-inventory/commit/7868041ce2b3400c269b6e2c4ab38a79c124de4c))
+* **api:** rejouer une demande refusée pour une pause Gemini ([00172e2](https://github.com/djkix/kitchen-inventory/commit/00172e2cd59dc2cc129eb9314400fe8e32b76d4a))
+* **db:** demandes au modèle et abonnements push (migration 0018) ([4d4d125](https://github.com/djkix/kitchen-inventory/commit/4d4d125889b06d2f9cbd8015582621857e682a3e))
+* **notifications:** prévenir quand la réponse est prête (EF-31) ([867eff3](https://github.com/djkix/kitchen-inventory/commit/867eff344bb57487aefcf63b57107a763da0e589))
+* **pwa:** service worker écrit à la main, prêt pour les notifications ([28349e6](https://github.com/djkix/kitchen-inventory/commit/28349e6e3631a1d4eff1b50b323b0c5ea0ee5f73))
+* **shared:** règles de la notification « réponse prête » ([8577226](https://github.com/djkix/kitchen-inventory/commit/85772260fe88153a2fe426f85e359c6601ebecbd))
+* **suggestions:** basculer de modèle quand Google sature, et renvoyer la demande parlée (EF-25, EF-26) ([5c52c0e](https://github.com/djkix/kitchen-inventory/commit/5c52c0ef4feedd4e1673102bb12c81c6a4a30931))
+
+
+### Bug Fixes
+
+* **ci:** verrou npm resynchronisé et clés de test engendrées ([c0ae7ea](https://github.com/djkix/kitchen-inventory/commit/c0ae7eae10de119a66d0a12e15cf907d47989a51))
+* **e2e:** pg_dump et pg_restore joués dans le conteneur db ([e2d80a3](https://github.com/djkix/kitchen-inventory/commit/e2d80a3d2714d73292411badd6ad6c3aa8001485))
+* **notifications:** web-push s'importe par défaut, pas par son nom ([eb28c6d](https://github.com/djkix/kitchen-inventory/commit/eb28c6dcb9542bbae23a33aa9c0bda0d6c098edc))
+
 ## [0.35.0](https://github.com/djkix/kitchen-inventory/compare/v0.34.0...v0.35.0) (2026-10-23)
 
 
