@@ -3,7 +3,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Spinner } from '../../components/ui/button';
-import { deferredTime, isDeferred } from '../../lib/ai-request';
+import { isDeferred } from '../../lib/ai-request';
+import { DeferredNotice } from '../../components/ui/deferred-notice';
 import { useTrackedRequest } from '../../hooks/use-tracked-request';
 import { suggestionsApi } from '../../lib/suggestions-api';
 import { SuggestionCard, suggestionAccessibleName } from './suggestion-card';
@@ -130,15 +131,7 @@ export function VoiceRequestScreen() {
           reprise plutôt que de rejouer pour rien. */}
       {/* Demande gardée par le serveur : ce n'est pas un échec, c'est une
           attente. Elle repartira seule et sera annoncée (D1b). */}
-      {ask.isError && isDeferred(ask.error) && (
-        <div role="status" className="mx-4 my-6 rounded-card bg-raised px-4 py-4 text-center">
-          <p className="text-[15px] font-medium">Votre demande est gardée</p>
-          <p className="mt-1 text-[14px] text-muted">
-            Le service est momentanément saturé. Elle repartira {deferredTime(ask.error) ? `vers ${deferredTime(ask.error)}` : 'dès la reprise'}, et vous serez prévenu
-            dès que les recettes seront là. Vous pouvez fermer l’application.
-          </p>
-        </div>
-      )}
+      {ask.isError && isDeferred(ask.error) && <DeferredNotice error={ask.error} what="recettes" />}
 
       {ask.isError && !isDeferred(ask.error) && (
         <>

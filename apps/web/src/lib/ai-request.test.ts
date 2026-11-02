@@ -1,6 +1,6 @@
 import type * as ApiModule from './api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { beginAiRequest, deferredTime, forgetAiRequest, isDeferred, recoverAiRequests, watchAiRequest } from './ai-request';
+import { beginAiRequest, deferredRetryAt, forgetAiRequest, isDeferred, recoverAiRequests, watchAiRequest } from './ai-request';
 import { api, ApiClientError } from './api';
 
 vi.mock('./api', async () => {
@@ -91,7 +91,7 @@ describe('recoverAiRequests : retrouver ce qu’on n’a pas vu aboutir', () => 
   });
 });
 
-describe('isDeferred et deferredTime', () => {
+describe('isDeferred et deferredRetryAt', () => {
   const differe = new ApiClientError(429, 'rate_limited', 'Gardée.', { deferred: true, retryAt: '2026-11-02T22:40:00Z' });
 
   it('reconnaît une demande gardée', () => {
@@ -99,8 +99,8 @@ describe('isDeferred et deferredTime', () => {
     expect(isDeferred(new ApiClientError(429, 'rate_limited', 'Quota atteint.'))).toBe(false);
   });
 
-  it('rend l’heure de reprise, et null quand il n’y en a pas', () => {
-    expect(deferredTime(differe)).toMatch(/^\d\d:\d\d$/);
-    expect(deferredTime(new ApiClientError(500, 'unknown', 'Panne'))).toBeNull();
+  it('rend l’instant de reprise, et null quand il n’y en a pas', () => {
+    expect(deferredRetryAt(differe)).toEqual(new Date('2026-11-02T22:40:00Z'));
+    expect(deferredRetryAt(new ApiClientError(500, 'unknown', 'Panne'))).toBeNull();
   });
 });

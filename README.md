@@ -198,8 +198,9 @@ application fermée et vous ramène sur l'écran concerné d'un geste. Si vous �
 resté devant l'écran, rien ne sonne — le résultat s'affiche comme avant.
 
 Et si Gemini est momentanément saturé, **la demande n'est plus perdue** : elle
-est gardée, repart toute seule à la reprise annoncée, et c'est son résultat qui
-vous est annoncé. Au-delà d'une heure d'attente, l'application abandonne et
+est gardée, repart toute seule, et c'est son résultat qui vous est annoncé.
+L'écran dit alors l'attente en durée — « repartira seule dans environ 20
+minutes » — et ne promet une notification que si vous l'avez autorisée. Au-delà d'une heure d'attente, l'application abandonne et
 vous le dit plutôt que de vous réveiller.
 
 **L'autorisation se demande toute seule**, une fois par appareil, au moment où
@@ -887,6 +888,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.36.2 | 2026-11-02 | Une demande gardée dit l'attente en durée, et ne promet une notification que si elle est autorisée |
 | 0.36.1 | 2026-11-02 | Les clés de notification atteignent enfin le conteneur, et l'autorisation se demande toute seule sur le téléphone |
 | 0.36.0 | 2026-11-02 | Notification quand la réponse du modèle est prête, demande gardée puis rejouée si Gemini est saturé, et bascule de modèle sur une saturation |
 | 0.35.0 | 2026-10-23 | Sauvegarde chaque nuit vers un NAS, sept jours gardés, et « Sauvegarder maintenant » dans Réglages |

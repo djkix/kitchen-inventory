@@ -9,7 +9,8 @@ import { ListSkeleton } from '../../components/ui/skeleton';
 import { PinIcon } from '../../components/ui/icons';
 import { useToast } from '../../components/ui/toast';
 import { errorMessage, newClientOpId } from '../../lib/api';
-import { deferredTime, isDeferred } from '../../lib/ai-request';
+import { isDeferred } from '../../lib/ai-request';
+import { DeferredNotice } from '../../components/ui/deferred-notice';
 import { useTrackedRequest } from '../../hooks/use-tracked-request';
 import { cn } from '../../lib/cn';
 import { flattenLocations, queryKeys, useLocationsQuery } from '../../lib/queries';
@@ -134,15 +135,7 @@ export function ReceiptScreen() {
           {!location && <p className="text-[13px] text-faint">L’emplacement vaut pour tout le ticket : choisissez-le avant la photo.</p>}
           {/* Gardé par le serveur : une attente, pas un échec. Il repartira
               seul et sera annoncé (D1b). */}
-          {read.isError && isDeferred(read.error) && (
-            <div role="status" className="rounded-card bg-raised px-4 py-4 text-center">
-              <p className="text-[15px] font-medium">Votre ticket est gardé</p>
-              <p className="mt-1 text-[14px] text-muted">
-                Le service est momentanément saturé. Il sera lu {deferredTime(read.error) ? `vers ${deferredTime(read.error)}` : 'dès la reprise'}, et vous serez prévenu.
-                Vous pouvez fermer l’application.
-              </p>
-            </div>
-          )}
+          {read.isError && isDeferred(read.error) && <DeferredNotice error={read.error} what="ticket" />}
           {read.isError && !isDeferred(read.error) && <ErrorState title="Ticket illisible" message={errorMessage(read.error, 'Le ticket n’a pas pu être lu.')} />}
         </div>
       )}

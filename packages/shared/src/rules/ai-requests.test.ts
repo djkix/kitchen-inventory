@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFERRAL_CEILING_MS, deferralRetryAt, notificationPayload, shouldNotify } from './ai-requests.js';
+import { DEFERRAL_CEILING_MS, deferralRetryAt, deferredDelayLabel, notificationPayload, shouldNotify } from './ai-requests.js';
 
 describe('shouldNotify : qui mérite une notification (D1, D1b)', () => {
   it('ne dit rien quand on est resté devant l’écran', () => {
@@ -72,5 +72,30 @@ describe('notificationPayload : ce que le téléphone affiche', () => {
   // notifications : la seconde remplace la première.
   it('marque chaque notification du nom de sa demande', () => {
     expect(notificationPayload({ id: 'req-f', kind: 'VOICE', outcome: 'DONE', count: 3 }).tag).toBe('req-f');
+  });
+});
+
+describe('deferredDelayLabel : une durée, jamais une heure', () => {
+  const now = new Date('2026-11-02T22:00:00Z');
+  const dans = (minutes: number) => deferredDelayLabel({ now, retryAt: new Date(now.getTime() + minutes * 60_000) });
+
+  it('dit « un instant » sous la minute', () => {
+    expect(dans(0.4)).toBe('un instant');
+  });
+
+  it('compte à la minute en dessous de dix', () => {
+    expect(dans(1)).toBe('1 minute');
+    expect(dans(7)).toBe('7 minutes');
+  });
+
+  // Au-delà, l'heure de reprise de Google n'a pas la précision que « 23
+  // minutes » laisserait croire.
+  it('arrondit aux cinq minutes au-delà de dix', () => {
+    expect(dans(23)).toBe('25 minutes');
+    expect(dans(42)).toBe('40 minutes');
+  });
+
+  it('ne part pas en négatif sur une reprise déjà passée', () => {
+    expect(dans(-5)).toBe('un instant');
   });
 });

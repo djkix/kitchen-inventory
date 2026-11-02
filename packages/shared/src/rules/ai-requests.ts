@@ -38,6 +38,22 @@ export function deferralRetryAt(input: { now: Date; resumeAt: Date }): Date | nu
   return resumeAt.getTime() <= now.getTime() ? now : resumeAt;
 }
 
+/**
+ * Le délai avant reprise, dit en durée et jamais en heure : « dans environ 20
+ * minutes » se comprend d'un coup d'œil là où « vers 23 h 40 » demande de
+ * regarder l'horloge et de soustraire.
+ *
+ * Arrondi décroissant avec la durée : à la minute tant qu'on est sous dix,
+ * aux cinq minutes au-delà. Annoncer « 23 minutes » donnerait une précision
+ * que l'heure de reprise de Google n'a pas.
+ */
+export function deferredDelayLabel(input: { now: Date; retryAt: Date }): string {
+  const minutes = Math.round((input.retryAt.getTime() - input.now.getTime()) / 60_000);
+  if (minutes < 1) return 'un instant';
+  if (minutes < 10) return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+  return `${Math.round(minutes / 5) * 5} minutes`;
+}
+
 /** Écran à ouvrir au clic, par usage. */
 const SCREENS: Record<AiRequestKind, string> = {
   // Les adresses réelles de l'application (`app.tsx`) : le stock est à la

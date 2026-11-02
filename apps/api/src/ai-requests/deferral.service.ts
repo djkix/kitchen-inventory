@@ -94,7 +94,7 @@ export class DeferralService implements OnModuleInit {
         // Différée : l'écran n'affiche plus un refus sec mais une attente, et
         // le résultat sera annoncé quoi qu'il arrive (D1b).
         if (retryAt) {
-          throw ApiError.rateLimited(messageDiffere(error, retryAt), {
+          throw ApiError.rateLimited(messageDiffere(error), {
             ...(asDetails(error) ?? {}),
             deferred: true,
             requestId: id,
@@ -221,8 +221,12 @@ function asDetails(error: unknown): Record<string, unknown> | null {
   return error instanceof ApiError && error.details && typeof error.details === 'object' ? (error.details as Record<string, unknown>) : null;
 }
 
-function messageDiffere(error: unknown, retryAt: Date): string {
-  const heure = retryAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+/**
+ * L'heure de reprise voyage dans `details.retryAt` ; le message, lui, n'en
+ * porte pas. C'est l'écran qui la dit, et il la dit en durée (« dans environ
+ * 20 minutes »), ce qu'un texte figé côté serveur ne saurait pas faire.
+ */
+function messageDiffere(error: unknown): string {
   const cause = error instanceof Error ? error.message : '';
-  return `${cause} Votre demande est gardée : elle repartira vers ${heure} et vous serez prévenu du résultat.`.trim();
+  return `${cause} Votre demande est gardée : elle repartira dès la reprise, et vous serez prévenu du résultat.`.trim();
 }

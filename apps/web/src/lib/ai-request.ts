@@ -73,12 +73,12 @@ export function isDeferred(error: unknown): error is ApiClientError & { details:
   return details?.deferred === true;
 }
 
-/** Heure de reprise annoncée par un refus différé, prête à afficher. */
-export function deferredTime(error: unknown): string | null {
+/** Instant de reprise annoncé par un refus différé. */
+export function deferredRetryAt(error: unknown): Date | null {
   const raw = (error as { details?: { retryAt?: unknown } } | null)?.details?.retryAt;
   if (typeof raw !== 'string') return null;
   const date = new Date(raw);
-  return Number.isNaN(date.getTime()) ? null : date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 /** Les identifiants en attente survivent à une fermeture de l'application. */
