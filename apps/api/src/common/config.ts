@@ -72,6 +72,12 @@ const configSchema = z.object({
   // démarrage (`googleCertsOverrideWarning`) et dégradation explicite dans
   // `/health`.
   GOOGLE_CERTS_URL: z.string().url().optional(),
+  // Web Push (conception du 2026-11-02). Engendrées une fois par
+  // `npx web-push generate-vapid-keys`. Absentes : rien n'est annoncé et tout
+  // le reste fonctionne (D11).
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:admin@localhost'),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
   APP_VERSION: z.string().default('0.0.0-dev'),
 });
