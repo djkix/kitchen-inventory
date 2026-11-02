@@ -12,6 +12,7 @@ import { AccountsSection, SignOutEverywhereRow } from './accounts-section';
 import { AccordionSection, SectionBadge } from './accordion-section';
 import { BackupBadge, BackupSection } from './backup-section';
 import { NutritionBackfillRow } from './nutrition-backfill-row';
+import { NotificationsRow } from './notifications-row';
 import { ThemeRow } from './theme-row';
 import { useTheme } from '../../hooks/use-theme';
 import { GeminiModelsSection } from './gemini-models-section';
@@ -83,6 +84,7 @@ export function SettingsScreen() {
 
         <AccordionSection title="Apparence" badge={<ThemeBadge />} dotColor={SECTION_DOTS.apparence}>
           <ThemeRow />
+          <NotificationsRow />
         </AccordionSection>
 
         <AccordionSection title="Inventaire" badge={<AlertBadge />} dotColor={SECTION_DOTS.inventaire}>

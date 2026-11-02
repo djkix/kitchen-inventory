@@ -52,14 +52,14 @@ describe('useSuggestionsQuery (EF-25)', () => {
     // Premier appui sur « Chercher de nouvelles recettes ».
     rerender({ relaunch: 1 });
     await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
-    expect(list.mock.calls[1]?.[0]).toEqual({ dishType: 'MAIN', refresh: true });
+    expect(list.mock.calls[1]?.[0]).toMatchObject({ dishType: 'MAIN', refresh: true, requestId: expect.any(String) });
 
     // Second appui : c'est dans l'état vide, quand la première relance n'a rien
     // rendu, qu'il sera donné. Avec un `refresh: true` posé dans l'orientation,
     // la clé de requête ne changeait pas et le bouton restait muet.
     rerender({ relaunch: 2 });
     await waitFor(() => expect(list).toHaveBeenCalledTimes(3));
-    expect(list.mock.calls[2]?.[0]).toEqual({ dishType: 'MAIN', refresh: true });
+    expect(list.mock.calls[2]?.[0]).toMatchObject({ dishType: 'MAIN', refresh: true, requestId: expect.any(String) });
   });
 
   it('relance encore après un compteur redescendu à zéro (démontage de l’écran, changement d’orientation)', async () => {
@@ -88,7 +88,7 @@ describe('useSuggestionsQuery (EF-25)', () => {
     // …et le même appui, de nouveau, doit repartir.
     rerender({ relaunch: 1 });
     await waitFor(() => expect(list).toHaveBeenCalledTimes(3));
-    expect(list.mock.calls[2]?.[0]).toEqual({ dishType: 'MAIN', refresh: true });
+    expect(list.mock.calls[2]?.[0]).toMatchObject({ dishType: 'MAIN', refresh: true, requestId: expect.any(String) });
   });
 
   it('ne rappelle jamais le modèle sur un simple retour sur l’onglet, même après une relance', async () => {

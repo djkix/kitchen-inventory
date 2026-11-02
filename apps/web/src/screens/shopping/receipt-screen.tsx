@@ -9,6 +9,8 @@ import { ListSkeleton } from '../../components/ui/skeleton';
 import { PinIcon } from '../../components/ui/icons';
 import { useToast } from '../../components/ui/toast';
 import { errorMessage, newClientOpId } from '../../lib/api';
+import { deferredTime, isDeferred } from '../../lib/ai-request';
+import { useTrackedRequest } from '../../hooks/use-tracked-request';
 import { cn } from '../../lib/cn';
 import { flattenLocations, queryKeys, useLocationsQuery } from '../../lib/queries';
 import { receiptsApi } from '../../lib/receipts-api';
@@ -66,8 +68,9 @@ export function ReceiptScreen() {
   const draft = useQuery({ queryKey: queryKeys.receipt(id ?? ''), queryFn: () => receiptsApi.get(id!), enabled: !!id, staleTime: 5 * 60_000 });
   const receipt = id ? (draft.data ?? null) : null;
 
+  const tracked = useTrackedRequest();
   const read = useMutation({
-    mutationFn: (file: File) => receiptsApi.read(file, location?.id ?? ''),
+    mutationFn: (file: File) => tracked((requestId) => receiptsApi.read(file, location?.id ?? '', requestId)),
     onSuccess: (data) => {
       // Posé au cache avant la navigation : l'écran du ticket s'affiche sans relire.
       queryClient.setQueryData(queryKeys.receipt(data.id), data);
@@ -129,7 +132,18 @@ export function ReceiptScreen() {
             {read.isPending ? 'Lecture du ticket…' : 'Photographier le ticket'}
           </Button>
           {!location && <p className="text-[13px] text-faint">L’emplacement vaut pour tout le ticket : choisissez-le avant la photo.</p>}
-          {read.isError && <ErrorState title="Ticket illisible" message={errorMessage(read.error, 'Le ticket n’a pas pu être lu.')} />}
+          {/* Gardé par le serveur : une attente, pas un échec. Il repartira
+              seul et sera annoncé (D1b). */}
+          {read.isError && isDeferred(read.error) && (
+            <div role="status" className="rounded-card bg-raised px-4 py-4 text-center">
+              <p className="text-[15px] font-medium">Votre ticket est gardé</p>
+              <p className="mt-1 text-[14px] text-muted">
+                Le service est momentanément saturé. Il sera lu {deferredTime(read.error) ? `vers ${deferredTime(read.error)}` : 'dès la reprise'}, et vous serez prévenu.
+                Vous pouvez fermer l’application.
+              </p>
+            </div>
+          )}
+          {read.isError && !isDeferred(read.error) && <ErrorState title="Ticket illisible" message={errorMessage(read.error, 'Le ticket n’a pas pu être lu.')} />}
         </div>
       )}
 

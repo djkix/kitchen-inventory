@@ -44,7 +44,7 @@ describe('notificationPayload : ce que le téléphone affiche', () => {
   it('nomme ce qui est prêt plutôt que « traitement terminé »', () => {
     const payload = notificationPayload({ id: 'req-a', kind: 'SUGGESTIONS', outcome: 'DONE', count: 6 });
     expect(payload.title).toBe('6 idées de recettes');
-    expect(payload.url).toBe('/recettes/suggestions');
+    expect(payload.url).toBe('/recettes');
     expect(payload.tag).toBe('req-a');
   });
 
@@ -59,7 +59,7 @@ describe('notificationPayload : ce que le téléphone affiche', () => {
   });
 
   it('renvoie l’article scanné sur le stock', () => {
-    expect(notificationPayload({ id: 'req-d', kind: 'SCAN_IMAGE', outcome: 'DONE' }).url).toBe('/stock');
+    expect(notificationPayload({ id: 'req-d', kind: 'SCAN_IMAGE', outcome: 'DONE' }).url).toBe('/');
   });
 
   it('dit la raison d’un abandon plutôt que de rester muet', () => {

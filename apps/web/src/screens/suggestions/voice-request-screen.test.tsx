@@ -171,7 +171,11 @@ describe('VoiceRequestScreen (demande parlée, 2026-10-21)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
     await waitFor(() => expect(screen.getByText(/Poulet à la tomate/)).toBeTruthy());
     expect(voice).toHaveBeenCalledTimes(2);
-    expect(voice.mock.calls[1]).toEqual(voice.mock.calls[0]);
+    // Le même enregistrement, mais un identifiant de demande neuf : un second
+    // essai est une nouvelle demande, pas le rejeu de la première.
+    expect(voice.mock.calls[1]?.[0]).toBe(voice.mock.calls[0]?.[0]);
+    expect(voice.mock.calls[1]?.[1]).toBe(voice.mock.calls[0]?.[1]);
+    expect(voice.mock.calls[1]?.[2]).not.toBe(voice.mock.calls[0]?.[2]);
   });
 
   it('dit que le modèle n’a rien compris (D9)', async () => {

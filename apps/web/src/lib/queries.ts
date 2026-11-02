@@ -1,3 +1,4 @@
+import { beginAiRequest, forgetAiRequest, watchAiRequest } from './ai-request';
 import { useRef } from 'react';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import type {
@@ -379,7 +380,22 @@ export function useSuggestionsQuery(orientation: SuggestionOrientation, options?
   }
   return useQuery({
     queryKey: [...queryKeys.suggestions(orientation), token.current, limit] as const,
-    queryFn: () => suggestionsApi.list({ ...orientation, limit, refresh: token.current > 0 ? true : undefined }),
+    queryFn: async () => {
+      // Une relance explicite appelle toujours le modèle et prend du temps :
+      // c'est la seule lecture de suggestions qui mérite d'être annoncée si
+      // l'on a posé le téléphone (conception du 2026-11-02). Le service
+      // ordinaire du réservoir, lui, ne porte pas d'identifiant.
+      const refresh = token.current > 0;
+      if (!refresh) return suggestionsApi.list({ ...orientation, limit });
+      const requestId = beginAiRequest();
+      const stop = watchAiRequest(requestId);
+      try {
+        return await suggestionsApi.list({ ...orientation, limit, refresh: true, requestId });
+      } finally {
+        stop();
+        forgetAiRequest(requestId);
+      }
+    },
     retry: false,
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,

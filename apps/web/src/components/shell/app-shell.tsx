@@ -1,3 +1,4 @@
+import { useAiRequestRecovery } from '../../hooks/use-ai-request-recovery';
 import type { ReactNode } from 'react';
 import { Link, Outlet } from 'react-router';
 import { cn } from '../../lib/cn';
@@ -8,6 +9,7 @@ import { UpdateBanner } from './update-banner';
 
 /** Coque des quatre onglets : contenu défilant, barre de navigation fixe en bas. */
 export function AppShell() {
+  useAiRequestRecovery();
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col">
       <main className="flex-1 pb-[calc(var(--spacing-nav)+env(safe-area-inset-bottom,0px)+16px)]">

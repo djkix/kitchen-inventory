@@ -1,3 +1,4 @@
+import { beginAiRequest, forgetAiRequest, watchAiRequest } from '../../lib/ai-request';
 import type { ScanBarcodeResult, ScanImageResult } from '@kitchen/shared';
 import { useCallback, useRef, useState } from 'react';
 import { errorFeedback, scanFeedback } from '../../components/scanner/feedback';
@@ -126,7 +127,19 @@ export function useScanFlow({ locationId }: Options) {
         const formData = new FormData();
         formData.append('image', blob, 'photo.jpg');
         if (barcode) formData.append('barcode', barcode);
-        const result = await api.postForm<ScanImageResult>('/scan/image', formData);
+        // Identifiant de la demande (conception du 2026-11-02) : on range
+        // souvent les courses en faisant autre chose, et l'identification
+        // d'une étiquette peut prendre une dizaine de secondes.
+        const requestId = beginAiRequest();
+        const stopWatching = watchAiRequest(requestId);
+        formData.append('requestId', requestId);
+        let result: ScanImageResult;
+        try {
+          result = await api.postForm<ScanImageResult>('/scan/image', formData);
+        } finally {
+          stopWatching();
+          forgetAiRequest(requestId);
+        }
         if (result.rejected) {
           errorFeedback();
           setPhase({ kind: 'rejected', barcode });

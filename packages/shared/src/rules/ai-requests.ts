@@ -40,9 +40,11 @@ export function deferralRetryAt(input: { now: Date; resumeAt: Date }): Date | nu
 
 /** Écran à ouvrir au clic, par usage. */
 const SCREENS: Record<AiRequestKind, string> = {
-  SCAN_IMAGE: '/stock',
-  SUGGESTIONS: '/recettes/suggestions',
-  VOICE: '/recettes/suggestions',
+  // Les adresses réelles de l'application (`app.tsx`) : le stock est à la
+  // racine, et l'écran des suggestions est `/recettes`.
+  SCAN_IMAGE: '/',
+  SUGGESTIONS: '/recettes',
+  VOICE: '/recettes',
   RECEIPT: '/courses',
 };
 

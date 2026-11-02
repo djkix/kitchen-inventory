@@ -188,6 +188,27 @@ jour et de la minute, l'épuisement ou la pause en cours, et permet de régler
 les trois limites de chaque modèle. Chaque requête envoyée est journalisée
 (modèle, statut, jetons, durée).
 
+### 🔔 « Votre réponse est prête »
+
+Une demande au modèle met parfois plus de dix secondes : la lecture d'un
+ticket, une demande parlée, une fournée de recettes. On n'a aucune raison de
+rester à regarder l'écran. **Posez le téléphone** : le traitement continue côté
+serveur, et une **notification** vous dit que le résultat est là. Elle s'affiche
+application fermée et vous ramène sur l'écran concerné d'un geste. Si vous êtes
+resté devant l'écran, rien ne sonne — le résultat s'affiche comme avant.
+
+Et si Gemini est momentanément saturé, **la demande n'est plus perdue** : elle
+est gardée, repart toute seule à la reprise annoncée, et c'est son résultat qui
+vous est annoncé. Au-delà d'une heure d'attente, l'application abandonne et
+vous le dit plutôt que de vous réveiller.
+
+L'interrupteur est dans **Réglages › Apparence**, et vaut pour l'appareil où
+vous êtes. Il demande l'autorisation du navigateur au moment où vous l'allumez.
+Sur iPhone, les notifications web n'existent que si l'application est installée
+sur l'écran d'accueil ; l'interrupteur le dit s'il ne peut pas fonctionner.
+Sans clés VAPID configurées sur le serveur, tout le reste marche et
+l'interrupteur reste éteint en l'expliquant.
+
 ### 📱 Et aussi
 
 Installable en **PWA** (plein écran, icône sur l'écran d'accueil), avec un
@@ -196,8 +217,9 @@ doigts. **Export** CSV et JSON. **Jetons de service** en lecture seule pour
 Home Assistant ou un script. **Sauvegarde** chaque nuit vers un NAS, sept jours
 gardés, et à la demande depuis Réglages.
 
-**Limites connues.** Mode hors ligne, alertes de péremption par notification et
-export enrichi restent à faire. La liste de courses alimentée par des seuils
+**Limites connues.** Mode hors ligne, alertes de péremption et export enrichi
+restent à faire — les notifications existent désormais, mais seulement pour
+annoncer le résultat d'une demande au modèle, pas encore les péremptions. La liste de courses alimentée par des seuils
 (EF-12) et l'ajout des ingrédients manquants d'une recette (EF-24) ont été
 **abandonnés** le 2026-10-22 au profit du ticket de caisse.
 
@@ -627,6 +649,8 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `RECIPE_SUGGESTION_DAILY_QUOTA` | Fournées de suggestions de recettes autorisées par jour (20) |
 | `RECEIPT_DAILY_QUOTA` | Lectures de ticket de caisse autorisées par jour (10), compteur séparé du scan photo et des suggestions, affiché dans Réglages › Reconnaissance (tuile « Tickets aujourd'hui ») |
 | `GEMINI_RPM`, `GEMINI_TPM`, `GEMINI_RPD` | Limites de Google appliquées par défaut à **chaque modèle** et vérifiées avant l'appel : requêtes par minute (5), jetons par minute (250 000), requêtes par jour du Pacifique (20) — le niveau gratuit. Un administrateur les règle modèle par modèle dans Réglages › Reconnaissance, et son réglage prime |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Paire de clés des notifications, engendrée une fois par `npx web-push generate-vapid-keys`. Absentes, l'application fonctionne normalement et n'annonce rien |
+| `VAPID_SUBJECT` | Contact exigé par les services de push, `mailto:vous@example.org` (défaut `mailto:admin@localhost`) |
 | `OFF_USER_AGENT` | En-tête demandé par Open Food Facts |
 | `EXPIRY_ALERT_DAYS` | Seuil d'alerte par défaut (7), modifiable dans les réglages |
 | `LOG_LEVEL` | Niveau des journaux JSON sur la sortie standard |
@@ -843,6 +867,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.37.0 | 2026-11-02 | Notification quand la réponse du modèle est prête, et demande gardée puis rejouée si Gemini est saturé |
 | 0.36.0 | 2026-11-02 | Un modèle saturé chez Google fait basculer sur le suivant, et la demande parlée se renvoie sans reparler |
 | 0.35.0 | 2026-10-23 | Sauvegarde chaque nuit vers un NAS, sept jours gardés, et « Sauvegarder maintenant » dans Réglages |
 | 0.34.0 | 2026-10-23 | Thème clair, thème sombre, ou suivi du réglage du téléphone |
