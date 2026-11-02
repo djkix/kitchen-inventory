@@ -16,3 +16,4 @@ export * from './effective-rating.js';
 export * from './suggestion-pool.js';
 export * from './suggestion-ingredients.js';
 export * from './receipt-match.js';
+export * from './ai-requests.js';
