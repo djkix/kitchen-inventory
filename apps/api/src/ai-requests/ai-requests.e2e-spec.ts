@@ -2,21 +2,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { FakeHttp } from '../../test/fake-http.js';
+import { fakeSubscription, VAPID } from '../../test/push.double.js';
 import { AiRequestService } from './ai-request.service.js';
 
 const ADMIN = { email: 'admin@example.org', name: 'Admin' };
 const MEMBRE = { email: 'membre@example.org', name: 'Membre' };
-const VAPID_PUBLIC = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
-const VAPID_PRIVATE = 'UUxI4O8-FbRouAevSmBQ6o18hgE4nSG3qwvJTfKc-ls';
 const ENDPOINT = 'https://push.example.org/a';
 
-const subscription = {
-  endpoint: ENDPOINT,
-  keys: {
-    p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM',
-    auth: 'tBHItJI5svbpez7KI4CCXg',
-  },
-};
 
 describe('Demandes au modèle : la ligne qui survit à l’écran', () => {
   let t: TestApp;
@@ -26,7 +18,7 @@ describe('Demandes au modèle : la ligne qui survit à l’écran', () => {
   const http = new FakeHttp();
 
   beforeAll(async () => {
-    t = await createTestApp({ VAPID_PUBLIC_KEY: VAPID_PUBLIC, VAPID_PRIVATE_KEY: VAPID_PRIVATE }, http.client);
+    t = await createTestApp({ VAPID_PUBLIC_KEY: VAPID.publicKey, VAPID_PRIVATE_KEY: VAPID.privateKey }, http.client);
     requests = t.app.get(AiRequestService);
   });
   beforeEach(async () => {
@@ -35,7 +27,7 @@ describe('Demandes au modèle : la ligne qui survit à l’écran', () => {
     http.on('push.example.org', () => new Response(null, { status: 201 }));
     agent = t.agent();
     await t.signIn(agent, ADMIN);
-    await agent.post('/api/v1/notifications/subscription').send(subscription).expect(204);
+    await agent.post('/api/v1/notifications/subscription').send(fakeSubscription(ENDPOINT)).expect(204);
     userId = (await t.prisma.user.findUniqueOrThrow({ where: { email: ADMIN.email } })).id;
   });
   afterAll(() => t.close());

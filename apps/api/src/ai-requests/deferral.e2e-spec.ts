@@ -2,20 +2,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { FakeHttp, json, TINY_PNG } from '../../test/fake-http.js';
+import { fakeSubscription, VAPID } from '../../test/push.double.js';
 import { GeminiService } from '../gemini/gemini.service.js';
 import { DeferralService } from './deferral.service.js';
 
 const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
-const VAPID_PUBLIC = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
-const VAPID_PRIVATE = 'UUxI4O8-FbRouAevSmBQ6o18hgE4nSG3qwvJTfKc-ls';
+const ENDPOINT = 'https://push.example.org/a';
 
-const subscription = {
-  endpoint: 'https://push.example.org/a',
-  keys: {
-    p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM',
-    auth: 'tBHItJI5svbpez7KI4CCXg',
-  },
-};
 
 /** 429 de Google qui pose la pause commune, avec la durée annoncée. */
 const pause429 = (retryDelay: string) =>
@@ -37,7 +30,7 @@ describe('Demandes différées : rejouées à la reprise, annoncées à l’arri
 
   beforeAll(async () => {
     t = await createTestApp(
-      { VISION_PROVIDER: 'gemini', VISION_API_KEY: 'AIza-test', VAPID_PUBLIC_KEY: VAPID_PUBLIC, VAPID_PRIVATE_KEY: VAPID_PRIVATE },
+      { VISION_PROVIDER: 'gemini', VISION_API_KEY: 'AIza-test', VAPID_PUBLIC_KEY: VAPID.publicKey, VAPID_PRIVATE_KEY: VAPID.privateKey },
       http.client,
     );
     deferral = t.app.get(DeferralService);
@@ -50,7 +43,7 @@ describe('Demandes différées : rejouées à la reprise, annoncées à l’arri
     http.on('push.example.org', () => new Response(null, { status: 201 }));
     agent = t.agent();
     await t.signIn(agent, ADMIN);
-    await agent.post('/api/v1/notifications/subscription').send(subscription).expect(204);
+    await agent.post('/api/v1/notifications/subscription').send(fakeSubscription(ENDPOINT)).expect(204);
     locationId = (await t.prisma.location.findFirstOrThrow()).id;
   });
   afterAll(() => t.close());
