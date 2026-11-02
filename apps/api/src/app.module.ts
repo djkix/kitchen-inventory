@@ -5,6 +5,7 @@ import { MediaModule } from './media/media.module.js';
 import { RecognitionModule } from './recognition/recognition.module.js';
 import { randomUUID } from 'node:crypto';
 import { AccountsModule } from './accounts/accounts.module.js';
+import { AiRequestsModule } from './ai-requests/ai-requests.module.js';
 import { BackupModule } from './backup/backup.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { OAuth2Client } from 'google-auth-library';
@@ -87,6 +88,7 @@ export class AppModule {
         SettingsModule,
         GeminiModule,
         NotificationsModule,
+        AiRequestsModule,
         StockModule,
         RecipesModule,
         SuggestionsModule,
