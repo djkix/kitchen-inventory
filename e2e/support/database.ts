@@ -1,6 +1,4 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -19,6 +17,25 @@ const PG_ENV = { ...process.env, PGPASSWORD: DB_PASSWORD };
 
 // e2e/support → e2e → racine du dépôt.
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+/**
+ * `pg_dump` et `pg_restore` sont joués **dans le conteneur `db`**, et non avec
+ * les outils du runner.
+ *
+ * Un `pg_dump` de PostgreSQL 17 ou plus récent écrit `SET transaction_timeout
+ * = 0;` en tête de son instantané, paramètre que le serveur 16 ne connaît pas
+ * et refuse à la restauration. Les outils du runner suivent sa distribution,
+ * qui change sous nos pieds — `ubuntu-latest` a migré le 2026-10-19 — là où le
+ * conteneur est épinglé à `postgres:16-alpine`, exactement la version de
+ * production. Le fichier reste donc lui aussi dans le conteneur.
+ */
+const DUMP_PATH = '/tmp/kitchen-e2e-seed.dump';
+const inDb = (...args: string[]): [string, string[]] => [
+  'docker',
+  // `-e` plutôt que l'environnement du processus `docker` : celui-ci ne
+  // traverse pas jusqu'au conteneur.
+  ['compose', '-f', 'docker-compose.e2e.yml', 'exec', '-T', '-e', `PGPASSWORD=${DB_PASSWORD}`, 'db', ...args],
+];
 
 let seeded: Promise<string> | null = null;
 
@@ -55,19 +72,15 @@ export async function seedDatabase(): Promise<string> {
       cwd: REPO_ROOT,
       env: { ...process.env, DATABASE_URL },
     });
-    const dir = await mkdtemp(join(tmpdir(), 'kitchen-e2e-db-'));
-    const dumpPath = join(dir, 'seed.dump');
-    await execFileAsync(
+    const [dump, dumpArgs] = inDb(
       'pg_dump',
-      [
-        '-h', DB_HOST, '-p', DB_PORT, '-U', DB_USER, '-d', DB_NAME,
-        '--format=custom', '--data-only',
-        `--exclude-table=${PRISMA_MIGRATIONS_TABLE}`,
-        '--file', dumpPath,
-      ],
-      { env: PG_ENV },
+      '-U', DB_USER, '-d', DB_NAME,
+      '--format=custom', '--data-only',
+      `--exclude-table=${PRISMA_MIGRATIONS_TABLE}`,
+      '--file', DUMP_PATH,
     );
-    return dumpPath;
+    await execFileAsync(dump, dumpArgs, { cwd: REPO_ROOT, env: PG_ENV });
+    return DUMP_PATH;
   })();
   return seeded;
 }
@@ -140,13 +153,11 @@ END $$;`;
 export async function restoreDatabase(): Promise<void> {
   const dumpPath = await seedDatabase();
   await truncateAllTables();
-  await execFileAsync(
+  const [restore, restoreArgs] = inDb(
     'pg_restore',
-    [
-      '-h', DB_HOST, '-p', DB_PORT, '-U', DB_USER, '-d', DB_NAME,
-      '--data-only', '--disable-triggers', '--no-owner',
-      dumpPath,
-    ],
-    { env: PG_ENV },
+    '-U', DB_USER, '-d', DB_NAME,
+    '--data-only', '--disable-triggers', '--no-owner',
+    dumpPath,
   );
+  await execFileAsync(restore, restoreArgs, { cwd: REPO_ROOT, env: PG_ENV });
 }
