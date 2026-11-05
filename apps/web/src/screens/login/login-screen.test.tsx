@@ -85,7 +85,7 @@ describe('LoginScreen', () => {
     expect(screen.queryByRole('button', { name: /google/i })).toBeNull();
   });
 
-  // Demande de djkix (2026-10-19) : l'écran de connexion est le seul que l'on
+  // Demande du propriétaire (2026-10-19) : l'écran de connexion est le seul que l'on
   // voit sans barre de titre ni navigation, et rien n'y disait de quelle
   // application il s'agit.
   it('porte le nom de l’application', () => {

@@ -1,6 +1,6 @@
 # Suggestions : parcours dirigé et filtres compacts sur mobile
 
-**Statut :** décisions prises par djkix le 2026-10-11, exécutées ; amendées le
+**Statut :** décisions prises par le propriétaire le 2026-10-11, exécutées ; amendées le
 2026-10-11 en revue finale (section 5).
 **Demande :** « il faut revoir l'approche pour les recettes, ce n'est pas intuitif
 et fastidieux à l'utilisation. »
@@ -27,14 +27,14 @@ reste à une tape, par la bascule.
 
 **D2 — Une question bloquante au départ.** À l'ouverture, l'écran demande le
 type de plat — entrée, plat, dessert, etc. Aucune recette n'est affichée avant
-la réponse. djkix a choisi cette variante en connaissant son coût : une tape
+la réponse. Le propriétaire a choisi cette variante en connaissant son coût : une tape
 de plus à chaque visite.
 
 **D3 — Cette première réponse oriente la recherche initiale.** Elle part à
 Gemini avec la demande. Ce n'est pas une relance : un appel a lieu de toute
 façon, et sans cela répondre « Dessert » pourrait donner une liste vide juste
 après avoir répondu — le pire enchaînement possible. Arbitrage pris par Claude,
-les deux réponses de djkix ne le déterminant pas à elles seules.
+les deux réponses du propriétaire ne le déterminant pas à elles seules.
 
 **D4 — Les changements suivants filtrent la fournée, sans appel.** Conforme au
 choix du 2026-10-08 : gratuit et instantané. Quand le filtre ne laisse rien, le

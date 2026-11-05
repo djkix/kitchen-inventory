@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 /**
- * `GET /suggestions` est la seule route du module qui coûte de l'argent : un
+ * `POST /suggestions` est la seule route du module qui coûte de l'argent : un
  * appel part vers Gemini, entame le quota journalier et le plafond mensuel
  * partagé avec le scan photo. Ces deux cas tiennent la propriété qui compte —
  * **aucun appel sans geste, autant d'appels que de gestes** — et ils mordent :

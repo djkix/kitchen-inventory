@@ -1,6 +1,6 @@
 # Choix d'implémentation du lot 1
 
-2026-09-20 · djkix, avec assistance de Claude
+2026-09-20 · le propriétaire, avec assistance de Claude
 
 Le cahier des charges (`docs/cahier-des-charges.md`) fait autorité. Ce
 document consigne uniquement les choix qu'il laisse au jugement et la façon
@@ -100,7 +100,7 @@ par la migration initiale :
 - `RecognitionProvider` est une interface TypeScript
   (`recognize(image, hint) → suggestion`). Implémentations livrées :
   `none` (désactivé), `gemini`, `anthropic`, `openai`, `ollama`. Le fournisseur
-  est choisi par `VISION_PROVIDER` au démarrage. Fournisseur retenu par djkix
+  est choisi par `VISION_PROVIDER` au démarrage. Fournisseur retenu par le propriétaire
   le 2026-09-21 : Gemini (`gemini-3.5-flash` par défaut), déjà utilisé dans
   magazine-search ; la clé passe en en-tête `x-goog-api-key`, jamais dans l'URL.
 - La prise de vue passe par l'appareil photo natif du téléphone
@@ -158,7 +158,7 @@ de la section 19, avec des dates relatives au jour d'exécution.
 | Élément | Reprise de magazine-search | Adaptation |
 | --- | --- | --- |
 | `ci.yml` | gitleaks, typecheck, lint, tests, migrations rejouées sur Postgres 16, build d'image sans push | Un seul job de build, `npm ci` à la racine, `prisma migrate deploy` puis `migrate reset` pour vérifier la rejouabilité |
-| `docker-build.yml` | Publication GHCR sur push `main` et tag `v*`, `workflow_call` depuis release-please | Une image, plateforme `linux/amd64` seule (décision du 2026-09-21 : l'hôte est un mini-PC x86, et l'émulation QEMU de l'arm64 échouait par intermittence) |
+| `docker-build.yml` | Publication GHCR sur push `main` et tag `v*`, `workflow_call` depuis release-please | Une image, plateforme `linux/amd64` seule (décision du 2026-09-21 : l'hôte est une machine x86, et l'émulation QEMU de l'arm64 échouait par intermittence) |
 | `release-please.yml` | Identique | Identique |
 | `docker-compose.yml` | Image GHCR avec `IMAGE_TAG`, `db-backup` avec script de rotation | Services `app`, `db`, `backup` ; le script sauvegarde aussi le dossier média |
 | `.env.example` | Documenté, sans secret | Variables de la section 9 |

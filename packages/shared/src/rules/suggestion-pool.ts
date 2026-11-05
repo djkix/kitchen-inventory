@@ -3,7 +3,7 @@
  * 2026-10-15).
  *
  * Une recette web vérifiée passe avant une composition du modèle quelle que
- * soit sa couverture : la demande de djkix porte d'abord sur l'existence de
+ * soit sa couverture : la demande du propriétaire porte d'abord sur l'existence de
  * la recette, la couverture ne départage qu'à statut égal. Puis, à couverture
  * égale, la plus récemment découverte — sans quoi le réservoir, qui ne
  * s'efface jamais, figerait pour toujours le haut de la liste sur ses plus

@@ -6,7 +6,7 @@
 
 ## Pourquoi
 
-djkix range ses courses article par article. Scanner trente articles un par
+Le propriétaire range ses courses article par article. Scanner trente articles un par
 un prend deux heures ; le ticket de caisse les nomme tous en cinq secondes.
 
 Cette évolution part d'une redéfinition de l'application, énoncée pendant la
@@ -40,7 +40,7 @@ Ce qui ferait échouer l'évolution même si elle fonctionne techniquement :
 
 - **Une ligne cochée en silence sur le mauvais produit.** La quantité monte au
   mauvais endroit et rien ne l'apprend à l'utilisateur. C'est la crainte
-  explicite de djkix, et le principe directeur de D6.
+  explicite du propriétaire, et le principe directeur de D6.
 - **Un parcours plus lent que le scan article par article.** Si valider un
   ticket demande de trancher quinze cas, il a perdu sa raison d'être.
 - **Des produits au nom illisible dans l'inventaire.** « PT DEJ CHOCO 500G »
@@ -107,7 +107,7 @@ C'est la décision centrale.
 | **Inconnu** | Aucun produit ne correspond | Décoché, libellé brut affiché, marqué « nouveau » |
 
 Un état ambigu ne se résout jamais tout seul au profit du « meilleur »
-candidat. djkix : *« je veux être sûr que le doublon est identifié en
+candidat. Le propriétaire : *« je veux être sûr que le doublon est identifié en
 amont »*. Une ligne cochée en silence sur la mauvaise huile d'olive fait
 monter la quantité au mauvais endroit, et rien ne l'apprend.
 
@@ -134,11 +134,11 @@ l'association faite, le même libellé sur un ticket ultérieur arrive reconnu e
 coché.
 
 Le scan au code-barres n'est **pas** modifié : rien ne vient s'y greffer pour
-demander si le produit scanné correspond à un libellé en attente. Choix de
-djkix, parmi quatre options, le 2026-10-22. Le parcours de scan reste ce
+demander si le produit scanné correspond à un libellé en attente. Choix du
+propriétaire, parmi quatre options, le 2026-10-22. Le parcours de scan reste ce
 qu'il est ; le rattachement est un geste séparé, fait quand on veut.
 
-Conséquence assumée, dite à djkix au moment du choix : rien ne rappelle de
+Conséquence assumée, dite au propriétaire au moment du choix : rien ne rappelle de
 visiter cette liste. Pour qu'elle ne pourrisse pas, l'onglet Courses porte le
 nombre de libellés en attente — c'est le seul rappel, et il est passif.
 
@@ -155,7 +155,7 @@ dans `app.tsx`). Il est remplacé.
 
 ## Les choix que j'ai faits, faute d'avoir été tranchés
 
-Signalés comme tels : ils relèvent du jugement, pas d'une décision de djkix.
+Signalés comme tels : ils relèvent du jugement, pas d'une décision du propriétaire.
 Plusieurs répondent à une relecture technique de cette spécification ; les deux
 derniers ont été consignés pendant la réalisation, quand il a fallu choisir un
 chiffre que rien ne fixait.

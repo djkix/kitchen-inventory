@@ -74,8 +74,21 @@ export class ExportController {
   }
 }
 
-function csvCell(value: unknown): string {
+/**
+ * Premiers caractères qu'un tableur lit comme le début d'une formule (revue de
+ * sécurité du 2026-10-22) : un nom de produit venu d'Open Food Facts ou d'un
+ * ticket, ouvert dans Excel, ne doit jamais s'exécuter.
+ */
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+/**
+ * Cellule CSV (séparateur `;`). Le texte qui commence comme une formule est
+ * préfixé d'une apostrophe, que le tableur affiche comme du texte ; les
+ * nombres ne le sont jamais — une quantité négative reste un nombre.
+ */
+export function csvCell(value: unknown): string {
   if (value === null || value === undefined) return '';
-  const text = typeof value === 'boolean' ? (value ? 'oui' : 'non') : String(value);
+  let text = typeof value === 'boolean' ? (value ? 'oui' : 'non') : String(value);
+  if (typeof value === 'string' && FORMULA_START.test(text)) text = `'${text}`;
   return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }

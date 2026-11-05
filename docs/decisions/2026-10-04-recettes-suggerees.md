@@ -1,6 +1,6 @@
 # Recettes suggérées à partir du stock
 
-2026-10-04 · djkix, avec assistance de Claude
+2026-10-04 · le propriétaire, avec assistance de Claude
 
 Le cahier des charges (`docs/cahier-des-charges.md`) fait autorité. Les choix
 laissés au jugement pour cet incrément (composition du point de départ depuis
@@ -12,7 +12,7 @@ sont pas recopiés ici.
 
 ## Pourquoi l'approche a changé
 
-À la livraison du socle (0.7.0), djkix a indiqué que le module ne répondait
+À la livraison du socle (0.7.0), le propriétaire a indiqué que le module ne répondait
 pas à sa question : il avait demandé à pouvoir cuisiner avec ce qu'il a en
 stock, pas un carnet de recettes qu'il faudrait d'abord remplir lui-même. Le
 socle livrait précisément ce carnet — saisie manuelle, stock comme simple

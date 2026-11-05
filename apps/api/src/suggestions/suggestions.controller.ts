@@ -43,11 +43,35 @@ export class SuggestionsController implements OnModuleInit {
     });
   }
 
+  /**
+   * Lecture seule (revue de sécurité du 2026-10-22) : le réservoir tel qu'il
+   * est, couverture recalculée contre le stock, **sans jamais appeler le
+   * modèle ni écrire** — `refresh` y est ignoré. C'est la seule forme
+   * accessible à un jeton de service.
+   */
   @Get()
-  list(@ZodQuery(suggestionQuerySchema) query: SuggestionQuery, @CurrentUser() user: RequestUser): Promise<SuggestionBatchDto> {
+  list(@ZodQuery(suggestionQuerySchema) query: SuggestionQuery): Promise<SuggestionBatchDto> {
+    return this.suggestions.list(query, { allowModelCall: false });
+  }
+
+  /**
+   * Recherche (écran Suggestions) : même orientation, dans le corps. Peut
+   * appeler le modèle — sous le plancher du réservoir ou sur relance
+   * explicite —, consommer le quota et écrire au réservoir. En `POST` pour
+   * que ni un lien, ni un préchargement, ni un jeton de service (lecture
+   * seule, refusé par `SessionGuard`) ne la déclenchent, et pour passer par
+   * la garde des écritures inter-origines.
+   *
+   * C'est ici, et pas sur le `GET`, que la demande est suivie et gardée si
+   * Gemini est saturé (2026-11-02) : la lecture seule n'appelle jamais le
+   * modèle, elle n'a donc rien à différer ni à annoncer.
+   */
+  @Post()
+  @HttpCode(200)
+  search(@ZodBody(suggestionQuerySchema) body: SuggestionQuery, @CurrentUser() user: RequestUser): Promise<SuggestionBatchDto> {
     return this.deferral.track(
-      { id: query.requestId, userId: user.id, kind: 'SUGGESTIONS', payload: () => ({ json: query }) },
-      () => this.suggestions.list(query),
+      { id: body.requestId, userId: user.id, kind: 'SUGGESTIONS', payload: () => ({ json: body }) },
+      () => this.suggestions.list(body),
       (batch) => batch.items.length,
     );
   }

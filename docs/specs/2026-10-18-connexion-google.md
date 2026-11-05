@@ -1,7 +1,7 @@
 # Connexion par compte Google, sans mot de passe
 
 **Date** : 2026-10-18
-**Demande de djkix** : « pour la connexion (compte de l'application), je veux
+**Demande du propriétaire** : « pour la connexion (compte de l'application), je veux
 utiliser des adresses mail Google. Il me faut la possibilité de m'enregistrer
 ou de me loguer via une adresse gmail (plus de mdp). »
 **Exigences touchées** : section 10 du cahier des charges (sécurité).
@@ -15,7 +15,7 @@ libre : un compte ne peut être créé que par cette installation initiale.
 
 ## Le mécanisme repris de magazine-search
 
-djkix a fourni le guide de son autre application
+Le propriétaire a fourni le guide de son autre application
 (`connexion-google-guide.md`). Le mécanisme est repris **tel quel**, pour qu'il
 n'existe pas deux façons de se connecter à Google dans sa maison logicielle :
 
@@ -26,7 +26,7 @@ n'existe pas deux façons de se connecter à Google dans sa maison logicielle :
   de Kitchen, inchangé, pour que le reste de l'application n'ait aucune
   différence à gérer.
 - Rattachement par **adresse e-mail**, pas par `sub` : c'est ce qui fait
-  fusionner le compte existant de djkix avec sa connexion Google, sans
+  fusionner le compte existant du propriétaire avec sa connexion Google, sans
   doublon ni perte d'historique.
 - `email_verified` obligatoire : Google autorise des comptes à adresse non
   vérifiée, on n'authentifie personne sur une adresse qu'il ne contrôle pas.
@@ -52,7 +52,7 @@ de santé et de pratique religieuse. L'application est publiée sur Internet
 (nécessaire pour scanner en magasin) : l'inscription ouverte y publierait ces
 données à qui trouve l'adresse.
 
-Choix de djkix entre quatre options (2026-10-18) : validation par
+Choix du propriétaire entre quatre options (2026-10-18) : validation par
 l'administrateur, plutôt qu'une liste d'adresses fixée à l'avance — il peut
 ainsi inviter quelqu'un sans connaître son adresse Google au préalable.
 
@@ -87,7 +87,7 @@ pire qu'une colonne vide. Les routes `POST /auth/login` et `POST /me/password`
 sont retirées.
 
 **D6 — La porte de secours est une commande serveur, jamais une route.** Choix
-de djkix : si la configuration Google casse, si le projet Google est suspendu
+du propriétaire : si la configuration Google casse, si le projet Google est suspendu
 ou si le domaine change, plus personne n'entre. Un script
 (`tools/acces-secours.ts`, lancé depuis Dockge dans le conteneur) crée ou
 réactive un administrateur et lui pose un mot de passe à usage unique, valable
@@ -102,7 +102,7 @@ les emplacements par défaut comme aujourd'hui. Le verrou d'exclusion existant
 (`LOCK TABLE … SHARE ROW EXCLUSIVE`) est conservé : deux connexions simultanées
 sur une base vide ne doivent créer qu'un seul administrateur.
 
-**D8 — Le compte de djkix est rattaché par son adresse.** Il reste `ADMIN` et
+**D8 — Le compte du propriétaire est rattaché par son adresse.** Il reste `ADMIN` et
 `ACTIVE`, garde recettes, historique, notes et préférences. La migration pose
 `status = 'ACTIVE'` sur tous les comptes existants : personne n'est enfermé
 dehors par la mise à jour.

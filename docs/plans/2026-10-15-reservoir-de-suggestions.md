@@ -121,7 +121,7 @@ Attendu : ÉCHEC, module introuvable.
  * 2026-10-15).
  *
  * Une recette web vérifiée passe avant une composition du modèle quelle que
- * soit sa couverture : la demande de djkix porte d'abord sur l'existence de
+ * soit sa couverture : la demande du propriétaire porte d'abord sur l'existence de
  * la recette, la couverture ne départage qu'à statut égal. Puis, à couverture
  * égale, la plus récemment découverte — sans quoi le réservoir, qui ne
  * s'efface jamais, figerait pour toujours le haut de la liste sur ses plus
@@ -584,7 +584,7 @@ la doublure Gemini, les recettes toujours affichées.
 - [ ] **Étape 3 : vérifier ce qui est vérifiable en local**
 
 Les parcours Playwright sont **CI uniquement** (pas de moteur de conteneurs sur
-le Mac de djkix). Vérifier par relecture et par `npx tsc` que les fichiers
+le poste du propriétaire). Vérifier par relecture et par `npx tsc` que les fichiers
 compilent ; la preuve vient de la CI après fusion.
 
 - [ ] **Étape 4 : commit**

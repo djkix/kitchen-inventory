@@ -27,7 +27,7 @@ export const NON_STRUCTURING_CATEGORIES: readonly string[] = [normalizeProductNa
 
 /**
  * Sel et poivre n'ont pas de catégorie dédiée dans `DEFAULT_CATEGORIES` (ils sont
- * rangés par le foyer dans n'importe quelle catégorie d'épicerie) : djkix les a
+ * rangés par le foyer dans n'importe quelle catégorie d'épicerie) : le propriétaire les a
  * demandés hors par leur nom, pas par catégorie (B5). Comparaison mot à mot sur
  * le nom normalisé, jamais par sous-chaîne : « poivron » ne doit jamais être
  * confondu avec « poivre ».

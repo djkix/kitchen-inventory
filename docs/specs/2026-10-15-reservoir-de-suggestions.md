@@ -1,7 +1,7 @@
 # Réservoir permanent de suggestions, et vérification des recettes web
 
 **Date** : 2026-10-15
-**Demande de djkix** : « concernant les suggestions, elles sont en cache ou
+**Demande du propriétaire** : « concernant les suggestions, elles sont en cache ou
 recherchées à chaque fois ? L'idée est d'avoir la recette en mémoire une fois
 qu'elle a été trouvée et pas redemander à Gemini à chaque fois. » ; « une fois
 en mémoire, elle va regarder en fonction des aliments dispo et affiche le % de
@@ -32,8 +32,8 @@ tout est de toute façon jeté.
 
 ## Décisions
 
-**D1 — Le réservoir est permanent, sans âge maximum.** Décision explicite de
-djkix : « pas d'âge max, tu logges tout ». Une recette rapportée par Gemini
+**D1 — Le réservoir est permanent, sans âge maximum.** Décision explicite du
+propriétaire : « pas d'âge max, tu logges tout ». Une recette rapportée par Gemini
 entre au réservoir et y reste. Le volume est négligeable : douze recettes par
 fournée, quelques fournées par jour au pire, du JSON de quelques kilo-octets.
 
@@ -66,7 +66,7 @@ délai borné, redirections revalidées. Page injoignable, refusée ou vide → 
 recette est **jetée avant stockage**, jamais affichée. Coût : une requête HTTP
 par recette web, zéro jeton Gemini.
 
-**D5 — Les compositions restent, marquées.** Choix de djkix entre trois
+**D5 — Les compositions restent, marquées.** Choix du propriétaire entre trois
 options (2026-10-15). Une recette de provenance `ai` n'a pas d'URL à vérifier :
 elle est composée par le modèle, par construction. Elle entre au réservoir avec
 `verifiedAt` à `null` et s'affiche avec une mention sans ambiguïté — « Composée
@@ -107,7 +107,7 @@ revalider et d'y chercher un rang. `batchId` reste dans le DTO (il désigne la
 livraison, utile au journal) mais ne sert plus à retrouver la recette.
 
 **D10 — La page vérifiée est lue une seule fois, et son contenu est gardé.**
-Demande de djkix : « tu peux récupérer les infos de la page avec la recette,
+Demande du propriétaire : « tu peux récupérer les infos de la page avec la recette,
 pour la garder et ne plus la rappeler par la suite. » `fetchContent` rend déjà,
 en un seul GET, les données structurées `schema.org/Recipe` quand la page en
 porte et le texte nettoyé (plafonné à 8 000 caractères) sinon. Les deux sont
@@ -138,7 +138,7 @@ contacté.** La réécriture part du contenu déjà recopié en base.
 
 Le lecteur de page n'est donc plus appelé qu'une seule fois par recette, à
 l'entrée du réservoir — **jamais à la conservation, et jamais plus ensuite**.
-Confirmé par djkix : « pas la peine de la recontacter plus tard, c'est un
+Confirmé par le propriétaire : « pas la peine de la recontacter plus tard, c'est un
 one-shot et ensuite tu la gardes en mémoire dans l'application/serveur. » Aucune
 revérification périodique n'est prévue, ni maintenant ni plus tard : une fois
 la ligne écrite, le site n'est plus jamais sollicité.
@@ -193,7 +193,7 @@ celles ci-dessus, sans en rouvrir aucune :
 
 ## Amendement du 2026-10-19 : diversité et visibilité de la relance
 
-**Demande de djkix** : « j'ai l'impression qu'il n'y a que 12 recettes, et
+**Demande du propriétaire** : « j'ai l'impression qu'il n'y a que 12 recettes, et
 tout autour de fusilli et abricot » ; « si je ne trouve pas de recette qui me
 plaît, permet de faire un nouvel appel. Et diversifie les propositions (pas de
 variante) ».
@@ -254,7 +254,7 @@ aujourd'hui.
 
 ## Amendement du 2026-10-19 : parcourir le réservoir
 
-**Demande de djkix** : « oui mais je veux les conserver afin de les consulter
+**Demande du propriétaire** : « oui mais je veux les conserver afin de les consulter
 ultérieurement. Plus je fais de requêtes pour les recettes, plus j'emmagasine
 de recettes dans l'application. »
 
@@ -268,7 +268,7 @@ facultatif, entier, entre 1 et `SUGGESTION_PAGE_MAX` (soixante, cinq pages de
 douze) ; absent, le serveur pose `SUGGESTION_PAGE_SIZE`. La borne est posée au
 schéma Zod partagé, pas dans le service : sans elle, un `?limit=10000` ferait
 calculer la couverture — un rapprochement `pg_trgm` par libellé d'ingrédient —
-sur tout le réservoir, à chaque visite, sur un mini-PC. Soixante parce qu'au
+sur tout le réservoir, à chaque visite, sur une petite machine. Soixante parce qu'au
 delà, l'outil qui sert à retrouver une recette n'est pas une page plus longue
 mais les orientations, qui filtrent le réservoir en amont.
 

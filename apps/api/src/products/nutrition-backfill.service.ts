@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { rattraper } from './nutrition-backfill.js';
 
 /**
- * Le rattrapage derrière un bouton (Réglages › Inventaire), pour que djkix
+ * Le rattrapage derrière un bouton (Réglages › Inventaire), pour que le propriétaire
  * n'ait pas à ouvrir un terminal (EF-30, 2026-10-23).
  *
  * L'état vit en mémoire, pas en base : un rattrapage interrompu par un

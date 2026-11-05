@@ -110,7 +110,7 @@ describe('RecipeScreen', () => {
   });
 
   /**
-   * 2026-10-20, demande de djkix : la fiche devient strictement en lecture.
+   * 2026-10-20, demande du propriétaire : la fiche devient strictement en lecture.
    * Plus de cuisson, plus d'enregistrement de réalisation, plus de
    * modification, d'archivage, de restauration ni de suppression depuis ici.
    * Les composants correspondants restent dans le dépôt, simplement plus rendus.
@@ -200,7 +200,7 @@ describe('RecipeScreen', () => {
   it('laisse remplacer le nombre de parts, pas seulement y ajouter des chiffres', () => {
     // Le champ se repliait sur le nombre courant quand il était vide : effacer
     // réaffichait aussitôt l'ancien chiffre, donc taper « 2 » sur « 4 » donnait
-    // « 42 » et jamais « 2 ». Rencontré par djkix le 2026-10-08.
+    // « 42 » et jamais « 2 ». Rencontré par le propriétaire le 2026-10-08.
     renderRecipeScreen();
     const champ = screen.getByLabelText('Parts') as HTMLInputElement;
     expect(champ.value).toBe('4');

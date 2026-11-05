@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { fakeGoogleCredential, type FakeIdentity } from '../../test/google-verifier.double.js';
 
-const ADMIN: FakeIdentity = { email: 'proprietaire@example.org', name: 'djkix', sub: 'google-proprietaire' };
+const ADMIN: FakeIdentity = { email: 'proprietaire@example.org', name: 'Camille', sub: 'google-proprietaire' };
 const INCONNU: FakeIdentity = { email: 'inconnu@example.org', name: 'Inconnu', sub: 'google-inconnu' };
 
 const ATTENTE = 'Votre demande attend la validation d’un administrateur.';
@@ -26,7 +26,7 @@ describe('connexion par compte Google', () => {
   it('la première connexion crée l’administrateur, ouvre une session et pose les emplacements par défaut', async () => {
     const agent = t.agent();
     const res = await agent.post('/api/v1/auth/google').send({ credential: fakeGoogleCredential(ADMIN) }).expect(200);
-    expect(res.body).toMatchObject({ email: ADMIN.email, name: 'djkix', role: 'ADMIN' });
+    expect(res.body).toMatchObject({ email: ADMIN.email, name: 'Camille', role: 'ADMIN' });
     expect(res.headers['set-cookie']?.[0]).toMatch(/^sid=.*HttpOnly/);
     expect(res.headers['set-cookie']?.[0]).toMatch(/SameSite=Lax/);
 
@@ -172,7 +172,7 @@ describe('connexion par compte Google', () => {
 
   it('une adresse changée crée une demande, sans buter sur l’unicité du `sub`', async () => {
     await t.signIn(t.agent(), ADMIN);
-    const res = await google(t, { email: 'autre@example.org', name: 'djkix', sub: 'google-proprietaire' }).expect(403);
+    const res = await google(t, { email: 'autre@example.org', name: 'Camille', sub: 'google-proprietaire' }).expect(403);
     expect(res.body.error.code).toBe('forbidden');
     const demande = await t.prisma.user.findUniqueOrThrow({ where: { email: 'autre@example.org' } });
     expect(demande.status).toBe('PENDING');
@@ -207,7 +207,7 @@ describe('connexion par compte Google', () => {
 
   it('les anciennes routes de mot de passe n’existent plus', async () => {
     await t.api.post('/api/v1/auth/login').send({ email: ADMIN.email, password: 'un-mot-de-passe-long' }).expect(404);
-    await t.api.post('/api/v1/auth/setup').send({ email: ADMIN.email, name: 'djkix', password: 'un-mot-de-passe-long' }).expect(404);
+    await t.api.post('/api/v1/auth/setup').send({ email: ADMIN.email, name: 'Camille', password: 'un-mot-de-passe-long' }).expect(404);
     const agent = await t.signIn(t.agent(), ADMIN);
     await agent.post('/api/v1/me/password').send({ currentPassword: 'x', newPassword: 'un-mot-de-passe-long' }).expect(404);
   });
@@ -263,5 +263,59 @@ describe('utilisateurs et jetons de service', () => {
 
     await admin.delete(`/api/v1/service-tokens/${list.body[0].id}`).expect(204);
     await t.api.get('/api/v1/me').set('Authorization', bearer).expect(401);
+  });
+});
+
+describe('premier administrateur d’une base vide (revue de sécurité du 2026-10-22)', () => {
+  const PROPRIETAIRE: FakeIdentity = { email: 'proprietaire@example.org', name: 'Propriétaire', sub: 'google-proprietaire' };
+  const INTRUS: FakeIdentity = { email: 'intrus@example.org', name: 'Intrus', sub: 'google-intrus' };
+
+  describe('ADMIN_EMAIL posée', () => {
+    let t: TestApp;
+    beforeAll(async () => {
+      // Casse et espaces différents de l'adresse Google : la comparaison est normalisée.
+      t = await createTestApp({ ADMIN_EMAIL: '  Proprietaire@Example.org ' });
+    });
+    beforeEach(() => t.reset());
+    afterAll(() => t.close());
+
+    it('refuse toute autre adresse sur une base vide, sans rien créer', async () => {
+      const res = await google(t, INTRUS).expect(403);
+      expect(res.body.error.message).toBe(ATTENTE);
+      expect(res.headers['set-cookie']).toBeUndefined();
+      expect(await t.prisma.user.count()).toBe(0);
+      expect(await t.prisma.location.count()).toBe(0);
+    });
+
+    it('fait de l’adresse désignée le premier administrateur, même après une tentative refusée', async () => {
+      await google(t, INTRUS).expect(403);
+      const res = await google(t, PROPRIETAIRE).expect(200);
+      expect(res.body).toMatchObject({ email: PROPRIETAIRE.email, role: 'ADMIN' });
+      expect(await t.prisma.location.count()).toBeGreaterThan(0);
+      // La base n'est plus vide : l'intrus devient une simple demande en attente.
+      await google(t, INTRUS).expect(403);
+      expect(await t.prisma.user.findUniqueOrThrow({ where: { email: INTRUS.email } })).toMatchObject({ role: 'MEMBER', status: 'PENDING' });
+    });
+  });
+
+  describe('ADMIN_EMAIL absente en production', () => {
+    let t: TestApp;
+    beforeAll(async () => {
+      t = await createTestApp({ NODE_ENV: 'production' });
+    });
+    beforeEach(() => t.reset());
+    afterAll(() => t.close());
+
+    it('ne crée aucun administrateur par connexion Google', async () => {
+      const res = await google(t, PROPRIETAIRE).expect(403);
+      expect(res.body.error.message).toBe(ATTENTE);
+      expect(await t.prisma.user.count()).toBe(0);
+    });
+
+    it('laisse entrer l’administrateur créé par la porte de secours', async () => {
+      await t.prisma.user.create({ data: { email: PROPRIETAIRE.email, name: PROPRIETAIRE.email, role: 'ADMIN', status: 'ACTIVE' } });
+      const res = await google(t, PROPRIETAIRE).expect(200);
+      expect(res.body).toMatchObject({ email: PROPRIETAIRE.email, role: 'ADMIN' });
+    });
   });
 });

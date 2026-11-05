@@ -4,7 +4,7 @@ import { ScanIcon } from '../../components/ui/icons';
 /**
  * Nom affiché de l'application, sur le seul écran qui n'a ni barre de titre ni
  * navigation. Même valeur que le `name` du manifeste et que le titre du
- * document : une seule identité partout (choix de djkix, 2026-10-19).
+ * document : une seule identité partout (choix du propriétaire, 2026-10-19).
  */
 export const APP_NAME = 'Kitchen Inventory';
 
@@ -12,7 +12,7 @@ export const APP_NAME = 'Kitchen Inventory';
  * Écran sans session : une carte centrée, verticalement et horizontalement.
  *
  * La première version poussait le contenu en bas de l'écran (`justify-end`),
- * pour mettre le bouton à portée du pouce. À l'usage, djkix l'a trouvée mal
+ * pour mettre le bouton à portée du pouce. À l'usage, le propriétaire l'a trouvée mal
  * finie : sur un écran de téléphone presque vide, un bloc collé en bas se lit
  * comme un défaut de mise en page plutôt que comme une intention. Le bouton
  * reste de toute façon dans la moitié basse une fois la carte centrée, donc le

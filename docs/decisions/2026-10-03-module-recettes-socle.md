@@ -1,6 +1,6 @@
 # Module recettes — socle
 
-2026-10-03 · djkix, avec assistance de Claude
+2026-10-03 · le propriétaire, avec assistance de Claude
 
 Le cahier des charges (`docs/cahier-des-charges.md`) fait autorité. Les choix
 laissés au jugement pour le socle du module recettes (saisie par le foyer,
@@ -11,7 +11,7 @@ ils ne sont pas recopiés ici.
 
 ## Périmètre remonté au lot 2
 
-À la demande de djkix, trois exigences initialement prévues pour un
+À la demande du propriétaire, trois exigences initialement prévues pour un
 incrément ultérieur ont été explicitement remontées dans le périmètre du
 lot 2, aux côtés des seuils et de la liste de courses, des alertes de
 péremption et du mode hors ligne :

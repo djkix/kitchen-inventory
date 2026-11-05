@@ -1,6 +1,6 @@
 # Tests bout en bout des parcours
 
-2026-10-05 · djkix, avec assistance de Claude
+2026-10-05 · le propriétaire, avec assistance de Claude
 
 Le cahier des charges (`docs/cahier-des-charges.md`) fait autorité. Le cadrage
 de cette suite et ses quinze décisions (**C1** à **C15**) sont documentés dans
@@ -11,12 +11,12 @@ suite livrée.
 ## CI uniquement : jugement rendu
 
 **[C3]** fixe l'exécution en CI seule, faute de moteur de conteneurs sur le Mac
-de djkix. Ce choix est confirmé à la livraison : la suite construit l'image
+du propriétaire. Ce choix est confirmé à la livraison : la suite construit l'image
 réelle, démarre PostgreSQL et une doublure des services externes, pilote un
 vrai Chromium avec une caméra simulée — rien de tout cela n'a d'équivalent
 praticable sans Docker. En échange, le job publie le rapport Playwright, les
 captures et les vidéos de chaque échec en artefact (**[C14]**) : c'est la seule
-trace que djkix pourra inspecter, et elle est jugée suffisante pour ce
+trace que le propriétaire pourra inspecter, et elle est jugée suffisante pour ce
 compromis.
 
 ## Deux limites assumées

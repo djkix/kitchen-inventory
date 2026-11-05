@@ -4,7 +4,7 @@ import { pushSupported } from '../../lib/push-subscription';
 
 /**
  * Demande gardée par le serveur, en attendant que Gemini se libère
- * (conception du 2026-11-02, formulation arrêtée le 2026-11-02 avec djkix).
+ * (conception du 2026-11-02, formulation arrêtée le 2026-11-02 avec le propriétaire).
  *
  * Ce n'est pas un échec, et l'écran ne doit pas le présenter comme tel : la
  * demande repartira seule. Le délai est dit en durée et non en heure — « dans

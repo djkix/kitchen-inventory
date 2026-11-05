@@ -29,7 +29,7 @@ Chaque étape doit être réalisable sans rien deviner : indique la température
 Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clôtures de bloc de code (pas de \`\`\`).`;
 
 /**
- * Consigne de diversité (demande de djkix du 2026-10-19 : « diversifie les
+ * Consigne de diversité (demande du propriétaire du 2026-10-19 : « diversifie les
  * propositions (pas de variante) »). Elle remplace l'ancien « Aucune variété de
  * régions ou de styles n'est exigée », qui disait exactement l'inverse et
  * laissait le modèle tourner autour d'un même plat — douze recettes toutes
@@ -140,8 +140,8 @@ const FORMAT_TAIL = 'Aucun texte, aucune explication, aucune clôture de bloc de
 /**
  * Demande parlée (spécification du 2026-10-21, D2 et D4) : un seul appel, qui
  * porte l'enregistrement, et qui rend à la fois ce que le modèle a entendu et
- * les recettes. Il n'y a pas d'étape de confirmation — c'est le choix de
- * djkix — donc la lecture revient avec les résultats pour qu'un contresens
+ * les recettes. Il n'y a pas d'étape de confirmation — c'est le choix du
+ * propriétaire — donc la lecture revient avec les résultats pour qu'un contresens
  * se voie.
  *
  * Le stock réel part dans le même prompt : croiser la parole avec ce que le

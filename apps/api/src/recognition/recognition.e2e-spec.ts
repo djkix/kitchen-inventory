@@ -3,7 +3,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { FakeHttp, geminiFixture, TINY_PNG } from '../../test/fake-http.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'Camille' };
 
 describe('scan par code-barres (EF-01, EF-02, EF-14)', () => {
   let t: TestApp;

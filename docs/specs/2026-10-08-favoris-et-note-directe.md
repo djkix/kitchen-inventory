@@ -1,6 +1,6 @@
 # Favoris et note directe sur une recette
 
-**Statut :** décisions prises par djkix le 2026-10-08, à exécuter.
+**Statut :** décisions prises par le propriétaire le 2026-10-08, à exécuter.
 **Demande :** « je dois pouvoir ajouter des recettes en favoris (picto étoile) et je veux pouvoir les noter mais je ne comprends toujours pas où se trouve la notation ».
 
 ## 1. Le problème constaté
@@ -8,7 +8,7 @@
 La notation existe, mais elle n'appartient pas à la recette : `RecipeRating`
 est rattaché à un `RecipeLog`, c'est-à-dire à une fois où l'on a cuisiné. Tant
 qu'aucune réalisation n'est enregistrée, il n'existe aucun bouton « Noter »
-nulle part, et l'historique ne s'affiche même pas. djkix cherchait à noter une
+nulle part, et l'historique ne s'affiche même pas. Le propriétaire cherchait à noter une
 recette ; l'application ne savait noter qu'un repas.
 
 Les favoris, eux, n'existent pas du tout.
@@ -28,7 +28,7 @@ relais sinon. Une seule note visible à la fois, jamais deux chiffres
 concurrents sous les yeux.
 
 **D4 — Favoris partagés par le foyer.** Une seule liste, pas de favori par
-personne. djkix a tranché ainsi en connaissant le revers : un membre peut
+personne. Le propriétaire a tranché ainsi en connaissant le revers : un membre peut
 retirer le favori d'un autre.
 
 **D5 — Le favori est indépendant de la note.** On peut adorer une recette

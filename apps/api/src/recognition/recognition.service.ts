@@ -83,7 +83,7 @@ export class RecognitionService {
 
   /**
    * Repères nutritionnels d'une fiche entrée avant EF-30 (2026-10-23) :
-   * rescanner un produit déjà connu les rattrape, sans que djkix ait à lancer
+   * rescanner un produit déjà connu les rattrape, sans que le propriétaire ait à lancer
    * quoi que ce soit.
    *
    * Hors du chemin de la réponse, volontairement : la cible est de cinq

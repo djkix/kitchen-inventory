@@ -5,7 +5,7 @@
 > sont des cases à cocher.
 
 **But :** faire du stock le point de départ du module recettes — Gemini cherche sur le web et
-compose, l'application catégorise, djkix oriente et conserve.
+compose, l'application catégorise, le propriétaire oriente et conserve.
 
 **Architecture :** une sélection d'ingrédients composée par une règle pure, un fournisseur de
 suggestion derrière une interface (comme le fournisseur de vision), un service qui valide, rapproche
@@ -607,10 +607,10 @@ Retirer `antiWaste` de `RECIPE_SORTS` : quatre tris demeurent (`rating`, `covera
 `RecipeCoverage` le champ `bonus` et les assertions associées, ainsi que `nearExpiry` de
 `IngredientOutcome` et son affichage « périme bientôt » sur la ligne d'ingrédient.
 
-**Point à confirmer avec djkix avant d'exécuter cette tâche :** il a demandé le retrait de la
+**Point à confirmer avec le propriétaire avant d'exécuter cette tâche :** il a demandé le retrait de la
 mention et du tri anti-gaspillage. La mention « périme bientôt » portée par une *ligne d'ingrédient*
 de la fiche recette relève de la même notion ; ce plan la retire aussi, pour tenir « plus aucune
-notion de péremption dans le module recettes ». Si djkix veut la garder, ne retirer que `bonus`, le
+notion de péremption dans le module recettes ». Si le propriétaire veut la garder, ne retirer que `bonus`, le
 tri et la pastille de carte.
 
 - [ ] **Step 2 à 4 : échec, implémentation, succès**
@@ -803,7 +803,7 @@ it('ne conserve pas deux fois sur un double appui', () => { /* même clientOpId,
 - [ ] **Step 2 à 4 : échec, implémentation, succès**
 
 Au succès : invalider la liste des recettes et la fournée, puis ouvrir la fiche de la recette
-conservée — c'est là que djkix lira enfin les étapes.
+conservée — c'est là que le propriétaire lira enfin les étapes.
 
 - [ ] **Step 5 : commit**
 

@@ -1,6 +1,6 @@
 # Module recettes — socle
 
-2026-10-03 · djkix, avec assistance de Claude · révision 2, arbitrages intégrés
+2026-10-03 · le propriétaire, avec assistance de Claude · révision 2, arbitrages intégrés
 
 Spécification du premier des trois incréments du module recettes : saisie par le foyer, taux de couverture avec le stock réel, filtres, écrans, cuisson avec décrément, historique et notation des réalisations, archivage. L'import par URL et la génération par IA font l'objet de spécifications distinctes, dans cet ordre.
 

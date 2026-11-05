@@ -37,7 +37,7 @@ export interface RecoveryGrant {
  * contrôle de statut joué à chaque requête rejetterait aussitôt la session.
  */
 export async function grantRecovery(prisma: Db, rawEmail: string): Promise<RecoveryGrant> {
-  // Même normalisation que le jeton Google, sinon « djkix@… » créerait un doublon.
+  // Même normalisation que le jeton Google, sinon « Camille@… » créerait un doublon.
   const email = rawEmail.trim().toLowerCase();
   if (!email) throw new Error('Une adresse e-mail est attendue en argument.');
 

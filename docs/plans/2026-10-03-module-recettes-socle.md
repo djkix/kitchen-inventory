@@ -2500,7 +2500,7 @@ Décrire le module en français dans les fonctionnalités : suggestions classée
 
 - [ ] **Step 2: Consigner les décisions**
 
-Renvoyer, depuis `docs/decisions/`, vers la spécification et ses 27 arbitrages plutôt que de les recopier. Noter la remontée de EF-25 et EF-26 au périmètre du lot 2 à la demande de djkix, et l'amendement du cahier du 2026-10-03.
+Renvoyer, depuis `docs/decisions/`, vers la spécification et ses 27 arbitrages plutôt que de les recopier. Noter la remontée de EF-25 et EF-26 au périmètre du lot 2 à la demande du propriétaire, et l'amendement du cahier du 2026-10-03.
 
 - [ ] **Step 3: Mettre à jour CLAUDE.md**
 

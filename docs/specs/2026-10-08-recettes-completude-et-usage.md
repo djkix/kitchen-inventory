@@ -1,7 +1,7 @@
 # Recettes : complétude des informations et usage quotidien
 
-**Statut :** à valider par djkix
-**Demande :** djkix, 2026-10-08, six corrections sur le parcours recettes.
+**Statut :** à valider par le propriétaire
+**Demande :** Le propriétaire, 2026-10-08, six corrections sur le parcours recettes.
 **Cahier des charges :** sections 12 et 14, EF-21, EF-23, EF-25, EF-26.
 
 ## 1. Intention
@@ -101,7 +101,7 @@ la fiche d'une recette déjà réalisée permet de noter ou corriger sa note
 directement, sans repasser par une cuisson.
 
 **D5.** Pas de nouvel écran d'historique. L'information rejoint les deux
-endroits où djkix la cherche déjà : la liste et la fiche.
+endroits où le propriétaire la cherche déjà : la liste et la fiche.
 
 ### E. Vocabulaire du tiroir de suggestion
 
@@ -132,10 +132,10 @@ début à la fin, jamais deux à tenir.
 | # | Question | Décision | Motif |
 | --- | --- | --- | --- |
 | 1 | Étapes structurées ou texte enrichi ? | Texte enrichi, contrainte par le prompt | Un modèle rédige mieux « à feu moyen 8 minutes » qu'il ne remplit trois champs ; et le format de fournée reste compatible |
-| 2 | Photo sur les cartes de recettes ? | Non, uniquement par ingrédient | Une recette n'a pas de photo à elle ; emprunter celle d'un ingrédient représenterait mal le plat (réponse de djkix) |
+| 2 | Photo sur les cartes de recettes ? | Non, uniquement par ingrédient | Une recette n'a pas de photo à elle ; emprunter celle d'un ingrédient représenterait mal le plat (réponse du propriétaire) |
 | 3 | Couleur des pastilles d'emplacement | Par température, pas par emplacement | Trois couleurs qui veulent dire quelque chose, et rien à maintenir quand un emplacement est créé |
-| 4 | Écran d'historique dédié ? | Non | L'application compte déjà sept écrans ; l'information rejoint là où elle est cherchée (réponse de djkix) |
-| 5 | Portions : affichage seul ou tout ? | Affichage, couverture et cuisson | Un écran qui annonce autre chose que ce que fera le stock est pire que pas de réglage du tout (réponse de djkix) |
+| 4 | Écran d'historique dédié ? | Non | L'application compte déjà sept écrans ; l'information rejoint là où elle est cherchée (réponse du propriétaire) |
+| 5 | Portions : affichage seul ou tout ? | Affichage, couverture et cuisson | Un écran qui annonce autre chose que ce que fera le stock est pire que pas de réglage du tout (réponse du propriétaire) |
 | 6 | Recettes déjà en base | Non régénérées | Les durées et étapes existantes restent telles quelles ; seules les nouvelles fournées portent la complétude. Régénérer coûterait un appel par recette pour un gain incertain |
 | 7 | Signature de cache | Passe à `v3` | Les fournées stockées ne portent ni `prepMinutes` ni `cookMinutes` séparés |
 

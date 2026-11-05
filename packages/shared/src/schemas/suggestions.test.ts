@@ -111,7 +111,7 @@ describe('suggestionQuerySchema', () => {
   it('borne la page demandée, et refuse tout ce qui sort de la borne', () => {
     // Une limite libre venue du client ferait calculer la couverture sur tout
     // le réservoir : le rapprochement `pg_trgm` se paie par libellé
-    // d'ingrédient, sur un mini-PC (2026-10-19).
+    // d'ingrédient, sur une petite machine (2026-10-19).
     expect(suggestionQuerySchema.parse({ limit: '36' }).limit).toBe(36);
     expect(suggestionQuerySchema.parse({ limit: String(SUGGESTION_PAGE_MAX) }).limit).toBe(SUGGESTION_PAGE_MAX);
     expect(suggestionQuerySchema.safeParse({ limit: String(SUGGESTION_PAGE_MAX + 1) }).success).toBe(false);

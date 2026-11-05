@@ -6,7 +6,7 @@ import { fakeSubscription, VAPID } from '../../test/push.double.js';
 import { GeminiService } from '../gemini/gemini.service.js';
 import { DeferralService } from './deferral.service.js';
 
-const ADMIN = { email: 'proprietaire@example.org', name: 'djkix' };
+const ADMIN = { email: 'proprietaire@example.org', name: 'Camille' };
 const ENDPOINT = 'https://push.example.org/a';
 
 

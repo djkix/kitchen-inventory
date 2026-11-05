@@ -1,13 +1,13 @@
 # Notification « votre réponse est prête »
 
-Conception du 2026-11-02. Demandée par djkix le 2026-11-02, à la suite d'une
+Conception du 2026-11-02. Demandée par le propriétaire le 2026-11-02, à la suite d'une
 demande parlée refusée pour cause de pause Gemini.
 
 ## L'intention
 
 Une demande au modèle met souvent plus de dix secondes : la lecture d'un
 ticket, une demande parlée, une fournée de suggestions. Passé cinq à sept
-secondes, djkix pose son téléphone et passe à autre chose. Rien ne le rappelle
+secondes, le propriétaire pose son téléphone et passe à autre chose. Rien ne le rappelle
 ensuite : il faut qu'il repense à l'application, la rouvre, et espère que la
 requête n'a pas été coupée entre-temps.
 
@@ -16,7 +16,7 @@ est prête**, celle qui s'affiche application fermée. Et, derrière, la garanti
 qui la rend utile — que le traitement aille au bout même quand on a quitté
 l'écran, et que le résultat attende au retour.
 
-Mot de djkix, le 2026-11-02 : « je fais ma demande, et si je n'ai pas la
+Mot du propriétaire, le 2026-11-02 : « je fais ma demande, et si je n'ai pas la
 réponse sous 5 sec / 7 sec, j'ai envie de faire autre chose, poser mon
 téléphone, aller sur une autre application ». Et sur le périmètre : « tout ce
 qui demande une attente à +10 sec ».
@@ -50,8 +50,8 @@ qui demande une attente à +10 sec ».
 
 ## Contre-but
 
-Réveiller djkix ou Ludivine. Une notification qui arrive neuf heures après la
-demande, la nuit, pour une recette qu'on ne fera plus, est un échec même si
+Réveiller quelqu'un du foyer. Une notification qui arrive neuf heures
+après la demande, la nuit, pour une recette qu'on ne fera plus, est un échec même si
 tout le reste fonctionne. Mieux vaut abandonner la demande et le dire.
 
 ## Ce qui existe déjà
@@ -74,7 +74,7 @@ tout le reste fonctionne. Mieux vaut abandonner la demande et le dire.
 
 ### Le déclencheur : « j'ai posé mon téléphone », pas « dix secondes »
 
-Les dix secondes de djkix décrivent une gêne, pas une règle. La règle
+Les dix secondes du propriétaire décrivent une gêne, pas une règle. La règle
 littérale — notifier toute demande dépassant dix secondes — se trompe dans les
 deux sens : elle sonne alors qu'il regardait l'écran, et elle se tait quand il
 est parti au bout de huit.
@@ -93,7 +93,7 @@ Gemini est en pause, la demande n'aboutira pas avant plusieurs minutes, et à ce
 moment-là personne n'est resté devant l'écran. La règle du départ de page ne
 s'y applique donc pas : dès qu'une demande est différée, son aboutissement — ou
 son abandon — est annoncé, que l'écran ait été quitté ou non. (Décision de
-djkix, 2026-11-02.) L'écran, lui, cesse d'afficher un refus sec : il dit que la
+Le propriétaire, 2026-11-02.) L'écran, lui, cesse d'afficher un refus sec : il dit que la
 demande est en attente et qu'elle sera annoncée.
 
 ### Le résultat survit à l'écran
@@ -135,11 +135,11 @@ demande en produit une autre (`tag`).
 | # | Décision |
 | --- | --- |
 | D1 | **Le déclencheur est l'écran quitté, pas une durée.** Détaillé ci-dessus. Aucun seuil en secondes dans le code. |
-| D1b | **Une demande différée annonce toujours**, écran quitté ou non, à son aboutissement comme à son abandon — sans quoi le but 4 serait vide de sens pour qui attend devant l'écran. L'écran affiche l'attente, et non plus un refus. Décision de djkix, 2026-11-02. |
+| D1b | **Une demande différée annonce toujours**, écran quitté ou non, à son aboutissement comme à son abandon — sans quoi le but 4 serait vide de sens pour qui attend devant l'écran. L'écran affiche l'attente, et non plus un refus. Décision du propriétaire, 2026-11-02. |
 | D2 | **La réponse HTTP reste synchrone.** Les quatre points d'entrée gardent leur forme : requête, attente, résultat. Rien ne devient « 202 + sondage », parce que le cas courant — une réponse en huit secondes, écran allumé — n'a rien à y gagner et que les quatre écrans auraient tous à être réécrits. |
 | D3 | **Une table `AiRequest`, pas une file de tâches.** Une ligne par demande au modèle : utilisateur, usage, `clientOpId`, état, entrée conservée le cas échéant, résultat, erreur, horodatages, `notifyAt`. Pas d'ordonnanceur générique. |
 | D4 | **Le résultat est récupéré par un identifiant engendré par le client**, envoyé avec la demande et repris comme identité de la ligne `AiRequest`. *(Correction : contrairement à ce que cette conception affirmait d'abord, `clientOpId` n'existe aujourd'hui que sur `StockMovement` et `RecipeLog` ; aucun des quatre points d'entrée IA n'en reçoit. La convention est donc à étendre, pas à réutiliser telle quelle, et `GET /suggestions` devra porter cet identifiant bien qu'il soit une lecture.)* La PWA garde l'identifiant des demandes qu'elle n'a pas vues aboutir et les réclame au retour. |
-| D5 | **L'audio d'une demande différée est conservé — amendement à D6 de la demande parlée.** Rejouer la demande à la reprise suppose de la garder. L'enregistrement est écrit sous un préfixe dédié, effacé dès que la demande aboutit ou est abandonnée, et jamais versé au journal des appels. Le cas courant — demande qui part tout de suite — ne conserve toujours rien. Décision de djkix, 2026-11-02, en connaissance de la conséquence. |
+| D5 | **L'audio d'une demande différée est conservé — amendement à D6 de la demande parlée.** Rejouer la demande à la reprise suppose de la garder. L'enregistrement est écrit sous un préfixe dédié, effacé dès que la demande aboutit ou est abandonnée, et jamais versé au journal des appels. Le cas courant — demande qui part tout de suite — ne conserve toujours rien. Décision du propriétaire, 2026-11-02, en connaissance de la conséquence. |
 | D6 | **Une heure de différé au plus**, puis abandon annoncé. |
 | D7 | **Web Push, abonnement par appareil.** Clés VAPID dans la configuration du serveur, abonnements en base avec leur utilisateur. Un abonnement refusé par le service de push (404, 410) est supprimé. |
 | D8 | **L'autorisation est demandée depuis Réglages**, par un interrupteur « Me prévenir quand une réponse est prête », et non au moment où l'on quitte l'écran — la page y est en train de geler, et une demande d'autorisation surgie à ce moment serait refusée par réflexe. L'interrupteur vaut pour l'appareil où l'on est, et le dit. |

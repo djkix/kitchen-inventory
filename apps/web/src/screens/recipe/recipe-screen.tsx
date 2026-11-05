@@ -14,7 +14,7 @@ import { IngredientRow } from './ingredient-row';
 
 /** Parts acceptées (`recipeDetailQuerySchema`, section 15) : mêmes bornes côté écran que côté serveur. */
 const MIN_SERVINGS = 1;
-// Vingt parts au plus sur cet écran (demande de djkix, 2026-10-20), là où le
+// Vingt parts au plus sur cet écran (demande du propriétaire, 2026-10-20), là où le
 // serveur en accepte cinquante : deux chiffres suffisent à un foyer, et le
 // champ tient alors sur la même ligne que les durées. Une recette déjà
 // enregistrée au-delà reste affichée telle quelle, elle ne peut simplement
@@ -42,7 +42,7 @@ function timeLook(totalMinutes: number | null): string {
 
 /**
  * Fiche recette (section 14/15), en lecture seule depuis le 2026-10-20
- * (demande de djkix) : repères, ingrédients face au stock réel, étapes.
+ * (demande du propriétaire) : repères, ingrédients face au stock réel, étapes.
  *
  * Ce qu'elle ne fait plus : cuisiner avec décrément du stock, enregistrer une
  * réalisation, noter, modifier, archiver, restaurer ou supprimer. Ces
@@ -52,7 +52,7 @@ function timeLook(totalMinutes: number | null): string {
  */
 export function RecipeScreen() {
   const { id } = useParams<{ id: string }>();
-  // Parts choisies à l'écran (EF-26) : `undefined` tant que djkix n'y a pas
+  // Parts choisies à l'écran (EF-26) : `undefined` tant que le propriétaire n'y a pas
   // touché, pour que la requête reste sur les parts de la recette elle-même
   // (comportement par défaut du serveur) sans attendre de savoir combien.
   const [servings, setServings] = useState<number | undefined>(undefined);
@@ -89,13 +89,13 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   const toast = useToast();
   const patchRecipe = useRecipeDirectPatch();
   const [busy, setBusy] = useState(false);
-  // Brouillon du champ « Parts » (EF-26) : `''` tant que djkix n'a
+  // Brouillon du champ « Parts » (EF-26) : `''` tant que le propriétaire n'a
   // pas tapé, même geste que les autres champs décimaux de l'application
   // (clavier décimal français, virgule acceptée en silence).
   // Le champ EST sa propre valeur, jamais un repli sur le nombre courant : avec
   // `raw === '' ? String(valeur) : raw`, effacer réaffichait aussitôt l'ancien
   // chiffre, si bien qu'on ne pouvait plus le remplacer — taper « 2 » sur « 4 »
-  // donnait « 42 ». djkix l'a rencontré le 2026-10-08.
+  // donnait « 42 ». Le propriétaire l'a rencontré le 2026-10-08.
   const [rawServings, setRawServings] = useState(String(servings));
   useEffect(() => setRawServings(String(recipe.servings)), [recipe.id, recipe.servings]);
 
@@ -186,7 +186,7 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
         </section>
 
         {/*
-          Sans titre visible (demande de djkix, 2026-10-20) : une liste
+          Sans titre visible (demande du propriétaire, 2026-10-20) : une liste
           d'ingrédients se reconnaît sans qu'on la nomme, et la ligne gagnée
           profite au contenu. Le nom reste porté par `aria-label` — un lecteur
           d'écran, lui, ne voit pas que ce sont des ingrédients.
@@ -215,7 +215,7 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   );
 }
 
-/** Une durée du détail : absente, elle ne s'affiche pas du tout (demande de djkix, 2026-10-20). */
+/** Une durée du détail : absente, elle ne s'affiche pas du tout (demande du propriétaire, 2026-10-20). */
 function TimeField({ label, minutes }: { label: string; minutes: number | null }) {
   const value = formatMinutes(minutes);
   if (value === null) return null;
