@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.37.2](https://github.com/djkix/kitchen-inventory/compare/v0.37.1...v0.37.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **ci:** accepter les empreintes gitleaks des clés de test du 2026-11-02 ([d96c007](https://github.com/djkix/kitchen-inventory/commit/d96c00780972ae38eec91cf7c2a02e605e8626e9))
+* **securite:** correctifs de la revue du 2026-10-22 ([#44](https://github.com/djkix/kitchen-inventory/issues/44)) ([382e73b](https://github.com/djkix/kitchen-inventory/commit/382e73b62b1e02d54a40d04c4409d1d2c1d641ae))
+
 ## [0.37.1](https://github.com/djkix/kitchen-inventory/compare/v0.37.0...v0.37.1) (2026-11-02)
 
 
