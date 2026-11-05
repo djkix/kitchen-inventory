@@ -3,6 +3,9 @@ import { useMutation } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Spinner } from '../../components/ui/button';
+import { isDeferred } from '../../lib/ai-request';
+import { DeferredNotice } from '../../components/ui/deferred-notice';
+import { useTrackedRequest } from '../../hooks/use-tracked-request';
 import { suggestionsApi } from '../../lib/suggestions-api';
 import { SuggestionCard, suggestionAccessibleName } from './suggestion-card';
 import { SuggestionSheet } from './suggestion-sheet';
@@ -28,9 +31,18 @@ export function VoiceRequestScreen() {
   const [selected, setSelected] = useState<SuggestionDto | null>(null);
   /** Refus décidé ici même (bornes de D8, micro muet) : rien n'est parti au serveur. */
   const [rejection, setRejection] = useState<string | null>(null);
+  /**
+   * Le dernier enregistrement accepté, gardé en mémoire pour « Réessayer »
+   * (amendement du 2026-11-02) : Gemini est souvent en pause quelques minutes,
+   * et refaire sa demande à voix haute pour cela seul est un geste de trop.
+   * Il ne quitte pas la page — ni serveur, ni stockage du navigateur (D6) — et
+   * disparaît au prochain enregistrement comme en quittant l'écran.
+   */
+  const [last, setLast] = useState<VoiceRecording | null>(null);
 
+  const tracked = useTrackedRequest();
   const ask = useMutation({
-    mutationFn: (recording: VoiceRecording) => suggestionsApi.voice(recording.blob, recording.mimeType),
+    mutationFn: (recording: VoiceRecording) => tracked((requestId) => suggestionsApi.voice(recording.blob, recording.mimeType, requestId)),
     onSuccess: setBatch,
   });
 
@@ -42,7 +54,11 @@ export function VoiceRequestScreen() {
       // et dit tout de suite pourquoi.
       const refus = voiceAudioRejection(recording.blob.size, recording.mimeType);
       setRejection(refus);
-      if (refus) return;
+      if (refus) {
+        setLast(null);
+        return;
+      }
+      setLast(recording);
       ask.mutate(recording);
     },
     [ask],
@@ -108,16 +124,37 @@ export function VoiceRequestScreen() {
       {/* Les refus du serveur sont dits par le même composant que l'écran
           Suggestions : quota, fournisseur absent, demande non comprise.
 
-          Sans bouton « Réessayer » (tour de correction 1) : il ne rejouait
-          rien — il effaçait l'erreur — et il ne le pourrait pas, puisque
-          l'audio n'est conservé nulle part (D6). Ce qu'il faut refaire, c'est
-          l'enregistrement, et c'est ce que la phrase ci-dessous dit. */}
-      {ask.isError && (
+          « Réessayer » renvoie le même enregistrement (amendement du
+          2026-11-02) : le refus le plus courant est une pause de quelques
+          minutes chez Google, et la demande n'a pas à être refaite à voix
+          haute pour cela. Tant que la pause dure, le bouton redit l'heure de
+          reprise plutôt que de rejouer pour rien. */}
+      {/* Demande gardée par le serveur : ce n'est pas un échec, c'est une
+          attente. Elle repartira seule et sera annoncée (D1b). */}
+      {ask.isError && isDeferred(ask.error) && <DeferredNotice error={ask.error} what="recettes" />}
+
+      {ask.isError && !isDeferred(ask.error) && (
         <>
           <SuggestionsErrorState error={ask.error} />
-          <p className="mx-4 mb-6 text-center text-[13px] text-muted">
-            L’enregistrement n’est pas conservé : appuyez de nouveau sur « Parler » pour refaire votre demande.
-          </p>
+          {last ? (
+            <div className="mx-4 mb-6 flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={() => ask.mutate(last)}
+                disabled={ask.isPending}
+                className="rounded-card bg-accent px-5 py-2 text-[15px] font-semibold text-ink disabled:opacity-50"
+              >
+                Réessayer
+              </button>
+              <p className="text-center text-[13px] text-muted">
+                Votre demande est gardée le temps que vous restez sur cet écran.
+              </p>
+            </div>
+          ) : (
+            <p className="mx-4 mb-6 text-center text-[13px] text-muted">
+              Appuyez de nouveau sur « Parler » pour refaire votre demande.
+            </p>
+          )}
         </>
       )}
 

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { CreateProductInput, Unit } from '@kitchen/shared';
+import { OFF_NUTRITION_FIELDS, parseNutrientLevels, parseNutriscoreGrade, type CreateProductInput, type NutrientLevels, type NutriscoreGrade, type Unit } from '@kitchen/shared';
 import { Logger } from 'nestjs-pino';
 import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { HTTP_CLIENT, type HttpClient } from '../common/http-client.js';
@@ -14,6 +14,8 @@ interface OffProduct {
   quantity?: string;
   image_front_small_url?: string;
   image_front_url?: string;
+  nutriscore_grade?: string;
+  nutrient_levels?: unknown;
   [key: string]: unknown;
 }
 
@@ -93,7 +95,7 @@ export class OpenFoodFactsClient {
   ) {}
 
   async lookup(barcode: string): Promise<OffLookup | null> {
-    const fields = ['product_name', 'product_name_fr', 'brands', 'categories_tags', 'product_quantity', 'product_quantity_unit', 'quantity', 'image_front_small_url', 'image_front_url', ...ORIGINAL_NAME_LANGS.map((l) => `product_name_${l}`)];
+    const fields = ['product_name', 'product_name_fr', 'brands', 'categories_tags', 'product_quantity', 'product_quantity_unit', 'quantity', 'image_front_small_url', 'image_front_url', ...OFF_NUTRITION_FIELDS, ...ORIGINAL_NAME_LANGS.map((l) => `product_name_${l}`)];
     const url = `${this.config.OFF_BASE_URL}/api/v2/product/${encodeURIComponent(barcode)}?fields=${fields.join(',')}`;
     let body: OffResponse;
     try {
@@ -125,11 +127,35 @@ export class OpenFoodFactsClient {
         defaultUnit: 'PIECE',
         netContent: net?.value ?? null,
         netContentUnit: net?.unit ?? null,
+        nutriscoreGrade: parseNutriscoreGrade(p.nutriscore_grade),
+        nutrientLevels: parseNutrientLevels(p.nutrient_levels),
       },
       categoryName: matchCategory(p.categories_tags ?? []),
       imageUrl: p.image_front_small_url ?? p.image_front_url ?? null,
       raw: body,
     };
+  }
+
+  /**
+   * Les seuls repères nutritionnels, pour rattraper une fiche entrée avant
+   * EF-30 sans redemander tout le produit. `'rate-limited'` est distingué de
+   * l'échec : il dit d'attendre, pas que le produit est inconnu.
+   */
+  async lookupNutrition(barcode: string): Promise<{ grade: NutriscoreGrade | null; levels: NutrientLevels | null } | null | 'rate-limited'> {
+    const url = `${this.config.OFF_BASE_URL}/api/v2/product/${encodeURIComponent(barcode)}?fields=${OFF_NUTRITION_FIELDS.join(',')}`;
+    try {
+      const response = await this.http(url, { headers: { 'User-Agent': this.config.OFF_USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(5_000) });
+      if (response.status === 429) return 'rate-limited';
+      if (!response.ok) return null;
+      const body = (await response.json()) as OffResponse;
+      if (body.status !== 1 || !body.product) return null;
+      const grade = parseNutriscoreGrade(body.product.nutriscore_grade);
+      const levels = parseNutrientLevels(body.product.nutrient_levels);
+      return grade || levels ? { grade, levels } : null;
+    } catch (error) {
+      this.logger.warn({ barcode, err: error }, 'Repères nutritionnels injoignables');
+      return null;
+    }
   }
 
   /**

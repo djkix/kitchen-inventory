@@ -120,6 +120,16 @@ mouvement puis recalcule.
 **Recherche tolérante** aux fautes, aux synonymes et aux accents (« nouilles »
 trouve « ramen »). **Vue « périme bientôt »**, avec un seuil d'alerte réglable.
 
+**Repères nutritionnels** sur la fiche article : la lettre Nutri-Score et ce
+qui est élevé (sel, sucres, graisses), repris d'Open Food Facts au scan du
+code-barres, sans appel supplémentaire ni calcul maison. La lettre apparaît
+aussi sous la photo de chaque ingrédient d'une recette ou d'une suggestion.
+Rescanner un produit entré avant que la fonctionnalité existe le rattrape tout
+seul, en arrière-plan ; **Réglages › Inventaire › Repères nutritionnels** passe
+tout le catalogue d'un bouton. Open Food Facts ne note que les produits dont il
+a la table nutritionnelle complète : l'épicerie peu référencée revient souvent
+sans note, et la fiche le dit plutôt que de masquer la ligne.
+
 ### 🍲 Recettes
 
 **Suggestions** construites sur le stock réel : chaque carte porte son taux de
@@ -152,22 +162,70 @@ devient inutilisable.
 
 ### 💶 Dépense et garde-fous
 
-Les appels au modèle sont bornés par trois mécanismes visibles dans Réglages :
-un **quota journalier** par usage (photo, recettes, tickets), un **plafond
-mensuel en euros** partagé par tous, et un **modèle de repli** essayé une fois
-quand un quota Google est épuisé. Un refus de Google est traduit précisément :
-« Trop de demandes coup sur coup, réessayez dans 12 secondes » plutôt qu'un
-message indifférencié.
+L'application **choisit seule le modèle** : à chaque appel, elle lit la liste
+en direct de Google, ne garde que les **Flash et Flash-Lite** stables (jamais
+Pro), du plus récent au plus ancien, et prend le premier disponible. Avant
+d'envoyer quoi que ce soit, elle vérifie les **limites de Google par modèle**
+(requêtes et jetons par minute, requêtes par jour, au jour du Pacifique comme
+Google) ; un modèle **arrêté** fait **basculer** sur le suivant — qu'il soit
+épuisé pour la journée ou **saturé** chez Google (réponse 503 : il est alors
+écarté cinq minutes). Seul un dépassement de quota annoncé par Google qui ne
+vise pas un modèle en particulier pose une **pause commune**, de la durée
+annoncée, suspendant tous les appels.
+
+L'IA ne bloque jamais : un refus dit **l'heure de reprise**, arrondie à la
+minute supérieure et avec le jour nommé (« reprise jeudi à 09:00 »), et
+l'écran garde son alternative — code-barres ou fiche à la main (la photo reste
+à identifier), saisie manuelle du ticket, recettes déjà connues. Sur la
+**demande parlée**, l'enregistrement reste en mémoire tant que vous ne quittez
+pas l'écran : un bouton **« Réessayer »** renvoie la même demande une fois
+l'heure de reprise passée, sans avoir à reparler.
+
+S'y ajoutent un **quota journalier** par usage (photo, recettes, tickets) et un
+**plafond mensuel en euros** partagé par tous. Réglages › Reconnaissance montre
+aux administrateurs les modèles dans l'ordre d'emploi, leur consommation du
+jour et de la minute, l'épuisement ou la pause en cours, et permet de régler
+les trois limites de chaque modèle. Chaque requête envoyée est journalisée
+(modèle, statut, jetons, durée).
+
+### 🔔 « Votre réponse est prête »
+
+Une demande au modèle met parfois plus de dix secondes : la lecture d'un
+ticket, une demande parlée, une fournée de recettes. On n'a aucune raison de
+rester à regarder l'écran. **Posez le téléphone** : le traitement continue côté
+serveur, et une **notification** vous dit que le résultat est là. Elle s'affiche
+application fermée et vous ramène sur l'écran concerné d'un geste. Si vous êtes
+resté devant l'écran, rien ne sonne — le résultat s'affiche comme avant.
+
+Et si Gemini est momentanément saturé, **la demande n'est plus perdue** : elle
+est gardée, repart toute seule, et c'est son résultat qui vous est annoncé.
+L'écran dit alors l'attente en durée — « repartira seule dans environ 20
+minutes » — et ne promet une notification que si vous l'avez autorisée. Au-delà d'une heure d'attente, l'application abandonne et
+vous le dit plutôt que de vous réveiller.
+
+**L'autorisation se demande toute seule**, une fois par appareil, au moment où
+vous lancez votre première demande de recettes ou votre première lecture de
+ticket : c'est là qu'elle a du sens, et le geste qui l'a déclenchée est celui
+que les navigateurs exigent. Un refus n'est jamais redemandé de lui-même.
+L'interrupteur de **Réglages › Apparence** sert à revenir sur ce choix, à voir
+où vous en êtes, et à comprendre pourquoi rien n'arrive. Il vaut pour
+l'appareil où vous êtes.
+Sur iPhone, les notifications web n'existent que si l'application est installée
+sur l'écran d'accueil ; l'interrupteur le dit s'il ne peut pas fonctionner.
+Sans clés VAPID configurées sur le serveur, tout le reste marche et
+l'interrupteur reste éteint en l'expliquant.
 
 ### 📱 Et aussi
 
 Installable en **PWA** (plein écran, icône sur l'écran d'accueil), avec un
 bandeau qui propose la mise à jour sans jamais recharger la page sous les
 doigts. **Export** CSV et JSON. **Jetons de service** en lecture seule pour
-Home Assistant ou un script.
+Home Assistant ou un script. **Sauvegarde** chaque nuit vers un NAS, sept jours
+gardés, et à la demande depuis Réglages.
 
-**Limites connues.** Mode hors ligne, alertes de péremption par notification et
-export enrichi restent à faire. La liste de courses alimentée par des seuils
+**Limites connues.** Mode hors ligne, alertes de péremption et export enrichi
+restent à faire — les notifications existent désormais, mais seulement pour
+annoncer le résultat d'une demande au modèle, pas encore les péremptions. La liste de courses alimentée par des seuils
 (EF-12) et l'ajout des ingrédients manquants d'une recette (EF-24) ont été
 **abandonnés** le 2026-10-22 au profit du ticket de caisse.
 
@@ -191,13 +249,14 @@ export enrichi restent à faire. La liste de courses alimentée par des seuils
 mkdir kitchen-inventory && cd kitchen-inventory
 curl -fsSLO https://raw.githubusercontent.com/djkix/kitchen-inventory/main/docker-compose.yml
 curl -fsSLO https://raw.githubusercontent.com/djkix/kitchen-inventory/main/.env.example
-mkdir -p docker && curl -fsSL -o docker/backup.sh https://raw.githubusercontent.com/djkix/kitchen-inventory/main/docker/backup.sh
 cp .env.example .env
 ```
 
 Renseigner `.env` : `SECRET_KEY` et `POSTGRES_PASSWORD` (générés avec
 `openssl rand -hex 32`), `PUBLIC_URL` (l'adresse HTTPS publique) et
-`IMAGE_TAG`. Ce dernier accepte `latest`, qui suit la dernière version
+`IMAGE_TAG`, ainsi que `NAS_OPTIONS` et `NAS_CHEMIN` : sans elles, le service
+`backup` ne démarre pas et `docker compose up` le signale (voir [Sauvegarde et
+restauration](#sauvegarde-et-restauration)). `IMAGE_TAG` accepte `latest`, qui suit la dernière version
 publiée, ou un numéro figé comme `0.6.1` si vous préférez décider de chaque
 montée de version. `latest` ne reçoit jamais un commit de développement : les
 poussées sur `main` sont publiées sous l'étiquette `main`, réservée aux
@@ -223,8 +282,7 @@ fournisseur de vision désactivé apparaît dans `degraded` sans empêcher le
 service : un placard s'inventorie très bien sans IA.
 
 Sous [Dockge](https://github.com/louislam/dockge), coller le contenu de
-`docker-compose.yml` et de `.env` dans une nouvelle stack ; le script de
-sauvegarde doit être présent dans `docker/backup.sh` à côté du compose. **Ne
+`docker-compose.yml` et de `.env` dans une nouvelle stack. **Ne
 pas y recopier de fragment de `docker-compose.e2e.yml`** : ce fichier de tests
 pose `GOOGLE_CERTS_URL`, qui déplace la racine de confiance de
 l'authentification (voir [Configuration](#configuration)).
@@ -357,8 +415,15 @@ Google ne laisse que l'[accès de secours](#accès-de-secours).
 
 ### 3. Sur le téléphone
 
-« Ajouter à l'écran d'accueil » installe l'application (PWA). Le thème sombre
-est activé par défaut, pensé pour un cellier peu éclairé.
+« Ajouter à l'écran d'accueil » installe l'application (PWA). L'apparence suit
+par défaut le réglage du téléphone — qui bascule lui-même à l'heure ou au
+capteur de lumière, selon ce que vous y avez choisi. Réglages › Apparence
+impose le thème clair ou le thème sombre, par appareil : le téléphone du
+cellier et le portable du bureau n'ont aucune raison de partager le leur.
+
+Le web n'a pas accès au capteur de lumière (l'API n'existe pas sur iOS et reste
+expérimentale ailleurs) : « automatique » veut donc dire « comme le système »,
+ce qui en revient au même dès que le téléphone est réglé pour basculer seul.
 
 ## Accès de secours
 
@@ -440,28 +505,147 @@ Chaque version publiée sur GitHub est accompagnée d'une note de changement
 (`CHANGELOG.md`, généré par release-please) ; les migrations incluses sont
 visibles dans `prisma/migrations`.
 
-## Sauvegarde et restauration
+### Les versions qui changent le fichier compose
 
-Le service `backup` produit chaque jour un dump PostgreSQL compressé
-(`db-<horodatage>.sql.gz`) et une archive du dossier média
-(`media-<horodatage>.tar.gz`) dans `BACKUP_DIR`, avec purge au-delà de
-`BACKUP_RETENTION_DAYS` (30 jours). Placer ce répertoire sur un autre disque
-que `PGDATA_DIR`.
+`docker compose pull` et le bouton « Update » de Dockge mettent à jour
+**l'image**, jamais le `compose.yaml` ni le `.env` : ces deux fichiers
+appartiennent à l'installation, pas au dépôt. Une version marquée
+**BREAKING** dans `CHANGELOG.md` en demande souvent une modification à la
+main — un service, un volume, une variable nouvelle.
 
-Restauration à blanc, à tester **avant** la mise en service :
+Tant qu'elle n'est pas faite, l'application tourne, mais sur l'ancienne
+définition : rien ne signale l'écart, et la nouveauté semble simplement ne pas
+marcher. C'est arrivé à la 0.35.0, dont la sauvegarde vers le NAS remplace le
+service `backup`.
+
+Le réflexe, devant une nouveauté qui n'apparaît pas après une mise à jour :
+comparer ce qui tourne à ce qu'annonce la version.
 
 ```bash
-docker compose exec -T db psql -U "$POSTGRES_USER" -c 'CREATE DATABASE kitchen_restore'
-gunzip -c backups/db-<horodatage>.sql.gz | docker compose exec -T db psql -U "$POSTGRES_USER" -d kitchen_restore
+docker compose ps
 ```
 
-Restauration complète (service arrêté) :
+Un service dont l'image ou la commande ne correspond plus à celles du
+[`docker-compose.yml` de la version](https://github.com/djkix/kitchen-inventory/blob/main/docker-compose.yml)
+dit que le compose local est resté en arrière. Le `CHANGELOG.md` de la version
+concernée liste ce qu'il faut reporter.
+
+**0.36.0** en est un autre cas, plus discret : les notifications ont besoin de
+trois variables nouvelles. Les poser dans le `.env` ne suffit pas — le service
+`app` énumère ce qu'il transmet, et il faut donc **aussi** ajouter les trois
+lignes au `compose.yaml` de l'installation, sous `environment` :
+
+```yaml
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@localhost}
+```
+
+Sans elles, l'application tourne normalement et l'interrupteur « Me prévenir
+quand une réponse est prête » reste éteint, en disant que les notifications ne
+sont pas configurées sur ce serveur.
+
+### Rattraper les repères nutritionnels
+
+Les produits entrés au catalogue avant la 0.32.0 n'ont ni Nutri-Score ni
+niveaux : la réponse d'Open Food Facts conservée à l'époque ne contenait pas
+ces champs. Trois façons de les récupérer, de la plus simple à la plus brute :
+
+1. **Ne rien faire.** Rescanner le code-barres d'un produit déjà connu
+   rattrape ses repères en arrière-plan, sans ralentir le scan.
+2. **Le bouton**, dans Réglages › Inventaire › Repères nutritionnels
+   (administrateurs) : il passe tout le catalogue et affiche l'avancement.
+   C'est le chemin normal.
+3. **La commande**, quand l'interface n'est pas accessible :
+
+```bash
+docker compose exec app node tools/nutriscore-rattrapage.js
+```
+
+Elle n'interroge que les produits qui ont un code-barres et aucun repère,
+une requête toutes les six secondes, et affiche le compte à la fin. Comptez
+donc une dizaine de minutes pour cent articles : c'est une opération unique,
+et Open Food Facts coupe le robinet (HTTP 429) bien avant la limite qu'il
+annonce. Si cela arrive quand même, la commande attend et réessaie, puis
+s'arrête en le disant ; relancez-la plus tard, elle ne reprend que les
+produits encore sans repère et continue donc où elle s'était arrêtée.
+`OFF_RATTRAPAGE_DELAY_MS` règle la pause entre deux requêtes, `--tout`
+reprend aussi les produits déjà renseignés pour suivre une mise à jour
+d'Open Food Facts.
+
+## Sauvegarde et restauration
+
+Chaque jour après 3 h (heure de `TZ`), le service `backup` copie tout ce qu'il
+faut pour remonter l'application dans un dossier daté d'un NAS, monté en NFS
+(volume `nas`, réglé par `NAS_OPTIONS` et `NAS_CHEMIN` dans `.env`). Il tourne
+sur la même image que `app`. **Sans chiffrement** : le `.env` (secrets compris)
+y est en clair, lisible par qui a accès au dossier partagé.
+
+```
+<dossier>/
+├── 2026-10-23/
+│   ├── base/kitchen.dump     pg_dump -Fc de la base complète
+│   ├── media/                photos et fichiers envoyés
+│   ├── config/               fichier compose et .env de la stack
+│   └── sauvegarde.txt        version, début, fin, tailles
+├── …                         sept dossiers datés au plus
+└── derniere -> 2026-10-23    la plus récente réussie
+```
+
+- Le NAS doit ouvrir le partage à l'hôte Docker en NFS, en lecture/écriture,
+  avec « mappage de tous les utilisateurs ». Adresse et chemin vont dans `.env`,
+  jamais dans le dépôt.
+- Un média inchangé est un lien physique vers celui de la veille : sept jours
+  occupent à peu près la place d'un seul.
+- Une tentative ratée ne supprime rien. Une nuit manquée (hôte ou NAS éteint)
+  est rattrapée dès que le service tourne ; après un échec, il réessaie une
+  heure plus tard. Une seule sauvegarde tourne à la fois.
+- **Si l'hôte redémarre avant le NAS**, le montage échoue et Docker ne relance
+  pas le conteneur : il reste arrêté. Remède, le NAS allumé :
+  `docker compose up -d backup`.
+- Chaque tentative est inscrite en base. **Réglages › Sauvegarde**
+  (administrateurs) montre la dernière réussite et la taille de la base, et
+  signale une dernière tentative en échec ou l'absence de réussite depuis
+  36 h.
+- **« Sauvegarder maintenant »**, au même endroit, part dans les 5 minutes
+  (avant une mise à jour risquée, par exemple) et remplace celle du jour. Tout
+  de suite, depuis le serveur : `docker compose exec backup /app/backup/backup.sh`.
+  Journal : `docker compose logs --since 24h backup`.
+
+Le volume s'appelle `<projet>_nas`, `<projet>` étant le nom de la stack (le
+nom du dossier, `kitchen` par exemple). Restauration à blanc dans une base à
+part, à tester **avant** la mise en service :
+
+```bash
+docker compose exec -T db createdb -U "$POSTGRES_USER" kitchen_restore
+docker compose run --rm --no-deps --entrypoint sh backup -c \
+  'pg_restore --no-owner -d "${DATABASE_URL%/*}/kitchen_restore" /nas/derniere/base/kitchen.dump'
+```
+
+Restauration complète, depuis le dossier daté voulu (`<date>`, ou `derniere`) :
 
 ```bash
 docker compose stop app backup
-gunzip -c backups/db-<horodatage>.sql.gz | docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
-tar xzf backups/media-<horodatage>.tar.gz -C ./media
-docker compose start app backup
+docker compose run --rm --no-deps --entrypoint sh backup -c \
+  'pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" /nas/<date>/base/kitchen.dump'
+docker run --rm -v <projet>_nas:/n:ro -v "$PWD/media":/m alpine \
+  sh -c 'cp -R /n/<date>/media/. /m/ && chown -R 1000:1000 /m'
+docker compose up -d
+```
+
+`$POSTGRES_USER` vient du `.env` (le charger dans le shell, ou l'écrire en
+clair) ; `$DATABASE_URL` est celle du conteneur, entre apostrophes. Avec un
+`MEDIA_DIR` autre que `./media`, remplacer `"$PWD/media"`.
+
+Sur un hôte reconstruit, il n'y a encore ni `.env` ni volume : créer le volume
+à la main avec les options de `.env`, puis reprendre `config/` (ou la copier
+depuis l'explorateur du NAS) avant les commandes ci-dessus.
+
+```bash
+docker volume create --driver local --opt type=nfs \
+  --opt o=addr=<IP du NAS>,nfsvers=4.1,soft,timeo=150,retrans=3 \
+  --opt device=:/volumeN/<partage>/<dossier> <projet>_nas
+docker run --rm -v <projet>_nas:/n:ro alpine tar cf - -C /n/<date>/config . | tar xf -
 ```
 
 > **Si l'application redémarre sur une base vide** — restauration ratée, dump
@@ -482,18 +666,20 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `ADMIN_EMAIL` | Seule adresse autorisée à devenir le premier administrateur d'une base vide. Absente en production, aucune connexion Google ne crée d'administrateur : passer par la [porte de secours](#accès-de-secours). Sans effet une fois un compte créé |
 | `GOOGLE_CERTS_URL` | **Réservée au montage de tests bout en bout, à ne jamais poser ici.** Elle remplace les clés publiques qui valident les jetons Google : qui sert ces clés signe des jetons que l'application accepte. Posée, elle est signalée par un avertissement au démarrage et par `google_certs_url` dans le `degraded` de `/health` |
 | `VISION_PROVIDER` | `none` ou `gemini` |
-| `VISION_API_KEY`, `VISION_MODEL`, `VISION_BASE_URL` | Clé et modèle du fournisseur (défaut `gemini-3.8-flash`) ; `VISION_BASE_URL` sert pour un proxy. Comme `SUGGESTION_MODEL`, `VISION_MODEL` n'est qu'une valeur de départ : le choix fait dans Réglages prime |
-| `SUGGESTION_MODEL` | Modèle des appels recettes — suggestions et réécriture (défaut `gemini-3.5-flash-lite`). Distinct de `VISION_MODEL` : lire une étiquette et chercher une recette sur le web n'appellent pas le même modèle. Comme `VISION_MODEL`, c'est une **valeur de départ** : un administrateur peut la remplacer depuis Réglages, et le choix enregistré prime |
+| `VISION_API_KEY`, `VISION_BASE_URL` | Clé Gemini, partagée par la photo, les tickets et les recettes ; `VISION_BASE_URL` sert pour un proxy |
+| `VISION_MODEL` | Modèle de **repli** (défaut `gemini-3.8-flash`), utilisé seulement si la liste des modèles de Google est indisponible : le reste du temps, l'application choisit elle-même parmi les Flash et Flash-Lite stables. Un modèle Pro empêche le démarrage |
 | `SUGGESTION_WEB_SEARCH` | `true` ou `false` (**défaut**) : recherche web réelle pour les suggestions. Éteinte par défaut car facturée à la requête, hors quota gratuit : une clé sans facturation la refuse par un 429, et l'écran reste vide au lieu de montrer des recettes web. Valeur de départ seulement — un administrateur bascule l'option depuis Réglages, et son choix prime |
 | `VISION_DAILY_QUOTA` | Appels photo autorisés par jour (50) |
 | `VISION_MONTHLY_CAP_CENTS` | Plafond de dépense mensuel en centimes, partagé par le scan photo et les suggestions (500, soit 5 €) ; 0 le désactive. Couvre les jetons **et** les requêtes de recherche web |
 | `RECIPE_SUGGESTION_DAILY_QUOTA` | Fournées de suggestions de recettes autorisées par jour (20) |
 | `RECEIPT_DAILY_QUOTA` | Lectures de ticket de caisse autorisées par jour (10), compteur séparé du scan photo et des suggestions, affiché dans Réglages › Reconnaissance (tuile « Tickets aujourd'hui ») |
-| `FALLBACK_MODEL` | Modèle essayé **une seule fois** quand Gemini refuse pour quota épuisé, les quotas étant comptés par modèle. Vide (défaut) : pas de repli, le refus remonte tel quel. Valeur de départ seulement — le choix fait dans Réglages prime |
-| `GEMINI_RPD`, `GEMINI_RPM` | Limites de requêtes par jour et par minute du projet Google, telles que `aistudio.google.com/rate-limit` les annonce. **Purement indicatives** : elles ne bloquent rien, elles servent à afficher « 15 / 500 » au lieu de « 15 » dans Réglages. Aucune API ne permet de les lire, d'où la recopie à la main ; laissées vides, l'écran rend le compte seul |
+| `GEMINI_RPM`, `GEMINI_TPM`, `GEMINI_RPD` | Limites de Google appliquées par défaut à **chaque modèle** et vérifiées avant l'appel : requêtes par minute (5), jetons par minute (250 000), requêtes par jour du Pacifique (20) — le niveau gratuit. Un administrateur les règle modèle par modèle dans Réglages › Reconnaissance, et son réglage prime |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Paire de clés des notifications, engendrée une fois par `npx web-push generate-vapid-keys`. Absentes, l'application fonctionne normalement et n'annonce rien |
+| `VAPID_SUBJECT` | Contact exigé par les services de push, `mailto:vous@example.org` (défaut `mailto:admin@localhost`) |
 | `OFF_USER_AGENT` | En-tête demandé par Open Food Facts |
 | `EXPIRY_ALERT_DAYS` | Seuil d'alerte par défaut (7), modifiable dans les réglages |
 | `LOG_LEVEL` | Niveau des journaux JSON sur la sortie standard |
+| `NAS_OPTIONS`, `NAS_CHEMIN` | **Obligatoires en production** (inutiles avec `docker-compose.dev.yml`, qui écarte `backup`). Options de montage NFS (`addr=<IP du NAS>,nfsvers=4.1,soft,timeo=150,retrans=3`) et chemin exporté (`:/volumeN/<partage>/<dossier>`) du NAS qui reçoit la sauvegarde. Sans NAS : `NAS_TYPE=none`, `NAS_OPTIONS=bind` et un dossier local dans `NAS_CHEMIN` |
 
 Les journaux ne contiennent jamais de cookie, de jeton Google, de mot de
 passe de secours ni de contenu d'image. Chaque appel au fournisseur de vision est journalisé avec sa latence,
@@ -650,6 +836,8 @@ Construire l'image localement :
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
+Le service `backup` n'y démarre pas : aucune variable de NAS à régler.
+
 ### Tests bout en bout
 
 Une suite Playwright (section 19) joue les parcours P1 à P7 dans un vrai
@@ -753,7 +941,17 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.30.1 | 2026-10-22 | Correctifs de sécurité : premier administrateur réservé à `ADMIN_EMAIL`, connexion épinglée des pages de recettes, photos Open Food Facts bornées, en-têtes CSP/HSTS, garde des écritures inter-origines, `GET /suggestions` en lecture seule, export CSV sans formules, actions CI épinglées |
+| 0.37.2 | 2026-11-05 | Correctifs de sécurité : premier administrateur réservé à `ADMIN_EMAIL`, connexion épinglée des pages de recettes, photos Open Food Facts bornées, en-têtes CSP/HSTS, garde des écritures inter-origines, `GET /suggestions` en lecture seule, export CSV sans formules, actions CI épinglées |
+| 0.37.1 | 2026-11-02 | « Votre ticket repartira seul » : accord corrigé sur l'écran d'attente |
+| 0.37.0 | 2026-11-02 | Une demande gardée dit l'attente en durée, et ne promet une notification que si elle est autorisée |
+| 0.36.1 | 2026-11-02 | Les clés de notification atteignent enfin le conteneur, et l'autorisation se demande toute seule sur le téléphone |
+| 0.36.0 | 2026-11-02 | Notification quand la réponse du modèle est prête, demande gardée puis rejouée si Gemini est saturé, et bascule de modèle sur une saturation |
+| 0.35.0 | 2026-10-23 | Sauvegarde chaque nuit vers un NAS, sept jours gardés, et « Sauvegarder maintenant » dans Réglages |
+| 0.34.0 | 2026-10-23 | Thème clair, thème sombre, ou suivi du réglage du téléphone |
+| 0.33.0 | 2026-10-23 | Les repères nutritionnels se rattrapent au scan et d'un bouton dans Réglages, et le Nutri-Score apparaît sur les ingrédients des recettes |
+| 0.32.1 | 2026-10-23 | Le rattrapage Nutri-Score attend quand Open Food Facts limite les requêtes, au lieu de perdre l'article |
+| 0.32.0 | 2026-10-23 | La fiche article affiche le Nutri-Score et les repères nutritionnels d'Open Food Facts |
+| 0.31.0 | 2026-10-22 | L'application choisit seule son modèle Gemini (Flash ou Flash-Lite), respecte les quotas de Google avant l'appel, bascule de modèle et dit l'heure de reprise |
 | 0.30.0 | 2026-10-22 | Le ticket de caisse remplit le stock, et la liste de courses est abandonnée |
 | 0.29.1 | 2026-10-22 | `docker-compose.yml` et `.env.example` transmettent enfin `FALLBACK_MODEL`, `GEMINI_RPD` et `GEMINI_RPM` : les trois variables ajoutées la veille existaient côté application mais n'étaient pas… |
 | 0.29.0 | 2026-10-22 | Réglages : tout replié, puces de couleur, version en haut à droite, et la conso des recettes enfin visible |

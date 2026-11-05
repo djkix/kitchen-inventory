@@ -9,6 +9,9 @@ import { ListSkeleton } from '../../components/ui/skeleton';
 import { PinIcon } from '../../components/ui/icons';
 import { useToast } from '../../components/ui/toast';
 import { errorMessage, newClientOpId } from '../../lib/api';
+import { isDeferred } from '../../lib/ai-request';
+import { DeferredNotice } from '../../components/ui/deferred-notice';
+import { useTrackedRequest } from '../../hooks/use-tracked-request';
 import { cn } from '../../lib/cn';
 import { flattenLocations, queryKeys, useLocationsQuery } from '../../lib/queries';
 import { receiptsApi } from '../../lib/receipts-api';
@@ -66,8 +69,9 @@ export function ReceiptScreen() {
   const draft = useQuery({ queryKey: queryKeys.receipt(id ?? ''), queryFn: () => receiptsApi.get(id!), enabled: !!id, staleTime: 5 * 60_000 });
   const receipt = id ? (draft.data ?? null) : null;
 
+  const tracked = useTrackedRequest();
   const read = useMutation({
-    mutationFn: (file: File) => receiptsApi.read(file, location?.id ?? ''),
+    mutationFn: (file: File) => tracked((requestId) => receiptsApi.read(file, location?.id ?? '', requestId)),
     onSuccess: (data) => {
       // Posé au cache avant la navigation : l'écran du ticket s'affiche sans relire.
       queryClient.setQueryData(queryKeys.receipt(data.id), data);
@@ -129,7 +133,10 @@ export function ReceiptScreen() {
             {read.isPending ? 'Lecture du ticket…' : 'Photographier le ticket'}
           </Button>
           {!location && <p className="text-[13px] text-faint">L’emplacement vaut pour tout le ticket : choisissez-le avant la photo.</p>}
-          {read.isError && <ErrorState title="Ticket illisible" message={errorMessage(read.error, 'Le ticket n’a pas pu être lu.')} />}
+          {/* Gardé par le serveur : une attente, pas un échec. Il repartira
+              seul et sera annoncé (D1b). */}
+          {read.isError && isDeferred(read.error) && <DeferredNotice error={read.error} what="ticket" />}
+          {read.isError && !isDeferred(read.error) && <ErrorState title="Ticket illisible" message={errorMessage(read.error, 'Le ticket n’a pas pu être lu.')} />}
         </div>
       )}
 

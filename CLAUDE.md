@@ -199,6 +199,27 @@ tools/             utilitaires hors application
   (section 26, 2026-10-22). Parcours bout en bout P7 (`e2e/p7-ticket.spec.ts`),
   la doublure de Gemini reconnaissant la lecture de ticket à son
   `responseSchema`.
+- Approche IA Gemini livrée (2026-10-22, spec
+  `docs/specs/2026-10-22-approche-ia-gemini.md`) : `apps/api/src/gemini`
+  choisit seul le modèle dans la liste en direct de Google (Flash et Flash-Lite
+  stables, jamais Pro), vérifie avant l'appel les limites par modèle (requêtes
+  et jetons par minute, requêtes par jour du Pacifique, réglables dans
+  Réglages), bascule sur le modèle suivant au quota du jour, pose une pause
+  commune après un 429 ou un 503, et journalise chaque requête (`GeminiCall`,
+  migration `0015_gemini_call`). Tout refus rend un 429 avec l'heure de
+  reprise. Les quatre fournisseurs reçoivent `GeminiService.http` et passent
+  par `GeminiService.call`. Plus de `responseSchema` : JSON par la consigne.
+  `SUGGESTION_MODEL` et `FALLBACK_MODEL` ont disparu.
+
+- Sauvegarde vers le NAS livrée (section 9, amendement du 2026-10-23) : le
+  service `backup` tourne sur l'image applicative (`docker/backup/`,
+  `schedule.sh` toutes les 5 minutes, `backup.sh` pour une sauvegarde,
+  `test.sh` joué par la CI dans l'image construite). Dossier daté sur le NAS
+  (volume NFS `nas`), sept jours, liens physiques pour les médias, verrou ;
+  tentatives dans `BackupAttempt`, demandes dans `BackupRequest` (migration
+  `0017_backup`), Réglages › Sauvegarde pour les administrateurs
+  (`apps/api/src/backup`, `GET /backup`, `POST /backup/request`).
+
 - Revue de sécurité du 2026-10-22 corrigée : premier administrateur d'une
   base vide réservé à `ADMIN_EMAIL` (aucun en production sans elle, porte de
   secours sinon), connexion du récupérateur de pages épinglée sur l'adresse

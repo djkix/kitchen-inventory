@@ -8,10 +8,23 @@
     "product_name_fr": "Nutella pâte à tartiner aux noisettes et au cacao",
     "brands": "Nutella,Ferrero",
     "categories": "Petit-déjeuners, Produits à tartiner, Produits à tartiner sucrés, Pâtes à tartiner aux noisettes et au cacao",
-    "categories_tags": ["en:breakfasts", "en:spreads", "en:sweet-spreads", "en:hazelnut-spreads", "en:cocoa-and-hazelnuts-spreads"],
+    "categories_tags": [
+      "en:breakfasts",
+      "en:spreads",
+      "en:sweet-spreads",
+      "en:hazelnut-spreads",
+      "en:cocoa-and-hazelnuts-spreads"
+    ],
     "quantity": "400 g",
     "product_quantity": "400",
     "product_quantity_unit": "g",
-    "image_front_small_url": "https://images.openfoodfacts.org/images/products/301/762/042/2003/front_fr.400.jpg"
+    "image_front_small_url": "https://images.openfoodfacts.org/images/products/301/762/042/2003/front_fr.400.jpg",
+    "nutriscore_grade": "e",
+    "nutrient_levels": {
+      "fat": "high",
+      "saturated-fat": "high",
+      "sugars": "high",
+      "salt": "low"
+    }
   }
 }

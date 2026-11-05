@@ -5,7 +5,7 @@ import { IngredientRow } from './ingredient-row';
 const base = {
   id: 'i1', label: 'Riz', productId: 'p1', productName: 'Riz basmati', categoryId: null, categoryName: null,
   quantity: 200, unit: 'GRAM' as const, essential: false, substitutable: false, availableQuantity: null,
-  productImagePath: null, locationName: null, locationTemperature: null,
+  productImagePath: null, productNutriscoreGrade: null, locationName: null, locationTemperature: null,
 };
 
 describe('IngredientRow', () => {

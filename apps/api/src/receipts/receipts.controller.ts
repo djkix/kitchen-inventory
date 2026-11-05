@@ -1,7 +1,9 @@
-import { Controller, Get, HttpCode, Param, Post, UploadedFile, UseInterceptors, Body } from '@nestjs/common';
+import { Controller, Get, HttpCode, OnModuleInit, Param, Post, UploadedFile, UseInterceptors, Body } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { attachLabelSchema, createReceiptSchema, validateReceiptSchema, type AttachLabelInput, type PendingLabelDto, type ReceiptDto, type ValidateReceiptInput } from '@kitchen/shared';
+import { aiRequestField } from '../ai-requests/ai-request-field.js';
+import { DeferralService } from '../ai-requests/deferral.service.js';
 import { CurrentUser, type RequestUser } from '../auth/request-user.js';
 import { ApiError } from '../common/api-error.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -11,8 +13,20 @@ import { ReceiptsService } from './receipts.service.js';
 const MAX_RECEIPT_BYTES = 8 * 1024 * 1024;
 
 @Controller('receipts')
-export class ReceiptsController {
-  constructor(private readonly receipts: ReceiptsService) {}
+export class ReceiptsController implements OnModuleInit {
+  constructor(
+    private readonly receipts: ReceiptsService,
+    private readonly deferral: DeferralService,
+  ) {}
+
+  /** Rejouer un ticket, c'est le relire : la photo et l'emplacement suffisent. */
+  onModuleInit(): void {
+    this.deferral.register('RECEIPT', async ({ file, mimeType, json, userId }) => {
+      const { locationId } = json as { locationId: string };
+      const receipt = await this.receipts.read(file!, mimeType!, locationId, userId);
+      return { result: receipt, count: receipt.lines.length };
+    });
+  }
 
   /** Engage un coût externe, donc limitée par adresse comme le scan photo. */
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -25,7 +39,16 @@ export class ReceiptsController {
       throw new ApiError(400, 'validation_failed', 'Format non pris en charge (JPEG, PNG, WebP, HEIC ou PDF)', [{ path: 'file', message: file.mimetype }]);
     }
     const { locationId } = new ZodValidationPipe(createReceiptSchema).transform(rawBody);
-    return this.receipts.read(file.buffer, file.mimetype, locationId, user.id);
+    return this.deferral.track(
+      {
+        id: aiRequestField(rawBody),
+        userId: user.id,
+        kind: 'RECEIPT',
+        payload: () => ({ file: { buffer: file.buffer, mimeType: file.mimetype }, json: { locationId } }),
+      },
+      () => this.receipts.read(file.buffer, file.mimetype, locationId, user.id),
+      (receipt) => receipt.lines.length,
+    );
   }
 
   // Les routes `pending-labels` précèdent `:id`, sinon `:id` les capterait.

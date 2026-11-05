@@ -50,17 +50,6 @@ export function StatsPanel() {
       value: `${s.receiptCallsToday} / ${s.receiptDailyQuota}`,
       note: `${s.receiptCallsThisMonth} ce mois · ${EUROS.format(s.receiptCostCentsThisMonth / 100)}`,
     },
-    {
-      // Compteur indicatif : ce que Google compte ne distingue ni le scan ni
-      // les recettes. Sans limite renseignée (`GEMINI_RPD`), le compte est
-      // rendu seul — un rapport à une valeur inventée vaudrait moins que rien.
-      label: 'Appels Gemini aujourd’hui',
-      value: s.providerDailyLimit === null ? String(s.providerCallsToday) : `${s.providerCallsToday} / ${s.providerDailyLimit}`,
-      note:
-        s.providerMinuteLimit === null
-          ? `${s.providerCallsLastMinute} dans la dernière minute`
-          : `${s.providerCallsLastMinute} / ${s.providerMinuteLimit} dans la minute`,
-    },
   ];
 
   return (

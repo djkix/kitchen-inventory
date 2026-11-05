@@ -147,20 +147,20 @@ function wrapGeminiText(text: string): unknown {
 
 interface GeminiRequestBody {
   tools?: unknown[];
-  generationConfig?: { responseSchema?: { items?: { properties?: Record<string, unknown> } } };
+  systemInstruction?: { parts?: Array<{ text?: string }> };
   contents?: Array<{ parts?: Array<{ inlineData?: unknown }> }>;
 }
 
 /**
  * La lecture d'un ticket porte elle aussi une image (ou un PDF) en
  * `inlineData` : elle ressemble à la reconnaissance photo. Ce qui la distingue
- * est son `responseSchema` (liste d'objets `label` / `quantity` / `kind`,
- * GeminiReceiptReader), que la reconnaissance photo n'envoie pas. Elle doit
- * donc être testée AVANT `isVisionRequest`.
+ * est sa consigne (« ticket de caisse », GeminiReceiptReader) — plus son
+ * `responseSchema`, retiré le 2026-10-22 (Google refuse en 400 un schéma
+ * imbriqué). Elle doit donc être testée AVANT `isVisionRequest`.
  */
 function isReceiptRequest(body: GeminiRequestBody): boolean {
-  const properties = body.generationConfig?.responseSchema?.items?.properties;
-  return isVisionRequest(body) && properties !== undefined && 'label' in properties && 'kind' in properties;
+  const instruction = (body.systemInstruction?.parts ?? []).map((p) => p.text ?? '').join('');
+  return isVisionRequest(body) && instruction.includes('ticket de caisse');
 }
 
 /**

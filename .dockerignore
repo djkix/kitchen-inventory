@@ -5,7 +5,10 @@ node_modules
 .github
 docs
 tools
-!tools/acces-secours.ts
+# Toutes les commandes serveur de `tools/`, pas une liste nommée fichier par
+# fichier : un oubli ne lève aucune erreur, `tsc` compilant alors un `include`
+# qui ne correspond à rien et l'image sortant sans la commande.
+!tools/*.ts
 !tools/tsconfig.json
 !tools/package.json
 media

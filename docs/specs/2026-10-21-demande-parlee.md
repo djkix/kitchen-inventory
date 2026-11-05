@@ -57,6 +57,15 @@ du 2026-10-15) : rien de payé n'est jeté.
 journal des appels. `RecognitionLog.rawResult` garde la réponse du modèle, pas
 l'enregistrement. L'audio traverse le serveur et disparaît.
 
+> **Amendement du 2026-11-02.** Côté serveur, rien ne change : l'audio
+> traverse et disparaît. Côté écran, le dernier enregistrement accepté reste
+> **en mémoire dans la page** pour alimenter un bouton « Réessayer », parce que
+> le refus le plus courant est une pause de quelques minutes chez Google et que
+> refaire sa demande à voix haute pour cela seul est un geste de trop. Il ne va
+> ni au stockage du navigateur ni au serveur, et disparaît au prochain
+> enregistrement comme en quittant l'écran. La phrase « l'enregistrement n'est
+> pas conservé » disparaît avec lui.
+
 **D7 — L'audio est facturé plus cher que le texte, et le plafond doit le
 savoir.** `PRICES_USD_PER_MTOK` ne porte aujourd'hui qu'un tarif d'entrée,
 appliqué à tous les jetons. L'entrée audio coûte davantage — pour Flash-Lite,

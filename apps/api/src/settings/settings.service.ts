@@ -19,9 +19,6 @@ export class SettingsService {
     const stored = Object.fromEntries(rows.filter((r) => r.value !== '').map((r) => [r.key, r.value]));
     const fromEnv = {
       expiryAlertDays: this.config.EXPIRY_ALERT_DAYS,
-      ...(this.config.VISION_MODEL ? { visionModel: this.config.VISION_MODEL } : {}),
-      ...(this.config.SUGGESTION_MODEL ? { suggestionModel: this.config.SUGGESTION_MODEL } : {}),
-      ...(this.config.FALLBACK_MODEL ? { fallbackModel: this.config.FALLBACK_MODEL } : {}),
       // Recherche web active par défaut : c'est la fonctionnalité demandée
       // (« des recettes trouvées sur internet »), pas une option à activer.
       // Éteinte par défaut (2026-10-19, « pas de web pour le moment, mets-le
@@ -36,26 +33,6 @@ export class SettingsService {
     };
     const parsed = settingsSchema.safeParse({ ...fromEnv, ...stored });
     return parsed.success ? parsed.data : fromEnv;
-  }
-
-  /**
-   * Modèle de la reconnaissance photo, résolu à chaque appel et non au
-   * démarrage : un réglage changé depuis l'écran doit valoir immédiatement,
-   * sans redémarrage du conteneur. `undefined` laisse le fournisseur appliquer
-   * son propre défaut.
-   */
-  async visionModel(): Promise<string | undefined> {
-    return (await this.get()).visionModel;
-  }
-
-  /** Modèle des appels recettes (suggestions et réécriture), même résolution par appel. */
-  async suggestionModel(): Promise<string | undefined> {
-    return (await this.get()).suggestionModel;
-  }
-
-  /** Modèle de repli sur refus de quota ; `undefined` désactive le repli. */
-  async fallbackModel(): Promise<string | undefined> {
-    return (await this.get()).fallbackModel;
   }
 
   /** Recherche web réelle pour les suggestions, même résolution par appel. */

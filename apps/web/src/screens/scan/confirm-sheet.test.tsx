@@ -17,6 +17,8 @@ const product = (overrides: Partial<ProductDto> = {}): ProductDto => ({
   afterOpeningDays: null,
   minThreshold: null,
   imagePath: null,
+  nutriscoreGrade: null,
+  nutrientLevels: null,
   recognitionSource: 'OPEN_FOOD_FACTS',
   confidence: null,
   createdAt: '2026-09-21T10:00:00.000Z',

@@ -36,6 +36,9 @@ services:
       VISION_PROVIDER: gemini
       VISION_API_KEY: cle-de-test
       VISION_BASE_URL: http://stub:3101
+      # Les parcours ne testent pas les quotas de Google : limites larges.
+      GEMINI_RPM: 1000
+      GEMINI_RPD: 1000
       OFF_BASE_URL: http://stub:3101
       GOOGLE_CLIENT_ID: *google-client-id
       # Clés de signature lues chez la doublure, jamais chez Google : la

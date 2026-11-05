@@ -10,7 +10,12 @@ import { API_BASE, api, errorMessage } from '../../lib/api';
 import { queryKeys, useAccountsQuery, useRecognitionStatsQuery, useSettingsQuery } from '../../lib/queries';
 import { AccountsSection, SignOutEverywhereRow } from './accounts-section';
 import { AccordionSection, SectionBadge } from './accordion-section';
-import { ModelRow } from './model-row';
+import { BackupBadge, BackupSection } from './backup-section';
+import { NutritionBackfillRow } from './nutrition-backfill-row';
+import { NotificationsRow } from './notifications-row';
+import { ThemeRow } from './theme-row';
+import { useTheme } from '../../hooks/use-theme';
+import { GeminiModelsSection } from './gemini-models-section';
 import { WebSearchRow } from './web-search-row';
 import { VersionBadge } from '../../components/shell/version-badge';
 import { StatsPanel } from './stats-panel';
@@ -28,13 +33,15 @@ const SECTION_DOTS = {
   reconnaissance: '#38bdf8',
   comptes: '#10b981',
   inventaire: '#f59e0b',
+  apparence: '#e879f9',
   foyer: '#6366f1',
+  sauvegarde: '#64748b',
   export: '#a855f7',
 } as const;
 
 /**
  * Écran Réglages (section 14) : emplacements, comptes, seuil d'alerte,
- * reconnaissance, export, compte.
+ * reconnaissance, sauvegarde, export, compte.
  *
  * Les sections sont pliables depuis la refonte du 2026-10-21 : l'écran faisait
  * plusieurs hauteurs de téléphone et l'on descendait à l'aveugle. Chaque
@@ -69,37 +76,32 @@ export function SettingsScreen() {
       <div className="flex flex-col gap-3 px-4">
         <AccordionSection title="Reconnaissance" badge={<RecognitionBadge />} dotColor={SECTION_DOTS.reconnaissance}>
           <StatsPanel />
-          <ModelRow
-            label="Modèle de la photo"
-            hint="Lecture des étiquettes lors du scan"
-            settingKey="visionModel"
-            isAdmin={auth.isAdmin}
-          />
-          <ModelRow
-            label="Modèle des recettes"
-            hint="Recherche et réécriture des suggestions"
-            settingKey="suggestionModel"
-            isAdmin={auth.isAdmin}
-          />
-          <ModelRow
-            label="Modèle de repli"
-            hint="Essayé une fois si le quota du modèle choisi est épuisé"
-            settingKey="fallbackModel"
-            isAdmin={auth.isAdmin}
-          />
+          {auth.isAdmin && <GeminiModelsSection />}
           <WebSearchRow isAdmin={auth.isAdmin} />
         </AccordionSection>
 
         <AccountsAccordion />
 
+        <AccordionSection title="Apparence" badge={<ThemeBadge />} dotColor={SECTION_DOTS.apparence}>
+          <ThemeRow />
+          <NotificationsRow />
+        </AccordionSection>
+
         <AccordionSection title="Inventaire" badge={<AlertBadge />} dotColor={SECTION_DOTS.inventaire}>
           <NavRow to="/reglages/emplacements" label="Emplacements" hint="Placards, frigo, cellier : profondeur libre" />
           <AlertDaysRow isAdmin={auth.isAdmin} />
+          <NutritionBackfillRow isAdmin={auth.isAdmin} />
         </AccordionSection>
 
         {auth.isAdmin && (
           <AccordionSection title="Foyer" badge={<SectionBadge>Home Assistant, scripts</SectionBadge>} dotColor={SECTION_DOTS.foyer}>
             <NavRow to="/reglages/jetons" label="Jetons de service" hint="Accès lecture pour Home Assistant, scripts…" />
+          </AccordionSection>
+        )}
+
+        {auth.isAdmin && (
+          <AccordionSection title="Sauvegarde" badge={<BackupBadge />} dotColor={SECTION_DOTS.sauvegarde}>
+            <BackupSection />
           </AccordionSection>
         )}
 
@@ -145,6 +147,12 @@ function RecognitionBadge() {
 }
 
 /** Résumé d'« Inventaire » : le seuil d'alerte, seul réglage de la section. */
+function ThemeBadge() {
+  const theme = useTheme();
+  const label = theme.choice === 'auto' ? `Automatique · ${theme.resolved === 'light' ? 'clair' : 'sombre'}` : theme.choice === 'light' ? 'Clair' : 'Sombre';
+  return <SectionBadge>{label}</SectionBadge>;
+}
+
 function AlertBadge() {
   const settings = useSettingsQuery();
   if (!settings.data) return null;

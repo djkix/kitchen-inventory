@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { ThemeProvider } from '../../hooks/use-theme';
 import { describe, expect, it, vi } from 'vitest';
 import { SettingsScreen } from './settings-screen';
 
@@ -23,8 +24,9 @@ vi.mock('../../lib/queries', () => ({
 vi.mock('../../components/ui/toast', () => ({ useToast: () => ({ show: vi.fn() }) }));
 vi.mock('../../components/shell/version-badge', () => ({ VersionBadge: () => null }));
 vi.mock('./stats-panel', () => ({ StatsPanel: () => null }));
-vi.mock('./model-row', () => ({ ModelRow: () => null }));
+vi.mock('./gemini-models-section', () => ({ GeminiModelsSection: () => null }));
 vi.mock('./web-search-row', () => ({ WebSearchRow: () => null }));
+vi.mock('./backup-section', () => ({ BackupBadge: () => null, BackupSection: () => null }));
 vi.mock('./accounts-section', () => ({
   AccountsSection: () => <div>section-comptes</div>,
   SignOutEverywhereRow: () => <div>deconnexion-partout</div>,
@@ -34,9 +36,11 @@ describe('SettingsScreen', () => {
   it('monte la section Comptes et la coupure de ses propres sessions', () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <MemoryRouter>
-          <SettingsScreen />
-        </MemoryRouter>
+        <ThemeProvider>
+          <MemoryRouter>
+            <SettingsScreen />
+          </MemoryRouter>
+        </ThemeProvider>
       </QueryClientProvider>,
     );
     expect(screen.getByText('section-comptes')).toBeTruthy();
@@ -77,9 +81,11 @@ describe('SettingsScreen', () => {
 function renderScreen() {
   return render(
     <QueryClientProvider client={new QueryClient()}>
-      <MemoryRouter>
-        <SettingsScreen />
-      </MemoryRouter>
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsScreen />
+        </MemoryRouter>
+      </ThemeProvider>
     </QueryClientProvider>,
   );
 }

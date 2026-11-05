@@ -1,4 +1,4 @@
-import type { ProductDto } from '@kitchen/shared';
+import { nutrientLevelsSchema, nutriscoreGradeSchema, type ProductDto } from '@kitchen/shared';
 import type { Category, Product } from '@prisma/client';
 import { toNumber } from '../common/decimal.js';
 
@@ -19,6 +19,8 @@ export function toProductDto(p: ProductWithCategory): ProductDto {
     afterOpeningDays: p.afterOpeningDays,
     minThreshold: toNumber(p.minThreshold),
     imagePath: p.imagePath,
+    nutriscoreGrade: nutriscoreGradeSchema.safeParse(p.nutriscoreGrade).data ?? null,
+    nutrientLevels: nutrientLevelsSchema.safeParse(p.nutrientLevels).data ?? null,
     recognitionSource: p.recognitionSource,
     confidence: p.confidence,
     createdAt: p.createdAt.toISOString(),

@@ -54,6 +54,8 @@ model User {
   preferences   UserPreference[]
   recipeRatings RecipeRating[]
   receipts      Receipt[]
+  aiRequests    AiRequest[]
+  pushDevices   PushSubscription[]
 }
 
 // Réglages propres à un utilisateur, là où « Setting » vaut pour l'instance.
@@ -106,15 +108,15 @@ model Setting {
 // `path` stocke la chaîne d'ancêtres ("/cuisine/placard-haut/etagere-2") pour
 // éviter les requêtes récursives sur les filtres par emplacement.
 model Location {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
   parentId    String?
   parent      Location?  @relation("LocationTree", fields: [parentId], references: [id])
   children    Location[] @relation("LocationTree")
   path        String     @unique
   depth       Int        @default(0)
-  kind        String?    // libre : pièce, meuble, étagère, bac…
-  temperature String?    // ambient | chilled | frozen
+  kind        String? // libre : pièce, meuble, étagère, bac…
+  temperature String? // ambient | chilled | frozen
   sortOrder   Int        @default(0)
 
   stockItems StockItem[]
@@ -145,16 +147,16 @@ enum RecognitionSource {
 }
 
 model Category {
-  id                String  @id @default(cuid())
-  name              String  @unique
-  parentId          String?
-  parent            Category?  @relation("CategoryTree", fields: [parentId], references: [id])
-  children          Category[] @relation("CategoryTree")
-  icon              String?
+  id               String     @id @default(cuid())
+  name             String     @unique
+  parentId         String?
+  parent           Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children         Category[] @relation("CategoryTree")
+  icon             String?
   // Sert à estimer la DLC des périssables non emballés (décision 6).
-  shelfLifeDays     Int?
+  shelfLifeDays    Int?
   // Durée après ouverture par défaut, surchargeable au niveau produit.
-  afterOpeningDays  Int?
+  afterOpeningDays Int?
 
   products          Product[]
   recipeIngredients RecipeIngredient[]
@@ -163,16 +165,16 @@ model Category {
 }
 
 model Product {
-  id         String  @id @default(cuid())
+  id             String              @id @default(cuid())
   receiptAliases ReceiptLabelAlias[]
   receiptLines   ReceiptLine[]
-  barcode    String? @unique
-  name       String
+  barcode        String?             @unique
+  name           String
   // Nom d'origine tel qu'imprimé : conserve les idéogrammes (EF-04).
-  originalName String?
-  brand      String?
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id])
+  originalName   String?
+  brand          String?
+  categoryId     String?
+  category       Category?           @relation(fields: [categoryId], references: [id])
 
   defaultUnit Unit @default(PIECE)
 
@@ -185,7 +187,13 @@ model Product {
   // Surcharge la valeur de la catégorie quand elle est renseignée.
   afterOpeningDays Int?
 
-  minThreshold      Decimal? @db.Decimal(10, 2)
+  // Repères nutritionnels d'Open Food Facts (EF-30), recopiés tels quels au
+  // scan : lettre « a » à « e », et niveaux `{fat, saturated-fat, sugars,
+  // salt}` valant `low`/`moderate`/`high`. Null tant qu'OFF ne les donne pas.
+  nutriscoreGrade String?
+  nutrientLevels  Json?
+
+  minThreshold      Decimal?          @db.Decimal(10, 2)
   imagePath         String?
   recognitionSource RecognitionSource @default(MANUAL)
   confidence        Float?
@@ -228,17 +236,17 @@ model StockItem {
   quantity Decimal @db.Decimal(10, 2)
   unit     Unit
 
-  expiryDate  DateTime?
-  dateType    DateType?
+  expiryDate    DateTime?
+  dateType      DateType?
   // Vrai pour une date déduite de la catégorie, pas lue sur l'emballage.
-  dateEstimated Boolean @default(false)
+  dateEstimated Boolean   @default(false)
 
-  opened     Boolean   @default(false)
-  openedAt   DateTime?
+  opened          Boolean   @default(false)
+  openedAt        DateTime?
   // min(expiryDate, openedAt + afterOpeningDays) — recalculée à l'ouverture.
   effectiveExpiry DateTime?
 
-  purchasePrice Decimal? @db.Decimal(10, 2)
+  purchasePrice Decimal?  @db.Decimal(10, 2)
   archivedAt    DateTime?
   createdAt     DateTime  @default(now())
 
@@ -338,40 +346,40 @@ model Cuisine {
 }
 
 model Recipe {
-  id        String   @id @default(cuid())
-  title     String
+  id                 String       @id @default(cuid())
+  title              String
   // Calculée automatiquement, puis corrigeable (décision 9).
   difficulty         Difficulty
-  difficultyOverride Boolean @default(false)
-  cuisineId String?
-  cuisine   Cuisine? @relation(fields: [cuisineId], references: [id])
-  dishType  DishType?
-  prepMinutes  Int?
+  difficultyOverride Boolean      @default(false)
+  cuisineId          String?
+  cuisine            Cuisine?     @relation(fields: [cuisineId], references: [id])
+  dishType           DishType?
+  prepMinutes        Int?
   // Temps effectivement actif en cuisine, hors repos (note sur restMinutes).
-  activeTime   Int?
-  cookMinutes  Int?
+  activeTime         Int?
+  cookMinutes        Int?
   // Repos (pousse, marinade…) : exclu du filtre de temps (A13).
-  restMinutes  Int?
-  servings     Int @default(4)
-  steps        Json
-  diets        Diet[]
-  imagePath    String?
-  source       RecipeSource @default(HOUSEHOLD)
-  sourceUrl    String?
-  createdById  String?
-  createdBy    User?  @relation(fields: [createdById], references: [id])
-  archivedAt   DateTime?
-  createdAt    DateTime @default(now())
+  restMinutes        Int?
+  servings           Int          @default(4)
+  steps              Json
+  diets              Diet[]
+  imagePath          String?
+  source             RecipeSource @default(HOUSEHOLD)
+  sourceUrl          String?
+  createdById        String?
+  createdBy          User?        @relation(fields: [createdById], references: [id])
+  archivedAt         DateTime?
+  createdAt          DateTime     @default(now())
   // Idempotence de la conservation d'une suggestion (section 8, tâche 9) : une
   // recette créée hors de ce parcours n'en porte pas.
-  clientOpId   String?  @unique
+  clientOpId         String?      @unique
   // Favori et note directe (EF-21, 2026-10-08) : favori partagé par le foyer
   // (décision D4, pas de table de liaison par personne), note directe
   // indépendante de la notation par réalisation (décision D2, les deux
   // coexistent). `effectiveRating` (packages/shared) choisit laquelle
   // afficher ; cette table se contente de stocker les deux.
-  favorite     Boolean  @default(false)
-  rating       Int?
+  favorite           Boolean      @default(false)
+  rating             Int?
 
   ingredients RecipeIngredient[]
   logs        RecipeLog[]
@@ -385,19 +393,19 @@ model Recipe {
 // ("des nouilles asiatiques") — c'est ce qui rend les suggestions possibles
 // avec un stock hétérogène.
 model RecipeIngredient {
-  id         String  @id @default(cuid())
-  recipeId   String
-  recipe     Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  productId  String?
-  product    Product? @relation(fields: [productId], references: [id])
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id])
-  label      String
-  quantity   Decimal? @db.Decimal(10, 2)
-  unit       Unit?
+  id            String    @id @default(cuid())
+  recipeId      String
+  recipe        Recipe    @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  productId     String?
+  product       Product?  @relation(fields: [productId], references: [id])
+  categoryId    String?
+  category      Category? @relation(fields: [categoryId], references: [id])
+  label         String
+  quantity      Decimal?  @db.Decimal(10, 2)
+  unit          Unit?
   // Un ingrédient principal absent exclut la recette des « presque réalisables ».
-  essential     Boolean @default(false)
-  substitutable Boolean @default(false)
+  essential     Boolean   @default(false)
+  substitutable Boolean   @default(false)
 
   @@index([recipeId])
   @@index([productId])
@@ -474,6 +482,22 @@ model RecognitionLog {
   @@index([purpose, createdAt])
 }
 
+// Journal des requêtes réellement envoyées à Gemini (approche de Ma Cave,
+// 2026-10-22) : une ligne par `generateContent`, quel que soit l'usage. Sert
+// au limiteur par modèle (compteur du jour rechargé au démarrage) et à l'écran
+// des modèles. Le coût reste sur `RecognitionLog`, qui sait à quel usage il
+// revient. `httpStatus` nul : aucune réponse (réseau, délai).
+model GeminiCall {
+  id         String   @id @default(cuid())
+  model      String
+  httpStatus Int?
+  tokens     Int?
+  durationMs Int
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // Trace des orientations déjà demandées au modèle (D2 amendée par D11, spec
 // du 2026-10-15) : plus un cache — le réservoir l'a remplacé (D8) — et plus un
 // journal des réponses, que `RecognitionLog.rawResult` tient par appel. Une
@@ -481,7 +505,9 @@ model RecognitionLog {
 // déjà été posée, et quand ? ».
 model SuggestionBatch {
   id        String   @id @default(cuid())
-  /** Orientation seule (région, durée, facilité, type de plat, version) : sans les graines depuis D11, donc sans le stock. */
+  /**
+   * Orientation seule (région, durée, facilité, type de plat, version) : sans les graines depuis D11, donc sans le stock.
+   */
   signature String   @unique
   model     String
   costCents Decimal? @db.Decimal(10, 4)
@@ -496,18 +522,28 @@ model SuggestionBatch {
 // demandées.
 model SuggestionPoolRecipe {
   id          String    @id @default(cuid())
-  /** `suggestionIdentity` (titre normalisé + URL source) : clé de dédoublonnage du réservoir (D3). */
+  /**
+   * `suggestionIdentity` (titre normalisé + URL source) : clé de dédoublonnage du réservoir (D3).
+   */
   identity    String    @unique
-  /** La `ModelRecipe` validée, revalidée à chaque lecture. */
+  /**
+   * La `ModelRecipe` validée, revalidée à chaque lecture.
+   */
   payload     Json
   provenance  String
   dishType    DishType
   sourceUrl   String?
-  /** Lecture réussie de la page source ; `null` pour une composition du modèle, qui n'a rien à vérifier (D5). */
+  /**
+   * Lecture réussie de la page source ; `null` pour une composition du modèle, qui n'a rien à vérifier (D5).
+   */
   verifiedAt  DateTime?
-  /** `schema.org/Recipe` lu sur la page, gardé pour que la conservation ne rappelle jamais le site (D10). */
+  /**
+   * `schema.org/Recipe` lu sur la page, gardé pour que la conservation ne rappelle jamais le site (D10).
+   */
   pageRecipe  Json?
-  /** Texte nettoyé de la page (plafonné à 8 000 caractères par le lecteur), repli sans données structurées. */
+  /**
+   * Texte nettoyé de la page (plafonné à 8 000 caractères par le lecteur), repli sans données structurées.
+   */
   pageText    String?
   model       String
   firstSeenAt DateTime  @default(now())
@@ -563,20 +599,107 @@ model Receipt {
 }
 
 model ReceiptLine {
-  id        String  @id @default(cuid())
-  receiptId String
-  receipt   Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  id           String           @id @default(cuid())
+  receiptId    String
+  receipt      Receipt          @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   // Conserve l'ordre d'impression du ticket.
-  position  Int
-  rawLabel  String
-  quantity  Decimal @db.Decimal(10, 2)
+  position     Int
+  rawLabel     String
+  quantity     Decimal          @db.Decimal(10, 2)
   // NULL tant que la ligne est AMBIGUOUS ou UNKNOWN.
-  productId String?
-  product   Product? @relation(fields: [productId], references: [id])
-  state     ReceiptLineState
+  productId    String?
+  product      Product?         @relation(fields: [productId], references: [id])
+  state        ReceiptLineState
   // Produits possibles d'une ligne ambiguë.
   candidateIds String[]
 
   @@index([receiptId, position])
   @@index([productId])
+}
+
+// Tentatives de sauvegarde vers le NAS (section 9), inscrites par
+// docker/backup/backup.sh en SQL brut — d'où l'identifiant entier généré par
+// la base. Message technique seulement (« étape base (code 1) »), jamais de
+// contenu de l'inventaire. Lue par Réglages › Sauvegarde.
+model BackupAttempt {
+  id         Int      @id @default(autoincrement())
+  startedAt  DateTime
+  finishedAt DateTime
+  succeeded  Boolean
+  message    String
+  // Taille du dump de la base, pour une tentative réussie.
+  dumpBytes  Int?
+
+  @@index([finishedAt])
+}
+
+// « Sauvegarder maintenant » (Réglages, administrateurs) : une ligne posée par
+// l'API, effacée par docker/backup/schedule.sh au passage suivant (5 minutes).
+model BackupRequest {
+  id          Int      @id @default(autoincrement())
+  requestedAt DateTime @default(now())
+}
+
+// Demandes au modèle qui survivent à l'écran qui les a lancées (conception du
+// 2026-11-02). Une ligne par appel : ouverte avant de partir chez Google,
+// close à l'arrivée du résultat. Dans le cas courant — réponse en huit
+// secondes, écran allumé — elle n'aura servi à rien. Elle devient le seul
+// chemin vers le résultat dès que le téléphone a été posé.
+enum AiRequestKind {
+  SCAN_IMAGE
+  SUGGESTIONS
+  VOICE
+  RECEIPT
+}
+
+enum AiRequestState {
+  RUNNING
+  DEFERRED
+  DONE
+  FAILED
+  ABANDONED
+}
+
+model AiRequest {
+  // Engendré par le téléphone, jamais par le serveur : la page doit pouvoir
+  // réclamer son résultat même si elle n'a jamais reçu la réponse.
+  id         String         @id
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       AiRequestKind
+  state      AiRequestState @default(RUNNING)
+  // Le téléphone a été posé pendant que la demande tournait (D1).
+  leftScreen Boolean        @default(false)
+  // Entrée conservée pour un rejeu, et elle seulement (D5, amendement à D6 de
+  // la demande parlée) : audio ou image sur le volume « media », demande
+  // textuelle en JSON. Effacée dès que la demande aboutit ou est abandonnée.
+  inputPath  String?
+  inputMime  String?
+  inputJson  Json?
+  result     Json?
+  error      String?
+  retryAt    DateTime?
+  notifiedAt DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([state, retryAt])
+  @@index([userId, kind, state])
+}
+
+// Abonnement Web Push d'un appareil. L'interrupteur de Réglages vaut pour
+// l'appareil où l'on est ; la notification part sur tous ceux de l'utilisateur
+// (D14). Un abonnement que le service de push refuse (404, 410) est supprimé.
+model PushSubscription {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId])
 }

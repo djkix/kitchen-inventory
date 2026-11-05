@@ -1,5 +1,6 @@
 import { INGREDIENT_STATE_LABELS_FR, type RecipeIngredientDto } from '@kitchen/shared';
 import { LocationChip } from '../../components/ui/location-chip';
+import { NutriscoreBadge } from '../../components/ui/nutriscore-badge';
 import { mediaUrl } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { formatQuantity } from '../../lib/quantity-ui';
@@ -59,13 +60,12 @@ export function IngredientRow({ ingredient }: IngredientRowProps) {
           </p>
         )}
       </div>
-      {imageUrl && (
-        <img
-          src={imageUrl}
-          alt=""
-          loading="lazy"
-          className="ml-auto h-12 w-12 shrink-0 rounded-card object-cover"
-        />
+      {(imageUrl || ingredient.productNutriscoreGrade) && (
+        <div className="ml-auto flex shrink-0 flex-col items-end gap-1">
+          {imageUrl && <img src={imageUrl} alt="" loading="lazy" className="h-12 w-12 rounded-card object-cover" />}
+          {/* EF-30 : sous la photo, le Nutri-Score du produit rapproché. */}
+          {ingredient.productNutriscoreGrade && <NutriscoreBadge grade={ingredient.productNutriscoreGrade} size="sm" />}
+        </div>
       )}
     </li>
   );

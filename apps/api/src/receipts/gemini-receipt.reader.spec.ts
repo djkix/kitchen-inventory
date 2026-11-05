@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
+import { GeminiPausedError } from '../gemini/gemini-errors.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { MediaService } from '../media/media.service.js';
 import { GeminiReceiptReader, ReceiptReadError, RECEIPT_MIME_TYPES } from './gemini-receipt.reader.js';
@@ -25,7 +26,7 @@ describe('GeminiReceiptReader (EF-29)', () => {
     expect(costCents).not.toBeNull();
   });
 
-  it('envoie le fichier en inlineData, un schéma, la clé en en-tête et le modèle demandé', async () => {
+  it('envoie le fichier en inlineData, le JSON par la consigne sans responseSchema, la clé en en-tête et le modèle demandé', async () => {
     http.on('generateContent', () => geminiFixture('receipts/gemini-ticket.json'));
     await reader.read(FILE, 'application/pdf', 'gemini-3.5-flash');
     const call = http.calls[0]!;
@@ -34,7 +35,18 @@ describe('GeminiReceiptReader (EF-29)', () => {
     expect(call.url).not.toContain('test-key');
     expect((call.init?.headers as Record<string, string>)['x-goog-api-key']).toBe('test-key');
     expect(body.contents[0].parts[0].inlineData).toEqual({ mimeType: 'application/pdf', data: FILE.toString('base64') });
-    expect(body.generationConfig.responseSchema.type).toBe('ARRAY');
+    expect(body.generationConfig.responseMimeType).toBe('application/json');
+    expect(body.generationConfig.responseSchema).toBeUndefined();
+    expect(body.systemInstruction.parts[0].text).toContain('tableau JSON strict');
+  });
+
+  it('tolère les clôtures ```json et un tableau enveloppé dans {"items": …}', async () => {
+    const line = '[{"label":"RIZ","quantity":2,"kind":"PRODUCT"}]';
+    for (const text of ['```json\n' + line + '\n```', `{"items": ${line}}`]) {
+      http.reset();
+      http.on('generateContent', () => json({ candidates: [{ content: { parts: [{ text }] }, finishReason: 'STOP' }] }));
+      expect((await reader.read(FILE, 'image/jpeg')).lines, text).toEqual([{ label: 'RIZ', quantity: 2 }]);
+    }
   });
 
   it('refuse une réponse sans aucun produit, en français', async () => {
@@ -73,9 +85,10 @@ describe('GeminiReceiptReader (EF-29)', () => {
     await expect(reader.read(FILE, 'image/jpeg')).rejects.toThrow(/exploitable/);
   });
 
-  it('passe un 429 par le message de quota', async () => {
-    http.on('generateContent', () => json({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'quota', details: [{ violations: [{ quotaId: 'GenerateRequestsPerMinutePerProjectPerModel' }] }, { retryDelay: '12s' }] } }, 429));
-    await expect(reader.read(FILE, 'image/jpeg')).rejects.toThrow(/Trop de demandes coup sur coup\. Réessayez dans \d+ secondes?\./);
+  it('laisse passer tel quel le refus du limiteur Gemini (heure de reprise)', async () => {
+    const paused = new GeminiPausedError(new Date(), 'Gemini est en pause : reprise à 14:04.');
+    http.on('generateContent', () => Promise.reject(paused));
+    await expect(reader.read(FILE, 'image/jpeg')).rejects.toBe(paused);
   });
 
   it('rend une erreur nette sur clé refusée et sur panne réseau', async () => {

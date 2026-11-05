@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { findDuplicateCandidates, sameFamily, UNIT_FAMILY, type CreateProductInput, type Paginated, type ProductDto, type ProductListQuery, type UpdateProductInput } from '@kitchen/shared';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { ApiError } from '../common/api-error.js';
 import { paginate, skipTake } from '../common/pagination.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -63,6 +63,8 @@ export class ProductsService {
         afterOpeningDays: input.afterOpeningDays ?? null,
         minThreshold: input.minThreshold ?? null,
         imagePath: input.imagePath ?? null,
+        nutriscoreGrade: input.nutriscoreGrade ?? null,
+        nutrientLevels: input.nutrientLevels ?? Prisma.DbNull,
         recognitionSource: extra.recognitionSource ?? 'MANUAL',
         confidence: extra.confidence ?? null,
       },
@@ -99,6 +101,8 @@ export class ProductsService {
         ...(input.afterOpeningDays !== undefined ? { afterOpeningDays: input.afterOpeningDays } : {}),
         ...(input.minThreshold !== undefined ? { minThreshold: input.minThreshold } : {}),
         ...(input.imagePath !== undefined ? { imagePath: input.imagePath } : {}),
+        ...(input.nutriscoreGrade !== undefined ? { nutriscoreGrade: input.nutriscoreGrade } : {}),
+        ...(input.nutrientLevels !== undefined ? { nutrientLevels: input.nutrientLevels ?? Prisma.DbNull } : {}),
       },
       include: { category: true },
     });

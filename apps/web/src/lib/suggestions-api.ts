@@ -34,6 +34,12 @@ export interface SuggestionOrientation {
    */
   refresh?: boolean;
   /**
+   * Identifiant de la demande (conception du 2026-11-02), posé seulement sur
+   * une relance explicite : c'est la seule lecture qui appelle toujours le
+   * modèle, donc la seule qui mérite d'être annoncée.
+   */
+  requestId?: string;
+  /**
    * Nombre de recettes demandées en une fois (« Charger plus », 2026-10-19) :
    * absent, le serveur pose sa page par défaut. Borné par le schéma partagé
    * (`SUGGESTION_PAGE_MAX`) ; il ne déclenche jamais d'appel au modèle.
@@ -85,8 +91,12 @@ export const suggestionsApi = {
    * part n'est écrit dans aucune requête rejouable — c'est un envoi, pas un
    * téléversement de média.
    */
-  voice(audio: Blob, mimeType: string): Promise<VoiceSuggestionBatchDto> {
+  voice(audio: Blob, mimeType: string, requestId?: string): Promise<VoiceSuggestionBatchDto> {
     const form = new FormData();
+    // Identifiant de la demande (conception du 2026-11-02) : il permet de
+    // retrouver le résultat au retour, et d'être prévenu s'il arrive alors
+    // qu'on a posé le téléphone.
+    if (requestId) form.append('requestId', requestId);
     // Réemballé avec son type : c'est le type de la pièce multipart que le
     // serveur lit, et un `Blob` sans type arriverait en
     // `application/octet-stream`, donc refusé pour de mauvaises raisons.

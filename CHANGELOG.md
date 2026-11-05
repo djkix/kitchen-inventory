@@ -1,5 +1,107 @@
 # Changelog
 
+## [0.37.1](https://github.com/djkix/kitchen-inventory/compare/v0.37.0...v0.37.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **web:** « votre ticket repartira seul », accord au masculin (EF-31) ([ab4c461](https://github.com/djkix/kitchen-inventory/commit/ab4c4610d960f38586877952fe5a6561ee236f3f))
+
+## [0.37.0](https://github.com/djkix/kitchen-inventory/compare/v0.36.1...v0.37.0) (2026-11-02)
+
+
+### Features
+
+* **notifications:** l'attente se dit en durée, et la notification n'est promise que si elle est autorisée ([b38b368](https://github.com/djkix/kitchen-inventory/commit/b38b36847352ce8d0418e39f1eb99f2ed0007c3d))
+
+## [0.36.1](https://github.com/djkix/kitchen-inventory/compare/v0.36.0...v0.36.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **notifications:** passer les clés VAPID au conteneur, et demander l'autorisation toute seule ([29910ad](https://github.com/djkix/kitchen-inventory/commit/29910ad3216272b59a6fe454b289eafc13b9c6f2))
+
+## [0.36.0](https://github.com/djkix/kitchen-inventory/compare/v0.35.0...v0.36.0) (2026-11-02)
+
+
+### Features
+
+* **api:** abonnements et envoi Web Push ([5c9e01b](https://github.com/djkix/kitchen-inventory/commit/5c9e01b81d9adfe6e0ab447a07b0e2eebde60f98))
+* **api:** les quatre usages du modèle ouvrent une demande (EF-25, EF-26) ([53822b2](https://github.com/djkix/kitchen-inventory/commit/53822b21ebd147708a666ccfc133d64afe019604))
+* **api:** lignes de demande au modèle et annonce du résultat ([7868041](https://github.com/djkix/kitchen-inventory/commit/7868041ce2b3400c269b6e2c4ab38a79c124de4c))
+* **api:** rejouer une demande refusée pour une pause Gemini ([00172e2](https://github.com/djkix/kitchen-inventory/commit/00172e2cd59dc2cc129eb9314400fe8e32b76d4a))
+* **db:** demandes au modèle et abonnements push (migration 0018) ([4d4d125](https://github.com/djkix/kitchen-inventory/commit/4d4d125889b06d2f9cbd8015582621857e682a3e))
+* **notifications:** prévenir quand la réponse est prête (EF-31) ([867eff3](https://github.com/djkix/kitchen-inventory/commit/867eff344bb57487aefcf63b57107a763da0e589))
+* **pwa:** service worker écrit à la main, prêt pour les notifications ([28349e6](https://github.com/djkix/kitchen-inventory/commit/28349e6e3631a1d4eff1b50b323b0c5ea0ee5f73))
+* **shared:** règles de la notification « réponse prête » ([8577226](https://github.com/djkix/kitchen-inventory/commit/85772260fe88153a2fe426f85e359c6601ebecbd))
+* **suggestions:** basculer de modèle quand Google sature, et renvoyer la demande parlée (EF-25, EF-26) ([5c52c0e](https://github.com/djkix/kitchen-inventory/commit/5c52c0ef4feedd4e1673102bb12c81c6a4a30931))
+
+
+### Bug Fixes
+
+* **ci:** verrou npm resynchronisé et clés de test engendrées ([c0ae7ea](https://github.com/djkix/kitchen-inventory/commit/c0ae7eae10de119a66d0a12e15cf907d47989a51))
+* **e2e:** pg_dump et pg_restore joués dans le conteneur db ([e2d80a3](https://github.com/djkix/kitchen-inventory/commit/e2d80a3d2714d73292411badd6ad6c3aa8001485))
+* **notifications:** web-push s'importe par défaut, pas par son nom ([eb28c6d](https://github.com/djkix/kitchen-inventory/commit/eb28c6dcb9542bbae23a33aa9c0bda0d6c098edc))
+
+## [0.35.0](https://github.com/djkix/kitchen-inventory/compare/v0.34.0...v0.35.0) (2026-10-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sauvegarde:** `NAS_OPTIONS` et `NAS_CHEMIN` sont obligatoires dans `.env` (sans NAS : `NAS_TYPE=none`, `NAS_OPTIONS=bind` et un dossier local). `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_INTERVAL_SECONDS` et `docker/backup.sh` à côté du compose ne servent plus.
+
+### Features
+
+* **sauvegarde:** sauvegarde chaque nuit vers le NAS, et « Sauvegarder maintenant » (section 9) ([99fc7a8](https://github.com/djkix/kitchen-inventory/commit/99fc7a8cd546186c8e4ceac35c772283fb4d2af1))
+
+
+### Bug Fixes
+
+* **sauvegarde:** le développement local démarre sans NAS ([761dc1d](https://github.com/djkix/kitchen-inventory/commit/761dc1dc34118d69631b4d2433722366939c29ae))
+
+
+### Miscellaneous Chores
+
+* publier la sauvegarde vers le NAS en 0.35.0 ([9e6d5bd](https://github.com/djkix/kitchen-inventory/commit/9e6d5bd560a199d189153cb89d091d5304e1b201))
+
+## [0.34.0](https://github.com/djkix/kitchen-inventory/compare/v0.33.0...v0.34.0) (2026-10-23)
+
+
+### Features
+
+* **web:** thème clair, thème sombre, ou le réglage du téléphone (section 8) ([9783e8a](https://github.com/djkix/kitchen-inventory/commit/9783e8a27c98546c5c93feb61702b55230086c77))
+
+## [0.33.0](https://github.com/djkix/kitchen-inventory/compare/v0.32.0...v0.33.0) (2026-10-23)
+
+
+### Features
+
+* **nutrition:** rattrapage au scan et d'un bouton, Nutri-Score sur les recettes (EF-30) ([4b5913a](https://github.com/djkix/kitchen-inventory/commit/4b5913a9d5dd1a06dc40f2ca0c07b60ee75e9897))
+
+
+### Bug Fixes
+
+* **rattrapage:** attendre quand Open Food Facts limite les requêtes (EF-30) ([644e4d5](https://github.com/djkix/kitchen-inventory/commit/644e4d5b31c3e9aeb8d1078c37c2f9882ae098ee))
+
+## [0.32.0](https://github.com/djkix/kitchen-inventory/compare/v0.31.0...v0.32.0) (2026-10-23)
+
+
+### Features
+
+* **stock:** Nutri-Score et repères nutritionnels sur la fiche article (EF-30) ([74eb2fa](https://github.com/djkix/kitchen-inventory/commit/74eb2fa1dbca8b8a44d4f9ff7790fbb5a3448808))
+
+
+### Bug Fixes
+
+* **docker:** toutes les commandes de tools/ entrent dans l'image (EF-30) ([c28ebc0](https://github.com/djkix/kitchen-inventory/commit/c28ebc0e645953f21d31b95366e9b9f1fcea97cd))
+
+## [0.31.0](https://github.com/djkix/kitchen-inventory/compare/v0.30.0...v0.31.0) (2026-10-22)
+
+
+### Features
+
+* **gemini:** modèle choisi seul, quotas avant l'appel, bascule et pause commune (EF-03, EF-26, EF-29) ([638bc93](https://github.com/djkix/kitchen-inventory/commit/638bc9345f44fcfa2580ca997e720ffb212723ed))
+
 ## [0.30.0](https://github.com/djkix/kitchen-inventory/compare/v0.29.0...v0.30.0) (2026-10-22)
 
 

@@ -3,9 +3,13 @@ import { api } from './api';
 
 export const receiptsApi = {
   /** Lecture d'un ticket (EF-29) : coûte un appel au modèle et du quota, d'où un envoi par geste. */
-  read(file: File, locationId: string): Promise<ReceiptDto> {
+  read(file: File, locationId: string, requestId?: string): Promise<ReceiptDto> {
     const form = new FormData();
     form.append('locationId', locationId);
+    // Identifiant de la demande (conception du 2026-11-02) : la lecture d'un
+    // ticket est la plus longue des quatre, donc la première à mériter d'être
+    // annoncée si l'on a posé le téléphone.
+    if (requestId) form.append('requestId', requestId);
     form.append('file', file, file.name || 'ticket');
     return api.postForm<ReceiptDto>('/receipts', form);
   },

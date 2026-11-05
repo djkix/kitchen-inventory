@@ -11,3 +11,7 @@ services:
         APP_VERSION: local
     environment:
       LOG_LEVEL: debug
+  # Pas de sauvegarde en développement : ni NAS ni NAS_OPTIONS à régler.
+  # La lancer quand même : ajouter `--profile sauvegarde`.
+  backup:
+    profiles: [sauvegarde]

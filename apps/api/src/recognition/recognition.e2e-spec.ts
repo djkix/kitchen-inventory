@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { FakeHttp, geminiFixture, TINY_PNG } from '../../test/fake-http.js';
@@ -22,11 +22,31 @@ describe('scan par code-barres (EF-01, EF-02, EF-14)', () => {
   afterAll(() => t.close());
 
   it('résout un code-barres connu depuis le cache local sans appel réseau', async () => {
-    await agent.post('/api/v1/products').send({ name: 'Nutella', barcode: '3017620422003' }).expect(201);
+    // Fiche complète : rien ne manque, donc aucun rafraîchissement de fond.
+    await agent
+      .post('/api/v1/products')
+      .send({ name: 'Nutella', barcode: '3017620422003', nutriscoreGrade: 'e', nutrientLevels: { salt: 'low' } })
+      .expect(201);
     const res = await agent.post('/api/v1/scan/barcode').send({ barcode: '3017620422003' }).expect(200);
     expect(res.body.source).toBe('cache');
     expect(res.body.product.name).toBe('Nutella');
     expect(http.calls).toHaveLength(0);
+  });
+
+  it('rattrape en fond les repères nutritionnels d’une fiche entrée avant EF-30', async () => {
+    http.fixture('/api/v2/product/3017620422003', 'off-3017620422003.json');
+    const created = await agent.post('/api/v1/products').send({ name: 'Nutella', barcode: '3017620422003' }).expect(201);
+    expect(created.body.nutriscoreGrade).toBeNull();
+
+    // La réponse du scan ne l'attend pas : elle part du cache, telle quelle.
+    const res = await agent.post('/api/v1/scan/barcode').send({ barcode: '3017620422003' }).expect(200);
+    expect(res.body.source).toBe('cache');
+
+    await vi.waitFor(async () => {
+      const product = await t.prisma.product.findUniqueOrThrow({ where: { id: created.body.id } });
+      expect(product.nutriscoreGrade).toBe('e');
+      expect(product.nutrientLevels).toEqual({ fat: 'high', 'saturated-fat': 'high', sugars: 'high', salt: 'low' });
+    });
   });
 
   it('interroge Open Food Facts pour un code inconnu et met le produit en cache', async () => {
@@ -41,7 +61,10 @@ describe('scan par code-barres (EF-01, EF-02, EF-14)', () => {
       netContent: 400,
       netContentUnit: 'GRAM',
       recognitionSource: 'OPEN_FOOD_FACTS',
+      nutriscoreGrade: 'e',
     });
+    // EF-30 : les repères nutritionnels sont recopiés tels quels, sans calcul.
+    expect(res.body.product.nutrientLevels).toEqual({ fat: 'high', 'saturated-fat': 'high', sugars: 'high', salt: 'low' });
     expect(res.body.product.imagePath).toMatch(/^products\//);
     const offCall = http.calls.find((c) => c.url.includes('/api/v2/product/'));
     expect(new Headers(offCall?.init?.headers).get('user-agent')).toContain('KitchenInventory');
@@ -57,6 +80,9 @@ describe('scan par code-barres (EF-01, EF-02, EF-14)', () => {
     http.fixture('/api/v2/product/8801043015608', 'off-8801043015608.json');
     const res = await agent.post('/api/v1/scan/barcode').send({ barcode: '8801043015608' }).expect(200);
     expect(res.body.product).toMatchObject({ name: 'Shin Ramyun', originalName: '신라면', brand: 'Nongshim' });
+    // EF-30 : « unknown » n'est pas une note, c'est une absence de note.
+    expect(res.body.product.nutriscoreGrade).toBeNull();
+    expect(res.body.product.nutrientLevels).toBeNull();
     expect(res.body.product.category?.name).toBe('Épicerie sèche');
   });
 
@@ -95,6 +121,21 @@ describe('reconnaissance photo (EF-03, EF-04, EF-08)', () => {
     await t.signIn(agent, ADMIN);
   });
   afterAll(() => t.close());
+
+  // Conception du 2026-11-02 : la photo est l'un des quatre usages annoncés.
+  it('ouvre une ligne de demande quand l’écran en fournit l’identifiant', async () => {
+    const REQ = '55555555-5555-4555-8555-555555555555';
+    http.on('generateContent', () => geminiFixture('vision-gochujang.json'));
+    await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').field('requestId', REQ).expect(200);
+    const row = await t.prisma.aiRequest.findUniqueOrThrow({ where: { id: REQ } });
+    expect(row).toMatchObject({ kind: 'SCAN_IMAGE', state: 'DONE' });
+  });
+
+  it('sans identifiant, n’ouvre aucune ligne', async () => {
+    http.on('generateContent', () => geminiFixture('vision-gochujang.json'));
+    await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').expect(200);
+    expect(await t.prisma.aiRequest.count()).toBe(0);
+  });
 
   it('propose une fiche avec date de péremption, nom d’origine et catégorie rapprochée', async () => {
     http.on('generateContent', () => geminiFixture('vision-gochujang.json'));
@@ -226,7 +267,7 @@ describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
   });
   afterAll(() => t.close());
 
-  it('appelle generateContent avec la clé en en-tête et un schéma JSON, puis journalise le coût', async () => {
+  it('appelle generateContent avec la clé en en-tête et le JSON par la consigne, puis journalise le coût', async () => {
     http.on('generativelanguage.googleapis.com', () => geminiFixture('vision-gochujang.json'));
     const res = await agent.post('/api/v1/scan/image').attach('image', TINY_PNG, 'photo.png').field('hint', 'pot rouge').expect(200);
     expect(res.body.suggestion).toMatchObject({ name: 'Pâte de piment coréenne (gochujang)', originalName: '고추장 (gochujang)', expiryDate: '2027-03-15' });
@@ -237,7 +278,9 @@ describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
     expect(new Headers(call?.init?.headers).get('x-goog-api-key')).toBe('AIza-test');
     const body = JSON.parse(String(call?.init?.body));
     expect(body.generationConfig.responseMimeType).toBe('application/json');
-    expect(body.generationConfig.responseSchema.required).toContain('confidence');
+    // JSON demandé par la consigne, sans responseSchema (400 de Google sur un schéma imbriqué).
+    expect(body.generationConfig.responseMimeType).toBe('application/json');
+    expect(body.generationConfig.responseSchema).toBeUndefined();
     expect(body.contents[0].parts[0].inlineData.mimeType).toBe('image/png');
     expect(JSON.stringify(body)).toContain('pot rouge');
     const log = await t.prisma.recognitionLog.findFirstOrThrow();
@@ -245,15 +288,9 @@ describe('reconnaissance photo via Gemini (EF-03, EF-04)', () => {
     expect(log.costCents?.toNumber()).toBeGreaterThan(0);
     const stats = await agent.get('/api/v1/recognition/stats').expect(200);
     expect(stats.body).toMatchObject({ visionCallsToday: 1, provider: 'gemini' });
-    // Compteur indicatif du 2026-10-21 : ce que Google compte, lui, ne
-    // distingue ni le scan ni les recettes. Sans limite renseignée, on rend le
-    // compte seul plutôt qu'un rapport à une valeur inventée.
-    expect(stats.body).toMatchObject({
-      providerCallsToday: 1,
-      providerCallsLastMinute: 1,
-      providerDailyLimit: null,
-      providerMinuteLimit: null,
-    });
+    // Ce que Google compte, tous usages confondus, est au journal Gemini
+    // (`GET /settings/gemini`), plus dans les statistiques de reconnaissance.
+    expect(await t.prisma.geminiCall.count({ where: { model: 'gemini-3.8-flash', httpStatus: 200 } })).toBe(1);
     // Un scan photo ne compte pas pour les recettes : les deux usages ont des
     // quotas distincts, et les mêler rendrait les deux chiffres faux.
     expect(stats.body).toMatchObject({ recipeCallsToday: 0, recipeCallsThisMonth: 0, recipeCostCentsThisMonth: 0, recipeDailyQuota: 20 });

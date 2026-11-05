@@ -10,13 +10,7 @@ export interface SuggestionRequest {
   /** Type de plat demandé ; sert au bouton de relance quand le filtre d'écran ne laisse rien. */
   dishType?: DishType;
   count: number;
-  /**
-   * Modèle choisi pour CET appel, résolu par le service depuis les réglages
-   * (base, sinon environnement). Absent, le fournisseur applique son défaut.
-   * Il ne peut pas être figé à la construction : le fournisseur est un
-   * singleton Nest, et un réglage changé à l'écran n'aurait alors d'effet
-   * qu'au redémarrage du conteneur.
-   */
+  /** Modèle de CET appel, choisi par `GeminiService.call` dans la liste en direct de Google. */
   model?: string;
   /**
    * Recherche web réelle (outil `google_search`). Absente, le fournisseur

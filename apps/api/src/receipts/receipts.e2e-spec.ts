@@ -142,6 +142,40 @@ describe('lecture d’un ticket de caisse (EF-29)', () => {
   });
 });
 
+describe('ticket et demande au modèle (conception du 2026-11-02)', () => {
+  const { ctx, upload } = setup();
+  const REQ = '22222222-2222-4222-8222-222222222222';
+
+  it('ouvre une ligne de demande et y range le résultat', async () => {
+    ctx.http.on('generateContent', () => geminiText([{ label: 'RIZ', quantity: 1, kind: 'PRODUCT' }]));
+    await upload().field('requestId', REQ).expect(201);
+
+    const row = await ctx.t.prisma.aiRequest.findUniqueOrThrow({ where: { id: REQ } });
+    expect(row).toMatchObject({ kind: 'RECEIPT', state: 'DONE', leftScreen: false });
+    expect(row.result).not.toBeNull();
+  });
+
+  it('inscrit l’échec quand le modèle ne répond pas', async () => {
+    ctx.http.on('generateContent', () => json({ error: { code: 500 } }, 500));
+    await upload().field('requestId', REQ).expect(502);
+    expect((await ctx.t.prisma.aiRequest.findUniqueOrThrow({ where: { id: REQ } })).state).toBe('FAILED');
+  });
+
+  // Une interface plus ancienne n'envoie pas d'identifiant : elle doit marcher
+  // exactement comme avant, et n'ouvrir aucune ligne.
+  it('sans identifiant, n’ouvre aucune ligne', async () => {
+    ctx.http.on('generateContent', () => geminiText([{ label: 'RIZ', quantity: 1, kind: 'PRODUCT' }]));
+    await upload().expect(201);
+    expect(await ctx.t.prisma.aiRequest.count()).toBe(0);
+  });
+
+  it('ignore un identifiant mal formé plutôt que de refuser le ticket', async () => {
+    ctx.http.on('generateContent', () => geminiText([{ label: 'RIZ', quantity: 1, kind: 'PRODUCT' }]));
+    await upload().field('requestId', 'pas-un-uuid').expect(201);
+    expect(await ctx.t.prisma.aiRequest.count()).toBe(0);
+  });
+});
+
 describe('quota journalier de tickets (EF-29)', () => {
   const { ctx, upload } = setup({ RECEIPT_DAILY_QUOTA: '1' });
 
@@ -157,17 +191,6 @@ describe('quota journalier de tickets (EF-29)', () => {
     await ctx.t.prisma.recognitionLog.create({ data: { provider: 'gemini', purpose: 'VISION', succeeded: true } });
     ctx.http.on('generateContent', () => geminiFixture('receipts/gemini-ticket.json'));
     await upload().expect(201);
-  });
-});
-
-describe('repli de modèle et fournisseur désactivé (EF-29)', () => {
-  const { ctx, upload } = setup({ VISION_MODEL: 'modele-principal', FALLBACK_MODEL: 'modele-repli' });
-
-  it('bascule une fois sur le modèle de repli quand le quota du premier est épuisé', async () => {
-    ctx.http.on('modele-principal', () => json({ error: { details: [{ violations: [{ quotaId: 'GenerateRequestsPerMinutePerProjectPerModel' }] }] } }, 429));
-    ctx.http.on('modele-repli', () => geminiFixture('receipts/gemini-ticket.json'));
-    await upload().expect(201);
-    expect(ctx.http.calls.map((c) => c.url.match(/models\/([^:]+):/)?.[1])).toEqual(['modele-principal', 'modele-repli']);
   });
 });
 

@@ -1,11 +1,12 @@
+import { beginAiRequest, forgetAiRequest, watchAiRequest } from './ai-request';
 import { useRef } from 'react';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import type {
   AccountDto,
   AuthStatus,
-  AvailableModels,
   CategoryDto,
   CurrentUser,
+  GeminiStatus,
   LocationNode,
   Paginated,
   ProductDto,
@@ -44,7 +45,7 @@ export const queryKeys = {
   locations: ['locations'] as const,
   categories: ['categories'] as const,
   settings: ['settings'] as const,
-  availableModels: ['settings', 'models'] as const,
+  geminiStatus: ['settings', 'gemini'] as const,
   accounts: ['accounts'] as const,
   serviceTokens: ['service-tokens'] as const,
   recognitionStats: ['recognition', 'stats'] as const,
@@ -159,13 +160,13 @@ export function useSettingsQuery() {
  * Sans reprise automatique : un échec est une information à afficher, pas une
  * panne à masquer par des tentatives répétées.
  */
-export function useAvailableModelsQuery(enabled: boolean) {
+/** État des modèles Gemini (admins) : relu toutes les 30 s, les quotas de la minute bougent vite. */
+export function useGeminiStatusQuery() {
   return useQuery({
-    queryKey: queryKeys.availableModels,
-    queryFn: () => api.get<AvailableModels>('/settings/models'),
-    staleTime: 10 * 60_000,
+    queryKey: queryKeys.geminiStatus,
+    queryFn: () => api.get<GeminiStatus>('/settings/gemini'),
+    refetchInterval: 30_000,
     retry: false,
-    enabled,
   });
 }
 
@@ -379,7 +380,22 @@ export function useSuggestionsQuery(orientation: SuggestionOrientation, options?
   }
   return useQuery({
     queryKey: [...queryKeys.suggestions(orientation), token.current, limit] as const,
-    queryFn: () => suggestionsApi.list({ ...orientation, limit, refresh: token.current > 0 ? true : undefined }),
+    queryFn: async () => {
+      // Une relance explicite appelle toujours le modèle et prend du temps :
+      // c'est la seule lecture de suggestions qui mérite d'être annoncée si
+      // l'on a posé le téléphone (conception du 2026-11-02). Le service
+      // ordinaire du réservoir, lui, ne porte pas d'identifiant.
+      const refresh = token.current > 0;
+      if (!refresh) return suggestionsApi.list({ ...orientation, limit });
+      const requestId = beginAiRequest();
+      const stop = watchAiRequest(requestId);
+      try {
+        return await suggestionsApi.list({ ...orientation, limit, refresh: true, requestId });
+      } finally {
+        stop();
+        forgetAiRequest(requestId);
+      }
+    },
     retry: false,
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
