@@ -1,0 +1,23 @@
+# Empreintes gitleaks acceptées, une par ligne, avec sa raison.
+#
+# Les trois commits ci-dessous datent du 2026-11-02 (travail sur les
+# notifications). Ils portaient une paire de clés VAPID et un abonnement
+# codés en dur, recopiés de la documentation publique de `web-push` — jamais
+# des secrets de production. Ils ont été remplacés le jour même par des
+# valeurs engendrées à chaque exécution (`apps/api/test/push.double.ts`), et
+# l'arbre courant n'en contient plus aucune.
+#
+# Ils ne peuvent pas disparaître sans réécrire l'historique, ce qui casserait
+# toutes les copies du dépôt pour des clés qui n'ont jamais rien protégé.
+# Chaque empreinte vise un commit, un fichier et une ligne précis : une
+# nouvelle fuite au même endroit serait quand même signalée.
+
+5c9e01b81d9adfe6e0ab447a07b0e2eebde60f98:apps/api/src/notifications/notifications.e2e-spec.ts:generic-api-key:12
+5c9e01b81d9adfe6e0ab447a07b0e2eebde60f98:apps/api/src/notifications/notifications.e2e-spec.ts:generic-api-key:13
+5c9e01b81d9adfe6e0ab447a07b0e2eebde60f98:apps/api/src/notifications/notifications.e2e-spec.ts:generic-api-key:19
+7868041ce2b3400c269b6e2c4ab38a79c124de4c:apps/api/src/ai-requests/ai-requests.e2e-spec.ts:generic-api-key:9
+7868041ce2b3400c269b6e2c4ab38a79c124de4c:apps/api/src/ai-requests/ai-requests.e2e-spec.ts:generic-api-key:10
+7868041ce2b3400c269b6e2c4ab38a79c124de4c:apps/api/src/ai-requests/ai-requests.e2e-spec.ts:generic-api-key:17
+00172e2cd59dc2cc129eb9314400fe8e32b76d4a:apps/api/src/ai-requests/deferral.e2e-spec.ts:generic-api-key:9
+00172e2cd59dc2cc129eb9314400fe8e32b76d4a:apps/api/src/ai-requests/deferral.e2e-spec.ts:generic-api-key:10
+00172e2cd59dc2cc129eb9314400fe8e32b76d4a:apps/api/src/ai-requests/deferral.e2e-spec.ts:generic-api-key:16
