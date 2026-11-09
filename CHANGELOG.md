@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.38.0](https://github.com/djkix/kitchen-inventory/compare/v0.37.5...v0.38.0) (2026-11-09)
+
+
+### Features
+
+* **suggestions:** trois recettes par appel, et plus de recette web hors recherche ([0d8a7e3](https://github.com/djkix/kitchen-inventory/commit/0d8a7e3652db04c9f9f33f940d3724ea6a0119d0))
+
+
+### Bug Fixes
+
+* **suggestions:** le plancher du réservoir ne suit pas la fournée ([61054e6](https://github.com/djkix/kitchen-inventory/commit/61054e653e7d6ac7adb98dd42be5b9ee54ab1dcc))
+
 ## [0.37.5](https://github.com/djkix/kitchen-inventory/compare/v0.37.4...v0.37.5) (2026-11-09)
 
 
