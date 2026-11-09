@@ -173,6 +173,16 @@ Google) ; un modèle **arrêté** fait **basculer** sur le suivant — qu'il soi
 vise pas un modèle en particulier pose une **pause commune**, de la durée
 annoncée, suspendant tous les appels.
 
+Les modèles sont essayés **Flash-Lite d'abord**, du plus récent au plus
+ancien, puis les Flash de la même façon. L'ordre était l'inverse, et il coûtait
+cher : relevé en service le 2026-11-09, une demande a vu `3.8-flash`,
+`3.7-flash`, `3.6-flash` et `3.5-flash` refuser l'un après l'autre — dont un
+délai dépassé de 120 secondes — avant que `3.5-flash-lite` ne réponde en
+**3,7 secondes**. Google sature ses modèles récents pour le trafic API ;
+composer trois recettes ne réclame pas le plus capable, mais celui qui répond.
+Les Flash restent derrière, pour le jour où les Flash-Lite refuseraient à leur
+tour.
+
 Le modèle compose **trois recettes par appel**, et non seize. L'écran en
 demandait douze, l'application en réclamait seize d'un coup, chacune avec ses
 ingrédients, leurs quantités et ses étapes : 7 879 jetons de réponse et
@@ -979,7 +989,8 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.37.6 | 2026-11-09 | Trois recettes par appel au lieu de seize : la recherche aboutit en vingt secondes, et un bouton en demande trois de plus |
+| 0.38.1 | 2026-11-09 | Les modèles Flash-Lite sont essayés en premier : ce sont ceux qui répondent, et la recherche aboutit en quelques secondes |
+| 0.38.0 | 2026-11-09 | Trois recettes par appel au lieu de seize : la recherche aboutit en vingt secondes, et un bouton en demande trois de plus |
 | 0.37.5 | 2026-11-09 | Un modèle retiré par Google quitte la rotation au lieu de faire échouer la demande |
 | 0.37.4 | 2026-11-09 | Deux minutes pour répondre au lieu de 45 secondes : une demande de recettes n'est plus coupée avant la réponse de Gemini, et les appels sans réponse se comptent dans Réglages |
 | 0.37.3 | 2026-11-09 | Le conteneur de sauvegarde n'est plus affiché « unhealthy » à tort : il héritait de la sonde de l'API |
