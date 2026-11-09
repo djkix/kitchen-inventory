@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.40.0](https://github.com/djkix/kitchen-inventory/compare/v0.39.0...v0.40.0) (2026-11-09)
+
+
+### Features
+
+* **recipes:** l'etoile ou la realisation fait entrer une suggestion au catalogue ([2451d9c](https://github.com/djkix/kitchen-inventory/commit/2451d9ca498bd8c9cac9c5301e561ed45c6eda7f))
+* **suggestions:** alimenter la base de recettes, et filtrer la bibliotheque ([a34d24f](https://github.com/djkix/kitchen-inventory/commit/a34d24f8df78428992e6b6b44b427294f3031b8e))
+
+
+### Bug Fixes
+
+* **suggestions:** « Je fais cette recette » etoile aussi ([4ce53c2](https://github.com/djkix/kitchen-inventory/commit/4ce53c2612d03b120d30f74f8f3414d9a1a73950))
+
 ## [0.39.0](https://github.com/djkix/kitchen-inventory/compare/v0.38.1...v0.39.0) (2026-11-09)
 
 
