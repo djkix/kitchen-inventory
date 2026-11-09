@@ -985,6 +985,38 @@ export class SuggestionsService {
   private awaited: Promise<void> | null = null;
 
   /**
+   * Rattrapage (D6) : crée la recette de **toutes** les compositions déjà au
+   * réservoir qui n'en ont pas encore. Lancé une fois après la livraison, par
+   * `tools/recettes-rattrapage.js` ; idempotent, donc rejouable sans risque.
+   *
+   * Attendu, celui-là, contrairement à l'alimentation d'une fournée : c'est une
+   * commande, personne n'attend d'écran derrière.
+   */
+  async catalogueAll(onProgress?: (fait: number, total: number) => void): Promise<{ crees: number; deja: number; ignores: number }> {
+    const entries = await this.pool.read({});
+    let crees = 0;
+    let deja = 0;
+    let ignores = 0;
+    for (const [index, entry] of entries.entries()) {
+      if (entry.recipe.provenance !== 'ai') {
+        ignores += 1;
+      } else if (await this.recipes.findBySuggestion(entry.recipe.title, entry.recipe.sourceUrl)) {
+        deja += 1;
+      } else {
+        try {
+          await this.createOnce(entry, null, null);
+          crees += 1;
+        } catch (error) {
+          ignores += 1;
+          this.logger.warn({ identity: entry.identity, err: error }, 'Rattrapage : recette non créée');
+        }
+      }
+      onProgress?.(index + 1, entries.length);
+    }
+    return { crees, deja, ignores };
+  }
+
+  /**
    * Dernière alimentation de la base lancée, pour que les tests puissent
    * l'attendre. La requête, elle, ne l'attend jamais : c'est tout l'objet de
    * `catalogue`. Sans cette prise, un test verrait ses écritures arriver au

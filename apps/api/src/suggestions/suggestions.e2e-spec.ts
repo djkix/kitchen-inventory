@@ -700,6 +700,26 @@ describe('SuggestionsService (EF-26)', () => {
     expect(await db.suggestionBatch.count()).toBe(1);
   });
 
+  /**
+   * D6 (2026-11-09) : les lignes du réservoir antérieures à la livraison n'ont
+   * pas de recette. Le rattrapage les reprend, et peut être rejoué.
+   */
+  it('rattrape les compositions du réservoir sans recette, et ne crée rien au second passage', async () => {
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+    await seedPool(db, [{ recipe: composition(1) }, { recipe: composition(2) }]);
+
+    const premier = await service.catalogueAll();
+    expect(premier.crees).toBe(2);
+    expect(await db.recipe.count()).toBe(2);
+
+    const second = await service.catalogueAll();
+    expect(second.crees).toBe(0);
+    expect(second.deja).toBe(2);
+    expect(await db.recipe.count()).toBe(2);
+  });
+
   // D3 (2026-11-09) : la recette existant désormais avant le geste, « Je fais
   // cette recette » doit la retrouver au lieu d'en créer une seconde — et
   // `clientOpId` n'y suffit pas, il ne reconnaît que le même appel rejoué.

@@ -173,6 +173,18 @@ Google) ; un modèle **arrêté** fait **basculer** sur le suivant — qu'il soi
 vise pas un modèle en particulier pose une **pause commune**, de la durée
 annoncée, suspendant tous les appels.
 
+**Toute recette proposée alimente la base**, et « Mes recettes » ne liste que
+celles que vous avez **étoilées ou réalisées** — le reste vit dans Suggestions.
+Chaque composition qui entre au réservoir devient donc aussi une recette, avec
+ses ingrédients rapprochés du catalogue : interrogeable, notable, cuisinable.
+Dans le tiroir d'une suggestion, **« Garder dans mes recettes »** l'étoile sans
+la cuisiner ; « Je fais cette recette » enregistre une réalisation, comme avant.
+Ce qui est étoilé ou réalisé cesse d'être proposé ; le reste continue de l'être.
+Une recette que vous avez saisie vous-même figure dans la bibliothèque sans
+condition. Les recettes du web font exception : leur conversion fait réécrire la
+page par le modèle, elle attend donc le geste. Rattrapage des recettes déjà au
+réservoir : `docker compose exec app node tools/recettes-rattrapage.js`.
+
 Sous les recettes d'une **demande parlée**, un bouton **« Proposer d'autres
 recettes »** en redemande sans avoir à reparler. L'enregistrement n'étant
 conservé nulle part, la relance porte sur les **ingrédients compris** — ceux
@@ -996,6 +1008,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.40.0 | 2026-11-09 | Les recettes proposées alimentent la base, et « Mes recettes » ne garde que les étoilées ou réalisées |
 | 0.39.0 | 2026-11-09 | Un bouton sous les recettes d'une demande parlée en propose d'autres, sans avoir à reparler |
 | 0.38.1 | 2026-11-09 | Les modèles Flash-Lite sont essayés en premier : ce sont ceux qui répondent, et la recherche aboutit en quelques secondes |
 | 0.38.0 | 2026-11-09 | Trois recettes par appel au lieu de seize : la recherche aboutit en vingt secondes, et un bouton en demande trois de plus |

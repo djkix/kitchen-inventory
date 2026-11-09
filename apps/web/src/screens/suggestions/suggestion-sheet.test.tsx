@@ -5,7 +5,10 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { RecipeDto, SuggestionDto } from '@kitchen/shared';
 import { ApiClientError } from '../../lib/api';
+import { recipesApi } from '../../lib/recipes-api';
 import { SuggestionSheet } from './suggestion-sheet';
+
+vi.mock('../../lib/recipes-api', () => ({ recipesApi: { updateRecipe: vi.fn() } }));
 
 const suggestion: SuggestionDto = {
   id: 's1',
@@ -307,5 +310,22 @@ describe('SuggestionSheet, ingrédient déclaré', () => {
 
     expect(screen.getByText('Déclaré')).toBeTruthy();
     expect(screen.queryByText('Manquant')).toBeNull();
+  });
+
+  /**
+   * Étoile ajoutée le 2026-11-09 : « ne mettre dans Mes recettes que les
+   * recettes étoilées ou réalisées ». Garder n'est plus cuisiner — donc ni
+   * réalisation, ni navigation vers la fiche.
+   */
+  it('garde une suggestion en l’étoilant, sans la faire ni quitter le tiroir', async () => {
+    const keep = vi.fn().mockResolvedValue({ id: 'r1' } as RecipeDto);
+    vi.mocked(recipesApi.updateRecipe).mockResolvedValue({ id: 'r1', favorite: true } as RecipeDto);
+    renderSheet({ keep });
+
+    fireEvent.click(screen.getByText('Garder dans mes recettes'));
+
+    await waitFor(() => expect(screen.getByText('Dans mes recettes')).toBeTruthy());
+    expect(keep).toHaveBeenCalledWith({ suggestionId: 's1', clientOpId: 'keep:s1' });
+    expect(vi.mocked(recipesApi.updateRecipe)).toHaveBeenCalledWith('r1', { favorite: true });
   });
 });

@@ -8,8 +8,22 @@ import { Sheet } from '../../components/ui/sheet';
 import { errorMessage, mediaUrl } from '../../lib/api';
 import { formatMinutes, formatQuantity } from '../../lib/quantity-ui';
 import { queryKeys } from '../../lib/queries';
+import { recipesApi } from '../../lib/recipes-api';
 import { suggestionsApi } from '../../lib/suggestions-api';
 import { provenanceLabel } from './suggestion-card';
+
+/**
+ * Étoile dessinée ici, et non `FavoriteStar` : celui-ci est lui-même un
+ * `<button>`, et l'imbriquer dans un autre donne un balisage invalide. Un seul
+ * appelant, comme `MicIcon` sur l'écran des suggestions.
+ */
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-5" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+      <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
+    </svg>
+  );
+}
 import { NutriscoreBadge } from '../../components/ui/nutriscore-badge';
 
 interface SuggestionSheetProps {
@@ -64,9 +78,13 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [etoilee, setEtoilee] = useState(false);
 
   useEffect(() => {
-    if (open) setError(null);
+    if (open) {
+      setError(null);
+      setEtoilee(false);
+    }
   }, [open, suggestion?.id]);
 
   if (!suggestion) return null;
@@ -76,6 +94,26 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
   // identifiant d'opération, sans quoi l'idempotence de la conservation — dont
   // c'est le seul garde-fou côté serveur — ne tiendrait pas d'une visite à l'autre.
   const clientOpId = `keep:${suggestion.id}`;
+
+  /**
+   * Garder sans faire : crée la recette au besoin, puis l'étoile. L'écran
+   * Suggestions cessera de la proposer au prochain passage — ce n'est pas
+   * rejoué maintenant, pour la même raison que la conservation ne l'est pas.
+   */
+  const garder = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const recipe = await keep({ suggestionId: suggestion.id, clientOpId });
+      await recipesApi.updateRecipe(recipe.id, { favorite: true });
+      setEtoilee(true);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.recipesAll });
+    } catch (err) {
+      setError(errorMessage(err, 'La recette n’a pas pu être gardée.'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const confirm = async () => {
     setBusy(true);
@@ -236,6 +274,26 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
           indisponible pendant l'enregistrement, comme le tiroir lui-même
           (`locked`) : on n'abandonne pas une conservation en cours de route.
         */}
+        {/*
+          L'étoile, depuis le 2026-11-09 : « ne mettre dans Mes recettes que les
+          recettes que j'ai indiqué avec une étoile ou que j'ai réalisée ». C'est
+          le seul chemin pour garder une recette sans la faire — avant, conserver
+          et cuisiner étaient le même geste.
+
+          Deux appels : la recette est créée si elle ne l'est pas encore (le
+          serveur est idempotent, D3), puis étoilée. On ne navigue pas : garder
+          n'est pas ouvrir.
+        */}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void garder()}
+          className="mb-3 flex min-h-touch w-full items-center justify-center gap-2 rounded-xl border border-line text-[15px] font-medium text-accent active:bg-raised disabled:text-faint"
+        >
+          <StarIcon filled={etoilee} />
+          {etoilee ? 'Dans mes recettes' : 'Garder dans mes recettes'}
+        </button>
+
         <div className="flex gap-2">
           <Button variant="primary" size="lg" className="flex-[2]" loading={busy} disabled={busy} onClick={() => void confirm()}>
             Je fais cette recette
