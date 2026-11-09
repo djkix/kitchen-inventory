@@ -120,6 +120,17 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
     setError(null);
     try {
       const recipe = await keep({ suggestionId: suggestion.id, clientOpId });
+      /*
+       * Étoilée aussi (2026-11-09). Depuis que « Mes recettes » ne liste que
+       * l'étoilé ou le réalisé, créer la recette ne suffit plus à l'y faire
+       * entrer : ce bouton promettait une bibliothèque où elle n'arrivait pas.
+       * Un parcours bout en bout l'a relevé le soir même.
+       *
+       * Choisir de faire une recette, c'est la choisir : les deux boutons du
+       * tiroir l'étoilent donc, et ne diffèrent que par la suite — celui-ci
+       * ouvre la fiche pour la cuisiner, l'autre laisse aux suggestions.
+       */
+      await recipesApi.updateRecipe(recipe.id, { favorite: true });
       // Au succès : seule la liste des recettes change, la nouvelle venue y entre.
       // La liste de suggestions, elle, n'est pas invalidée. Le serveur en
       // exclura bien cette recette au prochain passage (`readPool` écarte ce
