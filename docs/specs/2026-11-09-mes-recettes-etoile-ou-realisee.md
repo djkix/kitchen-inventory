@@ -88,8 +88,32 @@ que ce geste — lui seul — la fasse entrer dans « Mes recettes ».
 | **D3** | `keep` devient idempotent par identité de suggestion : si la recette existe déjà, elle est rendue telle quelle. L'appariement reprend celui de `readPool` — titre normalisé, `suggestionIdentity` — sans nouvelle colonne. | Deux gestes sur la même suggestion ne doivent pas faire deux recettes. Le titre suffit : le réservoir dédoublonne déjà sur cette identité. |
 | **D4** | « Mes recettes » filtre **en base** sur `favorite = true OR logs non vide`, avant tout calcul de couverture. | La bibliothèque reste petite, donc le rapprochement `pg_trgm` ne porte que sur elle : la question de performance de la version précédente disparaît. |
 | **D5** | Le bouton « Je fais cette recette » garde son libellé et son effet — il enregistre une réalisation — mais la fiche s'atteint désormais **sans lui** : la carte d'une suggestion mène à la recette. | Il mélangeait « garder » et « faire ». Débarrassé du premier rôle, il ne dit plus que ce qu'il fait. |
-| **D6** | Les 349 lignes du réservoir sont rattrapées une fois, par un script de `tools/` lancé dans le conteneur, idempotent. | Sans lui, la base ne contiendrait que ce qui arrive à partir de maintenant, et le propriétaire veut garder ce qui existe. |
+| **D6** | Les 349 lignes du réservoir sont rattrapées une fois. `SuggestionsService.catalogueAll()` fait le travail et est testé ; **le déclencheur reste à écrire**. | Sans lui, la base ne contiendrait que ce qui arrive à partir de maintenant, et le propriétaire veut garder ce qui existe. |
 | **D7** | Une suggestion dont la création de recette échoue ne fait pas échouer la demande : l'erreur est journalisée, le rattrapage la reprendra. | L'écran doit rendre ses recettes ; une base en retard d'une ligne n'est pas un échec visible. |
+
+## Le déclencheur du rattrapage : ce qui a été essayé, et pourquoi ça ne marche pas
+
+Un outil de `tools/`, comme `nutriscore-rattrapage`, a été écrit puis **retiré**
+le 2026-11-09. Deux obstacles, constatés et non supposés :
+
+- `tools/tsconfig.json` n'active pas les décorateurs. Un outil qui importe
+  `AppModule` pour résoudre le service ne compile pas : chaque `@Get`, `@Post`
+  et `@Injectable` de l'API sort en erreur `TS1241`.
+- Même en les activant, la compilation des outils ferait entrer tout l'API dans
+  `tools/dist`, que le `Dockerfile` recopie à la racine de l'image — soit un
+  second exemplaire du serveur à côté du vrai.
+
+`nutriscore-rattrapage` n'a pas ce problème parce qu'il enveloppe une
+**fonction** (`rattraper`), pas un service : il reçoit un client Prisma et rien
+d'autre. La création d'une recette depuis une suggestion, elle, traverse trois
+services injectés.
+
+La forme qui reste est donc celle que le projet emploie déjà pour l'autre
+rattrapage : **une route d'administration**, `GET`/`POST
+/suggestions/catalogue`, avec un avancement en mémoire et un bouton dans
+Réglages — exactement `products/nutrition/backfill`. Elle s'exécute dans le
+conteneur de l'application, avec son conteneur d'injection, et donne un bouton
+plutôt qu'une commande SSH.
 
 ## Ce qui reste au jugement du constructeur
 

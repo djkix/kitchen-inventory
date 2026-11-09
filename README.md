@@ -182,8 +182,9 @@ la cuisiner ; « Je fais cette recette » enregistre une réalisation, comme ava
 Ce qui est étoilé ou réalisé cesse d'être proposé ; le reste continue de l'être.
 Une recette que vous avez saisie vous-même figure dans la bibliothèque sans
 condition. Les recettes du web font exception : leur conversion fait réécrire la
-page par le modèle, elle attend donc le geste. Rattrapage des recettes déjà au
-réservoir : `docker compose exec app node tools/recettes-rattrapage.js`.
+page par le modèle, elle attend donc le geste. Les recettes déjà au réservoir avant
+cette version ne sont pas encore reprises : leur rattrapage attend son
+déclencheur (voir la spécification du 2026-11-09).
 
 Sous les recettes d'une **demande parlée**, un bouton **« Proposer d'autres
 recettes »** en redemande sans avoir à reparler. L'enregistrement n'étant
