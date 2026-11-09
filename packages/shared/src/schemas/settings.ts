@@ -43,6 +43,13 @@ export const geminiStatusSchema = z.object({
       minuteTokens: z.number().int(),
       /** Requêtes du jour du Pacifique, celui de Google. */
       dayRequests: z.number().int(),
+      /**
+       * Appels des 24 h restés **sans réponse** : délai dépassé ou coupure,
+       * donc sans statut HTTP. Ils étaient déjà journalisés mais invisibles,
+       * si bien qu'un écran en erreur s'accompagnait de statistiques d'apparence
+       * saine (constaté le 2026-11-09).
+       */
+      unanswered: z.number().int(),
       blockedUntil: z.string().nullable(),
       blockedMessage: z.string().nullable(),
     }),

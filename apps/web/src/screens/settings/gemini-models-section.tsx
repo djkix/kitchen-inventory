@@ -54,6 +54,17 @@ export function GeminiModelsSection() {
                 {NUMBER.format(m.limits.tpm)} jetons
               </span>
               {m.blockedMessage && <span className="text-[13px] text-soon">{m.blockedMessage}</span>}
+              {/*
+                Un appel sans statut HTTP n'est ni un quota ni un refus : le
+                serveur a coupé avant la réponse. Il était journalisé mais
+                invisible, d'où des statistiques d'apparence saine en face d'un
+                écran en erreur (2026-11-09).
+              */}
+              {m.unanswered > 0 && (
+                <span className="tnum text-[13px] text-warn">
+                  {m.unanswered} appel{m.unanswered > 1 ? 's' : ''} sans réponse sur 24 h
+                </span>
+              )}
             </button>
             {editing === m.model && <LimitsForm model={m} onDone={() => setEditing(null)} />}
           </li>

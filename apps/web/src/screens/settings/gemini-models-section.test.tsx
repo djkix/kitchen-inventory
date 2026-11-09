@@ -17,8 +17,8 @@ const limits = { rpm: 5, tpm: 250_000, rpd: 20 };
 const status: GeminiStatus = {
   current: 'gemini-3.5-flash-lite',
   models: [
-    { model: 'gemini-3.8-flash', limits, minuteRequests: 0, minuteTokens: 0, dayRequests: 20, blockedUntil: '2026-10-23T07:00:00Z', blockedMessage: 'Quota Gemini du jour atteint (20 requêtes) : reprise vendredi à 09:00.' },
-    { model: 'gemini-3.5-flash-lite', limits, minuteRequests: 2, minuteTokens: 12_000, dayRequests: 7, blockedUntil: null, blockedMessage: null },
+    { model: 'gemini-3.8-flash', limits, minuteRequests: 0, minuteTokens: 0, dayRequests: 20, unanswered: 2, blockedUntil: '2026-10-23T07:00:00Z', blockedMessage: 'Quota Gemini du jour atteint (20 requêtes) : reprise vendredi à 09:00.' },
+    { model: 'gemini-3.5-flash-lite', limits, minuteRequests: 2, minuteTokens: 12_000, dayRequests: 7, unanswered: 0, blockedUntil: null, blockedMessage: null },
   ],
   pause: null,
   dayResetsAt: '2026-10-23T07:00:00Z',
@@ -55,5 +55,14 @@ describe('GeminiModelsSection', () => {
     fireEvent.change(screen.getByLabelText('Requêtes / jour'), { target: { value: '250' } });
     fireEvent.click(screen.getByText('Enregistrer les limites'));
     await waitFor(() => expect(state.put).toHaveBeenCalledWith('/settings/gemini/limits', { model: 'gemini-3.8-flash', rpm: 5, tpm: 250_000, rpd: 250 }));
+  });
+
+  // 2026-11-09 : un appel sans statut HTTP n'apparaissait nulle part, si bien
+  // qu'une demande en échec laissait des statistiques d'apparence saine.
+  it('annonce les appels restés sans réponse, et seulement là où il y en a', () => {
+    state.data = status;
+    renderSection();
+    expect(screen.getByText('2 appels sans réponse sur 24 h')).toBeTruthy();
+    expect(screen.queryByText(/0 appel/)).toBeNull();
   });
 });

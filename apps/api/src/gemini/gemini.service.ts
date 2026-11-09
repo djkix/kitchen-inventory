@@ -170,10 +170,25 @@ export class GeminiService implements OnModuleInit {
     return this.status();
   }
 
+  /**
+   * Appels des 24 h restés sans réponse, par modèle : `httpStatus` nul, c'est
+   * à dire un délai dépassé ou une coupure. Un seul regroupement pour tous les
+   * modèles, l'écran en affichant la liste entière.
+   */
+  private async unansweredByModel(now: Date): Promise<Map<string, number>> {
+    const rows = await this.prisma.geminiCall.groupBy({
+      by: ['model'],
+      where: { httpStatus: null, createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60_000) } },
+      _count: { _all: true },
+    });
+    return new Map(rows.map((row) => [row.model, row._count._all]));
+  }
+
   /** État pour l'écran des modèles : ordre d'emploi, consommation, limites, épuisement, pause. */
   async status(): Promise<GeminiStatus> {
     const now = this.now();
     const list = await this.available();
+    const unanswered = await this.unansweredByModel(now);
     const models = await Promise.all(
       orderModels(list.models).map(async (model) => {
         const limits = await this.limits(model);
@@ -187,6 +202,7 @@ export class GeminiService implements OnModuleInit {
           dayRequests: usage.dayRequests,
           blockedUntil: refusal?.until.toISOString() ?? null,
           blockedMessage: refusal?.message ?? null,
+          unanswered: unanswered.get(model) ?? 0,
         };
       }),
     );

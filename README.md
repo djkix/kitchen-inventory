@@ -173,6 +173,16 @@ Google) ; un modèle **arrêté** fait **basculer** sur le suivant — qu'il soi
 vise pas un modèle en particulier pose une **pause commune**, de la durée
 annoncée, suspendant tous les appels.
 
+Un appel de génération a **deux minutes** pour répondre. Le délai était de 45
+secondes, ce qui ne suffit plus : un lot de six recettes demande environ une
+minute aux modèles actuels. Au-delà du délai, la requête est coupée **sans
+code HTTP** — l'application ne peut donc ni basculer de modèle (Google n'a rien
+refusé) ni nommer la cause, et l'écran disait « injoignable » alors que Gemini
+répondait. Elle dit maintenant « Gemini n'a pas répondu en 120 s », et
+Réglages › Reconnaissance compte, sous chaque modèle, les **appels restés sans
+réponse** des dernières 24 heures : un écran en erreur ne s'accompagne plus de
+statistiques d'apparence saine.
+
 L'IA ne bloque jamais : un refus dit **l'heure de reprise**, arrondie à la
 minute supérieure et avec le jour nommé (« reprise jeudi à 09:00 »), et
 l'écran garde son alternative — code-barres ou fiche à la main (la photo reste
@@ -945,6 +955,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.37.4 | 2026-11-09 | Deux minutes pour répondre au lieu de 45 secondes : une demande de recettes n'est plus coupée avant la réponse de Gemini, et les appels sans réponse se comptent dans Réglages |
 | 0.37.3 | 2026-11-09 | Le conteneur de sauvegarde n'est plus affiché « unhealthy » à tort : il héritait de la sonde de l'API |
 | 0.37.2 | 2026-11-05 | Correctifs de sécurité : premier administrateur réservé à `ADMIN_EMAIL`, connexion épinglée des pages de recettes, photos Open Food Facts bornées, en-têtes CSP/HSTS, garde des écritures inter-origines, `GET /suggestions` en lecture seule, export CSV sans formules, actions CI épinglées |
 | 0.37.1 | 2026-11-02 | « Votre ticket repartira seul » : accord corrigé sur l'écran d'attente |

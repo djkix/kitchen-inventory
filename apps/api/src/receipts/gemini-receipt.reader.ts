@@ -1,6 +1,6 @@
 import { receiptQuantitySchema } from '@kitchen/shared';
 import type { HttpClient } from '../common/http-client.js';
-import { GeminiPausedError } from '../gemini/gemini-errors.js';
+import { GeminiPausedError, GENERATION_TIMEOUT_MS, transportMessage } from '../gemini/gemini-errors.js';
 import { estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 
@@ -58,7 +58,7 @@ export class GeminiReceiptReader {
         method: 'POST',
         // La clé passe en en-tête, jamais dans l'URL : elle n'apparaît ainsi dans aucun journal.
         headers: { 'content-type': 'application/json', 'x-goog-api-key': this.options.apiKey },
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents: [{ role: 'user', parts: [{ inlineData: { mimeType, data: file.toString('base64') } }, { text: 'Lis ce ticket.' }] }],
@@ -69,7 +69,7 @@ export class GeminiReceiptReader {
       });
     } catch (error) {
       if (error instanceof GeminiPausedError) throw error;
-      throw new ProviderError('Fournisseur de lecture de ticket Gemini injoignable', error);
+      throw new ProviderError(transportMessage('Fournisseur de lecture de ticket Gemini', error), error);
     }
     if (response.status === 401 || response.status === 403) throw new ProviderError('Clé API Gemini refusée');
     if (!response.ok) throw new ProviderError(`Fournisseur de lecture de ticket Gemini en erreur (${response.status})`);

@@ -1,5 +1,5 @@
 import type { HttpClient } from '../common/http-client.js';
-import { GeminiPausedError } from '../gemini/gemini-errors.js';
+import { GeminiPausedError, GENERATION_TIMEOUT_MS, transportMessage } from '../gemini/gemini-errors.js';
 import { countSearchQueries, estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { buildSuggestionPrompt, buildVoicePrompt, InvalidBatchJsonError, parseModelBatch, parseVoiceBatch, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
@@ -148,7 +148,7 @@ export class GeminiSuggestionProvider {
         method: 'POST',
         // La clé passe en en-tête, jamais dans l'URL : elle n'apparaît ainsi dans aucun journal.
         headers: { 'content-type': 'application/json', 'x-goog-api-key': this.options.apiKey ?? '' },
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: webSearch ? SUGGESTION_SYSTEM_PROMPT : SUGGESTION_SYSTEM_PROMPT_NO_SEARCH }] },
           contents: [{ role: 'user', parts }],
@@ -165,7 +165,7 @@ export class GeminiSuggestionProvider {
       });
     } catch (error) {
       if (error instanceof GeminiPausedError) throw error;
-      throw new ProviderError('Fournisseur de suggestions Gemini injoignable', error);
+      throw new ProviderError(transportMessage('Fournisseur de suggestions Gemini', error), error);
     }
     if (response.status === 401 || response.status === 403) throw new ProviderError('Clé API Gemini refusée');
     if (!response.ok) throw new ProviderError(`Fournisseur de suggestions Gemini en erreur (${response.status})`);
