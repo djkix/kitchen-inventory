@@ -154,13 +154,14 @@ const SUGGESTION_RANKING_WINDOW_FACTOR = 3;
  * — une fois par jour et par orientation, le reste du temps c'est le bouton
  * « Chercher de nouvelles recettes » qui décide.
  *
- * Aligné sur `SUGGESTION_MODEL_BATCH` le 2026-11-09 : à six, un appel qui
- * rend trois recettes laissait le réservoir éternellement sous le plancher,
- * et seule la trace « déjà demandée aujourd'hui » empêchait de rappeler le
- * modèle à chaque visite. Un plancher qu'un appel ne peut pas franchir n'est
- * pas un plancher.
+ * Volontairement **indépendant de `SUGGESTION_MODEL_BATCH`** : il dit combien
+ * de recettes une orientation doit finir par connaître, pas combien un appel
+ * en rapporte. Avec une fournée de trois, le réservoir l'atteint en deux
+ * appels, sur deux jours, puis cesse d'appeler. L'aligner sur la fournée
+ * (essayé le 2026-11-09, puis défait) revenait à s'arrêter de chercher dès le
+ * premier appel, donc à appauvrir chaque orientation.
  */
-const SUGGESTION_POOL_FLOOR = SUGGESTION_MODEL_BATCH;
+const SUGGESTION_POOL_FLOOR = 6;
 
 /**
  * Clé d'orientation d'une `SuggestionBatch` (D11, 2026-10-15) : la question
