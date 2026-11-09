@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.38.1](https://github.com/djkix/kitchen-inventory/compare/v0.38.0...v0.38.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **gemini:** essayer les Flash-Lite en premier ([c455cd2](https://github.com/djkix/kitchen-inventory/commit/c455cd2a5847e6ee28eb68d9634eea04798d301a))
+
 ## [0.38.0](https://github.com/djkix/kitchen-inventory/compare/v0.37.5...v0.38.0) (2026-11-09)
 
 
