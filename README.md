@@ -603,6 +603,10 @@ y est en clair, lisible par qui a accès au dossier partagé.
 - **Si l'hôte redémarre avant le NAS**, le montage échoue et Docker ne relance
   pas le conteneur : il reste arrêté. Remède, le NAS allumé :
   `docker compose up -d backup`.
+- Le conteneur `backup` **n'a pas de sonde de santé** : il partage l'image de
+  l'API, dont la sonde interroge une adresse HTTP qu'il ne sert pas. Ne vous
+  fiez donc pas à son état dans Docker — c'est Réglages › Sauvegarde qui dit
+  si les sauvegardes passent.
 - Chaque tentative est inscrite en base. **Réglages › Sauvegarde**
   (administrateurs) montre la dernière réussite et la taille de la base, et
   signale une dernière tentative en échec ou l'absence de réussite depuis
@@ -941,6 +945,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.37.3 | 2026-11-09 | Le conteneur de sauvegarde n'est plus affiché « unhealthy » à tort : il héritait de la sonde de l'API |
 | 0.37.2 | 2026-11-05 | Correctifs de sécurité : premier administrateur réservé à `ADMIN_EMAIL`, connexion épinglée des pages de recettes, photos Open Food Facts bornées, en-têtes CSP/HSTS, garde des écritures inter-origines, `GET /suggestions` en lecture seule, export CSV sans formules, actions CI épinglées |
 | 0.37.1 | 2026-11-02 | « Votre ticket repartira seul » : accord corrigé sur l'écran d'attente |
 | 0.37.0 | 2026-11-02 | Une demande gardée dit l'attente en durée, et ne promet une notification que si elle est autorisée |

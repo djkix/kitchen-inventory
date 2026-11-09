@@ -78,6 +78,16 @@ services:
     depends_on:
       app:
         condition: service_healthy
+    # Aucune sonde : l'image est celle de l'API, dont le HEALTHCHECK interroge
+    # http://127.0.0.1:3000/api/v1/health. Ce conteneur-là ne sert rien en
+    # HTTP — il exécute schedule.sh —, la sonde héritée échouait donc toujours
+    # et le marquait « unhealthy » alors que les sauvegardes passaient. Rien ne
+    # dépend de sa santé, et la surveillance utile est ailleurs : chaque
+    # tentative est inscrite en base, et Réglages › Sauvegarde signale un échec
+    # ou 36 h sans réussite. Une sonde toujours rouge est pire que pas de
+    # sonde : elle apprend à ignorer le rouge.
+    healthcheck:
+      disable: true
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       # Une base injoignable ne bloque pas la boucle de schedule.sh : 10 s pour se connecter.
