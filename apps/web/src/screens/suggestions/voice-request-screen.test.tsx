@@ -158,6 +158,31 @@ describe('VoiceRequestScreen (demande parlée, 2026-10-21)', () => {
     expect(compris).toMatch(/plat italien/);
   });
 
+  /**
+   * Demande du propriétaire le 2026-11-09 : « un bouton pour me proposer
+   * d'autres recettes toujours avec le même input ». L'enregistrement n'étant
+   * conservé nulle part (D6), la relance porte sur les ingrédients compris, par
+   * une recherche écrite — et `refresh` est indispensable, sans quoi le serveur
+   * servirait le réservoir et rendrait les mêmes recettes.
+   */
+  it('redemande des recettes sur les ingrédients compris, sans reparler, et les ajoute aux premières', async () => {
+    voice.mockResolvedValue(BATCH);
+    const autre = { ...BATCH.items[0]!, id: 'autre-1', title: 'Risotto au poulet' };
+    vi.mocked(suggestionsApi.list).mockResolvedValue({ items: [autre], poolCount: 2, poolTotal: 2, fromCache: false } as never);
+    renderScreen();
+    onRecorded(recording(4096));
+    await waitFor(() => expect(screen.getByText(/Poulet à la tomate/)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Proposer d’autres recettes' }));
+
+    await waitFor(() => expect(screen.getByText(/Risotto au poulet/)).toBeTruthy());
+    // Les premières restent : on en veut davantage, pas d'autres à la place.
+    expect(screen.getByText(/Poulet à la tomate/)).toBeTruthy();
+    // Aucun second envoi d'audio, et une relance explicite sur les ingrédients compris.
+    expect(voice).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(suggestionsApi.list)).toHaveBeenCalledWith(expect.objectContaining({ refresh: true, ingredients: expect.stringContaining('poulet') }));
+  });
+
   it('dit le quota atteint plutôt que d’échouer en silence (D9)', async () => {
     voice.mockRejectedValue(new ApiClientError(429, 'rate_limited', 'Quota journalier de suggestions atteint (5 par jour) ; réessayez demain.'));
     renderScreen();

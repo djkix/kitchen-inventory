@@ -2,8 +2,9 @@ import { VOICE_MAX_SECONDS, voiceAudioRejection, type SuggestionDto, type VoiceS
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { ScreenHeader } from '../../components/shell/app-shell';
-import { Spinner } from '../../components/ui/button';
+import { Button, Spinner } from '../../components/ui/button';
 import { isDeferred } from '../../lib/ai-request';
+import { errorMessage } from '../../lib/api';
 import { DeferredNotice } from '../../components/ui/deferred-notice';
 import { useTrackedRequest } from '../../hooks/use-tracked-request';
 import { suggestionsApi } from '../../lib/suggestions-api';
@@ -44,6 +45,34 @@ export function VoiceRequestScreen() {
   const ask = useMutation({
     mutationFn: (recording: VoiceRecording) => tracked((requestId) => suggestionsApi.voice(recording.blob, recording.mimeType, requestId)),
     onSuccess: setBatch,
+  });
+
+  /**
+   * « Proposer d'autres recettes » (demande du propriétaire, 2026-11-09 : « un
+   * bouton pour me proposer d'autres recettes toujours avec le même input »).
+   *
+   * L'enregistrement n'est conservé nulle part (D6) : on ne peut donc pas
+   * rejouer la voix. Ce qui est rejoué, c'est **ce que le modèle a compris** —
+   * les ingrédients affichés juste au-dessus des recettes —, par une recherche
+   * écrite ordinaire. Si la lecture était fautive, la relance l'est aussi, et
+   * cela se voit puisqu'elle est écrite à l'écran.
+   *
+   * `refresh` est indispensable : sans lui, le serveur sert le réservoir et
+   * rendrait les mêmes recettes.
+   */
+  const more = useMutation({
+    mutationFn: () =>
+      tracked((requestId) =>
+        suggestionsApi.list({ ingredients: batch?.heard.ingredients.join(', '), refresh: true, requestId }),
+      ),
+    // Les nouvelles s'ajoutent aux précédentes : on en veut davantage, pas
+    // d'autres à la place. La lecture, elle, ne change pas.
+    onSuccess: (fresh) =>
+      setBatch((current) => {
+        if (!current) return current;
+        const connues = new Set(current.items.map((item) => item.id));
+        return { ...current, items: [...current.items, ...fresh.items.filter((item) => !connues.has(item.id))] };
+      }),
   });
 
   const onRecorded = useCallback(
@@ -158,7 +187,9 @@ export function VoiceRequestScreen() {
         </>
       )}
 
-      {batch && !ask.isPending && <VoiceResult batch={batch} onSelect={setSelected} />}
+      {batch && !ask.isPending && (
+        <VoiceResult batch={batch} onSelect={setSelected} onMore={() => more.mutate()} moreLoading={more.isPending} moreError={more.isError ? errorMessage(more.error) : null} />
+      )}
 
       <SuggestionSheet suggestion={selected} open={selected !== null} onClose={() => setSelected(null)} />
     </>
@@ -170,7 +201,19 @@ export function VoiceRequestScreen() {
  * c'est elle qui permet de reconnaître un contresens avant de lire douze
  * recettes à côté de la plaque (D2).
  */
-function VoiceResult({ batch, onSelect }: { batch: VoiceSuggestionBatchDto; onSelect: (suggestion: SuggestionDto) => void }) {
+function VoiceResult({
+  batch,
+  onSelect,
+  onMore,
+  moreLoading,
+  moreError,
+}: {
+  batch: VoiceSuggestionBatchDto;
+  onSelect: (suggestion: SuggestionDto) => void;
+  onMore: () => void;
+  moreLoading: boolean;
+  moreError: string | null;
+}) {
   const { ingredients, orientation } = batch.heard;
   return (
     <>
@@ -187,15 +230,27 @@ function VoiceResult({ batch, onSelect }: { batch: VoiceSuggestionBatchDto; onSe
           Aucune recette ne correspond à cette demande. Reformulez-la, ou nommez moins d’ingrédients à la fois.
         </p>
       ) : (
-        <ul className="flex flex-col gap-2 px-4 pb-6">
-          {batch.items.map((suggestion) => (
-            <li key={suggestion.id}>
-              <button type="button" aria-label={suggestionAccessibleName(suggestion)} className="block w-full text-left" onClick={() => onSelect(suggestion)}>
-                <SuggestionCard suggestion={suggestion} />
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="flex flex-col gap-2 px-4">
+            {batch.items.map((suggestion) => (
+              <li key={suggestion.id}>
+                <button type="button" aria-label={suggestionAccessibleName(suggestion)} className="block w-full text-left" onClick={() => onSelect(suggestion)}>
+                  <SuggestionCard suggestion={suggestion} />
+                </button>
+              </li>
+            ))}
+          </ul>
+          {/* Sous la liste : en redemander sans reparler. Le libellé dit sur
+              quoi la relance porte, puisque ce n'est pas la voix mais la
+              lecture qui en est faite. */}
+          <div className="flex flex-col items-center gap-2 px-4 pb-6 pt-4">
+            <Button block variant="outline" loading={moreLoading} onClick={onMore}>
+              Proposer d’autres recettes
+            </Button>
+            <p className="text-center text-[13px] text-muted">À partir des ingrédients compris ci-dessus, sans avoir à reparler.</p>
+            {moreError && <p className="text-center text-[13px] text-danger">{moreError}</p>}
+          </div>
+        </>
       )}
     </>
   );

@@ -173,6 +173,13 @@ Google) ; un modèle **arrêté** fait **basculer** sur le suivant — qu'il soi
 vise pas un modèle en particulier pose une **pause commune**, de la durée
 annoncée, suspendant tous les appels.
 
+Sous les recettes d'une **demande parlée**, un bouton **« Proposer d'autres
+recettes »** en redemande sans avoir à reparler. L'enregistrement n'étant
+conservé nulle part, la relance porte sur les **ingrédients compris** — ceux
+affichés juste au-dessus — par une recherche écrite ordinaire : si la lecture
+était fautive, la relance l'est aussi, et cela se voit. Les nouvelles recettes
+s'ajoutent aux premières plutôt que de les remplacer.
+
 Les modèles sont essayés **Flash-Lite d'abord**, du plus récent au plus
 ancien, puis les Flash de la même façon. L'ordre était l'inverse, et il coûtait
 cher : relevé en service le 2026-11-09, une demande a vu `3.8-flash`,
@@ -989,6 +996,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.39.0 | 2026-11-09 | Un bouton sous les recettes d'une demande parlée en propose d'autres, sans avoir à reparler |
 | 0.38.1 | 2026-11-09 | Les modèles Flash-Lite sont essayés en premier : ce sont ceux qui répondent, et la recherche aboutit en quelques secondes |
 | 0.38.0 | 2026-11-09 | Trois recettes par appel au lieu de seize : la recherche aboutit en vingt secondes, et un bouton en demande trois de plus |
 | 0.37.5 | 2026-11-09 | Un modèle retiré par Google quitte la rotation au lieu de faire échouer la demande |
