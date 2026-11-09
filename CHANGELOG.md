@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.5](https://github.com/djkix/kitchen-inventory/compare/v0.37.4...v0.37.5) (2026-11-09)
+
+
+### Bug Fixes
+
+* **gemini:** écarter un modèle que Google a retiré ([c8d0e93](https://github.com/djkix/kitchen-inventory/commit/c8d0e93776028eda97b1dc53e3947722e7d9fcdb))
+
 ## [0.37.4](https://github.com/djkix/kitchen-inventory/compare/v0.37.3...v0.37.4) (2026-11-09)
 
 
