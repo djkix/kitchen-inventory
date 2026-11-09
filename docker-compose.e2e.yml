@@ -40,6 +40,14 @@ services:
       GEMINI_RPM: 1000
       GEMINI_RPD: 1000
       OFF_BASE_URL: http://stub:3101
+      # Recherche web active : c'est le mode des parcours P5, dont la doublure
+      # rend huit recettes `web` avant ses quatre compositions — le parcours
+      # « une recette web illisible n'atteint pas l'écran » n'a de sens que là.
+      # Elle était implicitement éteinte, ce qui ne se voyait pas tant que la
+      # fournée demandée dépassait les douze recettes rendues ; depuis le
+      # 2026-11-09 la fournée est de trois en composition pure, et une recette
+      # qui se dit « web » y est écartée sans qu'on lise sa page.
+      SUGGESTION_WEB_SEARCH: "true"
       GOOGLE_CLIENT_ID: *google-client-id
       # Clés de signature lues chez la doublure, jamais chez Google : la
       # vérification du jeton reste entière, mais aucun appel ne sort.
