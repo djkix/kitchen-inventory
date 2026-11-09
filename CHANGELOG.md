@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.3](https://github.com/djkix/kitchen-inventory/compare/v0.37.2...v0.37.3) (2026-11-09)
+
+
+### Bug Fixes
+
+* **backup:** retirer la sonde héritée de l'API sur le conteneur de sauvegarde ([529e562](https://github.com/djkix/kitchen-inventory/commit/529e56278db6422be9cb75fa2b807d97e1c074c3))
+
 ## [0.37.2](https://github.com/djkix/kitchen-inventory/compare/v0.37.1...v0.37.2) (2026-11-05)
 
 
