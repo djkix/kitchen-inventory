@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GENERATION_TIMEOUT_MS, isTimeout, transportMessage } from './gemini-errors.js';
+import { isRetired } from './gemini-quota.js';
 
 /**
  * Un délai dépassé n'a pas de code HTTP : il ne déclenche donc ni bascule de
@@ -27,5 +28,21 @@ describe('transportMessage', () => {
 
   it('laisse au modèle le temps mesuré en production, deux minutes', () => {
     expect(GENERATION_TIMEOUT_MS).toBeGreaterThanOrEqual(90_000);
+  });
+});
+
+/**
+ * Un 404 d'URL mal formée n'est pas un retrait : seul le message de Google,
+ * « no longer available to new users », justifie d'écarter un modèle pour de bon.
+ */
+describe('isRetired', () => {
+  it('reconnaît le retrait annoncé par Google', () => {
+    expect(isRetired({ error: { code: 404, message: 'This model models/gemini-2.5-flash is no longer available to new users.' } })).toBe(true);
+  });
+
+  it('laisse passer un 404 ordinaire', () => {
+    expect(isRetired({ error: { code: 404, message: 'Requested entity was not found.' } })).toBe(false);
+    expect(isRetired(null)).toBe(false);
+    expect(isRetired({ error: {} })).toBe(false);
   });
 });

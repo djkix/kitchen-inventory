@@ -132,6 +132,28 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
     expect(http.calls).toHaveLength(1);
   });
 
+  /**
+   * 2026-11-09 : Google liste encore `gemini-2.5-flash` et l'annonce capable de
+   * `generateContent`, mais l'appel rend un 404 « no longer available to new
+   * users ». Ni quota ni saturation : rien ne faisait basculer, la demande
+   * mourait sur le premier modèle retiré rencontré.
+   */
+  it('404 d’un modèle retiré : il quitte la rotation et la demande bascule', async () => {
+    http.on('gemini-3.8-flash:generateContent', () =>
+      json({ error: { code: 404, status: 'NOT_FOUND', message: 'This model models/gemini-3.8-flash is no longer available to new users.' } }, 404),
+    );
+    http.on('gemini-3.5-flash-lite:generateContent', ticket);
+    await upload().expect(201);
+    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+    const status = (await agent.get('/api/v1/settings/gemini').expect(200)).body;
+    expect(status.pause).toBeNull();
+    expect(status.current).toBe('gemini-3.5-flash-lite');
+    expect(status.models[0].blockedMessage).toBe('Modèle retiré par Google : plus disponible sur cette clé.');
+    // Un retrait n'a pas d'heure de reprise : la demande suivante ne le rappelle plus.
+    await upload().expect(201);
+    expect(http.calls.filter((c) => modelOf(c.url) === 'gemini-3.8-flash')).toHaveLength(1);
+  });
+
   it('503 : le modèle saturé est écarté cinq minutes et la même demande bascule', async () => {
     http.on('gemini-3.8-flash:generateContent', () => json({ error: { code: 503 } }, 503));
     http.on('gemini-3.5-flash-lite:generateContent', ticket);

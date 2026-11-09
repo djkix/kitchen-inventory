@@ -33,9 +33,34 @@ interface ModelState {
  */
 export class GeminiLimiter {
   private readonly states = new Map<string, ModelState>();
+  /**
+   * Modèles que Google a retirés : il les liste encore, et les annonce même
+   * capables de `generateContent`, mais l'appel rend un 404 « no longer
+   * available to new users » (constaté le 2026-11-09 sur `gemini-2.5-flash` et
+   * `gemini-2.5-flash-lite`). Un 404 n'étant ni un quota ni une saturation, la
+   * cascade ne basculait pas et la demande échouait sèchement.
+   *
+   * En mémoire, et non en base : un retrait ne se défait pas, mais le jour où
+   * Google reviendrait dessus, un redémarrage suffit à réessayer — au prix d'un
+   * seul 404, qui revient en deux dixièmes de seconde.
+   */
+  private readonly retired = new Set<string>();
+
+  /** Le modèle a rendu un 404 : il ne servira plus de ce processus. */
+  markRetired(model: string): void {
+    this.retired.add(model);
+  }
+
+  /** Lointain : un retrait n'a pas d'heure de reprise, et `call` préfère tout refus daté. */
+  private static retirementUntil(now: Date): Date {
+    return new Date(now.getTime() + 100 * 365 * 24 * 60 * 60_000);
+  }
 
   /** Refus à venir pour un appel maintenant, ou `null`. Ne consomme rien. */
   check(model: string, limits: GeminiLimits, now: Date, timeZone?: string): GeminiQuotaError | null {
+    if (this.retired.has(model)) {
+      return new GeminiQuotaError(GeminiLimiter.retirementUntil(now), 'retired', 'Modèle retiré par Google : plus disponible sur cette clé.');
+    }
     const s = this.state(model, now);
     const t = now.getTime();
     if (s.overloadedUntil > t) {
@@ -141,6 +166,17 @@ export function isDailyQuota(body: unknown): boolean {
   if (!Array.isArray(details)) return false;
   const ids = details.flatMap((d) => (d.violations ?? []).map((v) => v.quotaId ?? ''));
   return ids.some((id) => /PerDay/i.test(id)) && !ids.some((id) => /PerMinute/i.test(id));
+}
+
+/**
+ * 404 d'un modèle retiré, à distinguer d'un 404 d'URL mal formée : Google
+ * répond « This model models/X is no longer available to new users » (vu le
+ * 2026-11-09). Seul ce cas-là justifie d'écarter le modèle pour de bon ; une
+ * autre cause de 404 reste une erreur à remonter.
+ */
+export function isRetired(body: unknown): boolean {
+  const message = (body as { error?: { message?: unknown } } | null)?.error?.message;
+  return typeof message === 'string' && /no longer available|has been (?:deprecated|retired)/i.test(message);
 }
 
 /** Fin de la pause commune après un 429 : `RetryInfo.retryDelay`, sinon une heure. Jamais raccourcie. */

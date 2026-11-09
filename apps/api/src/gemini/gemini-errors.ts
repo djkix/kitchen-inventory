@@ -15,11 +15,11 @@ export class GeminiPausedError extends Error {
   }
 }
 
-/** Modèle indisponible : `day` et `overloaded` font basculer sur le suivant. */
+/** Modèle indisponible : `day`, `overloaded` et `retired` font basculer sur le suivant. */
 export class GeminiQuotaError extends GeminiPausedError {
   constructor(
     until: Date,
-    readonly reason: 'minute' | 'tokens' | 'day' | 'overloaded',
+    readonly reason: 'minute' | 'tokens' | 'day' | 'overloaded' | 'retired',
     message: string,
   ) {
     super(until, message);

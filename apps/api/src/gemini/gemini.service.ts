@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { GeminiPausedError, GeminiQuotaError } from './gemini-errors.js';
 import { isStableModel, orderModels } from './gemini-models.js';
-import { GeminiLimiter, isDailyQuota, pauseAfter429, type GeminiLimits } from './gemini-quota.js';
+import { GeminiLimiter, isDailyQuota, isRetired, pauseAfter429, type GeminiLimits } from './gemini-quota.js';
 import { nextPacificMidnight, resumeAt } from './gemini-time.js';
 
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
@@ -134,6 +134,15 @@ export class GeminiService implements OnModuleInit {
         throw new GeminiQuotaError(until, 'day', `Quota Gemini du jour atteint chez Google : reprise ${resumeAt(until, now)}.`);
       }
       throw await this.extendPause(pauseAfter429(body, now), 'quota dépassé chez Google');
+    }
+    if (response.status === 404 && isRetired(body)) {
+      // Google liste encore ce modèle, et l'annonce capable de `generateContent`,
+      // mais refuse l'appel : « no longer available to new users ». Ce n'est ni
+      // un quota ni une saturation, donc rien ne faisait basculer et la demande
+      // mourait sur place (2026-11-09). Il quitte la rotation pour de bon.
+      this.limiter.markRetired(model);
+      this.logger.warn({ model }, 'Modèle retiré par Google, écarté de la rotation');
+      throw new GeminiQuotaError(new Date(this.now().getTime() + 100 * 365 * 24 * 60 * 60_000), 'retired', 'Modèle retiré par Google : plus disponible sur cette clé.');
     }
     if (response.status === 503) {
       // « The model is overloaded » : la saturation est propre au modèle, pas à

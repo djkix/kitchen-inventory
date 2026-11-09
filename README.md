@@ -173,6 +173,15 @@ Google) ; un modèle **arrêté** fait **basculer** sur le suivant — qu'il soi
 vise pas un modèle en particulier pose une **pause commune**, de la durée
 annoncée, suspendant tous les appels.
 
+Un modèle que Google a **retiré** quitte la rotation. Il reste listé par
+l'API, annoncé capable de répondre, mais l'appel rend un 404 « no longer
+available to new users » — ce fut le cas de `gemini-2.5-flash` et
+`gemini-2.5-flash-lite` le 2026-11-09. Comme ce n'est ni un quota ni une
+saturation, rien ne faisait basculer et la demande mourait là. L'application
+écarte désormais ce modèle dès le premier refus, passe au suivant, et Réglages
+l'affiche « retiré par Google ». Le retrait vaut pour la durée d'exécution :
+un redémarrage réessaie, au prix d'un 404 rendu en deux dixièmes de seconde.
+
 Un appel de génération a **deux minutes** pour répondre. Le délai était de 45
 secondes, ce qui ne suffit plus : un lot de six recettes demande environ une
 minute aux modèles actuels. Au-delà du délai, la requête est coupée **sans
@@ -955,6 +964,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.37.5 | 2026-11-09 | Un modèle retiré par Google quitte la rotation au lieu de faire échouer la demande |
 | 0.37.4 | 2026-11-09 | Deux minutes pour répondre au lieu de 45 secondes : une demande de recettes n'est plus coupée avant la réponse de Gemini, et les appels sans réponse se comptent dans Réglages |
 | 0.37.3 | 2026-11-09 | Le conteneur de sauvegarde n'est plus affiché « unhealthy » à tort : il héritait de la sonde de l'API |
 | 0.37.2 | 2026-11-05 | Correctifs de sécurité : premier administrateur réservé à `ADMIN_EMAIL`, connexion épinglée des pages de recettes, photos Open Food Facts bornées, en-têtes CSP/HSTS, garde des écritures inter-origines, `GET /suggestions` en lecture seule, export CSV sans formules, actions CI épinglées |
