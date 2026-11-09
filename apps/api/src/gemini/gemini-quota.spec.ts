@@ -22,11 +22,13 @@ describe('modèles légers', () => {
     expect(isStableModel('gemini-2.5-flash-001')).toBe(false);
   });
 
-  it('classe du plus récent au plus ancien, Flash avant Flash-Lite', () => {
+  // Flash-Lite en tête depuis le 2026-11-09 : ce sont eux qui répondent quand
+  // Google sature ses modèles récents (voir `gemini-models.ts`).
+  it('classe les Flash-Lite d’abord, puis les Flash du plus récent au plus ancien', () => {
     expect(orderModels(['gemini-2.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.5-pro', 'gemini-3.8-flash'])).toEqual([
+      'gemini-3.5-flash-lite',
       'gemini-3.8-flash',
       'gemini-3.5-flash',
-      'gemini-3.5-flash-lite',
       'gemini-2.5-flash',
     ]);
   });
