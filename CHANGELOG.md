@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.4](https://github.com/djkix/kitchen-inventory/compare/v0.37.3...v0.37.4) (2026-11-09)
+
+
+### Bug Fixes
+
+* **gemini:** deux minutes pour répondre, et nommer le délai dépassé ([3b2bfe0](https://github.com/djkix/kitchen-inventory/commit/3b2bfe06edd1a3f02864c1be528da961010c9294))
+
 ## [0.37.3](https://github.com/djkix/kitchen-inventory/compare/v0.37.2...v0.37.3) (2026-11-09)
 
 
