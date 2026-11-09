@@ -700,7 +700,38 @@ describe('SuggestionsService (EF-26)', () => {
     expect(await db.suggestionBatch.count()).toBe(1);
   });
 
-  it('ne repropose pas une recette déjà conservée dans « Mes recettes » (D7)', async () => {
+  // D3 (2026-11-09) : la recette existant désormais avant le geste, « Je fais
+  // cette recette » doit la retrouver au lieu d'en créer une seconde — et
+  // `clientOpId` n'y suffit pas, il ne reconnaît que le même appel rejoué.
+  it('rend la recette déjà créée au lieu d’en faire une seconde, même sous un autre clientOpId', async () => {
+    const { service, db } = await createService();
+    const keeper = await seedUser(db);
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-reservoir.json'));
+    const first = await service.list(QUERY);
+    const cible = first.items[0]!;
+
+    const une = await service.keep({ suggestionId: cible.id, clientOpId: 'op-a' }, keeper);
+    const deux = await service.keep({ suggestionId: cible.id, clientOpId: 'op-b' }, keeper);
+
+    expect(deux.id).toBe(une.id);
+    expect(await db.recipe.count({ where: { title: cible.title } })).toBe(1);
+  });
+
+  /**
+   * Règle du propriétaire du 2026-11-09 : « ne mettre dans Mes recettes que les
+   * recettes étoilées ou réalisées, laisser les autres dans suggestion ». Une
+   * recette créée depuis une suggestion reste donc proposée ; c'est l'étoile ou
+   * la réalisation qui la retire du réservoir, et rien d'autre.
+   *
+   * Ce test disait l'inverse jusqu'au 2026-11-09 (« ne repropose pas une recette
+   * déjà conservée ») : le seul fait de créer la recette la retirait. Depuis que
+   * toute suggestion remontée devient une recette pour alimenter la base, ce
+   * critère aurait vidé le réservoir à la première fournée.
+   */
+  it('continue de proposer une recette créée mais ni étoilée ni réalisée, et l’écarte dès l’étoile', async () => {
     const { service, db } = await createService();
     const keeper = await seedUser(db);
     const locationId = await seedLocation(db);
@@ -710,11 +741,15 @@ describe('SuggestionsService (EF-26)', () => {
     const first = await service.list(QUERY);
     const garde = first.items[0]!;
 
-    await service.keep({ suggestionId: garde.id, clientOpId: 'op-keep-reservoir-01' }, keeper);
-    const second = await service.list(QUERY);
+    const recette = await service.keep({ suggestionId: garde.id, clientOpId: 'op-keep-reservoir-01' }, keeper);
+    const apresCreation = await service.list(QUERY);
+    expect(apresCreation.items.map((i) => i.title)).toContain(garde.title);
+    expect(apresCreation.items).toHaveLength(first.items.length);
 
-    expect(second.items.map((i) => i.title)).not.toContain(garde.title);
-    expect(second.items).toHaveLength(first.items.length - 1);
+    await db.recipe.update({ where: { id: recette.id }, data: { favorite: true } });
+    const apresEtoile = await service.list(QUERY);
+    expect(apresEtoile.items.map((i) => i.title)).not.toContain(garde.title);
+    expect(apresEtoile.items).toHaveLength(first.items.length - 1);
   });
 
   it('relance une recherche quand l’orientation change (B9)', async () => {

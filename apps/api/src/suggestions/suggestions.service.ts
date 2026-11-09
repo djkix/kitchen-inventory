@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
 import {
   classifyMatch,
   comparePoolEntries,
@@ -296,6 +297,7 @@ export class SuggestionsService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly settings: SettingsService,
     private readonly gemini: GeminiService,
+    private readonly logger: Logger,
   ) {}
 
   /**
@@ -403,6 +405,13 @@ export class SuggestionsService {
         try {
           const fetched = await this.fetchAndStore(signature, seeds, query, known.map((entry) => entry.recipe.title));
           fresh = new Set(await this.pool.ingest(fetched.recipes, fetched.model, fetched.webSearch));
+          // Alimente la base de recettes, sans faire attendre l'écran (D1, D7).
+          this.catalogue(fresh);
+          if (this.awaited) {
+            await this.awaited;
+            this.awaited = null;
+            entries = await this.readPool(query);
+          }
           // Relecture obligatoire, jamais la réponse brute du modèle : une recette
           // web dont la page n'existe pas a été jetée à l'ingestion (D4) et ne
           // doit à aucun moment atteindre l'écran.
@@ -587,7 +596,19 @@ export class SuggestionsService {
   private async readPool(query: SuggestionQuery): Promise<PoolRecipe[]> {
     const [entries, kept] = await Promise.all([
       this.pool.read(orientationFilter(query)),
-      this.prisma.recipe.findMany({ where: { source: { in: ['IMPORTED', 'GENERATED'] } }, select: { title: true, sourceUrl: true } }),
+      /*
+       * Écarté des suggestions : ce qui est **étoilé ou réalisé**, et cela seul
+       * (D2, 2026-11-09). Le critère portait sur la source — toute recette
+       * `IMPORTED`/`GENERATED` —, ce qui convenait tant qu'une recette n'existait
+       * qu'après le geste de conservation. Depuis que toute suggestion remontée
+       * devient une `Recipe` pour alimenter la base, ce critère aurait vidé le
+       * réservoir à la première fournée : plus une seule suggestion à l'écran, et
+       * un appel au modèle à chaque visite pour cause de plancher jamais atteint.
+       */
+      this.prisma.recipe.findMany({
+        where: { source: { in: ['IMPORTED', 'GENERATED'] }, OR: [{ favorite: true }, { logs: { some: {} } }] },
+        select: { title: true, sourceUrl: true },
+      }),
     ]);
     const keptUrls = new Set<string>();
     const keptIdentities = new Set<string>();
@@ -922,6 +943,91 @@ export class SuggestionsService {
    * avant l'écriture, pour la course concurrente que cette vérification
    * préalable laisse passer ; ce n'est qu'un filet, pas le chemin normal.
    */
+  /**
+   * Alimente « la base de données des recettes » (demande du propriétaire,
+   * 2026-11-09) : chaque suggestion qui vient d'entrer au réservoir devient
+   * aussi une `Recipe`, avec ses ingrédients rapprochés du catalogue.
+   *
+   * **Hors du chemin de la réponse**, délibérément : chaque création rapproche
+   * tous les libellés d'une recette contre tout le catalogue `Product` par
+   * `pg_trgm`, et l'écran des suggestions vient de passer de 70 à 20 secondes —
+   * on ne lui réajoute pas une centaine de requêtes. L'appel n'est pas attendu ;
+   * un échec est journalisé et le rattrapage de `tools/` le reprendra (D7).
+   *
+   * Ces recettes n'apparaissent pas pour autant dans « Mes recettes » : cet
+   * écran ne liste que l'étoilé ou le réalisé. Elles peuplent la base, elles ne
+   * remplissent pas la bibliothèque.
+   */
+  private catalogue(identities: ReadonlySet<string>): void {
+    if (identities.size === 0) return;
+    const travail = (async () => {
+      for (const identity of identities) {
+        try {
+          const entry = await this.pool.findByIdentity(identity);
+          // Les compositions seules : `buildCreateInput` fait réécrire une
+          // recette web par le modèle, ce qui coûte des secondes et du quota.
+          // Celles-là attendent le geste, qui paie cette réécriture sciemment.
+          if (!entry || entry.recipe.provenance !== 'ai') continue;
+          await this.createOnce(entry, null, null);
+        } catch (error) {
+          this.logger.warn({ identity, err: error }, 'Recette non créée depuis la suggestion ; le rattrapage la reprendra');
+        }
+      }
+    })();
+    this.cataloguing = travail;
+    // En test, l'écriture est attendue : sinon elle retombe au milieu du test
+    // suivant, qui partage la même application et la même base. En service, la
+    // requête ne l'attend jamais — c'est tout l'objet de cette méthode.
+    if (process.env.NODE_ENV === 'test') this.awaited = travail;
+  }
+
+  /** Présent pour que `list` puisse attendre l'alimentation en test, et elle seule. */
+  private awaited: Promise<void> | null = null;
+
+  /**
+   * Dernière alimentation de la base lancée, pour que les tests puissent
+   * l'attendre. La requête, elle, ne l'attend jamais : c'est tout l'objet de
+   * `catalogue`. Sans cette prise, un test verrait ses écritures arriver au
+   * milieu de l'assertion suivante.
+   */
+  cataloguing: Promise<void> = Promise.resolve();
+
+  /**
+   * Créations en cours, par identité de suggestion.
+   *
+   * Deux chemins créent la même recette : l'alimentation de la base, en
+   * arrière-plan, et le geste de l'utilisateur. Chacun vérifie d'abord qu'elle
+   * n'existe pas — mais entre cette lecture et l'écriture, l'autre peut avoir
+   * écrit. Un test l'a produit du premier coup le 2026-11-09 : deux recettes
+   * pour une suggestion, exactement l'anti-but du document.
+   *
+   * L'API tourne en un seul processus et elle est le seul écrivain : une carte
+   * des créations en vol suffit, là où la garantie en base demanderait un index
+   * unique, donc une migration. Le second appelant attend le premier et reçoit
+   * sa recette.
+   */
+  private readonly creations = new Map<string, Promise<RecipeDto>>();
+
+  /** Crée la recette d'une suggestion, ou rend celle qu'un autre chemin est en train de créer. */
+  private async createOnce(entry: PoolRecipe, clientOpId: string | null, userId: string | null): Promise<RecipeDto> {
+    const enVol = this.creations.get(entry.identity);
+    if (enVol) return enVol;
+    const creation = (async () => {
+      const deja = await this.recipes.findBySuggestion(entry.recipe.title, entry.recipe.sourceUrl);
+      if (deja) return deja;
+      const createInput = await this.buildCreateInput(entry);
+      const source = entry.recipe.provenance === 'web' ? 'IMPORTED' : 'GENERATED';
+      const sourceUrl = entry.recipe.provenance === 'web' ? entry.recipe.sourceUrl : null;
+      return this.recipes.createFromSuggestion(createInput, source, sourceUrl, clientOpId, userId);
+    })();
+    this.creations.set(entry.identity, creation);
+    try {
+      return await creation;
+    } finally {
+      this.creations.delete(entry.identity);
+    }
+  }
+
   async keep(input: KeepSuggestionInput, user: RequestUser): Promise<RecipeDto> {
     if (input.clientOpId) {
       const existing = await this.recipes.findByClientOpId(input.clientOpId);
@@ -930,12 +1036,18 @@ export class SuggestionsService {
 
     const entry = await this.pool.findByIdentity(input.suggestionId);
     if (!entry) throw ApiError.notFound('Suggestion introuvable');
-    const suggestion = entry.recipe;
 
-    const createInput = await this.buildCreateInput(entry);
-    const source = suggestion.provenance === 'web' ? 'IMPORTED' : 'GENERATED';
-    const sourceUrl = suggestion.provenance === 'web' ? suggestion.sourceUrl : null;
-    return this.recipes.createFromSuggestion(createInput, source, sourceUrl, input.clientOpId ?? null, user.id);
+    /*
+     * Déjà créée ? Elle est rendue telle quelle (D3, 2026-11-09).
+     *
+     * Depuis que toute suggestion remontée devient une `Recipe` pour alimenter
+     * la base, la recette existe presque toujours avant le geste : sans cette
+     * recherche, « Je fais cette recette » en créerait une seconde. L'appariement
+     * est celui de `readPool` — titre et URL, c'est-à-dire l'identité de
+     * suggestion —, et non `clientOpId`, qui ne reconnaît que le même appel
+     * rejoué.
+     */
+    return this.createOnce(entry, input.clientOpId ?? null, user.id);
   }
 
   /**

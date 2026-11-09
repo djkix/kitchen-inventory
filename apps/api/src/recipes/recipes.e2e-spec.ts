@@ -760,6 +760,25 @@ describe('recettes (EF-17, EF-21)', () => {
       await agent.get('/api/v1/recipes?limit=50').expect(200);
       expect(Date.now() - started).toBeLessThan(2000);
     });
+    /**
+     * Règle du propriétaire du 2026-11-09 : la bibliothèque ne liste que ce qui
+     * est étoilé ou réalisé, le reste vit dans Suggestions. Le filtre ne vise que
+     * les recettes issues d'une suggestion — une recette du foyer y a sa place du
+     * seul fait d'avoir été saisie.
+     */
+    it('ne liste une recette issue d’une suggestion qu’une fois étoilée ou réalisée', async () => {
+      const proposee = await createRecipe(agent, 'Proposée par le modèle');
+      await t.prisma.recipe.update({ where: { id: proposee.id }, data: { source: 'GENERATED' } });
+      const maison = await createRecipe(agent, 'Saisie par le foyer');
+
+      const sans = (await agent.get('/api/v1/recipes').expect(200)).body;
+      expect(sans.items.map((r: { id: string }) => r.id)).toEqual([maison.id]);
+
+      await t.prisma.recipe.update({ where: { id: proposee.id }, data: { favorite: true } });
+      const avec = (await agent.get('/api/v1/recipes').expect(200)).body;
+      expect(avec.items.map((r: { id: string }) => r.id).sort()).toEqual([maison.id, proposee.id].sort());
+    });
+
   });
 });
 

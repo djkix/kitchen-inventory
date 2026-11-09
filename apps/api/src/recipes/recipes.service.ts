@@ -52,6 +52,27 @@ export class RecipesService {
   async list(query: RecipeListQuery): Promise<Paginated<RecipeSummaryDto>> {
     const where: Prisma.RecipeWhereInput = {
       archivedAt: query.archived ? { not: null } : null,
+      /*
+       * « Mes recettes » ne liste que ce qui est **étoilé ou réalisé** (règle du
+       * propriétaire, 2026-11-09 : « ne mettre que les recettes que j'ai indiqué
+       * avec une étoile ou une recette que j'ai réalisée, laisser les autres dans
+       * suggestion »).
+       *
+       * Toute suggestion remontée devient une `Recipe` pour alimenter la base,
+       * mais la bibliothèque n'est pas le catalogue : elle montre ce que le foyer
+       * a choisi. Le critère est posé **en base**, avant le calcul de couverture,
+       * qui rapproche chaque ingrédient de tout le catalogue `Product` — sur
+       * plusieurs centaines de recettes il ne tiendrait pas.
+       *
+       * La vue des archivées n'est pas filtrée ainsi : on y va précisément pour
+       * retrouver ce qu'on a mis de côté, étoilé ou non.
+       *
+       * Le filtre ne vise que ce qui **vient d'une suggestion** : une recette que
+       * le foyer a saisie ou importée lui-même n'a pas à mériter sa place, il l'a
+       * voulue en la créant. C'est la différence entre « proposé » et « choisi »,
+       * et `source` la porte déjà.
+       */
+      ...(query.archived ? {} : { OR: [{ source: 'HOUSEHOLD' }, { favorite: true }, { logs: { some: {} } }] }),
       ...(query.favorite ? { favorite: true } : {}),
       ...(query.difficulty?.length ? { difficulty: { in: query.difficulty } } : {}),
       ...(query.cuisine?.length ? { cuisineId: { in: query.cuisine } } : {}),
@@ -140,6 +161,24 @@ export class RecipesService {
    */
   async findByClientOpId(clientOpId: string): Promise<RecipeDto | null> {
     const existing = await this.prisma.recipe.findUnique({ where: { clientOpId }, include: RECIPE_INCLUDE });
+    return existing ? this.toDto(existing) : null;
+  }
+
+  /**
+   * Recette déjà créée pour une suggestion donnée, ou `null` (D3, 2026-11-09).
+   *
+   * L'appariement est celui que `SuggestionsService.readPool` emploie pour
+   * écarter du réservoir : l'URL source quand il y en a une, le titre sinon.
+   * C'est l'identité de suggestion, sans colonne ajoutée — le réservoir
+   * dédoublonne déjà dessus, deux lignes ne peuvent pas la partager.
+   */
+  async findBySuggestion(title: string, sourceUrl: string | null): Promise<RecipeDto | null> {
+    const existing = sourceUrl
+      ? await this.prisma.recipe.findFirst({ where: { sourceUrl, source: { in: ['IMPORTED', 'GENERATED'] } }, include: RECIPE_INCLUDE })
+      : await this.prisma.recipe.findFirst({
+          where: { title, sourceUrl: null, source: { in: ['IMPORTED', 'GENERATED'] } },
+          include: RECIPE_INCLUDE,
+        });
     return existing ? this.toDto(existing) : null;
   }
 
