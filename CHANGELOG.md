@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.39.0](https://github.com/djkix/kitchen-inventory/compare/v0.38.1...v0.39.0) (2026-11-09)
+
+
+### Features
+
+* **suggestions:** proposer d'autres recettes après une demande parlée ([ed0b911](https://github.com/djkix/kitchen-inventory/commit/ed0b9117c03cc0b64d6088770d3db8fe1843fc7f))
+
 ## [0.38.1](https://github.com/djkix/kitchen-inventory/compare/v0.38.0...v0.38.1) (2026-11-09)
 
 
