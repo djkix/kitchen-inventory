@@ -34,7 +34,7 @@ import type { PageRecipe } from './recipe-page.fetcher.js';
 import { PRICES_USD_PER_MTOK } from '../recognition/providers/gemini.provider.js';
 import { buildSuggestionPrompt } from './prompt.js';
 import { SuggestionsModule } from './suggestions.module.js';
-import { SuggestionsService } from './suggestions.service.js';
+import { SUGGESTION_MODEL_BATCH, SUGGESTION_REQUEST_BUFFER, SuggestionsService } from './suggestions.service.js';
 
 const ADMIN = { email: 'proprietaire@example.org', name: 'Camille' };
 
@@ -403,7 +403,7 @@ describe('SuggestionsService (EF-26)', () => {
     // `web` : rien à vérifier, donc aucune requête de page dans ce décompte.
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-reservoir.json'));
     const first = await service.list(QUERY);
-    expect(first.items.length).toBeGreaterThanOrEqual(6);
+    expect(first.items.length).toBeGreaterThanOrEqual(SUGGESTION_MODEL_BATCH);
 
     // Le lot de courgettes est consommé jusqu'au bout : la pioche de départ
     // change, et avec elle l'ancienne signature de fournée.
@@ -412,7 +412,7 @@ describe('SuggestionsService (EF-26)', () => {
     const second = await service.list(QUERY);
 
     expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(1);
-    expect(second.items.length).toBeGreaterThanOrEqual(6);
+    expect(second.items.length).toBeGreaterThanOrEqual(SUGGESTION_MODEL_BATCH);
     expect(second.fromCache).toBe(true);
     // Le quota journalier se compte sur ce registre : il ne doit pas bouger.
     expect(await db.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION' } })).toBe(1);
@@ -611,15 +611,46 @@ describe('SuggestionsService (EF-26)', () => {
     expect(http.calls).toHaveLength(0);
   });
 
-  it('fait entrer au réservoir tout ce que le modèle a rendu, pas seulement de quoi remplir l’écran', async () => {
-    // Seize recettes sont demandées et facturées ; `rebalance` en gardait
-    // douze et les quatre autres étaient perdues. « Pas d'âge max, tu logges
-    // tout » : rien de payé et de valide ne doit être jeté.
+  /**
+   * Décision du propriétaire le 2026-11-09, « pas la peine d'une recette web » :
+   * la recherche éteinte, une recette qui se dit trouvée sur un site est écartée
+   * sans qu'on aille lire sa page. Le modèle n'est pas censé en proposer dans ce
+   * mode, mais rien ne l'en empêche — et sur une fournée de trois, aller chercher
+   * des pages pour les jeter ensuite pouvait ne rien laisser à l'écran.
+   */
+  it('écarte une recette qui se dit « web » quand la recherche est éteinte, sans lire sa page', async () => {
     const { service, db } = await createService();
     const locationId = await seedLocation(db);
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
 
-    const rendues = Array.from({ length: 16 }, (_, index) => composition(index));
+    const web = { ...composition(99), title: 'Prétendue trouvée en ligne', provenance: 'web' as const, sourceUrl: 'https://exemple.test/recette' };
+    http.on('generateContent', () =>
+      json({
+        candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify({ recipes: [web, composition(1), composition(2)] }) }] }, finishReason: 'STOP' }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10 },
+      }),
+    );
+
+    const result = await service.list(QUERY);
+
+    // Seules les compositions sont retenues, et aucune page n'a été demandée.
+    expect(await db.suggestionPoolRecipe.count()).toBe(2);
+    expect(result.items.map((item) => item.title)).not.toContain('Prétendue trouvée en ligne');
+    expect(http.calls.filter((c) => c.url.includes('exemple.test'))).toHaveLength(0);
+  });
+
+  it('fait entrer au réservoir tout ce que le modèle a rendu, pas seulement de quoi remplir l’écran', async () => {
+    // `rebalance` ne gardait que de quoi remplir l'écran et perdait le reste.
+    // « Pas d'âge max, tu logges tout » : rien de payé et de valide ne doit
+    // être jeté. Le fournisseur tronque au nombre demandé (son propre test),
+    // donc ce qui entre au réservoir est ce qu'il a rendu — tout, pas la seule
+    // page affichée.
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+
+    const demandees = SUGGESTION_MODEL_BATCH + SUGGESTION_REQUEST_BUFFER;
+    const rendues = Array.from({ length: demandees }, (_, index) => composition(index));
     http.on('generateContent', () =>
       json({
         candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify({ recipes: rendues }) }] }, finishReason: 'STOP' }],
@@ -629,9 +660,10 @@ describe('SuggestionsService (EF-26)', () => {
 
     const result = await service.list(QUERY);
 
-    expect(await db.suggestionPoolRecipe.count()).toBe(16);
-    // L'écran, lui, reste borné à une page.
-    expect(result.items).toHaveLength(12);
+    expect(await db.suggestionPoolRecipe.count()).toBe(demandees);
+    // L'écran est borné par la page rendue, plus large que la fournée demandée
+    // depuis le 2026-11-09 : il montre donc tout ce qui est arrivé.
+    expect(result.items).toHaveLength(demandees);
   });
 
   it('ne montre jamais une recette web dont la page n’existe pas, même fraîchement rendue', async () => {
@@ -1450,13 +1482,13 @@ describe('SuggestionsService (EF-26)', () => {
 
       const query: SuggestionQuery = { refresh: false, ingredients: dictated('merguez, pommes de terre') };
       const first = await service.list(query);
-      expect(first.items.length).toBeGreaterThanOrEqual(6);
+      expect(first.items.length).toBeGreaterThanOrEqual(SUGGESTION_MODEL_BATCH);
       expect(first.fromCache).toBe(false);
 
       const second = await service.list(query);
       expect(http.calls.filter((c) => c.url.includes('generateContent'))).toHaveLength(1);
       expect(second.fromCache).toBe(true);
-      expect(second.items.length).toBeGreaterThanOrEqual(6);
+      expect(second.items.length).toBeGreaterThanOrEqual(SUGGESTION_MODEL_BATCH);
       expect(second.items.map((item) => item.title)).not.toContain(SANS_MERGUEZ.title);
       expect(await db.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION' } })).toBe(1);
     });

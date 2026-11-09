@@ -76,7 +76,46 @@ export const SUGGESTION_BATCH_SIZE = SUGGESTION_PAGE_SIZE;
  * ce risque. Tout ce qui revient entre au réservoir : ce lot ne jette plus
  * rien de ce qui a été payé (« pas d'âge max, tu logges tout »).
  */
-export const SUGGESTION_REQUEST_BUFFER = 4;
+export const SUGGESTION_REQUEST_BUFFER = 1;
+
+/**
+ * Nombre de recettes demandées au modèle en un appel, distinct de la page
+ * rendue (2026-11-09).
+ *
+ * Les deux étaient confondus : l'écran montrant douze recettes, l'application
+ * en réclamait seize d'un coup — douze plus la marge — chacune avec ses
+ * ingrédients, leurs quantités et ses étapes en JSON strict. Mesuré sur le
+ * serveur de production : 7 879 jetons de sortie et **70 secondes** pour une
+ * telle fournée, contre 21 secondes pour six recettes. La durée suit le nombre
+ * de recettes, c'est là qu'était l'attente, pas dans le réseau.
+ *
+ * Le réservoir étant permanent (D8), rien n'oblige à tout obtenir d'un appel :
+ * deux appels courts remplissent autant qu'un long, se font refuser moins
+ * souvent — un 503 arrive d'autant plus vite que la requête est longue — et
+ * laissent l'écran répondre en une demi-minute. La page rendue reste de douze :
+ * elle se remplit au fil des visites et du bouton « Chercher de nouvelles
+ * recettes ».
+ */
+export const SUGGESTION_MODEL_BATCH = 3;
+
+/**
+ * Fournée demandée quand la **recherche web** est active : l'ancienne taille.
+ *
+ * Là-bas, tout ce qui revient n'est pas gardé : le fournisseur tronque au
+ * nombre demandé dans l'ordre brut du modèle, qui place ses recettes web en
+ * tête, et une recette web n'est retenue que si sa page a pu être lue. Mesuré
+ * sur le scénario figé : quatre demandées n'en laissent que deux. Demander peu
+ * n'a de sens que là où rien ne se perd en chemin, c'est-à-dire en composition
+ * pure — le mode en service, où les 333 lignes du réservoir de production sont
+ * toutes `ai`.
+ */
+export const SUGGESTION_MODEL_BATCH_WEB = 12;
+
+/** Nombre demandé au modèle pour un appel, selon que la recherche web est active. */
+export function modelBatch(webSearch: boolean): number {
+  return (webSearch ? SUGGESTION_MODEL_BATCH_WEB : SUGGESTION_MODEL_BATCH) + SUGGESTION_REQUEST_BUFFER;
+}
+
 
 /**
  * Nombre de lignes du réservoir sur lesquelles la couverture est réellement
@@ -110,7 +149,18 @@ const SUGGESTION_RANKING_WINDOW_FACTOR = 3;
  * fournée. Au-dessus, rien n'est demandé à Gemini — c'est tout l'objet du
  * réservoir.
  */
-const SUGGESTION_POOL_FLOOR = 6;
+/**
+ * Sous ce nombre de recettes connues pour l'orientation, le modèle est rappelé
+ * — une fois par jour et par orientation, le reste du temps c'est le bouton
+ * « Chercher de nouvelles recettes » qui décide.
+ *
+ * Aligné sur `SUGGESTION_MODEL_BATCH` le 2026-11-09 : à six, un appel qui
+ * rend trois recettes laissait le réservoir éternellement sous le plancher,
+ * et seule la trace « déjà demandée aujourd'hui » empêchait de rappeler le
+ * modèle à chaque visite. Un plancher qu'un appel ne peut pas franchir n'est
+ * pas un plancher.
+ */
+const SUGGESTION_POOL_FLOOR = SUGGESTION_MODEL_BATCH;
 
 /**
  * Clé d'orientation d'une `SuggestionBatch` (D11, 2026-10-15) : la question
@@ -351,7 +401,7 @@ export class SuggestionsService {
         const known = query.refresh ? await this.pool.read(orientationFilter(query)) : entries;
         try {
           const fetched = await this.fetchAndStore(signature, seeds, query, known.map((entry) => entry.recipe.title));
-          fresh = new Set(await this.pool.ingest(fetched.recipes, fetched.model));
+          fresh = new Set(await this.pool.ingest(fetched.recipes, fetched.model, fetched.webSearch));
           // Relecture obligatoire, jamais la réponse brute du modèle : une recette
           // web dont la page n'existe pas a été jetée à l'ingestion (D4) et ne
           // doit à aucun moment atteindre l'écran.
@@ -416,12 +466,13 @@ export class SuggestionsService {
 
     const started = Date.now();
     let output: VoiceSuggestionOutput;
+    // Lus avant l'appel : le nombre demandé en dépend, et l'ingestion aussi.
+    const settings = await this.settings.get();
     try {
-      const settings = await this.settings.get();
       ({ result: output } = await this.gemini.call((model) =>
         this.provider.suggestFromVoice({
           seeds: seeds.map((s) => s.name),
-          count: SUGGESTION_BATCH_SIZE + SUGGESTION_REQUEST_BUFFER,
+          count: modelBatch(settings.suggestionWebSearch),
           audio,
           mimeType,
           model,
@@ -439,7 +490,7 @@ export class SuggestionsService {
     // Avant tout verdict sur la lecture : l'appel est payé, ses recettes
     // entrent au réservoir même si la phrase n'a pas été comprise (D5).
     const identities = new Set(output.recipes.map((recipe) => suggestionIdentity(recipe)));
-    await this.pool.ingest(output.recipes, output.model);
+    await this.pool.ingest(output.recipes, output.model, settings.suggestionWebSearch);
 
     if (output.heard.ingredients.length === 0 && output.heard.orientation === null) {
       // D9 : un refus se dit. Le modèle a répondu, mais n'a rien tiré de
@@ -622,14 +673,16 @@ export class SuggestionsService {
     seeds: readonly { productId: string; name: string }[],
     query: SuggestionQuery,
     knownTitles: readonly string[],
-  ): Promise<{ recipes: ModelRecipe[]; model: string }> {
+  ): Promise<{ recipes: ModelRecipe[]; model: string; webSearch: boolean }> {
+    // Lus avant de composer la requête : le nombre demandé en dépend.
+    const settings = await this.settings.get();
     const request: SuggestionRequest = {
       seeds: seeds.map((s) => s.name),
       region: query.region,
       maxMinutes: query.maxMinutes,
       difficulty: query.difficulty,
       dishType: query.dishType,
-      count: SUGGESTION_BATCH_SIZE + SUGGESTION_REQUEST_BUFFER,
+      count: modelBatch(settings.suggestionWebSearch),
       knownTitles,
       // Imposés au modèle (D1), en plus des graines tirées du stock (D4) : le
       // prompt distingue les deux, l'un s'ajoute à l'autre.
@@ -639,7 +692,6 @@ export class SuggestionsService {
     const started = Date.now();
     let output: SuggestionOutput;
     try {
-      const settings = await this.settings.get();
       ({ result: output } = await this.gemini.call((model) => this.provider.suggest({ ...request, model, webSearch: settings.suggestionWebSearch })));
     } catch (error) {
       // Rien n'est parti : l'appelant se replie sur le réservoir.
@@ -660,8 +712,9 @@ export class SuggestionsService {
     await this.logAttempts(output.attempts, true);
 
     // Tout ce que le modèle a rendu, et pas seulement de quoi remplir un
-    // écran : seize recettes sont demandées et facturées, les seize entrent au
-    // réservoir. Le `rebalance` qui en jetait quatre datait du temps où la
+    // écran : ce qui est demandé est facturé, et tout entre au réservoir —
+    // sauf une recette qui se dit « web » quand la recherche est éteinte,
+    // écartée à l'ingestion (2026-11-09). Le `rebalance` qui en jetait quatre datait du temps où la
     // fournée ÉTAIT l'écran ; l'ordre d'affichage vient désormais de
     // `comparePoolEntries` à la lecture, et « pas d'âge max, tu logges tout »
     // interdit de jeter du contenu payé (revue finale du 2026-10-15).
@@ -672,7 +725,7 @@ export class SuggestionsService {
       create: { signature, model: output.model, costCents },
       update: { model: output.model, costCents, createdAt: new Date() },
     });
-    return { recipes, model: output.model };
+    return { recipes, model: output.model, webSearch: settings.suggestionWebSearch };
   }
 
   /**

@@ -111,6 +111,14 @@ describe('scénario de réussite figé des suggestions', () => {
         // changerait un jour ne doit pas faire dériver ce scénario en silence.
         RECIPE_SUGGESTION_DAILY_QUOTA: '10',
         VISION_MONTHLY_CAP_CENTS: '0',
+        // Recherche web active, car c'est le mode de la fixture : elle rend huit
+        // recettes `web` avant ses quatre compositions. Elle était implicitement
+        // éteinte, ce qui ne se voyait pas tant que la fournée demandée dépassait
+        // les douze recettes rendues. Depuis le 2026-11-09, la fournée est de
+        // trois en composition pure — et une recette qui se dit « web » y est
+        // écartée sans qu'on aille lire sa page : ce scénario n'avait alors plus
+        // rien à montrer. Le mode et la fixture doivent se correspondre.
+        SUGGESTION_WEB_SEARCH: 'true',
       },
       http.client,
     );

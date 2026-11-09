@@ -173,6 +173,21 @@ Google) ; un modèle **arrêté** fait **basculer** sur le suivant — qu'il soi
 vise pas un modèle en particulier pose une **pause commune**, de la durée
 annoncée, suspendant tous les appels.
 
+Le modèle compose **trois recettes par appel**, et non seize. L'écran en
+demandait douze, l'application en réclamait seize d'un coup, chacune avec ses
+ingrédients, leurs quantités et ses étapes : 7 879 jetons de réponse et
+**70 secondes** mesurées en service, contre une vingtaine pour trois. Le
+réservoir étant permanent, deux appels courts valent un long, se font refuser
+moins souvent, et le bouton **« Chercher de nouvelles recettes »** en demande
+trois de plus quand vous le voulez. La **recherche web** active, la fournée
+reste de douze : là-bas une recette n'est gardée que si sa page a pu être lue,
+et en demander trois n'en laisserait qu'une ou deux.
+
+Recherche web éteinte — le réglage par défaut —, une recette que le modèle
+prétendrait **trouvée sur un site est écartée** sans qu'on aille lire sa page.
+Rien ne garantit qu'il respecte la consigne de ne composer que lui-même, et
+aller chercher des pages pour les jeter ensuite vidait la fournée.
+
 Un modèle que Google a **retiré** quitte la rotation. Il reste listé par
 l'API, annoncé capable de répondre, mais l'appel rend un 404 « no longer
 available to new users » — ce fut le cas de `gemini-2.5-flash` et
@@ -964,6 +979,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.37.6 | 2026-11-09 | Trois recettes par appel au lieu de seize : la recherche aboutit en vingt secondes, et un bouton en demande trois de plus |
 | 0.37.5 | 2026-11-09 | Un modèle retiré par Google quitte la rotation au lieu de faire échouer la demande |
 | 0.37.4 | 2026-11-09 | Deux minutes pour répondre au lieu de 45 secondes : une demande de recettes n'est plus coupée avant la réponse de Gemini, et les appels sans réponse se comptent dans Réglages |
 | 0.37.3 | 2026-11-09 | Le conteneur de sauvegarde n'est plus affiché « unhealthy » à tort : il héritait de la sonde de l'API |

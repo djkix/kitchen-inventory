@@ -78,7 +78,17 @@ export class SuggestionPoolService {
    * l'appelant en a besoin pour afficher en tête ce que la relance vient de
    * rapporter.
    */
-  async ingest(recipes: readonly ModelRecipe[], model: string): Promise<string[]> {
+  /**
+   * `allowWeb` : la recherche web est-elle active ? Éteinte, une recette qui se
+   * dit trouvée sur un site est **écartée sans aller lire sa page** (décision du
+   * propriétaire, 2026-11-09 : « pas la peine d'une recette web »).
+   *
+   * Le modèle n'est pas censé en proposer dans ce mode — la consigne sans
+   * recherche le lui interdit — mais rien ne l'en empêche, et la seule issue
+   * était alors d'aller chercher une page pour la jeter ensuite. Sur une fournée
+   * de trois, cela pouvait ne rien laisser à l'écran.
+   */
+  async ingest(recipes: readonly ModelRecipe[], model: string, allowWeb = true): Promise<string[]> {
     const identities = recipes.map((recipe) => suggestionIdentity(recipe));
     const known = await this.prisma.suggestionPoolRecipe.findMany({ where: { identity: { in: identities } }, select: { identity: true, verifiedAt: true } });
     const existing = new Set(known.map((row) => row.identity));
@@ -101,7 +111,7 @@ export class SuggestionPoolService {
     const unique = recipes
       .map((recipe, index) => ({ recipe, identity: identities[index] as string }))
       .filter((entry, index) => identities.indexOf(entry.identity) === index);
-    const written = await Promise.all(unique.map((entry) => this.ingestOne(entry.recipe, entry.identity, model, alreadyRead, now)));
+    const written = await Promise.all(unique.map((entry) => this.ingestOne(entry.recipe, entry.identity, model, alreadyRead, now, allowWeb)));
     return unique.filter((entry, index) => written[index] && !existing.has(entry.identity)).map((entry) => entry.identity);
   }
 
@@ -136,7 +146,11 @@ export class SuggestionPoolService {
     return row ? toPoolRecipe(row) : null;
   }
 
-  private async ingestOne(recipe: ModelRecipe, identity: string, model: string, alreadyRead: ReadonlySet<string>, now: Date): Promise<boolean> {
+  private async ingestOne(recipe: ModelRecipe, identity: string, model: string, alreadyRead: ReadonlySet<string>, now: Date, allowWeb = true): Promise<boolean> {
+    if (recipe.provenance === 'web' && !allowWeb) {
+      this.logger.warn({ sourceUrl: recipe.sourceUrl }, 'Recette web écartée : recherche web éteinte');
+      return false;
+    }
     let content: PageContent | null = null;
     if (recipe.provenance === 'web' && !alreadyRead.has(identity)) {
       try {
