@@ -2174,3 +2174,59 @@ describe('POST /suggestions/voice (EF-25, EF-26, 2026-10-21)', () => {
     expect(http.calls).toHaveLength(0);
   });
 });
+
+/**
+ * Rattrapage des recettes du réservoir derrière un bouton (D6). La boucle
+ * elle-même est éprouvée plus haut (`catalogueAll`) ; ici, seul le chemin HTTP :
+ * qui a le droit de le lancer, et ce que l'écran lit pendant et après.
+ */
+describe('GET/POST /suggestions/catalogue (D6)', () => {
+  let t: TestApp;
+  let agent: TestAgent;
+
+  beforeAll(async () => {
+    t = await createTestApp({ VISION_PROVIDER: 'gemini', VISION_API_KEY: 'AIza-test' }, new FakeHttp().client);
+  });
+  beforeEach(async () => {
+    await t.reset();
+    agent = t.agent();
+    await t.signIn(agent, ADMIN);
+  });
+  afterAll(() => t.close());
+
+  it('rend un état au repos, puis rattrape les compositions du réservoir', async () => {
+    const repos = await agent.get('/api/v1/suggestions/catalogue').expect(200);
+    expect(repos.body).toMatchObject({ running: false, crees: 0, finishedAt: null });
+
+    await t.prisma.suggestionPoolRecipe.create({
+      data: {
+        identity: suggestionIdentity(COMPOSITION_VOCALE),
+        payload: COMPOSITION_VOCALE as unknown as Prisma.InputJsonValue,
+        provenance: COMPOSITION_VOCALE.provenance,
+        dishType: COMPOSITION_VOCALE.dishType,
+        sourceUrl: COMPOSITION_VOCALE.sourceUrl,
+        verifiedAt: null,
+        pageRecipe: Prisma.DbNull,
+        pageText: null,
+        model: 'test-model',
+      },
+    });
+
+    const started = await agent.post('/api/v1/suggestions/catalogue').expect(202);
+    expect(started.body.running).toBe(true);
+
+    await t.app.get(SuggestionsService).catalogueRun;
+    const fini = await agent.get('/api/v1/suggestions/catalogue').expect(200);
+    expect(fini.body).toMatchObject({ running: false, crees: 1, total: 1, done: 1 });
+    expect(fini.body.finishedAt).not.toBeNull();
+    expect(await t.prisma.recipe.count()).toBe(1);
+  });
+
+  it('réservé aux administrateurs, mais l’état est lisible par tous', async () => {
+    const membre = t.agent();
+    await t.addMember(agent, { email: 'membre@example.org', name: 'Membre' });
+    await t.signIn(membre, { email: 'membre@example.org', name: 'Membre' });
+    await membre.get('/api/v1/suggestions/catalogue').expect(200);
+    await membre.post('/api/v1/suggestions/catalogue').expect(403);
+  });
+});

@@ -183,8 +183,10 @@ Ce qui est étoilé ou réalisé cesse d'être proposé ; le reste continue de l
 Une recette que vous avez saisie vous-même figure dans la bibliothèque sans
 condition. Les recettes du web font exception : leur conversion fait réécrire la
 page par le modèle, elle attend donc le geste. Les recettes déjà au réservoir avant
-cette version ne sont pas encore reprises : leur rattrapage attend son
-déclencheur (voir la spécification du 2026-11-09).
+cette version sont reprises par le bouton **« Rattraper »** de *Réglages ›
+Reconnaissance › Recettes du réservoir* : il enregistre en base les compositions
+déjà proposées, sans rappeler le modèle, et peut être rejoué sans risque — rien
+n'est créé deux fois.
 
 Sous les recettes d'une **demande parlée**, un bouton **« Proposer d'autres
 recettes »** en redemande sans avoir à reparler. L'enregistrement n'étant
@@ -1009,6 +1011,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.40.1 | 2026-11-10 | Un bouton de Réglages enregistre en base les recettes déjà proposées avant la 0.40.0 |
 | 0.40.0 | 2026-11-09 | Les recettes proposées alimentent la base, et « Mes recettes » ne garde que les étoilées ou réalisées |
 | 0.39.0 | 2026-11-09 | Un bouton sous les recettes d'une demande parlée en propose d'autres, sans avoir à reparler |
 | 0.38.1 | 2026-11-09 | Les modèles Flash-Lite sont essayés en premier : ce sont ceux qui répondent, et la recherche aboutit en quelques secondes |

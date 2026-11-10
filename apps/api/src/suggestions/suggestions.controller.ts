@@ -5,6 +5,7 @@ import {
   keepSuggestionSchema,
   suggestionQuerySchema,
   VOICE_MAX_BYTES,
+  type CatalogueStatus,
   type KeepSuggestionInput,
   type RecipeDto,
   type SuggestionBatchDto,
@@ -14,7 +15,7 @@ import {
 import { aiRequestField } from '../ai-requests/ai-request-field.js';
 import { DeferralService } from '../ai-requests/deferral.service.js';
 import { ApiError } from '../common/api-error.js';
-import { CurrentUser, type RequestUser } from '../auth/request-user.js';
+import { AdminOnly, CurrentUser, type RequestUser } from '../auth/request-user.js';
 import { ZodBody, ZodQuery } from '../common/zod-validation.pipe.js';
 import { SuggestionsService } from './suggestions.service.js';
 
@@ -116,6 +117,23 @@ export class SuggestionsController implements OnModuleInit {
       () => this.suggestions.listFromVoice(file.buffer, file.mimetype),
       (batch) => batch.items.length,
     );
+  }
+
+  /**
+   * Rattrapage des recettes du réservoir (D6), derrière le bouton de
+   * Réglages › Recettes. Le passage dure, donc le serveur rend la main tout de
+   * suite (202) et l'écran suit par `GET`.
+   */
+  @Get('catalogue')
+  catalogueStatus(): CatalogueStatus {
+    return this.suggestions.readCatalogueStatus();
+  }
+
+  @Post('catalogue')
+  @HttpCode(202)
+  @AdminOnly()
+  startCatalogue(): CatalogueStatus {
+    return this.suggestions.startCatalogueAll();
   }
 
   @Post('keep')

@@ -20,6 +20,7 @@ import {
   type RecipeDto,
   type RecipeRewrite,
   type StockSnapshot,
+  type CatalogueStatus,
   type SuggestionBatchDto,
   type SuggestionDto,
   type SuggestionIngredientDto,
@@ -1014,6 +1015,42 @@ export class SuggestionsService {
       onProgress?.(index + 1, entries.length);
     }
     return { crees, deja, ignores };
+  }
+
+  /**
+   * Le rattrapage derrière un bouton (Réglages › Recettes), sur le modèle de
+   * celui des repères nutritionnels : l'état vit en mémoire, pas en base — un
+   * passage interrompu par un redémarrage n'a rien à reprendre, puisqu'une
+   * relance ne considère de toute façon que les suggestions encore sans
+   * recette. Un seul passage à la fois.
+   */
+  private catalogueStatus: CatalogueStatus = { running: false, done: 0, total: 0, crees: 0, deja: 0, ignores: 0, finishedAt: null };
+
+  readCatalogueStatus(): CatalogueStatus {
+    return this.catalogueStatus;
+  }
+
+  /** Rend la main tout de suite : la boucle tourne en fond, l'écran suit par `GET`. */
+  startCatalogueAll(): CatalogueStatus {
+    if (this.catalogueStatus.running) throw ApiError.conflict('Un rattrapage est déjà en cours');
+    this.catalogueStatus = { running: true, done: 0, total: 0, crees: 0, deja: 0, ignores: 0, finishedAt: null };
+    this.catalogueRun = this.runCatalogueAll();
+    return this.catalogueStatus;
+  }
+
+  /** Dernier rattrapage lancé, pour que les tests l'attendent. */
+  catalogueRun: Promise<void> = Promise.resolve();
+
+  private async runCatalogueAll(): Promise<void> {
+    try {
+      const tally = await this.catalogueAll((done, total) => {
+        this.catalogueStatus = { ...this.catalogueStatus, done, total };
+      });
+      this.catalogueStatus = { ...this.catalogueStatus, ...tally, running: false, finishedAt: new Date().toISOString() };
+    } catch (error) {
+      this.logger.error({ err: error }, 'Rattrapage des recettes interrompu');
+      this.catalogueStatus = { ...this.catalogueStatus, running: false, finishedAt: new Date().toISOString() };
+    }
   }
 
   /**
