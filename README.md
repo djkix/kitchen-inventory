@@ -1030,7 +1030,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.41.4 | 2026-11-10 | Le nombre de recettes s'affiche en tête de l'écran Suggestions, et non plus en bas de liste |
+| 0.42.0 | 2026-11-10 | Le nombre de recettes s'affiche en tête de l'écran Suggestions, et non plus en bas de liste |
 | 0.41.3 | 2026-11-10 | Une demande parlée terminée en arrière-plan se rouvre enfin, avec ce que le modèle avait compris |
 | 0.41.2 | 2026-11-10 | Retirer l'étoile d'une recette qui repartirait aux suggestions demande confirmation |
 | 0.41.1 | 2026-11-10 | Plus de pastille vide à côté du bouton « consommer » dans la liste du stock |
