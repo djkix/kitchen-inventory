@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.42.0](https://github.com/djkix/kitchen-inventory/compare/v0.41.3...v0.42.0) (2026-11-10)
+
+
+### Features
+
+* **suggestions:** afficher le nombre de recettes en tete d'ecran (EF-25) ([#71](https://github.com/djkix/kitchen-inventory/issues/71)) ([37c1243](https://github.com/djkix/kitchen-inventory/commit/37c12433c97cbb1f0aa38aea9a5456ccd32154b9))
+
 ## [0.41.3](https://github.com/djkix/kitchen-inventory/compare/v0.41.2...v0.41.3) (2026-11-10)
 
 
