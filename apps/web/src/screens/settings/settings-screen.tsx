@@ -12,6 +12,7 @@ import { AccountsSection, SignOutEverywhereRow } from './accounts-section';
 import { AccordionSection, SectionBadge } from './accordion-section';
 import { BackupBadge, BackupSection } from './backup-section';
 import { NutritionBackfillRow } from './nutrition-backfill-row';
+import { RecipesCatalogueRow } from './recipes-catalogue-row';
 import { NotificationsRow } from './notifications-row';
 import { ThemeRow } from './theme-row';
 import { useTheme } from '../../hooks/use-theme';
@@ -78,6 +79,7 @@ export function SettingsScreen() {
           <StatsPanel />
           {auth.isAdmin && <GeminiModelsSection />}
           <WebSearchRow isAdmin={auth.isAdmin} />
+          <RecipesCatalogueRow isAdmin={auth.isAdmin} />
         </AccordionSection>
 
         <AccountsAccordion />

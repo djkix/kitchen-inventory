@@ -91,7 +91,7 @@ que ce geste — lui seul — la fasse entrer dans « Mes recettes ».
 | **D6** | Les 349 lignes du réservoir sont rattrapées une fois. `SuggestionsService.catalogueAll()` fait le travail et est testé ; **le déclencheur reste à écrire**. | Sans lui, la base ne contiendrait que ce qui arrive à partir de maintenant, et le propriétaire veut garder ce qui existe. |
 | **D7** | Une suggestion dont la création de recette échoue ne fait pas échouer la demande : l'erreur est journalisée, le rattrapage la reprendra. | L'écran doit rendre ses recettes ; une base en retard d'une ligne n'est pas un échec visible. |
 
-## Le déclencheur du rattrapage : ce qui a été essayé, et pourquoi ça ne marche pas
+## Le déclencheur du rattrapage (livré le 2026-11-10)
 
 Un outil de `tools/`, comme `nutriscore-rattrapage`, a été écrit puis **retiré**
 le 2026-11-09. Deux obstacles, constatés et non supposés :
@@ -114,6 +114,13 @@ rattrapage : **une route d'administration**, `GET`/`POST
 Réglages — exactement `products/nutrition/backfill`. Elle s'exécute dans le
 conteneur de l'application, avec son conteneur d'injection, et donne un bouton
 plutôt qu'une commande SSH.
+
+**C'est cette forme qui a été livrée le 2026-11-10** : `GET /suggestions/catalogue`
+rend l'avancement (lisible par tous), `POST` le lance (administrateur, 202),
+l'état vit en mémoire dans `SuggestionsService` — un passage interrompu par un
+redémarrage n'a rien à reprendre, puisqu'une relance ne considère que les
+suggestions encore sans recette —, et la ligne « Recettes du réservoir » de
+Réglages › Reconnaissance porte le bouton.
 
 ## Ce qui reste au jugement du constructeur
 

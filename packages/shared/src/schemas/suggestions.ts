@@ -499,3 +499,18 @@ export type VoiceModelBatch = z.infer<typeof voiceModelBatchSchema>;
 export interface VoiceSuggestionBatchDto extends SuggestionBatchDto {
   heard: VoiceHeard;
 }
+
+/**
+ * Avancement du rattrapage des recettes déjà au réservoir (D6), suivi par
+ * Réglages. Les suggestions entrées avant la livraison n'ont pas de recette ;
+ * ce passage les crée, une fois, sans rappeler le modèle.
+ */
+export interface CatalogueStatus {
+  running: boolean;
+  done: number;
+  total: number;
+  crees: number;
+  deja: number;
+  ignores: number;
+  finishedAt: string | null;
+}
