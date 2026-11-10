@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.0](https://github.com/djkix/kitchen-inventory/compare/v0.40.0...v0.41.0) (2026-11-10)
+
+
+### Features
+
+* **suggestions:** un bouton de Reglages rattrape les recettes du reservoir (EF-25) ([#63](https://github.com/djkix/kitchen-inventory/issues/63)) ([8bac2f1](https://github.com/djkix/kitchen-inventory/commit/8bac2f18c5646e3a66e24348ad5087ef124af9a3))
+
 ## [0.40.0](https://github.com/djkix/kitchen-inventory/compare/v0.39.0...v0.40.0) (2026-11-09)
 
 
