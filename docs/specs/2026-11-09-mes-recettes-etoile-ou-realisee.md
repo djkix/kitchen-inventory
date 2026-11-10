@@ -122,6 +122,20 @@ redémarrage n'a rien à reprendre, puisqu'une relance ne considère que les
 suggestions encore sans recette —, et la ligne « Recettes du réservoir » de
 Réglages › Reconnaissance porte le bouton.
 
+## Amendement du 2026-11-10 : le retrait de l'étoile s'annonce
+
+Retirer l'étoile d'une recette venue d'une suggestion et jamais réalisée la
+fait sortir de « Mes recettes » — une disparition, au même titre qu'un
+effacement, et jusqu'ici silencieuse. Elle demande désormais confirmation, avec
+la même forme que « Effacer cette recette ? », à la liste comme à la fiche.
+
+La condition n'est pas recopiée : `inLibrary` et `unfavoriteLeavesLibrary`
+(`packages/shared/src/rules/recipe-library.ts`) énoncent la règle D1 et sont
+éprouvées ; la clause Prisma du filtre de bibliothèque s'y réfère, et l'écran
+les appelle. Pour cela, `source` passe du `RecipeDto` au `RecipeSummaryDto` :
+sans elle, l'écran ne peut pas distinguer une recette saisie au foyer — qui ne
+sort jamais, et qu'il ne faut donc pas annoncer — d'une suggestion gardée.
+
 ## Ce qui reste au jugement du constructeur
 
 - La place de l'étoile sur la carte de suggestion, et la façon dont elle se

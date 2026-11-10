@@ -1,4 +1,4 @@
-import type { RecipeFilters, RecipeSummaryDto } from '@kitchen/shared';
+import { unfavoriteLeavesLibrary, type RecipeFilters, type RecipeSummaryDto } from '@kitchen/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from 'react';
 import { Link } from 'react-router';
@@ -29,6 +29,8 @@ export function RecipesScreen() {
   // D4/D5 : la recette dont l'effacement attend une confirmation.
   const [toErase, setToErase] = useState<RecipeSummaryDto | null>(null);
   const [erasing, setErasing] = useState(false);
+  // La recette dont le retrait de l'étoile la ferait sortir de la bibliothèque.
+  const [toUnfavorite, setToUnfavorite] = useState<RecipeSummaryDto | null>(null);
   const [filters, setFilters] = useState<RecipeFilters>(EMPTY_RECIPE_FILTERS);
   const debouncedQuery = useDebouncedValue(query.trim(), 300);
   const debouncedFilters = useDebouncedValue(filters, 500);
@@ -43,10 +45,20 @@ export function RecipesScreen() {
 
   /** Bascule le favori depuis la carte (A2) : la liste n'attend pas le serveur, voir `useRecipeDirectPatch`. */
   const toggleFavorite = (recipe: RecipeSummaryDto) => {
+    // Retirer l'étoile d'une suggestion jamais réalisée la renvoie au réservoir :
+    // c'est une disparition de la liste, au même titre qu'un effacement, donc
+    // elle se demande avant (2026-11-10). Étoiler, lui, ne retire rien.
+    if (unfavoriteLeavesLibrary({ source: recipe.source, favorite: recipe.favorite, timesCooked: recipe.stats.timesCooked })) {
+      setToUnfavorite(recipe);
+      return;
+    }
+    void unfavorite(recipe);
+  };
+
+  const unfavorite = (recipe: RecipeSummaryDto) =>
     patchRecipe(recipe.id, { favorite: !recipe.favorite }).catch((error: unknown) => {
       toast.show({ message: errorMessage(error, 'Impossible de mettre à jour le favori'), tone: 'danger' });
     });
-  };
 
   // Les préférences enregistrées remplacent les filtres par défaut, une seule fois au montage.
   useEffect(() => {
@@ -160,6 +172,33 @@ export function RecipesScreen() {
           <RecipeFiltersBar value={filters} cuisines={cuisines.data ?? []} onChange={setFilters} />
           <Button block variant="primary" onClick={() => setFiltersOpen(false)}>
             Voir les recettes
+          </Button>
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={toUnfavorite !== null}
+        onClose={() => setToUnfavorite(null)}
+        title="Retirer des favoris ?"
+        description={
+          toUnfavorite
+            ? `« ${toUnfavorite.title} » quitte Mes recettes et retourne dans les suggestions. Rien n’est perdu : vous la retrouverez là-bas, et l’étoiler de nouveau la ramènera ici.`
+            : undefined
+        }
+      >
+        <div className="flex gap-2">
+          <Button block variant="secondary" onClick={() => setToUnfavorite(null)}>
+            Annuler
+          </Button>
+          <Button
+            block
+            variant="danger"
+            onClick={() => {
+              if (toUnfavorite) void unfavorite(toUnfavorite);
+              setToUnfavorite(null);
+            }}
+          >
+            Retirer
           </Button>
         </div>
       </Sheet>
