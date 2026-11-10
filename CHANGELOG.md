@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.3](https://github.com/djkix/kitchen-inventory/compare/v0.41.2...v0.41.3) (2026-11-10)
+
+
+### Bug Fixes
+
+* **suggestions:** une demande parlee terminee en fond se rouvre sur son resultat (EF-25) ([#69](https://github.com/djkix/kitchen-inventory/issues/69)) ([96ce5ed](https://github.com/djkix/kitchen-inventory/commit/96ce5ed1719f262fc7681118c292d59359374d47))
+
 ## [0.41.2](https://github.com/djkix/kitchen-inventory/compare/v0.41.1...v0.41.2) (2026-11-10)
 
 
