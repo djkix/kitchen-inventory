@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.2](https://github.com/djkix/kitchen-inventory/compare/v0.41.1...v0.41.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* **recipes:** demander confirmation avant de retirer l'etoile qui retient la recette (EF-25) ([#67](https://github.com/djkix/kitchen-inventory/issues/67)) ([2fc4179](https://github.com/djkix/kitchen-inventory/commit/2fc41790c56649f8a1deb93e0225756f928e8608))
+
 ## [0.41.1](https://github.com/djkix/kitchen-inventory/compare/v0.41.0...v0.41.1) (2026-11-10)
 
 
