@@ -1011,7 +1011,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.40.1 | 2026-11-10 | Un bouton de Réglages enregistre en base les recettes déjà proposées avant la 0.40.0 |
+| 0.41.0 | 2026-11-10 | Un bouton de Réglages enregistre en base les recettes déjà proposées avant la 0.40.0 |
 | 0.40.0 | 2026-11-09 | Les recettes proposées alimentent la base, et « Mes recettes » ne garde que les étoilées ou réalisées |
 | 0.39.0 | 2026-11-09 | Un bouton sous les recettes d'une demande parlée en propose d'autres, sans avoir à reparler |
 | 0.38.1 | 2026-11-09 | Les modèles Flash-Lite sont essayés en premier : ce sont ceux qui répondent, et la recherche aboutit en quelques secondes |
