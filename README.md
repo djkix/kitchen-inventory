@@ -142,7 +142,9 @@ sans note, et la fiche le dit plutôt que de masquer la ligne.
 couverture, ce qui manque, la durée et la difficulté. Orientables par cuisine,
 durée ou facilité. Les recettes rapportées entrent dans un **réservoir
 permanent** — elles ne s'effacent plus, et le modèle n'est rappelé que s'il en
-reste trop peu.
+reste trop peu. Le **nombre de recettes** s'affiche sous le titre de l'écran,
+comme à « Mes recettes » : celles qui répondent à l'orientation en cours, et le
+réservoir entier quand il est plus grand.
 
 **Vos ingrédients à vous.** Un champ à pastilles, avec autocomplétion depuis le
 catalogue : « poulet, tomates » ne rend que des recettes utilisant **tous** ces
@@ -1028,6 +1030,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.41.4 | 2026-11-10 | Le nombre de recettes s'affiche en tête de l'écran Suggestions, et non plus en bas de liste |
 | 0.41.3 | 2026-11-10 | Une demande parlée terminée en arrière-plan se rouvre enfin, avec ce que le modèle avait compris |
 | 0.41.2 | 2026-11-10 | Retirer l'étoile d'une recette qui repartirait aux suggestions demande confirmation |
 | 0.41.1 | 2026-11-10 | Plus de pastille vide à côté du bouton « consommer » dans la liste du stock |

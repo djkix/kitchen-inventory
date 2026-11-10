@@ -547,12 +547,12 @@ describe('SuggestionsScreen', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
 
-    // Les deux nombres sont lus sur le pied de liste lui-même : depuis le
-    // 2026-10-19 le bouton « Charger plus » les reprend, un `getByText(/12/)`
-    // nu ne désignerait donc plus rien d'unique.
-    const footer = screen.getByText(/pour cette orientation/);
-    expect(footer.textContent).toContain('12');
-    expect(footer.textContent).toContain('37');
+    // Les deux nombres sont lus sur le sous-titre de l'en-tête, où ils ont
+    // été portés le 2026-11-10 : en pied de liste, après toutes les cartes,
+    // l'information existait sans être lisible.
+    const compte = screen.getByText(/en tout/);
+    expect(compte.textContent).toContain('12');
+    expect(compte.textContent).toContain('37');
     fireEvent.click(screen.getByRole('button', { name: 'Chercher de nouvelles recettes' }));
     expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(1);
   });
