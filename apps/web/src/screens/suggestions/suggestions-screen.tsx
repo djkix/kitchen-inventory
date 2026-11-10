@@ -1,4 +1,4 @@
-import { SUGGESTION_PAGE_MAX, SUGGESTION_PAGE_SIZE, type SuggestionDto } from '@kitchen/shared';
+import { SUGGESTION_PAGE_MAX, SUGGESTION_PAGE_SIZE, type SuggestionBatchDto, type SuggestionDto } from '@kitchen/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
@@ -123,7 +123,16 @@ export function SuggestionsScreen() {
 
   return (
     <>
-      <ScreenHeader title="Suggestions" subtitle="À partir de votre stock" actions={<VoiceRequestLink />} />
+      {/*
+        Le nombre de recettes en sous-titre, comme à « Mes recettes » (demande
+        du propriétaire, 2026-11-10). Il n'était dit qu'en bas de liste, après
+        toutes les cartes : l'information existait sans être lisible.
+      */}
+      <ScreenHeader
+        title="Suggestions"
+        subtitle={suggestions.data ? <SuggestionsCount batch={suggestions.data} /> : 'À partir de votre stock'}
+        actions={<VoiceRequestLink />}
+      />
 
       <RecipeTabSwitch />
 
@@ -232,6 +241,23 @@ export function SuggestionsScreen() {
         <SuggestionSheet suggestion={selected} open={selected !== null} onClose={() => setSelected(null)} />
       )}
     </>
+  );
+}
+
+/**
+ * Le compte, en sous-titre d'en-tête : le nombre de recettes connues pour
+ * l'orientation en cours, et le réservoir entier quand il est plus grand.
+ *
+ * Deux nombres plutôt qu'un seul : sans le total, une orientation étroite
+ * donne l'impression que le réservoir s'est vidé.
+ */
+function SuggestionsCount({ batch }: { batch: SuggestionBatchDto }) {
+  const { poolCount, poolTotal } = batch;
+  return (
+    <span className="tnum">
+      {poolCount} recette{poolCount > 1 ? 's' : ''}
+      {poolTotal > poolCount && <> · {poolTotal} en tout</>}
+    </span>
   );
 }
 
@@ -525,10 +551,6 @@ function SuggestionsResult({
               </button>
             </>
           )}
-          <p className="text-center text-[13px] text-muted">
-            <span className="tnum">{batch.poolCount}</span> recette{batch.poolCount > 1 ? 's' : ''} connue{batch.poolCount > 1 ? 's' : ''} pour cette
-            orientation · <span className="tnum">{batch.poolTotal}</span> en tout
-          </p>
           {/*
             Le plafond se dit, il ne s'applique pas en silence (2026-10-20) : sur
             un réservoir de deux cents recettes, le défilement s'arrêtait net à
