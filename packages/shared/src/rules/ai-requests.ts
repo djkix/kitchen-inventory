@@ -60,9 +60,28 @@ const SCREENS: Record<AiRequestKind, string> = {
   // racine, et l'écran des suggestions est `/recettes`.
   SCAN_IMAGE: '/',
   SUGGESTIONS: '/recettes',
-  VOICE: '/recettes',
+  // Une demande parlée ne se retrouve pas dans le réservoir : ce qu'elle a
+  // compris de la phrase n'existe que dans son résultat. Elle rouvre donc
+  // l'écran où elle a été faite, qui sait relire ce résultat-là.
+  VOICE: '/recettes/parler',
   RECEIPT: '/courses',
 };
+
+/**
+ * Les usages dont l'écran sait réafficher le résultat d'une demande précise,
+ * et à qui l'adresse porte donc son identifiant (2026-11-10).
+ *
+ * Sans lui, une notification touchée depuis l'écran des suggestions menait à
+ * l'écran des suggestions : le navigateur n'avait rien à faire, et le résultat
+ * annoncé restait invisible. C'est exactement ce que le propriétaire a
+ * constaté le 2026-11-09.
+ */
+const CARRIES_ID: ReadonlySet<AiRequestKind> = new Set<AiRequestKind>(['VOICE']);
+
+/** L'adresse de l'écran à ouvrir pour une demande donnée. */
+export function requestScreenUrl(kind: AiRequestKind, id: string): string {
+  return CARRIES_ID.has(kind) ? `${SCREENS[kind]}?demande=${encodeURIComponent(id)}` : SCREENS[kind];
+}
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n > 1 ? many : one}`;
 
@@ -98,7 +117,7 @@ export function notificationPayload(input: {
   count?: number;
   reason?: string;
 }): { title: string; body: string; url: string; tag: string } {
-  const common = { url: SCREENS[input.kind], tag: input.id };
+  const common = { url: requestScreenUrl(input.kind, input.id), tag: input.id };
   if (input.outcome === 'ABANDONED') {
     return {
       title: 'Demande abandonnée',

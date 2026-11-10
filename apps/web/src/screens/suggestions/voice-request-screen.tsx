@@ -1,9 +1,11 @@
-import { VOICE_MAX_SECONDS, voiceAudioRejection, type SuggestionDto, type VoiceSuggestionBatchDto } from '@kitchen/shared';
+import { VOICE_MAX_SECONDS, voiceAudioRejection, type AiRequestStatusDto, type SuggestionDto, type VoiceSuggestionBatchDto } from '@kitchen/shared';
 import { useMutation } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Button, Spinner } from '../../components/ui/button';
-import { isDeferred } from '../../lib/ai-request';
+import { forgetAiRequest, isDeferred } from '../../lib/ai-request';
+import { api } from '../../lib/api';
 import { errorMessage } from '../../lib/api';
 import { DeferredNotice } from '../../components/ui/deferred-notice';
 import { useTrackedRequest } from '../../hooks/use-tracked-request';
@@ -40,6 +42,48 @@ export function VoiceRequestScreen() {
    * disparaît au prochain enregistrement comme en quittant l'écran.
    */
   const [last, setLast] = useState<VoiceRecording | null>(null);
+
+  /**
+   * Résultat d'une demande différée, réclamé au retour (2026-11-10).
+   *
+   * L'adresse porte l'identifiant de la demande — c'est la notification, ou le
+   * message de retour, qui l'y met. Sans cela, le résultat d'une demande
+   * parlée n'était affichable nulle part : les recettes entrent bien au
+   * réservoir, mais ce que le modèle a **compris de la phrase** n'existe que
+   * dans ce résultat-là, et c'est lui qui permet de voir un contresens (D2).
+   */
+  const [params, setParams] = useSearchParams();
+  const demande = params.get('demande');
+  const [restoring, setRestoring] = useState(demande !== null);
+  const [restoreFailed, setRestoreFailed] = useState(false);
+
+  useEffect(() => {
+    if (!demande) return;
+    let alive = true;
+    void api
+      .get<AiRequestStatusDto>(`/ai-requests/${demande}`)
+      .then((status) => {
+        if (!alive) return;
+        if (status.state === 'DONE' && status.result) {
+          setBatch(status.result as VoiceSuggestionBatchDto);
+          forgetAiRequest(demande);
+        } else {
+          setRestoreFailed(true);
+        }
+      })
+      .catch(() => alive && setRestoreFailed(true))
+      .finally(() => {
+        if (!alive) return;
+        setRestoring(false);
+        // L'identifiant quitte l'adresse une fois lu : un rechargement ne doit
+        // pas redemander un résultat déjà sous les yeux, et « Parler » de
+        // nouveau ne doit pas ramener l'ancien.
+        setParams({}, { replace: true });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [demande, setParams]);
 
   const tracked = useTrackedRequest();
   const ask = useMutation({
@@ -139,6 +183,19 @@ export function VoiceRequestScreen() {
           </p>
         )}
       </div>
+
+      {restoring && (
+        <div role="status" aria-live="polite" className="mx-4 my-6 flex flex-col items-center gap-3 text-center">
+          <Spinner className="size-7 text-accent" />
+          <p className="text-[15px] font-medium">Récupération de votre demande…</p>
+        </div>
+      )}
+
+      {restoreFailed && (
+        <p role="status" className="mx-4 my-6 text-center text-[14px] text-muted">
+          Cette demande n’est plus disponible. Ses recettes restent dans les suggestions.
+        </p>
+      )}
 
       {ask.isPending && (
         <div role="status" aria-live="polite" className="mx-4 my-6 flex flex-col items-center gap-3 text-center">

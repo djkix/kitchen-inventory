@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { notificationPayload } from '@kitchen/shared';
 import { useToast } from '../components/ui/toast';
 import { recoverAiRequests } from '../lib/ai-request';
@@ -14,6 +15,7 @@ import { recoverAiRequests } from '../lib/ai-request';
  */
 export function useAiRequestRecovery(): void {
   const toast = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     let alive = true;
@@ -22,13 +24,20 @@ export function useAiRequestRecovery(): void {
         if (!alive) return;
         for (const request of finished) {
           const done = request.state === 'DONE';
-          const { title } = notificationPayload({
+          const { title, url } = notificationPayload({
             id: request.id,
             kind: request.kind,
             outcome: done ? 'DONE' : 'ABANDONED',
             reason: request.error ?? undefined,
           });
-          toast.show({ message: done ? title : (request.error ?? title), tone: done ? 'success' : 'danger', durationMs: 6000 });
+          toast.show({
+            message: done ? title : (request.error ?? title),
+            tone: done ? 'success' : 'danger',
+            durationMs: 6000,
+            // Dire que c'est prêt sans y mener laisse chercher : le message
+            // porte donc le même chemin que la notification (2026-11-10).
+            action: done ? { label: 'Voir', onClick: () => navigate(url) } : undefined,
+          });
         }
       });
     };
@@ -41,5 +50,5 @@ export function useAiRequestRecovery(): void {
       alive = false;
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [toast]);
+  }, [toast, navigate]);
 }

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { VoiceSuggestionBatchDto } from '@kitchen/shared';
-import { ApiClientError } from '../../lib/api';
+import { api, ApiClientError } from '../../lib/api';
 import { suggestionsApi } from '../../lib/suggestions-api';
 import { microphoneErrorMessage, type VoiceRecording } from './use-voice-recorder';
 import { VoiceRequestScreen } from './voice-request-screen';
@@ -45,11 +45,11 @@ vi.mock('../../lib/suggestions-api', () => ({
 
 const voice = vi.mocked(suggestionsApi.voice);
 
-function renderScreen() {
+function renderScreen(entry = '/recettes/parler') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <VoiceRequestScreen />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -230,5 +230,33 @@ describe('microphoneErrorMessage (D9)', () => {
     const message = microphoneErrorMessage(new Error('quelque chose'));
     expect(message.length).toBeGreaterThan(10);
     expect(message).not.toContain('quelque chose');
+  });
+});
+
+/**
+ * Retour sur une demande différée (2026-11-10). La notification et le message
+ * de retour portent l'identifiant dans l'adresse ; sans cette relecture, le
+ * résultat annoncé n'était affichable nulle part.
+ */
+describe('reprise d’une demande différée', () => {
+  it('réaffiche la lecture et les recettes de la demande nommée dans l’adresse', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ id: 'req-1', kind: 'VOICE', state: 'DONE', result: BATCH, error: null, retryAt: null } as never);
+
+    renderScreen('/recettes/parler?demande=req-1');
+
+    expect(await screen.findByText(/Poulet à la tomate/)).toBeTruthy();
+    // La lecture du modèle est là aussi : c'est elle qui montre un contresens (D2).
+    expect(screen.getAllByText(/plat italien/).length).toBeGreaterThan(0);
+    expect(get).toHaveBeenCalledWith('/ai-requests/req-1');
+    get.mockRestore();
+  });
+
+  it('le dit sans faire croire à une perte quand la demande n’est plus là', async () => {
+    const get = vi.spyOn(api, 'get').mockRejectedValue(new ApiClientError(404, 'not_found', 'Demande introuvable'));
+
+    renderScreen('/recettes/parler?demande=req-1');
+
+    expect(await screen.findByText(/n’est plus disponible/)).toBeTruthy();
+    get.mockRestore();
   });
 });
