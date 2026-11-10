@@ -255,6 +255,12 @@ export interface RecipeSummaryDto {
   stats: RecipeStatsDto;
   /** Favori partagé par le foyer (A2, A4, décision D4). */
   favorite: boolean;
+  /**
+   * Origine de la recette, au résumé et pas seulement à la fiche : l'écran en a
+   * besoin pour savoir si retirer l'étoile ferait sortir la recette de la
+   * bibliothèque (`unfavoriteLeavesLibrary`).
+   */
+  source: 'HOUSEHOLD' | 'IMPORTED' | 'GENERATED';
   /** Note directe (A3), indépendante de `stats.averageRating` (décision D2) ; `null` si jamais notée directement. */
   rating: number | null;
 }
@@ -283,7 +289,6 @@ export interface RecipeDto extends RecipeSummaryDto {
   activeTime: number | null;
   steps: string[];
   difficultyOverride: boolean;
-  source: 'HOUSEHOLD' | 'IMPORTED' | 'GENERATED';
   sourceUrl: string | null;
   createdAt: string;
   ingredients: RecipeIngredientDto[];

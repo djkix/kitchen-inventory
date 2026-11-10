@@ -1,9 +1,11 @@
-import { DIFFICULTY_LABELS_FR, scaleIngredients, servingsRatio, type Difficulty, type RecipeDto } from '@kitchen/shared';
+import { DIFFICULTY_LABELS_FR, scaleIngredients, servingsRatio, unfavoriteLeavesLibrary, type Difficulty, type RecipeDto } from '@kitchen/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { ErrorState } from '../../components/ui/empty-state';
 import { FavoriteStar } from '../../components/ui/favorite-star';
+import { Button } from '../../components/ui/button';
+import { Sheet } from '../../components/ui/sheet';
 import { Skeleton } from '../../components/ui/skeleton';
 import { useToast } from '../../components/ui/toast';
 import { errorMessage, isApiError } from '../../lib/api';
@@ -89,6 +91,7 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   const toast = useToast();
   const patchRecipe = useRecipeDirectPatch();
   const [busy, setBusy] = useState(false);
+  const [confirmUnfavorite, setConfirmUnfavorite] = useState(false);
   // Brouillon du champ « Parts » (EF-26) : `''` tant que le propriétaire n'a
   // pas tapé, même geste que les autres champs décimaux de l'application
   // (clavier décimal français, virgule acceptée en silence).
@@ -116,6 +119,20 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
     } finally {
       setBusy(false);
     }
+  };
+
+  /**
+   * Même règle qu'à la liste (2026-11-10) : retirer l'étoile d'une suggestion
+   * jamais réalisée la renvoie au réservoir. La fiche ne disparaît pas sous les
+   * yeux, mais la recette ne sera plus dans « Mes recettes » au retour — c'est
+   * exactement le genre de disparition qui s'annonce avant, pas après.
+   */
+  const onStar = () => {
+    if (unfavoriteLeavesLibrary({ source: recipe.source, favorite: recipe.favorite, timesCooked: recipe.stats.timesCooked })) {
+      setConfirmUnfavorite(true);
+      return;
+    }
+    void toggleFavorite();
   };
 
   const time = formatMinutes(recipe.totalMinutes);
@@ -152,7 +169,7 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
               {DIFFICULTY_LABELS_FR[recipe.difficulty]}
               {recipe.difficultyOverride && ' (corrigée)'}
             </span>
-            <FavoriteStar favorite={recipe.favorite} recipeTitle={recipe.title} onToggle={() => void toggleFavorite()} disabled={busy} className="ml-auto" />
+            <FavoriteStar favorite={recipe.favorite} recipeTitle={recipe.title} onToggle={onStar} disabled={busy} className="ml-auto" />
           </div>
 
           <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
@@ -211,6 +228,29 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
           </ol>
         </section>
       </div>
+
+      <Sheet
+        open={confirmUnfavorite}
+        onClose={() => setConfirmUnfavorite(false)}
+        title="Retirer des favoris ?"
+        description={`« ${recipe.title} » quitte Mes recettes et retourne dans les suggestions. Rien n’est perdu : vous la retrouverez là-bas, et l’étoiler de nouveau la ramènera ici.`}
+      >
+        <div className="flex gap-2">
+          <Button block variant="secondary" onClick={() => setConfirmUnfavorite(false)}>
+            Annuler
+          </Button>
+          <Button
+            block
+            variant="danger"
+            onClick={() => {
+              setConfirmUnfavorite(false);
+              void toggleFavorite();
+            }}
+          >
+            Retirer
+          </Button>
+        </div>
+      </Sheet>
     </>
   );
 }

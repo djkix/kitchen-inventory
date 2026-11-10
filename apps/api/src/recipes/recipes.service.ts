@@ -72,6 +72,8 @@ export class RecipesService {
        * voulue en la créant. C'est la différence entre « proposé » et « choisi »,
        * et `source` la porte déjà.
        */
+      // `inLibrary` (packages/shared) énonce et éprouve cette règle ; ceci en est
+      // la traduction en clause Prisma, faute de pouvoir l'exécuter dans la requête.
       ...(query.archived ? {} : { OR: [{ source: 'HOUSEHOLD' }, { favorite: true }, { logs: { some: {} } }] }),
       ...(query.favorite ? { favorite: true } : {}),
       ...(query.difficulty?.length ? { difficulty: { in: query.difficulty } } : {}),

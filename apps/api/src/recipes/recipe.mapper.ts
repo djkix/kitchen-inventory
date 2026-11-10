@@ -94,6 +94,7 @@ export function toRecipeSummaryDto(recipe: RecipeWithRelations, stats: RecipeSta
     missingLabels: coverage.missingLabels,
     stats,
     favorite: recipe.favorite,
+    source: recipe.source,
     rating: recipe.rating,
   };
 }
@@ -111,7 +112,6 @@ export function toRecipeDto(
     activeTime: recipe.activeTime,
     steps: parseSteps(recipe.steps),
     difficultyOverride: recipe.difficultyOverride,
-    source: recipe.source,
     sourceUrl: recipe.sourceUrl,
     createdAt: recipe.createdAt.toISOString(),
     ingredients: recipe.ingredients.map((ingredient) =>

@@ -7,6 +7,7 @@ export * from './coverage.js';
 export * from './lot-merge.js';
 export * from './quantity.js';
 export * from './recipe-stats.js';
+export * from './recipe-library.js';
 export * from './recipe-sort.js';
 export * from './servings.js';
 export * from './seed-selection.js';

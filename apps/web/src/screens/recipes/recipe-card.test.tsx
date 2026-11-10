@@ -21,6 +21,7 @@ const base: RecipeSummaryDto = {
   missingLabels: [],
   stats: { timesCooked: 0, lastCookedAt: null, averageRating: null, ratingCount: 0, recentTrend: null, tags: ['never'] },
   favorite: false,
+  source: 'HOUSEHOLD',
   rating: null,
 };
 

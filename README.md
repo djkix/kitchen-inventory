@@ -186,6 +186,10 @@ ses ingrédients rapprochés du catalogue : interrogeable, notable, cuisinable.
 Dans le tiroir d'une suggestion, **« Garder dans mes recettes »** l'étoile sans
 la cuisiner ; « Je fais cette recette » enregistre une réalisation, comme avant.
 Ce qui est étoilé ou réalisé cesse d'être proposé ; le reste continue de l'être.
+**Retirer l'étoile** d'une recette que vous n'avez jamais réalisée la renvoie
+aux suggestions : l'application le dit avant, comme pour un effacement. Une
+recette déjà réalisée, ou saisie par vous, reste dans la bibliothèque — son
+étoile se retire sans un mot.
 Une recette que vous avez saisie vous-même figure dans la bibliothèque sans
 condition. Les recettes du web font exception : leur conversion fait réécrire la
 page par le modèle, elle attend donc le geste. Les recettes déjà au réservoir avant
@@ -1017,6 +1021,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.41.2 | 2026-11-10 | Retirer l'étoile d'une recette qui repartirait aux suggestions demande confirmation |
 | 0.41.1 | 2026-11-10 | Plus de pastille vide à côté du bouton « consommer » dans la liste du stock |
 | 0.41.0 | 2026-11-10 | Un bouton de Réglages enregistre en base les recettes déjà proposées avant la 0.40.0 |
 | 0.40.0 | 2026-11-09 | Les recettes proposées alimentent la base, et « Mes recettes » ne garde que les étoilées ou réalisées |
