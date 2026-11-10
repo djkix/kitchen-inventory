@@ -52,11 +52,19 @@ export function StockItemCard({ item, showLocation = false, onConsume, busy = fa
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1 pr-1">
-          <span className={cn('tnum inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[13px] font-semibold', look.chip)}>
-            {item.dateEstimated && item.expiryStatus !== 'none' && <EstimatedIcon size={14} />}
-            {item.opened && <OpenIcon size={14} />}
-            {daysLabel(item.daysUntilExpiry)}
-          </span>
+          {/*
+            Sans date ni entame, la pastille n'affichait qu'un tiret — à deux
+            doigts du bouton « consommer », qui est lui aussi un tiret. Deux
+            traits côte à côte, l'un information, l'autre action : on ne peut
+            pas les distinguer. Rien du tout se remarque moins (2026-11-10).
+          */}
+          {(item.daysUntilExpiry !== null || item.opened) && (
+            <span className={cn('tnum inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[13px] font-semibold', look.chip)}>
+              {item.dateEstimated && item.expiryStatus !== 'none' && <EstimatedIcon size={14} />}
+              {item.opened && <OpenIcon size={14} />}
+              {item.daysUntilExpiry !== null && daysLabel(item.daysUntilExpiry)}
+            </span>
+          )}
         </div>
       </button>
       {!archived && (
