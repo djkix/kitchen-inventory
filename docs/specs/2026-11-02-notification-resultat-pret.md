@@ -189,3 +189,31 @@ le refus différé remonte proprement ; `packages/shared` pour la règle pure et
 les schémas Zod ; `apps/web` pour le service worker, le signal de départ de
 page, la récupération au retour et l'interrupteur de Réglages ; le README et
 le cahier des charges (section 26).
+
+
+## Amendement du 2026-11-10 : la notification mène au résultat, pas à l'écran
+
+Constaté en service le 2026-11-09 : « l'application m'indique que mes recettes
+sont prêtes mais je ne les vois même pas, j'ai cliqué sur le bandeau mais je
+suis resté sur la page des suggestions ».
+
+La cause n'était pas le bandeau. L'adresse d'une demande parlée était
+`/recettes`, l'écran des suggestions — celui-là même où le propriétaire se
+trouvait. `clients.navigate` vers l'adresse courante n'a rien à faire, et le
+résultat annoncé n'était affichable nulle part : les recettes entrent bien au
+réservoir, mais **ce que le modèle a compris de la phrase** n'existe que dans
+le résultat de la demande, et c'est lui qui permet de voir un contresens (D2).
+
+Trois corrections :
+
+- `requestScreenUrl` remplace la table d'écrans. Une demande parlée mène à
+  `/recettes/parler?demande=<id>` ; les autres usages, dont l'écran retrouve le
+  résultat tout seul, gardent leur adresse nue.
+- L'écran de la demande parlée relit `GET /ai-requests/:id` quand l'adresse
+  nomme une demande, réaffiche la lecture et les recettes, puis retire
+  l'identifiant de l'adresse — un rechargement ne doit pas redemander un
+  résultat déjà sous les yeux. Une demande disparue le dit sans faire croire à
+  une perte : ses recettes sont dans les suggestions.
+- Le message de retour (celui qu'on voit en rouvrant l'application sans
+  toucher la notification) porte un bouton « Voir » qui mène au même endroit.
+  Annoncer qu'une chose est prête sans y mener laisse chercher.

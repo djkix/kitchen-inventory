@@ -273,6 +273,13 @@ serveur, et une **notification** vous dit que le résultat est là. Elle s'affic
 application fermée et vous ramène sur l'écran concerné d'un geste. Si vous êtes
 resté devant l'écran, rien ne sonne — le résultat s'affiche comme avant.
 
+Une **demande parlée** rouvre son propre résultat : la notification porte le
+nom de la demande, et l'écran de la demande parlée réaffiche ce que le modèle
+avait compris de votre phrase, avec ses recettes. Les autres usages retrouvent
+leur résultat sur leur écran habituel. Et si vous rouvrez l'application sans
+toucher la notification, le message de retour porte un bouton **« Voir »** qui
+mène au même endroit.
+
 Et si Gemini est momentanément saturé, **la demande n'est plus perdue** : elle
 est gardée, repart toute seule, et c'est son résultat qui vous est annoncé.
 L'écran dit alors l'attente en durée — « repartira seule dans environ 20
@@ -1021,6 +1028,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.41.3 | 2026-11-10 | Une demande parlée terminée en arrière-plan se rouvre enfin, avec ce que le modèle avait compris |
 | 0.41.2 | 2026-11-10 | Retirer l'étoile d'une recette qui repartirait aux suggestions demande confirmation |
 | 0.41.1 | 2026-11-10 | Plus de pastille vide à côté du bouton « consommer » dans la liste du stock |
 | 0.41.0 | 2026-11-10 | Un bouton de Réglages enregistre en base les recettes déjà proposées avant la 0.40.0 |

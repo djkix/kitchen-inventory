@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFERRAL_CEILING_MS, deferralRetryAt, deferredDelayLabel, notificationPayload, shouldNotify } from './ai-requests.js';
+import { DEFERRAL_CEILING_MS, deferralRetryAt, deferredDelayLabel, notificationPayload, requestScreenUrl, shouldNotify } from './ai-requests.js';
 
 describe('shouldNotify : qui mérite une notification (D1, D1b)', () => {
   it('ne dit rien quand on est resté devant l’écran', () => {
@@ -97,5 +97,17 @@ describe('deferredDelayLabel : une durée, jamais une heure', () => {
 
   it('ne part pas en négatif sur une reprise déjà passée', () => {
     expect(dans(-5)).toBe('un instant');
+  });
+});
+
+describe('requestScreenUrl : rouvrir le bon écran, sur la bonne demande', () => {
+  it('porte l’identifiant pour une demande parlée, dont le résultat n’est nulle part ailleurs', () => {
+    expect(requestScreenUrl('VOICE', 'abc-123')).toBe('/recettes/parler?demande=abc-123');
+  });
+
+  it('n’en porte pas là où l’écran retrouve le résultat tout seul', () => {
+    expect(requestScreenUrl('SUGGESTIONS', 'abc-123')).toBe('/recettes');
+    expect(requestScreenUrl('RECEIPT', 'abc-123')).toBe('/courses');
+    expect(requestScreenUrl('SCAN_IMAGE', 'abc-123')).toBe('/');
   });
 });
