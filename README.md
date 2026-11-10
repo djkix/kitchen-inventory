@@ -120,6 +120,12 @@ mouvement puis recalcule.
 **Recherche tolérante** aux fautes, aux synonymes et aux accents (« nouilles »
 trouve « ramen »). **Vue « périme bientôt »**, avec un seuil d'alerte réglable.
 
+Dans la liste, chaque article porte à droite une **pastille de péremption**
+(`J-5`, `Aujourd'hui`, `J+2`) et, plus à droite, le **bouton « consommer »** :
+un appui retire une unité, un appui long vide le lot. Un article sans date et
+non entamé n'affiche **pas** de pastille — un tiret à côté du tiret du bouton
+ne se distinguait pas de lui.
+
 **Repères nutritionnels** sur la fiche article : la lettre Nutri-Score et ce
 qui est élevé (sel, sucres, graisses), repris d'Open Food Facts au scan du
 code-barres, sans appel supplémentaire ni calcul maison. La lettre apparaît
@@ -1011,6 +1017,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.41.1 | 2026-11-10 | Plus de pastille vide à côté du bouton « consommer » dans la liste du stock |
 | 0.41.0 | 2026-11-10 | Un bouton de Réglages enregistre en base les recettes déjà proposées avant la 0.40.0 |
 | 0.40.0 | 2026-11-09 | Les recettes proposées alimentent la base, et « Mes recettes » ne garde que les étoilées ou réalisées |
 | 0.39.0 | 2026-11-09 | Un bouton sous les recettes d'une demande parlée en propose d'autres, sans avoir à reparler |
