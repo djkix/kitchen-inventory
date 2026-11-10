@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.1](https://github.com/djkix/kitchen-inventory/compare/v0.41.0...v0.41.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **stock:** pas de pastille de peremption quand il n'y a pas de date (EF-01) ([#65](https://github.com/djkix/kitchen-inventory/issues/65)) ([3db5033](https://github.com/djkix/kitchen-inventory/commit/3db50339e6663fb96daf8592608edfed80baeb45))
+
 ## [0.41.0](https://github.com/djkix/kitchen-inventory/compare/v0.40.0...v0.41.0) (2026-11-10)
 
 
