@@ -80,17 +80,19 @@ export function extractPageRecipe(html: string): PageRecipe | null {
   for (const match of html.matchAll(LD_JSON_RE)) {
     const raw = match[1];
     if (!raw) continue;
-    let parsed: unknown;
     try {
-      parsed = JSON.parse(raw.trim());
+      // La lecture entière est couverte, pas seulement `JSON.parse` : un bloc
+      // assez imbriqué pour épuiser la pile d'appels est aussi illisible qu'un
+      // bloc mal formé, et la page vient d'un site qu'on ne choisit pas
+      // (audit du 2026-11-11).
+      for (const node of flattenJsonLdNodes(JSON.parse(raw.trim()))) {
+        if (!isRecipeNode(node)) continue;
+        const recipe = extractRecipeNode(node);
+        if (recipe) return recipe;
+      }
     } catch {
       // Un bloc JSON-LD illisible n'empêche pas d'en lire un autre sur la même page.
       continue;
-    }
-    for (const node of flattenJsonLdNodes(parsed)) {
-      if (!isRecipeNode(node)) continue;
-      const recipe = extractRecipeNode(node);
-      if (recipe) return recipe;
     }
   }
   return null;

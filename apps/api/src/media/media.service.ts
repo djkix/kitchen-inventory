@@ -54,6 +54,19 @@ export class MediaService {
     return abs.startsWith(`${this.config.mediaDir}${sep}`) ? abs : null;
   }
 
+  /**
+   * Comme `resolve`, mais pour ce qui est servi par HTTP : `differe` est
+   * refusé. Ce dossier ne garde pas une galerie, mais l'entrée d'une demande
+   * en attente de rejeu — une photo de ticket, un enregistrement vocal. Elle
+   * vit sous `mediaDir` pour être effacée avec le reste, pas pour être lue
+   * (audit du 2026-11-11). Le refus est jugé après normalisation : `a/../differe`
+   * est bien `differe`.
+   */
+  resolvePublic(rel: string): string | null {
+    const abs = this.resolve(rel);
+    return abs !== null && abs.startsWith(join(this.config.mediaDir, 'differe') + sep) ? null : abs;
+  }
+
   async checkWritable(): Promise<boolean> {
     try {
       await access(this.config.mediaDir, constants.W_OK);

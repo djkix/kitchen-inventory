@@ -36,7 +36,7 @@ export interface RecoveryGrant {
  * promeut `ACTIVE`/`ADMIN` — sans quoi la porte ne servirait à rien : le
  * contrôle de statut joué à chaque requête rejetterait aussitôt la session.
  */
-export async function grantRecovery(prisma: Db, rawEmail: string): Promise<RecoveryGrant> {
+export async function grantRecovery(prisma: Db, rawEmail: string, force = false): Promise<RecoveryGrant> {
   // Même normalisation que le jeton Google, sinon « Camille@… » créerait un doublon.
   const email = rawEmail.trim().toLowerCase();
   if (!email) throw new Error('Une adresse e-mail est attendue en argument.');
@@ -47,7 +47,21 @@ export async function grantRecovery(prisma: Db, rawEmail: string): Promise<Recov
   const passwordHash = await hashPassword(password);
   const expiresAt = new Date(Date.now() + RECOVERY_TTL_MS);
 
-  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true, status: true, googleSub: true } });
+  // Une adresse tapée de travers ne doit pas rendre les clés du foyer à
+  // quelqu'un qu'on en a écarté : un compte refusé garde le compte Google de la
+  // personne qui l'avait demandé, et le réactiver en administrateur lui
+  // rouvrirait l'application par sa propre connexion Google (audit du
+  // 2026-11-11). Un
+  // compte en attente, lui, se promeut sans rien dire : c'est le chemin normal
+  // quand Google devient inutilisable avant la première validation.
+  if (!force && existing?.googleSub && existing.status === 'REVOKED') {
+    throw new Error(
+      `Le compte ${email} a été refusé et porte déjà un compte Google : le réactiver en ` +
+        'administrateur rouvrirait l’application à la personne qui le détient. ' +
+        'Relancer avec --force si c’est bien ce qui est voulu.',
+    );
+  }
   await prisma.user.upsert({
     where: { email },
     update: { passwordHash, recoveryExpiresAt: expiresAt, status: 'ACTIVE', role: 'ADMIN' },
@@ -58,11 +72,12 @@ export async function grantRecovery(prisma: Db, rawEmail: string): Promise<Recov
 
 /** Corps de la commande, séparé du câblage Prisma pour être joué en test. */
 export async function run(prisma: Db, argv: string[], out: (line: string) => void): Promise<void> {
-  const [rawEmail, ...reste] = argv;
+  const force = argv.includes('--force');
+  const [rawEmail, ...reste] = argv.filter((arg) => arg !== '--force');
   if (!rawEmail || reste.length > 0) {
-    throw new Error('Usage : node tools/acces-secours.js <adresse e-mail>');
+    throw new Error('Usage : node tools/acces-secours.js <adresse e-mail> [--force]');
   }
-  const grant = await grantRecovery(prisma, rawEmail);
+  const grant = await grantRecovery(prisma, rawEmail, force);
 
   out('');
   out(`Compte ${grant.created ? 'créé' : 'réactivé'} : ${grant.email} (ACTIVE, ADMIN)`);

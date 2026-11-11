@@ -52,6 +52,10 @@ services:
       # Clés de signature lues chez la doublure, jamais chez Google : la
       # vérification du jeton reste entière, mais aucun appel ne sort.
       GOOGLE_CERTS_URL: http://stub:3101/oauth2/v1/certs
+      # L'image refuse de démarrer sur ce remplacement sans cette revendication :
+      # un `.env` de production qui porterait GOOGLE_CERTS_URL par accident ne
+      # démarre pas (audit du 2026-11-11).
+      ALLOW_GOOGLE_CERTS_OVERRIDE: 'true'
       LOG_LEVEL: info
       TZ: Europe/Paris
     ports:

@@ -7,6 +7,7 @@ import { hashToken, newSessionToken } from './tokens.js';
 
 export const SESSION_COOKIE = 'sid';
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
 
 /** Ce qu'`open` utilise du client Prisma : le service, ou un client de transaction. */
 type SessionWriter = Pick<PrismaService, 'session'>;
@@ -82,7 +83,12 @@ export class SessionService {
   private async authenticateServiceToken(token: string): Promise<RequestUser | null> {
     const found = await this.prisma.serviceToken.findUnique({ where: { tokenHash: hashToken(token) } });
     if (!found) return null;
-    await this.prisma.serviceToken.update({ where: { id: found.id }, data: { lastUsedAt: new Date() } });
+    // Une intégration domotique interroge l'API toutes les minutes : la date
+    // de dernière utilisation ne s'écrit qu'une fois par heure, comme
+    // l'expiration glissante d'une session (audit du 2026-11-11).
+    if (!found.lastUsedAt || Date.now() - found.lastUsedAt.getTime() > HOUR_MS) {
+      await this.prisma.serviceToken.update({ where: { id: found.id }, data: { lastUsedAt: new Date() } });
+    }
     return { id: `service:${found.id}`, email: '', name: found.name, role: 'MEMBER', via: 'service-token', sessionId: null };
   }
 }

@@ -259,6 +259,14 @@ describe('utilisateurs et jetons de service', () => {
     await t.api.get('/api/v1/me').set('Authorization', bearer).expect(200);
     const write = await t.api.post('/api/v1/auth/logout').set('Authorization', bearer).expect(403);
     expect(write.body.error.message).toBe('Un jeton de service ne permet que la lecture');
+    // Lecture seule ne veut pas dire tout lire : un jeton posé dans une
+    // intégration domotique lit l'inventaire, pas l'export du foyer ni les
+    // tickets de caisse (audit du 2026-11-11).
+    await t.api.get('/api/v1/stock').set('Authorization', bearer).expect(200);
+    const hors = await t.api.get('/api/v1/export/inventory.csv').set('Authorization', bearer).expect(403);
+    expect(hors.body.error.message).toBe("Un jeton de service ne donne accès qu'à l'inventaire");
+    await t.api.get('/api/v1/receipts/pending-labels').set('Authorization', bearer).expect(403);
+    await t.api.get('/api/v1/media/scans/2026/01/x.jpg').set('Authorization', bearer).expect(403);
     await t.api.get('/api/v1/me').set('Authorization', 'Bearer kit_faux').expect(401);
 
     await admin.delete(`/api/v1/service-tokens/${list.body[0].id}`).expect(204);

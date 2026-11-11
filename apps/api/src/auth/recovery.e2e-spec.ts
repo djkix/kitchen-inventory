@@ -213,6 +213,18 @@ describe('porte de secours en ligne de commande (D6)', () => {
       expect(apres).toMatchObject({ id: avant.id, status: 'ACTIVE', role: 'ADMIN', googleSub: avant.googleSub, name: avant.name });
     });
 
+    it('refuse de rouvrir un compte écarté, sauf --force (audit du 2026-11-11)', async () => {
+      await t.signIn(t.agent(), OWNER);
+      await t.api.post('/api/v1/auth/google').send({ credential: fakeGoogleCredential(INCONNU) }).expect(403);
+      await t.prisma.user.update({ where: { email: INCONNU.email }, data: { status: 'REVOKED' } });
+
+      await expect(grantRecovery(t.prisma, INCONNU.email)).rejects.toThrow(/refusé/);
+      expect(await t.prisma.user.findUniqueOrThrow({ where: { email: INCONNU.email } })).toMatchObject({ status: 'REVOKED', role: 'MEMBER' });
+
+      await grantRecovery(t.prisma, INCONNU.email, true);
+      expect(await t.prisma.user.findUniqueOrThrow({ where: { email: INCONNU.email } })).toMatchObject({ status: 'ACTIVE', role: 'ADMIN' });
+    });
+
     it('normalise l’adresse comme la connexion Google', async () => {
       await t.signIn(t.agent(), OWNER);
       const { created, email } = await grantRecovery(t.prisma, '  Proprietaire@Example.ORG ');

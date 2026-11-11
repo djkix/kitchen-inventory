@@ -83,6 +83,11 @@ const configSchema = z.object({
   // démarrage (`googleCertsOverrideWarning`) et dégradation explicite dans
   // `/health`.
   GOOGLE_CERTS_URL: z.string().url().optional(),
+  // Revendication explicite du remplacement ci-dessus, exigée en production.
+  ALLOW_GOOGLE_CERTS_OVERRIDE: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true'),
   // Web Push (conception du 2026-11-02). Engendrées une fois par
   // `npx web-push generate-vapid-keys`. Absentes : rien n'est annoncé et tout
   // le reste fonctionne (D11).
@@ -140,6 +145,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error(`Configuration invalide :\n${lines}`);
   }
   const c = parsed.data;
+  // Un avertissement ne suffit pas : personne ne lit le journal au démarrage,
+  // et cette variable déplace la racine de confiance de l'authentification.
+  // En production, elle doit être revendiquée (audit du 2026-11-11). Le
+  // montage de tests bout en bout, qui tourne sur l'image de production, pose
+  // les deux ; un `.env` qui n'en porte qu'une est une erreur, et l'application
+  // refuse de démarrer plutôt que d'accepter des jetons signés ailleurs.
+  if (c.NODE_ENV === 'production' && c.GOOGLE_CERTS_URL && !c.ALLOW_GOOGLE_CERTS_OVERRIDE) {
+    throw new Error(
+      'Configuration invalide :\n  - GOOGLE_CERTS_URL est posée en production. ' +
+        'Elle remplace les clés publiques qui valident les jetons Google et n’a de raison d’être ' +
+        'que dans le montage de tests bout en bout. La retirer, ou poser ALLOW_GOOGLE_CERTS_OVERRIDE=true ' +
+        'pour assumer ce remplacement.',
+    );
+  }
   const cwd = process.cwd();
   return {
     ...c,

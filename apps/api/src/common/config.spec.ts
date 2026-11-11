@@ -33,13 +33,32 @@ describe('ADMIN_EMAIL', () => {
   });
 });
 
+describe('GOOGLE_CERTS_URL en production (audit du 2026-11-11)', () => {
+  const PROD = { ...BASE, NODE_ENV: 'production' };
+
+  it('refuse de démarrer si le remplacement n’est pas revendiqué', () => {
+    expect(() => loadConfig({ ...PROD, GOOGLE_CERTS_URL: 'http://stub:3101/certs' })).toThrow('GOOGLE_CERTS_URL');
+  });
+
+  it('démarre quand le montage de tests le revendique', () => {
+    const config = loadConfig({ ...PROD, GOOGLE_CERTS_URL: 'http://stub:3101/certs', ALLOW_GOOGLE_CERTS_OVERRIDE: 'true' });
+    expect(config.GOOGLE_CERTS_URL).toBe('http://stub:3101/certs');
+  });
+
+  it('ne gêne ni la production normale ni le développement', () => {
+    expect(loadConfig({ ...PROD }).GOOGLE_CERTS_URL).toBeUndefined();
+    const dev = loadConfig({ ...BASE, NODE_ENV: 'development', GOOGLE_CERTS_URL: 'http://stub:3101/certs' });
+    expect(dev.GOOGLE_CERTS_URL).toBe('http://stub:3101/certs');
+  });
+});
+
 describe('googleCertsOverrideWarning', () => {
   it('ne dit rien quand la variable est absente (production normale)', () => {
     expect(googleCertsOverrideWarning(loadConfig({ ...BASE }))).toBeNull();
   });
 
   it('avertit, et nomme la valeur, dès que la variable est posée', () => {
-    const warning = googleCertsOverrideWarning(loadConfig({ ...BASE, GOOGLE_CERTS_URL: 'http://stub:3101/certs' }));
+    const warning = googleCertsOverrideWarning(loadConfig({ ...BASE, GOOGLE_CERTS_URL: 'http://stub:3101/certs', ALLOW_GOOGLE_CERTS_OVERRIDE: 'true' }));
     expect(warning).toContain('GOOGLE_CERTS_URL');
     expect(warning).toContain('http://stub:3101/certs');
     expect(warning).toMatch(/ne viennent pas de Google/);

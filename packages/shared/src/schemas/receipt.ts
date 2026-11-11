@@ -9,6 +9,8 @@ import { productSchema } from './products.js';
  * tout achat réel d'un même article sur un ticket de supermarché.
  */
 export const RECEIPT_QUANTITY_MAX = 99;
+/** Lignes retenues sur un ticket, en lecture comme en validation : au-delà, c'est le modèle qui déraille, pas le ticket. */
+export const RECEIPT_LINES_MAX = 200;
 export const receiptQuantitySchema = z.number().finite().min(0.01).max(RECEIPT_QUANTITY_MAX);
 
 export const createReceiptSchema = z.object({ locationId: idSchema });
@@ -44,7 +46,7 @@ export const validateReceiptSchema = z
     lines: z
       .array(z.object({ id: idSchema, productId: idSchema, quantity: receiptQuantitySchema, clientOpId: clientOpIdSchema }))
       .min(1)
-      .max(200),
+      .max(RECEIPT_LINES_MAX),
   })
   .refine((v) => new Set(v.lines.map((l) => l.id)).size === v.lines.length, { message: 'Ligne en double', path: ['lines'] })
   .refine((v) => new Set(v.lines.map((l) => l.clientOpId)).size === v.lines.length, { message: 'clientOpId en double', path: ['lines'] });

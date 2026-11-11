@@ -128,6 +128,13 @@ export class ProductsService {
       await tx.stockItem.updateMany({ where: { productId: sourceId }, data: { productId: targetId } });
       await tx.recipeIngredient.updateMany({ where: { productId: sourceId }, data: { productId: targetId } });
       await tx.shoppingListItem.updateMany({ where: { productId: sourceId }, data: { productId: targetId } });
+      // Ce que les tickets de caisse ont appris suit le produit : sans cela,
+      // les libellés rattachés à la source retombent en « non reconnu » à la
+      // lecture suivante, puisqu'un produit fusionné est écarté du catalogue
+      // (audit du 2026-11-11). `ReceiptLabelAlias.label` est unique à lui seul :
+      // aucun conflit possible en changeant de produit.
+      await tx.receiptLabelAlias.updateMany({ where: { productId: sourceId }, data: { productId: targetId } });
+      await tx.receiptLine.updateMany({ where: { productId: sourceId }, data: { productId: targetId } });
       const barcodeToTransfer = source.barcode && !target.barcode ? source.barcode : null;
       await tx.product.update({ where: { id: sourceId }, data: { mergedIntoId: targetId, ...(barcodeToTransfer ? { barcode: null } : {}) } });
       await tx.product.update({

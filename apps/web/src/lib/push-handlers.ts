@@ -59,3 +59,19 @@ export function notificationOptions(message: PushMessage): NotificationOptions {
 export function clientToFocus<T extends { url: string }>(clients: readonly T[], origin: string): T | null {
   return clients.find((client) => client.url.startsWith(origin)) ?? null;
 }
+
+/**
+ * Le chemin à ouvrir au clic, ramené à l'application. Seul notre serveur peut
+ * signer une notification pour cet abonnement, mais une adresse venue du
+ * réseau n'a pas à décider où va le téléphone : tout ce qui n'est pas un
+ * chemin de l'application ramène à l'accueil (audit du 2026-11-11).
+ */
+export function sameOriginPath(raw: string | undefined, origin = self.location.origin): string {
+  if (!raw) return '/';
+  try {
+    const url = new URL(raw, origin);
+    return url.origin === origin ? `${url.pathname}${url.search}` : '/';
+  } catch {
+    return '/';
+  }
+}

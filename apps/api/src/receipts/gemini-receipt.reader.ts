@@ -1,4 +1,4 @@
-import { receiptQuantitySchema } from '@kitchen/shared';
+import { RECEIPT_LINES_MAX, receiptQuantitySchema } from '@kitchen/shared';
 import type { HttpClient } from '../common/http-client.js';
 import { GeminiPausedError, GENERATION_TIMEOUT_MS, transportMessage } from '../gemini/gemini-errors.js';
 import { estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
@@ -119,7 +119,9 @@ function parseLines(text: string): RawReceiptLine[] {
   }
   if (!Array.isArray(data)) throw new ProviderError('Le fournisseur n’a pas renvoyé de lecture exploitable pour ce ticket');
   const lines: RawReceiptLine[] = [];
-  for (const item of data as unknown[]) {
+  // Le même plafond qu'à la validation : une lecture qui rendrait des milliers
+  // de lignes est une dérive du modèle, pas un ticket (audit du 2026-11-11).
+  for (const item of (data as unknown[]).slice(0, RECEIPT_LINES_MAX)) {
     if (typeof item !== 'object' || item === null) continue;
     const { label, quantity, kind } = item as Record<string, unknown>;
     if (kind !== 'PRODUCT' || typeof label !== 'string' || label.trim() === '') continue;

@@ -26,7 +26,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { findProductIdsByTerms } from '../products/products.search.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { toMovementDto, toStockItemDto, type StockItemRow } from './stock.mapper.js';
-import { applyMovement, type MovementResult } from './stock.quantity.js';
+import { applyMovement, findReplay, lockStockItem, type MovementResult } from './stock.quantity.js';
 
 const INCLUDE = { product: { include: { category: true } }, location: true } as const;
 
@@ -158,52 +158,65 @@ export class StockService {
     return this.toResult(result, { merged: result.merged });
   }
 
-  /** EF-10 : consommation plafonnée au stock disponible (section 15). */
+  /**
+   * EF-10 : consommation plafonnée au stock disponible (section 15).
+   *
+   * Tout se décide dans la transaction, ligne verrouillée : le rejeu d'abord
+   * (une réponse perdue ne doit pas se heurter à un lot que sa propre première
+   * écriture a épuisé), la quantité disponible ensuite, lue une seule fois
+   * pour le plafonnement et pour le message (audit du 2026-11-11).
+   */
   async consume(id: string, input: ConsumeStockInput, user: RequestUser): Promise<StockWriteResult> {
-    const item = await this.requireActive(id);
-    const { delta, capped } = capConsumption(item.quantity.toNumber(), input.quantity);
-    const result = await this.prisma.$transaction((tx) =>
-      applyMovement(tx, {
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const replay = await findReplay(tx, input.clientOpId);
+      if (replay) return { result: replay, capped: false, available: 0, unit: null };
+      const item = await this.requireActive(id, tx);
+      const { delta, capped } = capConsumption(item.quantity.toNumber(), input.quantity);
+      const result = await applyMovement(tx, {
         stockItemId: id,
         type: capped ? 'ADJUSTMENT' : 'CONSUMPTION',
         delta,
         reason: capped ? `Consommation de ${formatQty(input.quantity)} ramenée au stock disponible` : (input.reason ?? null),
         userId: writerId(user),
         clientOpId: input.clientOpId ?? null,
-      }),
-    );
-    const available = item.quantity.toNumber();
-    return this.toResult(result, {
-      capped,
-      ...(capped ? { message: `Quantité ramenée au stock disponible (${formatQty(available)} ${UNIT_LABELS_FR[item.unit]})` } : {}),
+      });
+      return { result, capped, available: item.quantity.toNumber(), unit: item.unit };
+    });
+    return this.toResult(outcome.result, {
+      capped: outcome.capped,
+      ...(outcome.capped && outcome.unit
+        ? { message: `Quantité ramenée au stock disponible (${formatQty(outcome.available)} ${UNIT_LABELS_FR[outcome.unit]})` }
+        : {}),
     });
   }
 
   /** Ajustement libre (inventaire, annulation). Ne descend jamais sous zéro. */
   async adjust(id: string, input: AdjustStockInput, user: RequestUser): Promise<StockWriteResult> {
-    const item = await this.require(id);
-    if (roundQuantity(item.quantity.toNumber() + input.delta) < 0) {
-      throw ApiError.businessRule('L’ajustement ferait passer la quantité sous zéro');
-    }
-    const result = await this.prisma.$transaction((tx) =>
-      applyMovement(tx, {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const replay = await findReplay(tx, input.clientOpId);
+      if (replay) return replay;
+      const item = await this.require(id, tx);
+      if (roundQuantity(item.quantity.toNumber() + input.delta) < 0) {
+        throw ApiError.businessRule('L’ajustement ferait passer la quantité sous zéro');
+      }
+      return applyMovement(tx, {
         stockItemId: id,
         type: 'ADJUSTMENT',
         delta: roundQuantity(input.delta),
         reason: input.reason ?? null,
         userId: writerId(user),
         clientOpId: input.clientOpId ?? null,
-      }),
-    );
+      });
+    });
     return this.toResult(result, {});
   }
 
   /** Jeter un lot : mouvement de perte pour tout le reste, puis archivage. */
   async discard(id: string, user: RequestUser, reason?: string): Promise<StockWriteResult> {
-    const item = await this.requireActive(id);
-    const result = await this.prisma.$transaction((tx) =>
-      applyMovement(tx, { stockItemId: id, type: 'LOSS', delta: -item.quantity.toNumber(), reason: reason ?? 'Jeté', userId: writerId(user) }),
-    );
+    const result = await this.prisma.$transaction(async (tx) => {
+      const item = await this.requireActive(id, tx);
+      return applyMovement(tx, { stockItemId: id, type: 'LOSS', delta: -item.quantity.toNumber(), reason: reason ?? 'Jeté', userId: writerId(user) });
+    });
     return this.toResult(result, {});
   }
 
@@ -246,14 +259,20 @@ export class StockService {
     return this.get(id);
   }
 
-  private async require(id: string) {
-    const item = await this.prisma.stockItem.findUnique({ where: { id } });
+  /**
+   * Le lot, verrouillé jusqu'à la fin de la transaction quand on en passe une :
+   * ce qui est lu pour décider d'une écriture doit l'être sous verrou, sinon
+   * deux écritures concurrentes décident sur la même lecture périmée.
+   */
+  private async require(id: string, tx?: Prisma.TransactionClient) {
+    if (tx) await lockStockItem(tx, id);
+    const item = await (tx ?? this.prisma).stockItem.findUnique({ where: { id } });
     if (!item) throw ApiError.notFound('Lot introuvable');
     return item;
   }
 
-  private async requireActive(id: string) {
-    const item = await this.require(id);
+  private async requireActive(id: string, tx?: Prisma.TransactionClient) {
+    const item = await this.require(id, tx);
     if (item.archivedAt || item.quantity.toNumber() <= 0) throw ApiError.businessRule('Ce lot est déjà épuisé');
     return item;
   }

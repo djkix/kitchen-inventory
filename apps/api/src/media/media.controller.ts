@@ -5,6 +5,15 @@ import type { Request, Response } from 'express';
 import { ApiError } from '../common/api-error.js';
 import { MediaService, MIME_BY_EXTENSION } from './media.service.js';
 
+/** Chemin décodé, ou `null` si l'URL est mal encodée — un 404, pas un 500. */
+function decodePath(raw: string): string | null {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+}
+
 @Controller('media')
 export class MediaController {
   constructor(private readonly media: MediaService) {}
@@ -12,8 +21,8 @@ export class MediaController {
   /** `GET /api/v1/media/<chemin relatif>`, derrière la garde de session comme toute route. */
   @Get('{*path}')
   async serve(@Req() req: Request, @Res() res: Response): Promise<void> {
-    const rel = decodeURIComponent(req.path.replace(/^\/api\/v1\/media\//, ''));
-    const abs = this.media.resolve(rel);
+    const rel = decodePath(req.path.replace(/^\/api\/v1\/media\//, ''));
+    const abs = rel === null ? null : this.media.resolvePublic(rel);
     if (!abs) throw ApiError.notFound('Média introuvable');
     try {
       const info = await stat(abs);
