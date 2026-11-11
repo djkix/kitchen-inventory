@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.42.1](https://github.com/djkix/kitchen-inventory/compare/v0.42.0...v0.42.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **securite:** corrections de l'audit externe du 2026-11-11 ([#73](https://github.com/djkix/kitchen-inventory/issues/73)) ([6287dca](https://github.com/djkix/kitchen-inventory/commit/6287dca54ef079aab692e66cb6e5beb3698a58c8))
+
 ## [0.42.0](https://github.com/djkix/kitchen-inventory/compare/v0.41.3...v0.42.0) (2026-11-10)
 
 
