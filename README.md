@@ -535,6 +535,12 @@ Mot de passe de secours : …
 Valable jusqu'à 18/10/2026 14:13:38, pour une seule connexion.
 ```
 
+Un compte **refusé** qui porte déjà un compte Google n'est pas réactivé : le
+rouvrir en administrateur rendrait l'application à la personne qu'on en a
+écartée, et une adresse tapée de travers suffirait. La commande le dit et
+s'arrête ; `--force` en fin de ligne passe outre si c'est bien l'intention. Un
+compte **en attente** se promeut sans rien dire, c'est le chemin normal.
+
 Ce mot de passe est **valable une heure**, **utilisable une seule fois**, et
 n'est **jamais réaffiché** : il n'existe en clair nulle part ailleurs, pas même
 dans les journaux. Il s'utilise sur une route que l'interface ne présente
@@ -680,6 +686,12 @@ y est en clair, lisible par qui a accès au dossier partagé.
 - Le NAS doit ouvrir le partage à l'hôte Docker en NFS, en lecture/écriture,
   avec « mappage de tous les utilisateurs ». Adresse et chemin vont dans `.env`,
   jamais dans le dépôt.
+- La sauvegarde emporte `.env` **en clair** : clé Gemini, secret de session,
+  mot de passe PostgreSQL, clé privée VAPID. C'est assumé — sans lui, la
+  restauration ne tiendrait plus en une commande — mais le dossier daté
+  n'appartient qu'à son propriétaire (`umask 077` depuis la 0.42.1) : ce qui
+  monte le partage ne le lit pas pour autant. **Le NAS compromis, c'est la
+  production compromise** : traiter ce partage comme un secret.
 - Un média inchangé est un lien physique vers celui de la veille : sept jours
   occupent à peu près la place d'un seul.
 - Une tentative ratée ne supprime rien. Une nuit manquée (hôte ou NAS éteint)
@@ -753,7 +765,8 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `PUBLIC_URL` | URL publique HTTPS |
 | `GOOGLE_CLIENT_ID` | Client ID OAuth « Application web » de la console Google Cloud, **public** (pas de client secret avec ce flux). Vide = la connexion Google est indisponible et le bouton ne s'affiche pas, l'application devenant inaccessible autrement que par la porte de secours. Obtention : [Première connexion](#première-connexion) |
 | `ADMIN_EMAIL` | Seule adresse autorisée à devenir le premier administrateur d'une base vide. Absente en production, aucune connexion Google ne crée d'administrateur : passer par la [porte de secours](#accès-de-secours). Sans effet une fois un compte créé |
-| `GOOGLE_CERTS_URL` | **Réservée au montage de tests bout en bout, à ne jamais poser ici.** Elle remplace les clés publiques qui valident les jetons Google : qui sert ces clés signe des jetons que l'application accepte. Posée, elle est signalée par un avertissement au démarrage et par `google_certs_url` dans le `degraded` de `/health` |
+| `GOOGLE_CERTS_URL` | **Réservée au montage de tests bout en bout, à ne jamais poser ici.** Elle remplace les clés publiques qui valident les jetons Google : qui sert ces clés signe des jetons que l'application accepte. Posée en production, **l'application refuse de démarrer** tant que `ALLOW_GOOGLE_CERTS_OVERRIDE=true` ne revendique pas ce remplacement ; elle reste par ailleurs signalée par un avertissement au démarrage et par `google_certs_url` dans le `degraded` de `/health` |
+| `ALLOW_GOOGLE_CERTS_OVERRIDE` | Revendication de la variable ci-dessus, posée par `docker-compose.e2e.yml` et par lui seul. Un `.env` de production qui porterait `GOOGLE_CERTS_URL` par accident ne démarre pas |
 | `VISION_PROVIDER` | `none` ou `gemini` |
 | `VISION_API_KEY`, `VISION_BASE_URL` | Clé Gemini, partagée par la photo, les tickets et les recettes ; `VISION_BASE_URL` sert pour un proxy |
 | `VISION_MODEL` | Modèle de **repli** (défaut `gemini-3.8-flash`), utilisé seulement si la liste des modèles de Google est indisponible : le reste du temps, l'application choisit elle-même parmi les Flash et Flash-Lite stables. Un modèle Pro empêche le démarrage |
@@ -780,6 +793,21 @@ part des scans résolus par le cache) sont affichés dans les réglages.
 
 Les garde-fous qui ne se voient pas à l'écran :
 
+- **Notifications.** L'adresse d'abonnement d'un appareil doit être un vrai
+  service de push : HTTPS, nom public, ni adresse IP littérale ni `.local`.
+  Sans ce filtre, un membre du foyer pouvait faire poster le serveur vers le
+  routeur ou le NAS (audit du 2026-11-11). Au clic sur une notification, le
+  service worker ne suit que des chemins de l'application.
+- **Entrées gardées pour un rejeu.** La photo de ticket ou l'enregistrement
+  vocal d'une demande différée vit sous `media/differe` le temps du rejeu, et
+  **n'est jamais servie par HTTP** : seul le serveur la relit, pour la rejouer
+  puis l'effacer.
+- **Écritures de stock.** Une consommation ou un ajustement lit la quantité
+  **sous verrou, dans la transaction qui écrit** : deux téléphones qui
+  consomment le même lot en même temps ne peuvent pas décider sur la même
+  lecture périmée. Un `clientOpId` déjà connu rend son résultat avant toute
+  autre vérification, y compris quand c'est sa propre première écriture qui a
+  épuisé le lot.
 - **Pages de recettes web.** Le récupérateur ne lit que du HTTPS vers une
   adresse publique, revalide chaque redirection, et **épingle la connexion sur
   l'adresse qu'il vient de vérifier** : le nom n'est jamais résolu une seconde
@@ -835,7 +863,12 @@ quand quelqu'un quitte le foyer, comme on change une serrure.
 curl -H "Authorization: Bearer kit_…" https://kitchen.example.org/api/v1/stock/expiring?days=7
 ```
 
-Toute méthode autre que `GET` est refusée avec ce jeton.
+Toute méthode autre que `GET` est refusée avec ce jeton, et **la lecture se
+limite à l'inventaire** : `/stock`, `/products`, `/locations`, `/categories`,
+`/suggestions`, `/health` et `/me`. Tout le reste — l'export, les tickets de
+caisse, les médias, le journal des réalisations, les réglages — répond 403 et
+demande un vrai compte. Un jeton posé dans une intégration domotique n'a pas à
+pouvoir aspirer le foyer (audit du 2026-11-11).
 
 **Ticket de caisse (API ; l'écran est l'onglet Courses, voir Fonctionnalités).**
 `POST /api/v1/receipts` (multipart : `file`, photo JPEG, PNG, WebP, HEIC ou PDF
@@ -1030,6 +1063,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.42.1 | 2026-11-11 | Corrections de l'audit de sécurité externe : jetons de service limités à l'inventaire, entrées différées plus servies par HTTP, rejeu d'une consommation qui a épuisé le lot, sauvegardes lisibles du seul propriétaire |
 | 0.42.0 | 2026-11-10 | Le nombre de recettes s'affiche en tête de l'écran Suggestions, et non plus en bas de liste |
 | 0.41.3 | 2026-11-10 | Une demande parlée terminée en arrière-plan se rouvre enfin, avec ce que le modèle avait compris |
 | 0.41.2 | 2026-11-10 | Retirer l'étoile d'une recette qui repartirait aux suggestions demande confirmation |

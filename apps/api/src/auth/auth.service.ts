@@ -7,7 +7,7 @@ import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import { createDefaultLocations } from '../locations/default-locations.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GOOGLE_TOKEN_VERIFIER, type GoogleIdentity, type GoogleTokenVerifier } from './google-token.verifier.js';
-import { verifyPassword } from './password.js';
+import { verifyAgainstDecoy, verifyPassword } from './password.js';
 import type { RequestUser } from './request-user.js';
 import { SessionService } from './session.service.js';
 
@@ -175,16 +175,22 @@ export class AuthService {
    * la session.
    */
   async loginWithRecovery(input: RecoveryLoginInput, res: Response): Promise<CurrentUser> {
-    const user = await this.prisma.user.findUnique({ where: { email: input.email } });
+    const found = await this.prisma.user.findUnique({ where: { email: input.email } });
     // Le statut est vérifié ici aussi : la session d'un compte révoqué serait
     // de toute façon rejetée à la requête suivante (D10).
-    if (!user?.passwordHash || !user.recoveryExpiresAt || user.status !== 'ACTIVE') {
-      throw ApiError.unauthenticated(RECOVERY_MESSAGE);
-    }
-    if (user.recoveryExpiresAt.getTime() <= Date.now()) throw ApiError.unauthenticated(RECOVERY_MESSAGE);
+    const open =
+      found?.passwordHash && found.recoveryExpiresAt && found.status === 'ACTIVE' && found.recoveryExpiresAt.getTime() > Date.now() ? found : null;
     // Un mot de passe faux **n'efface rien** : sinon n'importe qui, en tapant
     // au hasard pendant l'heure ouverte, condamnerait la porte du propriétaire.
-    if (!(await verifyPassword(user.passwordHash, input.password))) throw ApiError.unauthenticated(RECOVERY_MESSAGE);
+    // Sans fenêtre ouverte, on hache quand même : le refus doit coûter le même
+    // temps, sinon il raconte l'état de la porte (audit du 2026-11-11).
+    const passwordHash = open?.passwordHash;
+    if (!open || !passwordHash) {
+      await verifyAgainstDecoy(input.password);
+      throw ApiError.unauthenticated(RECOVERY_MESSAGE);
+    }
+    const user = open;
+    if (!(await verifyPassword(passwordHash, input.password))) throw ApiError.unauthenticated(RECOVERY_MESSAGE);
 
     await this.prisma.$transaction(async (tx) => {
       // La condition est rejouée dans l'écriture : deux appels concurrents avec

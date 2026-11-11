@@ -16,7 +16,11 @@ START_ISO="$(date -Iseconds)"
 TMP="$TARGET/.en-cours"
 MESSAGE=""
 DUMP_BYTES=NULL
-umask 022
+# La sauvegarde emporte la base et `.env` en clair (clé Gemini, secret de
+# session, mot de passe PostgreSQL, clé privée VAPID). Sur un partage NFS que
+# d'autres conteneurs montent, `022` les rendait lisibles par tout le monde :
+# le dossier daté n'appartient qu'à son propriétaire (audit du 2026-11-11).
+umask 077
 
 # Une seule sauvegarde à la fois (planifiée et à la main partagent le /tmp du conteneur) ; rien n'est inscrit.
 exec 9> "${BACKUP_LOCK:-/tmp/sauvegarde.verrou}"

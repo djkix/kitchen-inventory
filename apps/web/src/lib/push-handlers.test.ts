@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clientToFocus, notificationOptions, readPushMessage } from './push-handlers';
+import { clientToFocus, notificationOptions, readPushMessage, sameOriginPath } from './push-handlers';
 
 describe('readPushMessage', () => {
   it('lit le message du serveur', () => {
@@ -36,5 +36,20 @@ describe('clientToFocus', () => {
 
   it('rend null quand aucun onglet n’est ouvert : il faudra en ouvrir un', () => {
     expect(clientToFocus([{ url: 'https://autre.example/' }], 'https://kitchen.example')).toBeNull();
+  });
+});
+
+describe('sameOriginPath (audit du 2026-11-11)', () => {
+  const ORIGIN = 'https://kitchen.example';
+
+  it('garde un chemin de l’application, avec sa requête', () => {
+    expect(sameOriginPath('/recettes/parler?demande=7', ORIGIN)).toBe('/recettes/parler?demande=7');
+    expect(sameOriginPath(`${ORIGIN}/stock`, ORIGIN)).toBe('/stock');
+  });
+
+  it('ramène à l’accueil tout ce qui mènerait ailleurs', () => {
+    expect(sameOriginPath('https://ailleurs.example/piege', ORIGIN)).toBe('/');
+    expect(sameOriginPath('javascript:alert(1)', ORIGIN)).toBe('/');
+    expect(sameOriginPath(undefined, ORIGIN)).toBe('/');
   });
 });

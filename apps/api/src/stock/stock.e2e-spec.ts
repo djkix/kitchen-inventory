@@ -102,6 +102,31 @@ describe('stock (EF-07, EF-08, EF-09, EF-10)', () => {
     expect(again.body.error.code).toBe('business_rule');
   });
 
+  it('rejouer la consommation qui a épuisé le lot rend le même résultat (audit du 2026-11-11)', async () => {
+    const productId = await createProduct({ name: 'Lentilles' });
+    const created = await agent.post('/api/v1/stock').send({ productId, locationId: placardId, quantity: 1 }).expect(201);
+    const id = created.body.item.id;
+    const first = await agent.post(`/api/v1/stock/${id}/consume`).send({ quantity: 1, clientOpId: 'op-epuise-0001' }).expect(200);
+    expect(first.body.item.quantity).toBe(0);
+    // La réponse s'est perdue : le téléphone rejoue. Le lot est archivé, mais
+    // c'est cette écriture-là qui l'a archivé — le rejeu ne doit pas buter dessus.
+    const replay = await agent.post(`/api/v1/stock/${id}/consume`).send({ quantity: 1, clientOpId: 'op-epuise-0001' }).expect(200);
+    expect(replay.body.replayed).toBe(true);
+    expect(replay.body.movement.id).toBe(first.body.movement.id);
+    expect(replay.body.item.quantity).toBe(0);
+    expect(await t.prisma.stockMovement.count({ where: { clientOpId: 'op-epuise-0001' } })).toBe(1);
+  });
+
+  it('rejouer un ajustement qui ramène à zéro ne se heurte pas à sa propre écriture', async () => {
+    const productId = await createProduct({ name: 'Farine' });
+    const created = await agent.post('/api/v1/stock').send({ productId, locationId: placardId, quantity: 2 }).expect(201);
+    const id = created.body.item.id;
+    await agent.post(`/api/v1/stock/${id}/adjust`).send({ delta: -2, clientOpId: 'op-ajust-00001' }).expect(200);
+    const replay = await agent.post(`/api/v1/stock/${id}/adjust`).send({ delta: -2, clientOpId: 'op-ajust-00001' }).expect(200);
+    expect(replay.body.replayed).toBe(true);
+    expect(replay.body.item.quantity).toBe(0);
+  });
+
   it('un ajustement positif annule une consommation et réactive le lot', async () => {
     const productId = await createProduct({ name: 'Riz' });
     const created = await agent.post('/api/v1/stock').send({ productId, locationId: placardId, quantity: 1 }).expect(201);

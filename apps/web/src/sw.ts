@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
-import { clientToFocus, notificationOptions, readPushMessage } from './lib/push-handlers';
+import { clientToFocus, notificationOptions, readPushMessage, sameOriginPath } from './lib/push-handlers';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -31,7 +31,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data as { url?: string } | undefined)?.url ?? '/';
+  const url = sameOriginPath((event.notification.data as { url?: string } | undefined)?.url);
   event.waitUntil(
     (async () => {
       const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
