@@ -155,6 +155,13 @@ reste du poulet et un peu de sauce tomate, je veux faire un plat italien »*, et
 Gemini écoute, comprend et propose dans le même appel. L'audio n'est conservé
 nulle part.
 
+Le modèle dose parfois un ingrédient dans une unité que l'application ne
+connaît pas — une cuillère à soupe de concentré de tomates, une gousse d'ail.
+L'ingrédient garde alors son libellé et perd sa quantité, plutôt que
+d'emporter la recette entière : « 2 » sans la cuillère se lirait « 2
+concentrés de tomates ». Les unités reconnues sont la pièce, le gramme, le
+kilo, le millilitre, le litre, le paquet, la boîte et le sachet.
+
 **Mes recettes** est la bibliothèque du foyer : classée par note, filtrable
 (difficulté, cuisine, temps, plat, régime), avec favoris, notation par membre
 et glissement vers la gauche pour archiver. Cuisiner une recette décrémente le
@@ -1063,6 +1070,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.42.2 | 2026-11-14 | Une cuillère à soupe ne fait plus échouer toute une demande de recettes : l'ingrédient perd sa quantité, la recette reste |
 | 0.42.1 | 2026-11-11 | Corrections de l'audit de sécurité externe : jetons de service limités à l'inventaire, entrées différées plus servies par HTTP, rejeu d'une consommation qui a épuisé le lot, sauvegardes lisibles du seul propriétaire |
 | 0.42.0 | 2026-11-10 | Le nombre de recettes s'affiche en tête de l'écran Suggestions, et non plus en bas de liste |
 | 0.41.3 | 2026-11-10 | Une demande parlée terminée en arrière-plan se rouvre enfin, avec ce que le modèle avait compris |
