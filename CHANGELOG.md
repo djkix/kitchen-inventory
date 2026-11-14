@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.42.2](https://github.com/djkix/kitchen-inventory/compare/v0.42.1...v0.42.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **suggestions:** une unite inconnue n'emporte plus la recette (EF-25) ([#75](https://github.com/djkix/kitchen-inventory/issues/75)) ([15de093](https://github.com/djkix/kitchen-inventory/commit/15de09301f3ead235c210a10298f2b85b57a8b22))
+
 ## [0.42.1](https://github.com/djkix/kitchen-inventory/compare/v0.42.0...v0.42.1) (2026-11-11)
 
 
