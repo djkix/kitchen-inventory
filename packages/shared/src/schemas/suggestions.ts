@@ -145,12 +145,39 @@ export const suggestionQuerySchema = z.object({
 });
 export type SuggestionQuery = z.infer<typeof suggestionQuerySchema>;
 
-const modelRecipeIngredientSchema = z.object({
-  label: z.string().trim().min(1, { message: "Libellé d'ingrédient requis" }).max(160),
-  // Une quantité absente est légitime (« une pincée », « au goût ») : non manquante, juste non chiffrée.
-  quantity: positiveQuantitySchema.nullable(),
-  unit: unitSchema.nullable(),
-});
+/**
+ * Ingrédient rendu par le modèle, avec la seule tolérance du lot : une unité
+ * que l'application ne connaît pas (« TABLESPOON », « PINCH », « CLOVE »)
+ * ramène l'ingrédient à son libellé au lieu de faire tomber la recette.
+ *
+ * La consigne liste pourtant les unités admises, mais le modèle suit la
+ * cuisine avant le schéma : il a dosé quatre fois sur quatre le concentré de
+ * tomates en cuillères à soupe, et les quatre recettes d'une demande parlée
+ * sont tombées d'un coup — un lot sans aucune recette valide étant traité
+ * comme une réponse illisible, l'écran a annoncé un échec pour une réponse
+ * parfaitement utile (14 novembre 2026).
+ *
+ * La quantité part avec l'unité inconnue : « 2 » sans la cuillère se lirait
+ * « 2 concentrés de tomates ». Une quantité dont le modèle dit lui-même
+ * qu'elle n'a pas d'unité (`unit: null`) est en revanche conservée telle
+ * quelle — c'est le « 2 œufs » ordinaire.
+ */
+function modelIngredient() {
+  return z
+    .object({
+      label: z.string().trim().min(1, { message: "Libellé d'ingrédient requis" }).max(160),
+      // Une quantité absente est légitime (« une pincée », « au goût ») : non manquante, juste non chiffrée.
+      quantity: positiveQuantitySchema.nullable(),
+      unit: z.unknown(),
+    })
+    .transform(({ label, quantity, unit }) => {
+      const parsed = unitSchema.nullable().safeParse(unit ?? null);
+      const known = parsed.success ? parsed.data : null;
+      return { label, quantity: parsed.success ? quantity : null, unit: known };
+    });
+}
+
+const modelRecipeIngredientSchema = modelIngredient();
 
 const modelRecipeBaseSchema = z.object({
   title: z.string().trim().min(1, { message: 'Titre requis' }).max(160),
@@ -267,11 +294,8 @@ export const keepSuggestionSchema = z.object({
 });
 export type KeepSuggestionInput = z.infer<typeof keepSuggestionSchema>;
 
-const recipeRewriteIngredientSchema = z.object({
-  label: z.string().trim().min(1, { message: "Libellé d'ingrédient requis" }).max(160),
-  quantity: positiveQuantitySchema.nullable(),
-  unit: unitSchema.nullable(),
-});
+/** La réécriture d'une page web passe par le même modèle, donc par la même tolérance. */
+const recipeRewriteIngredientSchema = modelIngredient();
 
 /**
  * Recette telle que rendue par Gemini lors de la réécriture au format de

@@ -3,6 +3,7 @@ import { SUGGESTION_INGREDIENT_LENGTH_MAX } from '../rules/suggestion-ingredient
 import {
   modelBatchSchema,
   modelRecipeSchema,
+  recipeRewriteSchema,
   suggestionQuerySchema,
   SUGGESTION_PAGE_MAX,
   SUGGESTION_REGIONS,
@@ -53,6 +54,45 @@ describe('modelRecipeSchema', () => {
     // plutôt que d'inventer un zéro qui se lirait « cuisson : 0 minute ».
     const recipe = { ...recette, prepMinutes: null, cookMinutes: null };
     expect(modelRecipeSchema.safeParse(recipe).success).toBe(true);
+  });
+});
+
+describe('unité inconnue rendue par le modèle (14 novembre 2026)', () => {
+  it('ramène l’ingrédient à son libellé au lieu de faire tomber la recette', () => {
+    // Le modèle a dosé le concentré de tomates en cuillères à soupe, unité que
+    // l'application ne connaît pas. Les quatre recettes d'une demande parlée
+    // sont tombées d'un coup, et l'écran a annoncé un échec pour une réponse
+    // utile.
+    const parsed = modelRecipeSchema.parse({
+      ...recette,
+      ingredients: [
+        { label: 'spaghettis', quantity: 200, unit: 'GRAM' },
+        { label: 'concentré de tomates', quantity: 2, unit: 'TABLESPOON' },
+      ],
+    });
+    expect(parsed.ingredients).toEqual([
+      { label: 'spaghettis', quantity: 200, unit: 'GRAM' },
+      // La quantité part avec l'unité : « 2 » seul se lirait « 2 concentrés ».
+      { label: 'concentré de tomates', quantity: null, unit: null },
+    ]);
+  });
+
+  it('garde une quantité que le modèle donne lui-même sans unité', () => {
+    const parsed = modelRecipeSchema.parse({ ...recette, ingredients: [{ label: 'œufs', quantity: 2, unit: null }] });
+    expect(parsed.ingredients).toEqual([{ label: 'œufs', quantity: 2, unit: null }]);
+  });
+
+  it('n’excuse pas un ingrédient sans libellé', () => {
+    expect(modelRecipeSchema.safeParse({ ...recette, ingredients: [{ label: '  ', quantity: 1, unit: 'PINCH' }] }).success).toBe(false);
+  });
+
+  it('vaut aussi pour la réécriture d’une page web, qui passe par le même modèle', () => {
+    const parsed = recipeRewriteSchema.parse({
+      title: 'Pâtes',
+      steps: ['Cuire'],
+      ingredients: [{ label: 'ail', quantity: 2, unit: 'CLOVE' }],
+    });
+    expect(parsed.ingredients).toEqual([{ label: 'ail', quantity: null, unit: null }]);
   });
 });
 
