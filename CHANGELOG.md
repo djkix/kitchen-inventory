@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.1](https://github.com/djkix/kitchen-inventory/compare/v0.43.0...v0.43.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **suggestions:** les Flash-Lite repassent devant, et une pastille IA sur la carte ([#79](https://github.com/djkix/kitchen-inventory/issues/79)) ([cd67279](https://github.com/djkix/kitchen-inventory/commit/cd672795a2a311bfab0777fe1cbb11e21d56e9ad))
+
 ## [0.43.0](https://github.com/djkix/kitchen-inventory/compare/v0.42.2...v0.43.0) (2026-11-20)
 
 
