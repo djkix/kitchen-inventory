@@ -720,6 +720,41 @@ describe('SuggestionsService (EF-26)', () => {
     expect(await db.recipe.count()).toBe(2);
   });
 
+  /**
+   * Défaut relevé en service le 2026-11-20, sur la première fournée de la
+   * 0.43.2 : quatre compositions sur quatre refusées à l'entrée dans « Mes
+   * recettes », `Une quantité exige une unité` sur les ingrédients 6 et 7.
+   *
+   * Deux schémas se contredisaient. Celui des suggestions accepte une quantité
+   * sans unité depuis le 2026-11-14 (« 2 œufs ») ; celui des recettes
+   * l'interdit, parce que son formulaire fait toujours choisir dans une liste.
+   * La consigne enrichie, qui autorise le placard de base — « 2 gousses
+   * d'ail », « 1 oignon » — a fait sortir la contradiction de son sommeil.
+   */
+  it('catalogue une composition dont un ingrédient porte un nombre sans unité (2026-11-20)', async () => {
+    const { service, db } = await createService();
+    const locationId = await seedLocation(db);
+    await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
+    const avecPlacard: ModelRecipe = {
+      ...composition(1),
+      ingredients: [
+        { label: 'Farine', quantity: 250, unit: 'GRAM' },
+        { label: 'Ail', quantity: 2, unit: null },
+        { label: 'Sel', quantity: null, unit: null },
+      ],
+    };
+    await seedPool(db, [{ recipe: avecPlacard }]);
+
+    expect((await service.catalogueAll()).crees).toBe(1);
+    const ingredients = await db.recipeIngredient.findMany({ orderBy: { label: 'asc' } });
+    expect(ingredients.map((i) => [i.label, i.quantity === null ? null : Number(i.quantity), i.unit])).toEqual([
+      // Un nombre nu désigne des objets entiers : PIECE, et le « 2 » survit.
+      ['Ail', 2, 'PIECE'],
+      ['Farine', 250, 'GRAM'],
+      ['Sel', null, null],
+    ]);
+  });
+
   // D3 (2026-11-09) : la recette existant désormais avant le geste, « Je fais
   // cette recette » doit la retrouver au lieu d'en créer une seconde — et
   // `clientOpId` n'y suffit pas, il ne reconnaît que le même appel rejoué.

@@ -180,6 +180,33 @@ quatre d'entre eux cassés. La règle à en tirer : **tout changement de libell�
 visible se cherche aussi dans `e2e/`**, où aucune vérification locale ne le
 rattrapera.
 
+## D7 — Un nombre sans unité vaut des pièces
+
+Relevé en service sur la première fournée de la 0.43.2 : **quatre compositions
+sur quatre refusées** à l'entrée dans « Mes recettes », `Une quantité exige une
+unité`, sur les ingrédients 6 et 7.
+
+Deux schémas se contredisaient sans que personne les ait comparés. Celui des
+suggestions accepte une quantité sans unité depuis le 2026-11-14 — « 2 œufs »
+est clair, et le perdre appauvrissait la recette. Celui des recettes
+l'interdit, et cette règle est juste là où elle s'applique : son formulaire
+fait toujours choisir dans une liste.
+
+La contradiction dormait tant que le modèle écrivait trois ingrédients tirés du
+stock scanné, c'est-à-dire des grammes et des millilitres. **D2 l'a réveillée**
+en autorisant le placard de base, dont tout se compte à l'unité : « 2 gousses
+d'ail », « 1 oignon », « 3 œufs ». Les ingrédients 6 et 7 sont précisément ceux
+que la nouvelle consigne a fait apparaître.
+
+`recipeIngredientFromModel` (`packages/shared`) accorde les deux : un nombre nu
+désigne des objets entiers, ce qui est la définition de `PIECE`, déjà l'unité
+des produits comptés à la pièce. On la pose plutôt que de jeter la quantité —
+« Oignon » sans son « 1 » n'aide personne à cuisiner — et plutôt que de
+relâcher la règle du formulaire.
+
+Les recettes déjà refusées ne sont pas perdues : elles sont au réservoir et
+**Réglages › Reconnaissance › rattrapage** les reprendra.
+
 ## Ce qui n'est pas garanti
 
 Rien ici ne prouve que les recettes seront bonnes : la consigne et le modèle

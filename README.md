@@ -1107,6 +1107,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.43.3 | 2026-11-20 | Une recette dont un ingrédient porte un nombre sans unité (« 2 gousses d'ail ») entre de nouveau dans « Mes recettes » |
 | 0.43.2 | 2026-11-20 | Correction des parcours bout en bout cassés par la pastille « IA », qui se lit désormais en entier par un lecteur d'écran |
 | 0.43.1 | 2026-11-20 | La provenance d'une recette composée tient dans une pastille « IA » ; les Flash-Lite repassent devant les Flash, qui ne répondent pas, et une recherche ne peut plus dépasser 80 secondes sans explication |
 | 0.43.0 | 2026-11-20 | Les recettes proposées ont de quoi être de vraies recettes : placard de base supposé, plancher de six ingrédients et cinq étapes |

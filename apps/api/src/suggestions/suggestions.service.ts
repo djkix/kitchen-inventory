@@ -31,6 +31,7 @@ import {
   voiceAudioRejection,
   parseNutriscoreGrade,
   type NutriscoreGrade,
+  recipeIngredientFromModel,
 } from '@kitchen/shared';
 import { Prisma } from '@prisma/client';
 import { ApiError, assertProviderEnabled } from '../common/api-error.js';
@@ -1277,9 +1278,10 @@ export class SuggestionsService {
         label: ingredient.label,
         productId: match.productId,
         categoryId: null,
-        quantity: ingredient.quantity,
-        // Une unité sans quantité chiffrée violerait `recipeIngredientInputSchema` (quantité ↔ unité) : alignée ici.
-        unit: ingredient.quantity === null ? null : ingredient.unit,
+        // Accord entre ce que le modèle rend et ce qu'une recette accepte :
+        // la règle vit dans `packages/shared`, parce que les deux schémas
+        // qu'elle réconcilie y vivent aussi.
+        ...recipeIngredientFromModel(ingredient),
         essential: false,
         substitutable: false,
       };
