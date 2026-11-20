@@ -45,6 +45,11 @@ export function provenanceLabel(suggestion: SuggestionDto): string {
   return 'Composée par l’IA, non vérifiée';
 }
 
+/** Une recette dont la page a été lue : seule à pouvoir se réclamer d'un site. */
+export function isVerifiedWeb(suggestion: SuggestionDto): boolean {
+  return suggestion.provenance === 'web' && suggestion.verified && suggestion.sourceUrl !== null;
+}
+
 /** Carte d'une suggestion (section 12, EF-25, EF-26) : même facture que `RecipeCard`, sans péremption ni étapes. */
 /**
  * Nom accessible du bouton qui enveloppe la carte (même défaut que
@@ -64,6 +69,22 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
     <article className="flex flex-col gap-2 rounded-card bg-surface p-3.5">
       <div className="flex items-start justify-between gap-2">
         <h3 className="min-w-0 flex-1 line-clamp-2 text-[16px] font-medium leading-tight">{suggestion.title}</h3>
+        {/*
+          Pastille plutôt que phrase (demande du propriétaire du 2026-11-20) :
+          « Composée par l'IA, non vérifiée » occupait une ligne entière sous une
+          ligne de méta qui disait déjà « Composition ». La mention entière reste
+          le nom accessible de la pastille, et la fiche détaillée la porte en
+          toutes lettres — l'aveu de D5 n'est pas perdu, il est resserré.
+        */}
+        {!isVerifiedWeb(suggestion) && (
+          <span
+            aria-label={provenanceLabel(suggestion)}
+            title={provenanceLabel(suggestion)}
+            className="shrink-0 rounded-md bg-raised px-1.5 py-0.5 text-[13px] font-semibold text-faint"
+          >
+            IA
+          </span>
+        )}
         <span className={cn('tnum shrink-0 rounded-md px-1.5 py-0.5 text-[13px] font-semibold', GROUP_LOOK[suggestion.group])}>
           {COVERAGE_GROUP_LABELS_FR[suggestion.group]} · {Math.round(suggestion.coverage * 100)} %
         </span>
@@ -79,7 +100,7 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
         <span>{DIFFICULTY_LABELS_FR[suggestion.difficulty]}</span>
       </p>
 
-      <p className="truncate text-[13px] text-muted">{provenanceLabel(suggestion)}</p>
+      {isVerifiedWeb(suggestion) && <p className="truncate text-[13px] text-muted">{provenanceLabel(suggestion)}</p>}
 
       {suggestion.missingLabels.length > 0 && (
         <p className="truncate text-[13px] text-faint">Manque : {suggestion.missingLabels.join(', ')}</p>

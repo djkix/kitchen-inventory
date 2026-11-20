@@ -214,22 +214,41 @@ affichés juste au-dessus — par une recherche écrite ordinaire : si la lectur
 était fautive, la relance l'est aussi, et cela se voit. Les nouvelles recettes
 s'ajoutent aux premières plutôt que de les remplacer.
 
-Les modèles sont essayés **Flash d'abord**, du plus récent au plus ancien,
-puis les Flash-Lite de la même façon. L'ordre a changé deux fois. Le
-2026-11-09, les Flash-Lite sont passés devant parce qu'eux seuls répondaient :
-relevé en service, une demande a vu `3.8-flash`, `3.7-flash`, `3.6-flash` et
-`3.5-flash` refuser l'un après l'autre — dont un délai dépassé de
-120 secondes — avant que `3.5-flash-lite` ne réponde en **3,7 secondes**.
+Les modèles sont essayés **Flash-Lite d'abord**, du plus récent au plus
+ancien, puis les Flash de la même façon. Non parce qu'ils sont meilleurs —
+ils ne le sont pas — mais parce qu'ils sont les seuls à répondre. Relevé en
+service sur soixante jours :
 
-Le 2026-11-20, le prix de ce choix s'est vu dans l'assiette : les 399 recettes
-du réservoir, toutes composées par `gemini-3.5-flash-lite`, portaient en
-moyenne **3,5 ingrédients et 4,3 étapes**. Composer une recette n'est pas la
-tâche simple qu'on croyait — c'est la seule dont la qualité se voit — et
-Flash-Lite est le plus faible de la liste. Les Flash-Lite restent derrière,
-prêts à répondre quand les Flash saturent : un refus les écarte cinq minutes
-et la cascade passe au suivant. Le coût est l'attente, une minute environ au
-lieu de quelques secondes, supportable depuis que l'écran peut être quitté
-(notification de résultat).
+| Modèle | Réussites | Refus (503) | Sans réponse | Durée |
+| --- | --- | --- | --- | --- |
+| `3.8-flash` | 0 | 7 | 10 | 45 s avant d'abandonner |
+| `3.7-flash` | 0 | 5 | 2 | jusqu'à 120 s |
+| `3.6-flash` | 0 | 3 | 2 | 45 s |
+| `3.5-flash` | 1 | 3 | 0 | 70 s |
+| `3.5-flash-lite` | **21** | 1 | 0 | **7 s** |
+
+Une réussite en trente-quatre tentatives côté Flash. Sur le palier gratuit de
+l'API, Google sature ses modèles récents : ils ne sont pas lents, ils sont
+inaccessibles. L'ordre inverse a été essayé le 2026-11-20 pour gagner en
+qualité, et retiré le jour même — la cascade enchaînait les refus et le
+mandataire inverse coupait la connexion à **90 secondes**, borne que
+l'application ne connaît pas et que son propre délai de 120 secondes ne peut
+donc pas respecter. L'écran affichait « Erreur du serveur ».
+
+La qualité des recettes se cherche donc ailleurs, dans la consigne, qui ne
+coûte ni attente ni disponibilité.
+
+La bascule d'un modèle à l'autre est immédiate : dès qu'un modèle refuse, le
+suivant est appelé sans attendre. Le cas coûteux est celui du modèle qui ne
+répond **rien** — impossible à distinguer d'une génération lente sans lire la
+réponse en flux, et le délai par appel doit rester large pour ne pas couper
+une recherche honnête. **Toute la cascade tient donc dans un budget de
+80 secondes** : chaque tentative garde son délai, mais jamais plus que ce qui
+reste du budget, et quand il est épuisé l'application rend elle-même un refus
+en français avec son heure de reprise. Cette borne est posée sous les
+90 secondes au bout desquelles le mandataire inverse coupe la connexion — sans
+elle, une cascade malheureuse se faisait trancher au milieu et l'écran
+affichait « Erreur du serveur ».
 
 La consigne envoyée au modèle a changé en même temps, et pour la même raison.
 Elle l'autorise désormais à **supposer un placard de base** — sel, poivre,
@@ -1088,7 +1107,8 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.43.0 | 2026-11-20 | Les recettes proposées sont enfin de vraies recettes : modèles Flash devant les Flash-Lite, placard de base supposé, plancher de six ingrédients et cinq étapes |
+| 0.43.1 | 2026-11-20 | La provenance d'une recette composée tient dans une pastille « IA » ; les Flash-Lite repassent devant les Flash, qui ne répondent pas, et une recherche ne peut plus dépasser 80 secondes sans explication |
+| 0.43.0 | 2026-11-20 | Les recettes proposées ont de quoi être de vraies recettes : placard de base supposé, plancher de six ingrédients et cinq étapes |
 | 0.42.2 | 2026-11-14 | Une cuillère à soupe ne fait plus échouer toute une demande de recettes : l'ingrédient perd sa quantité, la recette reste |
 | 0.42.1 | 2026-11-11 | Corrections de l'audit de sécurité externe : jetons de service limités à l'inventaire, entrées différées plus servies par HTTP, rejeu d'une consommation qui a épuisé le lot, sauvegardes lisibles du seul propriétaire |
 | 0.42.0 | 2026-11-10 | Le nombre de recettes s'affiche en tête de l'écran Suggestions, et non plus en bas de liste |

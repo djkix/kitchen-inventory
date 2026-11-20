@@ -9,13 +9,12 @@ const STABLE = /^gemini-(\d+(?:\.\d+)*)-flash(-lite)?$/;
 export const isStableModel = (name: string): boolean => STABLE.test(name) && isLightModel(name);
 
 /**
- * Ordre d'emploi : **les Flash d'abord**, du plus récent au plus ancien, puis
- * les Flash-Lite de la même façon.
+ * Ordre d'emploi : **les Flash-Lite d'abord**, du plus récent au plus ancien,
+ * puis les Flash de la même façon.
  *
- * L'ordre a été inversé deux fois, pour deux raisons qui ne se contredisent
- * pas. Le 2026-11-09, les Flash-Lite sont passés devant parce qu'eux seuls
- * répondaient : relevé en production sur une demande parlée, cinq refus avant
- * la première réponse.
+ * L'ordre était l'inverse — le plus récent et le plus gros en tête — et il
+ * coûtait cher. Relevé sur le serveur de production le 2026-11-09, une seule
+ * demande parlée :
  *
  * | 3.8-flash | 503 | 3,8 s |
  * | 3.7-flash | 503 | 1,6 s |
@@ -24,19 +23,43 @@ export const isStableModel = (name: string): boolean => STABLE.test(name) && isL
  * | 3.5-flash | 503 | 18,8 s |
  * | **3.5-flash-lite** | **200** | **3,7 s** |
  *
- * Le 2026-11-20, le propriétaire a constaté le prix de ce choix : les 399
- * recettes du réservoir, toutes composées par `gemini-3.5-flash-lite`,
- * faisaient en moyenne 3,5 ingrédients et 4,3 étapes, là où le même modèle
- * haut de gamme interrogé à la main rend des plats structurés. Composer une
- * recette n'est pas la tâche simple qu'on croyait : c'est la seule de
- * l'application dont la **qualité** se voit, et Flash-Lite est le modèle le
- * plus faible de la liste.
+ * Google sature ses modèles récents pour le trafic API gratuit ; Flash-Lite,
+ * lui, répond. Deux minutes d'attente pour une réponse que le dernier de la
+ * liste rendait en moins de quatre secondes.
  *
- * La cascade rend l'inversion sans risque : un 503 écarte le modèle cinq
- * minutes et passe au suivant, donc les Flash-Lite restent derrière, prêts à
- * répondre le jour où les Flash saturent. Le seul coût est l'attente — 65 s
- * contre 3,7 s au relevé du 2026-11-09 — devenue supportable depuis la
- * notification de résultat (EF-31), qui laisse quitter l'écran.
+ * Choix du propriétaire le 2026-11-09 : « prends les modèles Flash-Lite en
+ * premier puisque ce sont ceux qui répondent le mieux, la demande est simple
+ * et ne demande pas de gros modèle. » Composer trois recettes à partir d'une
+ * liste d'ingrédients ne réclame pas le modèle le plus capable, mais celui qui
+ * répond — et la cascade garde les Flash derrière, pour le jour où les
+ * Flash-Lite refuseraient à leur tour.
+ *
+ * **L'ordre a été inversé le 2026-11-20, puis remis le jour même.** Le motif
+ * de l'inversion était la qualité des recettes, et il était juste ; la
+ * prémisse qu'elle supposait — qu'un Flash répondrait — était fausse. Le
+ * journal complet, relevé en production après coup, ne laissait aucune place
+ * au doute :
+ *
+ * | modèle | 200 | 503 | sans statut | durée moyenne |
+ * | --- | --- | --- | --- | --- |
+ * | 3.8-flash | **0** | 7 | 10 | 6,4 s / 45 s |
+ * | 3.7-flash | **0** | 5 | 2 | 7,7 s / 120 s |
+ * | 3.6-flash | **0** | 3 | 2 | 8,4 s / 45 s |
+ * | 3.5-flash | 1 | 3 | 0 | 70,3 s |
+ * | **3.5-flash-lite** | **21** | 1 | 0 | **7,1 s** |
+ *
+ * Une réussite en trente-quatre tentatives côté Flash, et elle a demandé
+ * soixante-dix secondes. Les Flash-Lite : vingt et une sur vingt-deux, en sept
+ * secondes. Sur le palier gratuit de l'API, les Flash ne sont pas lents, ils
+ * sont inaccessibles.
+ *
+ * Le prix de l'erreur s'est vu à l'écran : la cascade enchaînait les refus et
+ * le mandataire inverse coupait la connexion à **90 secondes** — une borne que
+ * l'application ne connaît pas et que `GENERATION_TIMEOUT_MS` (120 s) ne peut
+ * donc pas respecter. L'utilisateur recevait « Erreur du serveur ».
+ *
+ * La qualité des recettes reste cherchée, mais par la consigne seule
+ * (`suggestions/prompt.ts`), qui ne coûte ni attente ni disponibilité.
  */
 export function orderModels(available: readonly string[]): string[] {
   const rank = (m: string) => {
@@ -45,8 +68,8 @@ export function orderModels(available: readonly string[]): string[] {
   };
   return [...new Set(available)].filter(isStableModel).sort((a, b) => {
     const [ra, rb] = [rank(a), rank(b)];
-    // La famille d'abord : tous les Flash avant tous les Flash-Lite.
-    if (ra.lite !== rb.lite) return ra.lite - rb.lite;
+    // La famille d'abord : tous les Flash-Lite avant tous les Flash.
+    if (ra.lite !== rb.lite) return rb.lite - ra.lite;
     for (let i = 0; i < Math.max(ra.v.length, rb.v.length); i++) {
       const d = (rb.v[i] ?? 0) - (ra.v[i] ?? 0);
       if (d) return d;

@@ -37,6 +37,61 @@ disponibles derrière. Le coût est l'attente — 65 s contre 3,7 s au relevé �
 devenue supportable depuis la notification de résultat (EF-31), qui permet de
 quitter l'écran.
 
+### D1 bis — Annulé le jour même
+
+Mis en service, l'ordre inverse a échoué. Le journal complet des appels, que
+j'aurais dû lire avant de décider et non après, dit pourquoi :
+
+| modèle | 200 | 503 | sans statut | durée |
+| --- | --- | --- | --- | --- |
+| `3.8-flash` | **0** | 7 | 10 | 6,4 s / 45 s |
+| `3.7-flash` | **0** | 5 | 2 | 7,7 s / 120 s |
+| `3.6-flash` | **0** | 3 | 2 | 8,4 s / 45 s |
+| `3.5-flash` | 1 | 3 | 0 | 70,3 s |
+| `3.5-flash-lite` | **21** | 1 | 0 | **7,1 s** |
+
+Une réussite en trente-quatre tentatives côté Flash, en soixante-dix secondes.
+Le raisonnement de D1 portait sur la capacité des modèles ; la question qui
+décidait était leur disponibilité, et elle avait déjà été tranchée le
+2026-11-09 par la mesure. Le choix du propriétaire était le bon.
+
+Le prix s'est payé à l'écran : la cascade enchaînait les refus et **le
+mandataire inverse coupe la connexion à 90 secondes**. L'application ne connaît
+pas cette borne — son propre délai vaut 120 secondes — donc elle ne pouvait ni
+la respecter ni l'expliquer : l'utilisateur recevait « Erreur du serveur,
+réessayez dans un instant », sans rien dans le journal applicatif qu'un
+`request aborted` à 90 000 ms.
+
+L'ordre du 2026-11-09 est rétabli. Les 90 secondes du mandataire sont notées
+ici parce qu'elles valent pour tout appel long, pas seulement celui-ci : elles
+sont la vraie borne du produit, et elles ne sont écrites nulle part dans la
+configuration de l'application.
+
+### D1 ter — Un budget de temps pour la cascade
+
+Question du propriétaire : « dès que tu reçois le code erreur, tu switches,
+possible ? » La bascule existait déjà et elle est immédiate — un 503 passe au
+modèle suivant sans attendre. Les 20,7 s du `3.8-flash` ce matin sont le temps
+que Google a mis à refuser, pas une attente de l'application.
+
+Le cas sans sortie était l'autre : `3.7-flash` n'a **rien** répondu et a
+consommé ses 120 s. On ne peut pas distinguer un modèle muet d'un modèle lent
+sans lire la réponse en flux, et raccourcir le délai par appel couperait des
+générations honnêtes — 65 s mesurées pour six recettes le 2026-11-09.
+
+D'où un budget d'ensemble, `CASCADE_BUDGET_MS` = 80 s : chaque tentative garde
+`GENERATION_TIMEOUT_MS`, mais jamais plus que ce qui reste du budget, et la
+cascade n'engage pas un modèle de plus quand il ne reste rien. Le premier
+modèle essayé répond en 7 s : le budget ne mord que sur les cascades déjà mal
+engagées. 80 s parce que le mandataire coupe à 90 : l'application rend alors
+son propre refus, en français, avec l'heure de reprise.
+
+Écarté : lire la réponse en flux (`streamGenerateContent`) pour n'accorder que
+quelques secondes au premier octet. C'est la vraie réponse au problème — elle
+distingue le muet du lent — mais elle demande de réécrire les quatre
+fournisseurs et leur lecture de réponse, pour un gain nul tant que le premier
+modèle répond en sept secondes.
+
 ## D2 — La consigne autorise un placard de base
 
 Le prompt ne nommait que les huit graines tirées du stock, et le modèle s'y
@@ -95,6 +150,16 @@ dépasser le délai de 120 s avec des recettes plus longues sur un modèle plus
 lent, mais le mode est éteint : la régler maintenant serait deviner, et cela
 démontait le scénario figé qui épingle le rapprochement sur douze recettes.
 À mesurer le jour où la recherche web servira vraiment.
+
+## D6 — La pastille « IA » remplace la phrase (2026-11-20)
+
+« Composée par l'IA, non vérifiée » occupait une ligne entière sous une ligne
+de méta qui disait déjà « Composition ». Le propriétaire a demandé une
+pastille. La carte porte donc un `IA` discret à côté du badge de couverture ;
+la phrase entière reste le **nom accessible** de la pastille et le
+sous-titre de la fiche détaillée. L'aveu de D5 n'est pas perdu, il est
+resserré — et une recette web dont la page a été lue continue de nommer son
+site, sans pastille.
 
 ## Ce qui n'est pas garanti
 
