@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.3](https://github.com/djkix/kitchen-inventory/compare/v0.43.2...v0.43.3) (2026-11-20)
+
+
+### Bug Fixes
+
+* **recettes:** un nombre sans unité vaut des pièces (EF-25) ([#83](https://github.com/djkix/kitchen-inventory/issues/83)) ([2f92490](https://github.com/djkix/kitchen-inventory/commit/2f9249090de8c7816db41718ac870f7e0080d41b))
+
 ## [0.43.2](https://github.com/djkix/kitchen-inventory/compare/v0.43.1...v0.43.2) (2026-11-20)
 
 
