@@ -214,15 +214,33 @@ affichés juste au-dessus — par une recherche écrite ordinaire : si la lectur
 était fautive, la relance l'est aussi, et cela se voit. Les nouvelles recettes
 s'ajoutent aux premières plutôt que de les remplacer.
 
-Les modèles sont essayés **Flash-Lite d'abord**, du plus récent au plus
-ancien, puis les Flash de la même façon. L'ordre était l'inverse, et il coûtait
-cher : relevé en service le 2026-11-09, une demande a vu `3.8-flash`,
-`3.7-flash`, `3.6-flash` et `3.5-flash` refuser l'un après l'autre — dont un
-délai dépassé de 120 secondes — avant que `3.5-flash-lite` ne réponde en
-**3,7 secondes**. Google sature ses modèles récents pour le trafic API ;
-composer trois recettes ne réclame pas le plus capable, mais celui qui répond.
-Les Flash restent derrière, pour le jour où les Flash-Lite refuseraient à leur
-tour.
+Les modèles sont essayés **Flash d'abord**, du plus récent au plus ancien,
+puis les Flash-Lite de la même façon. L'ordre a changé deux fois. Le
+2026-11-09, les Flash-Lite sont passés devant parce qu'eux seuls répondaient :
+relevé en service, une demande a vu `3.8-flash`, `3.7-flash`, `3.6-flash` et
+`3.5-flash` refuser l'un après l'autre — dont un délai dépassé de
+120 secondes — avant que `3.5-flash-lite` ne réponde en **3,7 secondes**.
+
+Le 2026-11-20, le prix de ce choix s'est vu dans l'assiette : les 399 recettes
+du réservoir, toutes composées par `gemini-3.5-flash-lite`, portaient en
+moyenne **3,5 ingrédients et 4,3 étapes**. Composer une recette n'est pas la
+tâche simple qu'on croyait — c'est la seule dont la qualité se voit — et
+Flash-Lite est le plus faible de la liste. Les Flash-Lite restent derrière,
+prêts à répondre quand les Flash saturent : un refus les écarte cinq minutes
+et la cascade passe au suivant. Le coût est l'attente, une minute environ au
+lieu de quelques secondes, supportable depuis que l'écran peut être quitté
+(notification de résultat).
+
+La consigne envoyée au modèle a changé en même temps, et pour la même raison.
+Elle l'autorise désormais à **supposer un placard de base** — sel, poivre,
+huile, beurre, farine, oignon, ail, échalote, moutarde, bouillon, crème, lait,
+œufs, herbes et épices courantes — qu'aucun foyer n'inventorie et que le
+modèle s'interdisait faute d'être nommé. Elle fixe un plancher : **au moins
+six ingrédients et cinq étapes**, une base aromatique revenue, un
+assaisonnement nommé, des quantités pour quatre personnes. Et elle dit que le
+stock est une réserve où puiser, **pas une liste à épuiser** : mieux vaut
+laisser un ingrédient de côté que de produire des « wraps au concentré de
+tomate et abricots ».
 
 Le modèle compose **trois recettes par appel**, et non seize. L'écran en
 demandait douze, l'application en réclamait seize d'un coup, chacune avec ses
@@ -1070,6 +1088,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.43.0 | 2026-11-20 | Les recettes proposées sont enfin de vraies recettes : modèles Flash devant les Flash-Lite, placard de base supposé, plancher de six ingrédients et cinq étapes |
 | 0.42.2 | 2026-11-14 | Une cuillère à soupe ne fait plus échouer toute une demande de recettes : l'ingrédient perd sa quantité, la recette reste |
 | 0.42.1 | 2026-11-11 | Corrections de l'audit de sécurité externe : jetons de service limités à l'inventaire, entrées différées plus servies par HTTP, rejeu d'une consommation qui a épuisé le lot, sauvegardes lisibles du seul propriétaire |
 | 0.42.0 | 2026-11-10 | Le nombre de recettes s'affiche en tête de l'écran Suggestions, et non plus en bas de liste |

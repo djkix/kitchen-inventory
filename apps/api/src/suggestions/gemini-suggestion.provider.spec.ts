@@ -5,7 +5,7 @@ import { ProviderError } from '../recognition/providers/recognition-provider.js'
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
 import { PRICES_USD_PER_MTOK } from '../recognition/providers/gemini.provider.js';
-import { buildSuggestionPrompt, buildVoicePrompt, KNOWN_TITLES_CAP } from './prompt.js';
+import { buildSuggestionPrompt, buildVoicePrompt, KNOWN_TITLES_CAP, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
 import type { SuggestionProviderError, SuggestionRequest } from './suggestion-provider.js';
 
 const BASE_REQUEST: SuggestionRequest = { seeds: ['tomate', 'pâtes', 'basilic'], count: 12 };
@@ -164,6 +164,44 @@ describe('GeminiSuggestionProvider (EF-26)', () => {
     await expect(provider.suggest(BASE_REQUEST)).rejects.toThrow(/tronqu/);
     // Pas de reprise : redemander le même volume dans le même budget ne ferait que retronquer.
     expect(http.calls).toHaveLength(1);
+  });
+});
+
+/**
+ * Les exigences de qualité du 2026-11-20 vivent dans la consigne système, et
+ * nulle part ailleurs : rien dans le code ne peut vérifier qu'une recette a
+ * six ingrédients. Ces cas sont donc la seule garde contre leur disparition —
+ * et contre le défaut qui les a fait écrire : elles n'étaient portées que par
+ * une des deux variantes, la recherche web étant éteinte en production.
+ */
+describe('consigne système, exigences de qualité (2026-11-20)', () => {
+  const variantes = [
+    ['avec recherche web', SUGGESTION_SYSTEM_PROMPT],
+    ['sans recherche web', SUGGESTION_SYSTEM_PROMPT_NO_SEARCH],
+  ] as const;
+
+  it.each(variantes)('autorise le placard de base (%s)', (_, prompt) => {
+    // Le manque qui produisait « Wraps au concentré de tomate et abricots » :
+    // le modèle ne s'autorisait que les ingrédients scannés.
+    for (const basique of ['ail', 'échalote', 'beurre', 'bouillon']) expect(prompt).toContain(basique);
+  });
+
+  it.each(variantes)('fixe un plancher de six ingrédients et cinq étapes (%s)', (_, prompt) => {
+    expect(prompt).toContain('au moins six ingrédients');
+    expect(prompt).toContain('au moins cinq étapes');
+  });
+
+  it.each(variantes)('dit que le stock est une réserve, pas une liste à épuiser (%s)', (_, prompt) => {
+    expect(prompt).toContain('pas une liste à épuiser');
+  });
+
+  it.each(variantes)('garde la consigne de cuisson chiffrée (%s)', (_, prompt) => {
+    expect(prompt).toContain('degrés Celsius');
+  });
+
+  it('annonce au modèle le plancher d’étapes dans la description des champs', () => {
+    expect(buildSuggestionPrompt(BASE_REQUEST)).toContain('au moins cinq pour "ai"');
+    expect(buildVoicePrompt({ ...BASE_REQUEST, audio: Buffer.from(''), mimeType: 'audio/webm' })).toContain('au moins cinq pour "ai"');
   });
 });
 

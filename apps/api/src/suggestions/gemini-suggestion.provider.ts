@@ -160,7 +160,14 @@ export class GeminiSuggestionProvider {
           // `temperature`, `top_p` et `top_k` sont dépréciés côté Gemini : sans
           // effet depuis la 3.6 Flash, ils deviendront une erreur. Le modèle
           // applique ses propres valeurs, qui sont les bonnes.
-          generationConfig: { maxOutputTokens: 8192 },
+          //
+          // La borne de sortie valait 8 192, taillée pour des recettes de trois
+          // ingrédients. Depuis que la consigne en exige six et cinq étapes
+          // (2026-11-20), treize recettes d'une fournée web les dépasseraient,
+          // et un `MAX_TOKENS` jette une réponse déjà facturée. Le coût réel
+          // reste celui des jetons produits : relever le plafond n'achète rien
+          // tant que le modèle n'en a pas besoin.
+          generationConfig: { maxOutputTokens: 32_768 },
         }),
       });
     } catch (error) {

@@ -293,9 +293,10 @@ describe('SuggestionsService (EF-26)', () => {
     expect(String(http.calls[1]?.init?.body)).toContain('Ne propose que des recettes de type « Dessert »');
   });
 
-  // Flash-Lite d'abord depuis le 2026-11-09, et jamais Pro ni aperçu : l'ordre
-  // est décidé par `orderModels`, que ce test vérifie de bout en bout.
-  it('appelle un Flash-Lite de la liste en direct de Google, jamais Pro (2026-10-22, ordre revu le 2026-11-09)', async () => {
+  // Flash d'abord depuis le 2026-11-20 — la qualité des recettes prime, les
+  // Flash-Lite restent derrière — et jamais Pro ni aperçu : l'ordre est décidé
+  // par `orderModels`, que ce test vérifie de bout en bout.
+  it('appelle un Flash de la liste en direct de Google, jamais Pro (2026-10-22, ordre revu le 2026-11-20)', async () => {
     const { service, db } = await createService();
     const locationId = await seedLocation(db);
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
@@ -308,7 +309,7 @@ describe('SuggestionsService (EF-26)', () => {
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
 
     await service.list(QUERY);
-    expect(http.calls[0]?.url).toContain('/models/gemini-3.5-flash-lite:generateContent');
+    expect(http.calls[0]?.url).toContain('/models/gemini-3.8-flash:generateContent');
   });
 
   it('fait entrer les recherches web dans le plafond mensuel (2026-10-07)', async () => {

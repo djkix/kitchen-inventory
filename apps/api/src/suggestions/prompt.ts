@@ -11,10 +11,38 @@ import {
 } from '@kitchen/shared';
 import type { SuggestionRequest, VoiceSuggestionRequest } from './suggestion-provider.js';
 
+/**
+ * Exigences de métier, partagées par les deux consignes système et donc par
+ * les trois chemins (écrit, parlé, relance). Écrites le 2026-11-20 après le
+ * constat du propriétaire : le réservoir de production tenait 399 recettes à
+ * 3,5 ingrédients et 4,3 étapes de moyenne — « Wraps croustillants au
+ * concentré de tomate et abricots », trois ingrédients — là où les mêmes
+ * demandes posées à la main rendaient des plats structurés.
+ *
+ * Trois manques expliquaient l'écart, et chacun a sa ligne ici :
+ *
+ * 1. **Le placard n'existait pas.** La consigne ne nommait que les huit
+ *    graines tirées du stock, et le modèle s'y tenait à la lettre : pas d'ail,
+ *    pas d'échalote, pas de beurre, parce que personne ne les avait
+ *    scannés. Un foyer n'inventorie pas son sel.
+ * 2. **Rien ne disait à quoi ressemble une recette finie.** Trois ingrédients
+ *    et trois étapes satisfaisaient la demande aussi bien que douze.
+ * 3. **La liste du stock se lisait comme une liste de courses à épuiser.**
+ *    D'où les mariages absurdes : tout ce qui était nommé devait servir.
+ *
+ * La ligne sur les cuissons est l'ancienne, inchangée.
+ */
+const QUALITY_RULES = `Tu écris pour quelqu'un qui va vraiment cuisiner ce soir : chaque recette est un plat abouti de cuisine familiale, jamais un assemblage de ce qui traîne dans le placard.
+Tu peux supposer présents dans tout foyer, sans que personne ait eu à te les nommer : sel, poivre, sucre, huile, beurre, vinaigre, farine, oignon, ail, échalote, moutarde, bouillon, crème, lait, œufs, herbes et épices courantes. Emploie-les librement et fais-les figurer dans la liste d'ingrédients de la recette dès qu'elle les utilise.
+Construis un vrai plat : une base aromatique revenue, un assaisonnement nommé, une liaison, une réduction ou un gratinage quand le plat s'y prête. Une recette porte au moins six ingrédients et au moins cinq étapes.
+Les ingrédients du foyer sont une réserve où puiser, pas une liste à épuiser : laisse de côté ceux qui n'ont rien à faire dans le plat plutôt que de les y forcer. Une recette qui en emploie trois et qu'on a envie de manger vaut mieux qu'une qui les case tous.
+Sauf demande contraire, les quantités sont données pour quatre personnes.
+Chaque étape doit être réalisable sans rien deviner : indique la température du four en degrés Celsius, l'intensité du feu (doux, moyen, vif) et la durée de l'étape chaque fois que la cuisson l'exige. Une étape de cuisson sans température ni durée est inutilisable.`;
+
 /** Système : cadre le rôle, rappelé à chaque appel (nouveau ou reprise). */
 export const SUGGESTION_SYSTEM_PROMPT = `Tu proposes des recettes de cuisine à partir d'ingrédients disponibles dans un foyer.
 Une partie de tes recettes doit provenir d'une recherche réelle sur le web (utilise l'outil de recherche fourni) : chacune porte alors le lien de la page trouvée. L'autre partie, tu la composes toi-même, sans prétendre qu'elle existe ailleurs.
-Chaque étape doit être réalisable sans rien deviner : indique la température du four en degrés Celsius, l'intensité du feu (doux, moyen, vif) et la durée de l'étape chaque fois que la cuisson l'exige. Une étape de cuisson sans température ni durée est inutilisable.
+${QUALITY_RULES}
 Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clôtures de bloc de code (pas de \`\`\`).`;
 
 /**
@@ -25,7 +53,7 @@ Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clô
  */
 export const SUGGESTION_SYSTEM_PROMPT_NO_SEARCH = `Tu proposes des recettes de cuisine à partir d'ingrédients disponibles dans un foyer.
 Tu n'as aucun outil de recherche : tu composes toutes les recettes toi-même, sans prétendre qu'elles existent ailleurs et sans inventer de lien vers un site.
-Chaque étape doit être réalisable sans rien deviner : indique la température du four en degrés Celsius, l'intensité du feu (doux, moyen, vif) et la durée de l'étape chaque fois que la cuisson l'exige. Une étape de cuisson sans température ni durée est inutilisable.
+${QUALITY_RULES}
 Tu réponds strictement par un objet JSON, sans texte avant ni après, sans clôtures de bloc de code (pas de \`\`\`).`;
 
 /**
@@ -129,7 +157,7 @@ function recipeFieldsLine(): string {
     Object.keys(SUGGESTION_REGION_LABELS_FR).join(', ') +
     "), totalMinutes (entier), prepMinutes et cookMinutes (entiers en minutes, ou null si la recette n'a pas cette étape ou que tu ne la distingues pas), difficulty (une valeur parmi VERY_EASY, EASY, INTERMEDIATE, HARD), dishType (une valeur parmi " +
     DISH_TYPES.join(', ') +
-    '), provenance ("web" ou "ai"), sourceUrl (URL https pour "web", null pour "ai"), steps (liste d\'étapes, au moins une pour "ai"), ingredients (liste de { label, quantity, unit }, quantity et unit pouvant être null, unit parmi : ' +
+    '), provenance ("web" ou "ai"), sourceUrl (URL https pour "web", null pour "ai"), steps (liste d\'étapes, au moins cinq pour "ai"), ingredients (liste de { label, quantity, unit }, quantity et unit pouvant être null, unit parmi : ' +
     UNITS.join(', ') +
     ').'
   );
