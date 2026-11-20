@@ -1107,6 +1107,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.43.2 | 2026-11-20 | Correction des parcours bout en bout cassés par la pastille « IA », qui se lit désormais en entier par un lecteur d'écran |
 | 0.43.1 | 2026-11-20 | La provenance d'une recette composée tient dans une pastille « IA » ; les Flash-Lite repassent devant les Flash, qui ne répondent pas, et une recherche ne peut plus dépasser 80 secondes sans explication |
 | 0.43.0 | 2026-11-20 | Les recettes proposées ont de quoi être de vraies recettes : placard de base supposé, plancher de six ingrédients et cinq étapes |
 | 0.42.2 | 2026-11-14 | Une cuillère à soupe ne fait plus échouer toute une demande de recettes : l'ingrédient perd sa quantité, la recette reste |

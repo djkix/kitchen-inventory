@@ -226,7 +226,10 @@ test('réservoir vide : le modèle est appelé, et une recette web illisible n�
   // C'est l'inverse exact de ce que ce fichier affirmait avant le lot.
   expect(batch.items).toHaveLength(AI_RECIPE_COUNT);
   await expect(page.locator('article')).toHaveCount(AI_RECIPE_COUNT);
-  await expect(page.getByText('Composée par l’IA, non vérifiée')).toHaveCount(AI_RECIPE_COUNT);
+  // Depuis le 2026-11-20, la mention tient dans une pastille « IA » : « IA » se
+  // voit, la phrase entière se lit hors écran. On compte la pastille et non son
+  // texte, qui est porté par deux éléments imbriqués.
+  await expect(page.getByTestId('suggestion-ai-badge')).toHaveCount(AI_RECIPE_COUNT);
   // Aucune recette web n'a pu se faire passer pour une recette trouvée quelque part.
   await expect(page.getByText(WEB_RECIPE_SITE)).toHaveCount(0);
 });
@@ -260,7 +263,7 @@ test('réservoir rempli : deux visites de suite sans le moindre appel au modèle
   // pour une recette dont la page a été lue (B10, jamais l'URL entière), et
   // l'aveu explicite pour une composition.
   await expect(page.getByText(WEB_RECIPE_SITE, { exact: true })).toHaveCount(WEB_RECIPE_COUNT);
-  await expect(page.getByText('Composée par l’IA, non vérifiée')).toHaveCount(AI_RECIPE_COUNT);
+  await expect(page.getByTestId('suggestion-ai-badge')).toHaveCount(AI_RECIPE_COUNT);
 
   // Retour sur l'onglet depuis « Mes recettes » : aucune requête automatique
   // sur la route payante (`refetchOnWindowFocus: false`, `queries.ts`).
@@ -517,7 +520,7 @@ test('ingrédients dictés : pastilles, autocomplétion, et des recettes qui les
   const matched = await waitForSuggestionsResponse(page, () => search.click());
   expect(matched.items).toHaveLength(WEB_RECIPE_COUNT);
   await expect(page.locator('article')).toHaveCount(WEB_RECIPE_COUNT);
-  await expect(page.getByText('Composée par l’IA, non vérifiée')).toHaveCount(0);
+  await expect(page.getByTestId('suggestion-ai-badge')).toHaveCount(0);
   expect(await suggestionCalls()).toBe(before);
 
   // 5. Combinaison que rien ne satisfait : aucune recette ne porte à la fois
