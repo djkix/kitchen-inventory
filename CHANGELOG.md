@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.2](https://github.com/djkix/kitchen-inventory/compare/v0.43.1...v0.43.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **suggestions:** la pastille IA se lit en entier, et les parcours la trouvent ([#81](https://github.com/djkix/kitchen-inventory/issues/81)) ([8667bc6](https://github.com/djkix/kitchen-inventory/commit/8667bc618e782223c745c82f9e2e58836e5dbab6))
+
 ## [0.43.1](https://github.com/djkix/kitchen-inventory/compare/v0.43.0...v0.43.1) (2026-11-20)
 
 
