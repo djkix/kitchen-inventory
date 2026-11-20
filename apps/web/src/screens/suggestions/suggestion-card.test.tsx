@@ -18,9 +18,19 @@ describe('SuggestionCard', () => {
     render(<SuggestionCard suggestion={base} />);
     expect(screen.getByText(/exemple\.test/)).toBeTruthy();
   });
-  it('annonce une composition par l’IA comme non vérifiée (D5)', () => {
+  // La mention de D5 tient désormais dans une pastille « IA » (2026-11-20) :
+  // le texte entier reste son nom accessible, la fiche détaillée le porte en
+  // toutes lettres, mais la carte ne lui donne plus une ligne à elle.
+  it('marque une composition par l’IA d’une pastille, sans la phrase (D5)', () => {
     render(<SuggestionCard suggestion={{ ...base, provenance: 'ai', sourceUrl: null, verified: false }} />);
-    expect(screen.getByText('Composée par l’IA, non vérifiée')).toBeTruthy();
+    expect(screen.queryByText('Composée par l’IA, non vérifiée')).toBeNull();
+    const pastille = screen.getByLabelText('Composée par l’IA, non vérifiée');
+    expect(pastille.textContent).toBe('IA');
+  });
+
+  it('ne marque d’aucune pastille une recette web dont la page a été lue', () => {
+    render(<SuggestionCard suggestion={base} />);
+    expect(screen.queryByLabelText('Composée par l’IA, non vérifiée')).toBeNull();
   });
 
   // Une recette `web` non vérifiée n'a pas le droit de s'abriter derrière un
@@ -29,7 +39,7 @@ describe('SuggestionCard', () => {
   it('refuse de nommer le site d’une recette web non vérifiée', () => {
     render(<SuggestionCard suggestion={{ ...base, provenance: 'web', verified: false }} />);
     expect(screen.queryByText(/exemple\.test/)).toBeNull();
-    expect(screen.getByText('Composée par l’IA, non vérifiée')).toBeTruthy();
+    expect(screen.getByLabelText('Composée par l’IA, non vérifiée').textContent).toBe('IA');
   });
   it('n’affiche jamais d’étapes avant conservation (B7)', () => {
     // Corrigé : queryByText(/étape/i) passerait même si des étapes étaient
