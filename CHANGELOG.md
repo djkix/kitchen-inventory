@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.0](https://github.com/djkix/kitchen-inventory/compare/v0.42.2...v0.43.0) (2026-11-20)
+
+
+### Features
+
+* **suggestions:** des recettes qui ressemblent à des recettes (EF-25, EF-26) ([#77](https://github.com/djkix/kitchen-inventory/issues/77)) ([44d5b20](https://github.com/djkix/kitchen-inventory/commit/44d5b203a1b31a32911dc5fb8e611303158b1e4d))
+
 ## [0.42.2](https://github.com/djkix/kitchen-inventory/compare/v0.42.1...v0.42.2) (2026-11-14)
 
 
