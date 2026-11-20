@@ -78,11 +78,18 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
         */}
         {!isVerifiedWeb(suggestion) && (
           <span
-            aria-label={provenanceLabel(suggestion)}
+            data-testid="suggestion-ai-badge"
             title={provenanceLabel(suggestion)}
             className="shrink-0 rounded-md bg-raised px-1.5 py-0.5 text-[13px] font-semibold text-faint"
           >
-            IA
+            {/*
+              La phrase entière reste lue, la pastille seule est vue. Un
+              `aria-label` sur un `<span>` sans rôle n'est pas restitué de façon
+              fiable — les attributs ARIA de nom ne s'appliquent pas aux
+              éléments génériques. Un texte hors écran, lui, l'est toujours.
+            */}
+            <span className="sr-only">{provenanceLabel(suggestion)}</span>
+            <span aria-hidden>IA</span>
           </span>
         )}
         <span className={cn('tnum shrink-0 rounded-md px-1.5 py-0.5 text-[13px] font-semibold', GROUP_LOOK[suggestion.group])}>

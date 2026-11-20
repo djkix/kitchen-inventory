@@ -161,6 +161,25 @@ sous-titre de la fiche détaillée. L'aveu de D5 n'est pas perdu, il est
 resserré — et une recette web dont la page a été lue continue de nommer son
 site, sans pastille.
 
+### D6 bis — La pastille se lit en entier, hors écran
+
+Première version : `aria-label` sur le `<span>` de la pastille. C'est faux. Les
+attributs ARIA de nom ne s'appliquent pas aux éléments génériques : un `<span>`
+sans rôle ne porte pas de nom accessible, et la mention aurait disparu pour un
+lecteur d'écran au lieu d'être resserrée. La pastille contient donc la phrase
+entière dans un texte `sr-only` et un « IA » en `aria-hidden` : vu court, lu
+complet.
+
+Les parcours bout en bout comptent la pastille par `data-testid`, et non son
+texte, qui est désormais porté par deux éléments imbriqués.
+
+**Ces parcours n'avaient pas été corrigés avec le reste.** Ils vérifiaient la
+phrase exacte, ils ne tournent que sur `main` après fusion (le propriétaire n'a
+pas de moteur de conteneurs sur son poste), et la 0.43.1 est donc partie avec
+quatre d'entre eux cassés. La règle à en tirer : **tout changement de libellé
+visible se cherche aussi dans `e2e/`**, où aucune vérification locale ne le
+rattrapera.
+
 ## Ce qui n'est pas garanti
 
 Rien ici ne prouve que les recettes seront bonnes : la consigne et le modèle
