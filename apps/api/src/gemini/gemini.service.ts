@@ -18,6 +18,33 @@ const LIST_TTL_MS = 60 * 60_000;
 const LIST_ERROR_TTL_MS = 60_000;
 const GENERATE = /\/models\/([^/:?]+):generateContent/;
 
+/**
+ * Budget de temps de TOUTE la cascade, modèles cumulés (2026-11-20).
+ *
+ * Il manquait, et son absence se voyait à l'écran. Relevé en production ce
+ * jour-là, une seule demande : `3.8-flash` a mis 20,7 s à répondre 503, puis
+ * `3.7-flash` n'a rien répondu du tout et a consommé les 120 s de
+ * `GENERATION_TIMEOUT_MS` — 141 s en tout. Or **le mandataire inverse coupe la
+ * connexion à 90 s**. L'utilisateur recevait « Erreur du serveur », sans rien
+ * dans le journal applicatif qu'un `request aborted`.
+ *
+ * La bascule sur erreur, elle, fonctionnait déjà : un 503 passe au modèle
+ * suivant sans attendre. Ce qui manquait, c'est la sortie du cas où un modèle
+ * ne répond **rien** : on ne peut pas distinguer « saturé mais muet » de « lent
+ * mais en train de répondre » sans lire la réponse en flux, et le délai par
+ * appel doit donc rester large pour ne pas couper une génération honnête —
+ * 65 s mesurées pour six recettes le 2026-11-09.
+ *
+ * D'où un budget d'ensemble plutôt qu'un délai par appel plus court : chaque
+ * tentative garde `GENERATION_TIMEOUT_MS`, mais jamais plus que ce qui reste
+ * du budget. Le premier modèle essayé est un Flash-Lite qui répond en 7 s : le
+ * budget ne mord que sur les cascades qui tournaient déjà mal.
+ *
+ * 80 s, sous les 90 s du mandataire : l'application rend alors elle-même un
+ * refus en français, avec son heure de reprise, au lieu de se faire couper.
+ */
+export const CASCADE_BUDGET_MS = 80_000;
+
 /** Clés de `Setting` : limites réglées par modèle, pause commune. */
 const LIMITS_KEY = 'geminiLimits';
 const PAUSE_KEY = 'geminiPause';
@@ -44,6 +71,12 @@ export class GeminiService implements OnModuleInit {
   private readonly limiter = new GeminiLimiter();
   private list: { at: number; models: string[]; error?: string } | null = null;
   private pause: Pause | null = null;
+  /**
+   * Fin du budget de la cascade en cours, posée par `call` et lue par `http`.
+   * Un fournisseur appelé hors `call` (aucun aujourd'hui) n'a pas de budget :
+   * il garde son seul `GENERATION_TIMEOUT_MS`.
+   */
+  private deadline: number | null = null;
   /** Horloge remplaçable par les tests. */
   now = (): Date => new Date();
 
@@ -74,7 +107,7 @@ export class GeminiService implements OnModuleInit {
 
   /** Oublie compteurs, pause et liste en mémoire : remise à zéro entre deux tests. */
   forget(): void {
-    Object.assign(this, { limiter: new GeminiLimiter(), list: null, pause: null });
+    Object.assign(this, { limiter: new GeminiLimiter(), list: null, pause: null, deadline: null });
   }
 
   /**
@@ -88,15 +121,32 @@ export class GeminiService implements OnModuleInit {
     this.assertNotPaused();
     const models = await this.candidates();
     let refusal: GeminiQuotaError | null = null;
-    for (const model of models) {
-      try {
-        return { result: await run(model), model, fellBack: model !== models[0] };
-      } catch (error) {
-        if (!(error instanceof GeminiQuotaError)) throw error;
-        if (!refusal || error.until < refusal.until) refusal = error;
+    // Budget d'ensemble : la cascade entière doit tenir sous la coupure du
+    // mandataire. Posé ici, lu par `http`, retiré quoi qu'il arrive — un
+    // budget oublié raccourcirait la requête suivante.
+    const outermost = this.deadline === null;
+    if (outermost) this.deadline = this.now().getTime() + CASCADE_BUDGET_MS;
+    try {
+      for (const model of models) {
+        try {
+          return { result: await run(model), model, fellBack: model !== models[0] };
+        } catch (error) {
+          if (!(error instanceof GeminiQuotaError)) throw error;
+          if (!refusal || error.until < refusal.until) refusal = error;
+          // Plus de temps pour un modèle de plus : mieux vaut le dire que de
+          // se faire couper en route sans message.
+          if (this.remaining() <= 0) break;
+        }
       }
+    } finally {
+      if (outermost) this.deadline = null;
     }
     throw refusal ?? new ProviderError('Aucun modèle Gemini Flash ou Flash-Lite disponible');
+  }
+
+  /** Temps qu'il reste à la cascade, `Infinity` hors de toute cascade. */
+  private remaining(): number {
+    return this.deadline === null ? Number.POSITIVE_INFINITY : this.deadline - this.now().getTime();
   }
 
   /** Client HTTP des fournisseurs Gemini : laisse passer tout ce qui n'est pas `generateContent`. */
@@ -108,10 +158,17 @@ export class GeminiService implements OnModuleInit {
     const limits = await this.limits(model);
     // Vérifier puis réserver sans `await` entre les deux : atomique en mono-processus.
     this.limiter.reserve(model, limits, this.now());
+    // Le budget de la cascade prime sur le délai du fournisseur quand il est
+    // plus court : un modèle muet ne mange plus que ce qui reste, au lieu de
+    // ses 120 s pleines. `AbortSignal.any` garde le signal du fournisseur —
+    // c'est lui qui porte le nom `TimeoutError` dont dépend `isTimeout`.
+    const left = this.remaining();
+    const budget = Number.isFinite(left) ? AbortSignal.timeout(Math.max(0, left)) : null;
+    const signal = budget === null ? init?.signal : AbortSignal.any([budget, ...(init?.signal ? [init.signal] : [])]);
     const started = Date.now();
     let response: Response;
     try {
-      response = await this.httpClient(url, init);
+      response = await this.httpClient(url, signal === undefined ? init : { ...init, signal });
     } catch (error) {
       await this.record(model, null, null, started);
       throw error;

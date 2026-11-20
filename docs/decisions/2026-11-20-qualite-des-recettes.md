@@ -67,6 +67,31 @@ ici parce qu'elles valent pour tout appel long, pas seulement celui-ci : elles
 sont la vraie borne du produit, et elles ne sont écrites nulle part dans la
 configuration de l'application.
 
+### D1 ter — Un budget de temps pour la cascade
+
+Question du propriétaire : « dès que tu reçois le code erreur, tu switches,
+possible ? » La bascule existait déjà et elle est immédiate — un 503 passe au
+modèle suivant sans attendre. Les 20,7 s du `3.8-flash` ce matin sont le temps
+que Google a mis à refuser, pas une attente de l'application.
+
+Le cas sans sortie était l'autre : `3.7-flash` n'a **rien** répondu et a
+consommé ses 120 s. On ne peut pas distinguer un modèle muet d'un modèle lent
+sans lire la réponse en flux, et raccourcir le délai par appel couperait des
+générations honnêtes — 65 s mesurées pour six recettes le 2026-11-09.
+
+D'où un budget d'ensemble, `CASCADE_BUDGET_MS` = 80 s : chaque tentative garde
+`GENERATION_TIMEOUT_MS`, mais jamais plus que ce qui reste du budget, et la
+cascade n'engage pas un modèle de plus quand il ne reste rien. Le premier
+modèle essayé répond en 7 s : le budget ne mord que sur les cascades déjà mal
+engagées. 80 s parce que le mandataire coupe à 90 : l'application rend alors
+son propre refus, en français, avec l'heure de reprise.
+
+Écarté : lire la réponse en flux (`streamGenerateContent`) pour n'accorder que
+quelques secondes au premier octet. C'est la vraie réponse au problème — elle
+distingue le muet du lent — mais elle demande de réécrire les quatre
+fournisseurs et leur lecture de réponse, pour un gain nul tant que le premier
+modèle répond en sept secondes.
+
 ## D2 — La consigne autorise un placard de base
 
 Le prompt ne nommait que les huit graines tirées du stock, et le modèle s'y

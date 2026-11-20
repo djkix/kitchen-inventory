@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { createTestApp, type TestApp } from '../../test/app.factory.js';
 import { FakeHttp, json, TINY_PNG } from '../../test/fake-http.js';
-import { GeminiService } from './gemini.service.js';
+import { CASCADE_BUDGET_MS, GeminiService } from './gemini.service.js';
 
 const ADMIN = { email: 'admin@example.org', name: 'Admin' };
 const MEMBRE = { email: 'membre@example.org', name: 'Membre' };
@@ -46,6 +46,9 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
   beforeEach(async () => {
     await t.reset();
     http.reset();
+    // L'horloge du service est remplacée par certains cas : la remettre ici,
+    // sans quoi un budget figé fuirait sur les suivants.
+    gemini.now = () => new Date();
     http.on('/v1beta/models?', () => json(LIST));
     agent = t.agent();
     await t.signIn(agent, ADMIN);
@@ -179,6 +182,41 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
     await upload().expect(429);
     expect(http.calls).toHaveLength(2);
     expect((await agent.get('/api/v1/settings/gemini').expect(200)).body.pause).toBeNull();
+  });
+
+  /**
+   * Budget de la cascade (2026-11-20). Relevé en production : `3.8-flash` a mis
+   * 20,7 s à rendre 503, puis `3.7-flash` n'a rien rendu et a consommé ses
+   * 120 s — 141 s, quand le mandataire inverse coupe à 90 s. L'écran disait
+   * « Erreur du serveur », parce que personne ne répondait plus.
+   *
+   * L'horloge du service est avancée depuis la doublure HTTP : le premier
+   * modèle « prend » tout le budget, et la cascade doit s'arrêter là plutôt
+   * que d'engager un modèle de plus qu'on n'aura pas le temps d'écouter.
+   */
+  it('budget épuisé par le premier modèle : aucun second appel, et un refus dit en français', async () => {
+    const start = Date.now();
+    let avance = 0;
+    gemini.now = () => new Date(start + avance);
+    http.on('gemini-3.5-flash-lite:generateContent', () => {
+      avance = CASCADE_BUDGET_MS + 1_000;
+      return json({ error: { code: 503 } }, 503);
+    });
+    http.on('gemini-3.8-flash:generateContent', ticket);
+
+    const res = await upload().expect(429);
+    expect(res.body.error.message).toContain('Modèle saturé chez Google');
+    // Le second modèle n'est jamais appelé : il ne reste plus de temps pour lui.
+    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.5-flash-lite']);
+  });
+
+  it('budget intact : la cascade essaie bien le modèle suivant', async () => {
+    const start = Date.now();
+    gemini.now = () => new Date(start);
+    http.on('gemini-3.5-flash-lite:generateContent', () => json({ error: { code: 503 } }, 503));
+    http.on('gemini-3.8-flash:generateContent', ticket);
+    await upload().expect(201);
+    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
   });
 
   it('repart du journal au redémarrage : le quota du jour n’est pas remis à zéro', async () => {

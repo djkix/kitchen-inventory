@@ -238,6 +238,18 @@ donc pas respecter. L'écran affichait « Erreur du serveur ».
 La qualité des recettes se cherche donc ailleurs, dans la consigne, qui ne
 coûte ni attente ni disponibilité.
 
+La bascule d'un modèle à l'autre est immédiate : dès qu'un modèle refuse, le
+suivant est appelé sans attendre. Le cas coûteux est celui du modèle qui ne
+répond **rien** — impossible à distinguer d'une génération lente sans lire la
+réponse en flux, et le délai par appel doit rester large pour ne pas couper
+une recherche honnête. **Toute la cascade tient donc dans un budget de
+80 secondes** : chaque tentative garde son délai, mais jamais plus que ce qui
+reste du budget, et quand il est épuisé l'application rend elle-même un refus
+en français avec son heure de reprise. Cette borne est posée sous les
+90 secondes au bout desquelles le mandataire inverse coupe la connexion — sans
+elle, une cascade malheureuse se faisait trancher au milieu et l'écran
+affichait « Erreur du serveur ».
+
 La consigne envoyée au modèle a changé en même temps, et pour la même raison.
 Elle l'autorise désormais à **supposer un placard de base** — sel, poivre,
 huile, beurre, farine, oignon, ail, échalote, moutarde, bouillon, crème, lait,
@@ -1095,7 +1107,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.43.1 | 2026-11-20 | La provenance d'une recette composée tient dans une pastille « IA », et les modèles Flash-Lite repassent devant les Flash, qui ne répondent pas |
+| 0.43.1 | 2026-11-20 | La provenance d'une recette composée tient dans une pastille « IA » ; les Flash-Lite repassent devant les Flash, qui ne répondent pas, et une recherche ne peut plus dépasser 80 secondes sans explication |
 | 0.43.0 | 2026-11-20 | Les recettes proposées ont de quoi être de vraies recettes : placard de base supposé, plancher de six ingrédients et cinq étapes |
 | 0.42.2 | 2026-11-14 | Une cuillère à soupe ne fait plus échouer toute une demande de recettes : l'ingrédient perd sa quantité, la recette reste |
 | 0.42.1 | 2026-11-11 | Corrections de l'audit de sécurité externe : jetons de service limités à l'inventaire, entrées différées plus servies par HTTP, rejeu d'une consommation qui a épuisé le lot, sauvegardes lisibles du seul propriétaire |
