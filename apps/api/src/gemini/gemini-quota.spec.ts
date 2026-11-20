@@ -22,14 +22,14 @@ describe('modèles légers', () => {
     expect(isStableModel('gemini-2.5-flash-001')).toBe(false);
   });
 
-  // Flash-Lite en tête depuis le 2026-11-09 : ce sont eux qui répondent quand
-  // Google sature ses modèles récents (voir `gemini-models.ts`).
-  it('classe les Flash-Lite d’abord, puis les Flash du plus récent au plus ancien', () => {
+  // Flash en tête depuis le 2026-11-20 : la qualité des recettes prime, et la
+  // cascade garde les Flash-Lite derrière (voir `gemini-models.ts`).
+  it('classe les Flash d’abord, du plus récent au plus ancien, puis les Flash-Lite', () => {
     expect(orderModels(['gemini-2.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.5-pro', 'gemini-3.8-flash'])).toEqual([
-      'gemini-3.5-flash-lite',
       'gemini-3.8-flash',
       'gemini-3.5-flash',
       'gemini-2.5-flash',
+      'gemini-3.5-flash-lite',
     ]);
   });
 });

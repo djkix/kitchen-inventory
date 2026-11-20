@@ -9,7 +9,7 @@ const MEMBRE = { email: 'membre@example.org', name: 'Membre' };
 const GEN = ['generateContent'];
 const LIST = {
   models: [
-    ...['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-pro', 'gemini-flash-latest', 'gemini-3.8-flash-preview-09-2026'].map((m) => ({
+    ...['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-pro', 'gemini-flash-latest', 'gemini-3.8-flash-preview-09-2026'].map((m) => ({
       name: `models/${m}`,
       supportedGenerationMethods: GEN,
     })),
@@ -53,37 +53,37 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
   });
   afterAll(() => t.close());
 
-  it('n’emploie que les Flash et Flash-Lite stables, Flash-Lite en tête', async () => {
+  it('n’emploie que les Flash et Flash-Lite stables, Flash en tête', async () => {
     const res = await agent.get('/api/v1/settings/gemini').expect(200);
-    expect(res.body.models.map((m: { model: string }) => m.model)).toEqual(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
-    expect(res.body.current).toBe('gemini-3.5-flash-lite');
+    expect(res.body.models.map((m: { model: string }) => m.model)).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+    expect(res.body.current).toBe('gemini-3.8-flash');
     expect(res.body.models[0].limits).toEqual({ rpm: 5, tpm: 250_000, rpd: 20 });
 
     http.on('generateContent', ticket);
     await upload().expect(201);
-    expect(modelOf(http.calls[0]!.url)).toBe('gemini-3.5-flash-lite');
+    expect(modelOf(http.calls[0]!.url)).toBe('gemini-3.8-flash');
   });
 
   it('journalise chaque requête envoyée, avec ses jetons, et la compte au modèle', async () => {
     http.on('generateContent', ticket);
     await upload().expect(201);
     const calls = await t.prisma.geminiCall.findMany();
-    expect(calls).toMatchObject([{ model: 'gemini-3.5-flash-lite', httpStatus: 200, tokens: 970 }]);
+    expect(calls).toMatchObject([{ model: 'gemini-3.8-flash', httpStatus: 200, tokens: 970 }]);
     const status = (await agent.get('/api/v1/settings/gemini').expect(200)).body;
     expect(status.models[0]).toMatchObject({ dayRequests: 1, minuteRequests: 1, minuteTokens: 970 });
   });
 
   it('bascule sur le modèle suivant quand le quota du jour est atteint, sans rien envoyer au premier', async () => {
-    // La borne vise le PREMIER de la rotation, qui est un Flash-Lite depuis le 2026-11-09.
-    await agent.put('/api/v1/settings/gemini/limits').send({ model: 'gemini-3.5-flash-lite', rpm: 5, tpm: 250_000, rpd: 1 }).expect(200);
+    // La borne vise le PREMIER de la rotation, qui est un Flash depuis le 2026-11-20.
+    await agent.put('/api/v1/settings/gemini/limits').send({ model: 'gemini-3.8-flash', rpm: 5, tpm: 250_000, rpd: 1 }).expect(200);
     http.on('generateContent', ticket);
     await upload().expect(201);
     await upload().expect(201);
-    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
+    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
   });
 
   it('tous les modèles arrêtés : 429 avec l’heure de reprise, sans appel', async () => {
-    for (const model of ['gemini-3.5-flash-lite', 'gemini-3.8-flash']) {
+    for (const model of ['gemini-3.8-flash', 'gemini-3.5-flash-lite']) {
       await agent.put('/api/v1/settings/gemini/limits').send({ model, rpm: 1, tpm: 250_000, rpd: 20 }).expect(200);
     }
     http.on('generateContent', ticket);
@@ -97,13 +97,13 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
   });
 
   it('429 journalier de Google : le modèle est épuisé jusqu’à minuit du Pacifique et la même demande bascule', async () => {
-    http.on('gemini-3.5-flash-lite:generateContent', () => quota429('GenerateRequestsPerDayPerProjectPerModel-FreeTier'));
-    http.on('gemini-3.8-flash:generateContent', ticket);
+    http.on('gemini-3.8-flash:generateContent', () => quota429('GenerateRequestsPerDayPerProjectPerModel-FreeTier'));
+    http.on('gemini-3.5-flash-lite:generateContent', ticket);
     await upload().expect(201);
-    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
+    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
     const status = (await agent.get('/api/v1/settings/gemini').expect(200)).body;
     expect(status.pause).toBeNull();
-    expect(status.current).toBe('gemini-3.8-flash');
+    expect(status.current).toBe('gemini-3.5-flash-lite');
     expect(status.models[0].blockedUntil).toBe(status.dayResetsAt);
   });
 
@@ -140,30 +140,30 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
    * mourait sur le premier modèle retiré rencontré.
    */
   it('404 d’un modèle retiré : il quitte la rotation et la demande bascule', async () => {
-    http.on('gemini-3.5-flash-lite:generateContent', () =>
-      json({ error: { code: 404, status: 'NOT_FOUND', message: 'This model models/gemini-3.5-flash-lite is no longer available to new users.' } }, 404),
+    http.on('gemini-3.8-flash:generateContent', () =>
+      json({ error: { code: 404, status: 'NOT_FOUND', message: 'This model models/gemini-3.8-flash is no longer available to new users.' } }, 404),
     );
-    http.on('gemini-3.8-flash:generateContent', ticket);
+    http.on('gemini-3.5-flash-lite:generateContent', ticket);
     await upload().expect(201);
-    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
+    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
     const status = (await agent.get('/api/v1/settings/gemini').expect(200)).body;
     expect(status.pause).toBeNull();
-    expect(status.current).toBe('gemini-3.8-flash');
+    expect(status.current).toBe('gemini-3.5-flash-lite');
     expect(status.models[0].blockedMessage).toBe('Modèle retiré par Google : plus disponible sur cette clé.');
     // Un retrait n'a pas d'heure de reprise : la demande suivante ne le rappelle plus.
     await upload().expect(201);
-    expect(http.calls.filter((c) => modelOf(c.url) === 'gemini-3.5-flash-lite')).toHaveLength(1);
+    expect(http.calls.filter((c) => modelOf(c.url) === 'gemini-3.8-flash')).toHaveLength(1);
   });
 
   it('503 : le modèle saturé est écarté cinq minutes et la même demande bascule', async () => {
-    http.on('gemini-3.5-flash-lite:generateContent', () => json({ error: { code: 503 } }, 503));
-    http.on('gemini-3.8-flash:generateContent', ticket);
+    http.on('gemini-3.8-flash:generateContent', () => json({ error: { code: 503 } }, 503));
+    http.on('gemini-3.5-flash-lite:generateContent', ticket);
     await upload().expect(201);
-    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
+    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
     const status = (await agent.get('/api/v1/settings/gemini').expect(200)).body;
     // Pas de pause commune : seul le modèle saturé est arrêté.
     expect(status.pause).toBeNull();
-    expect(status.current).toBe('gemini-3.8-flash');
+    expect(status.current).toBe('gemini-3.5-flash-lite');
     expect(status.models[0].blockedMessage).toMatch(/^Modèle saturé chez Google : reprise à \d\d:\d\d\.$/);
     const until = new Date(status.models[0].blockedUntil).getTime() - Date.now();
     expect(until).toBeGreaterThan(4 * 60_000);
@@ -174,7 +174,7 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
     http.on('generateContent', () => json({ error: { code: 503 } }, 503));
     const res = await upload().expect(429);
     expect(res.body.error.message).toContain('Modèle saturé chez Google');
-    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
+    expect(http.calls.map((c) => modelOf(c.url))).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
     // Rien n'est renvoyé tant que les deux sont écartés.
     await upload().expect(429);
     expect(http.calls).toHaveLength(2);
@@ -183,12 +183,12 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
 
   it('repart du journal au redémarrage : le quota du jour n’est pas remis à zéro', async () => {
     // `models[0]` est le premier de la rotation : un Flash-Lite depuis le 2026-11-09.
-    await agent.put('/api/v1/settings/gemini/limits').send({ model: 'gemini-3.5-flash-lite', rpm: 5, tpm: 250_000, rpd: 1 }).expect(200);
-    await t.prisma.geminiCall.create({ data: { model: 'gemini-3.5-flash-lite', httpStatus: 200, durationMs: 10 } });
+    await agent.put('/api/v1/settings/gemini/limits').send({ model: 'gemini-3.8-flash', rpm: 5, tpm: 250_000, rpd: 1 }).expect(200);
+    await t.prisma.geminiCall.create({ data: { model: 'gemini-3.8-flash', httpStatus: 200, durationMs: 10 } });
     gemini.forget();
     await gemini.onModuleInit();
     const status = (await agent.get('/api/v1/settings/gemini').expect(200)).body;
-    expect(status.models[0]).toMatchObject({ model: 'gemini-3.5-flash-lite', dayRequests: 1 });
+    expect(status.models[0]).toMatchObject({ model: 'gemini-3.8-flash', dayRequests: 1 });
     expect(status.models[0].blockedMessage).toMatch(/^Quota Gemini du jour atteint \(1 requête\) : reprise \S+ à \d\d:\d\d\.$/);
   });
 
@@ -202,11 +202,11 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
 
   it('refuse un modèle hors liste et réserve l’écran aux administrateurs', async () => {
     await agent.put('/api/v1/settings/gemini/limits').send({ model: 'gemini-3.5-pro', rpm: 5, tpm: 1000, rpd: 5 }).expect(422);
-    await agent.put('/api/v1/settings/gemini/limits').send({ model: 'gemini-3.8-flash', rpm: 0, tpm: 1000, rpd: 5 }).expect(400);
+    await agent.put('/api/v1/settings/gemini/limits').send({ model: 'gemini-3.5-flash-lite', rpm: 0, tpm: 1000, rpd: 5 }).expect(400);
     await t.addMember(agent, MEMBRE);
     const membre = t.agent();
     await t.signIn(membre, MEMBRE);
     await membre.get('/api/v1/settings/gemini').expect(403);
-    await membre.put('/api/v1/settings/gemini/limits').send({ model: 'gemini-3.8-flash', rpm: 5, tpm: 1000, rpd: 5 }).expect(403);
+    await membre.put('/api/v1/settings/gemini/limits').send({ model: 'gemini-3.5-flash-lite', rpm: 5, tpm: 1000, rpd: 5 }).expect(403);
   });
 });
