@@ -199,6 +199,17 @@ describe('consigne système, exigences de qualité (2026-11-20)', () => {
     expect(prompt).toContain('degrés Celsius');
   });
 
+  /**
+   * Mesures de cuisine (2026-11-21). Le jeu d'unités n'a pas de cuillère : sans
+   * cette consigne, le modèle laissait la quantité vide, et le champ « Parts »
+   * de la fiche n'avait plus rien à mettre à l'échelle.
+   */
+  it.each(variantes)('exige des grammes et des millilitres, jamais des cuillères (%s)', (_, prompt) => {
+    for (const unite of ['gramme', 'kilo', 'millilitre', 'litre', 'pièce']) expect(prompt).toContain(unite);
+    expect(prompt).toContain('Jamais de cuillère');
+    expect(prompt).toContain('une cuillère à soupe = 15 ml');
+  });
+
   it('annonce au modèle le plancher d’étapes dans la description des champs', () => {
     expect(buildSuggestionPrompt(BASE_REQUEST)).toContain('au moins cinq pour "ai"');
     expect(buildVoicePrompt({ ...BASE_REQUEST, audio: Buffer.from(''), mimeType: 'audio/webm' })).toContain('au moins cinq pour "ai"');

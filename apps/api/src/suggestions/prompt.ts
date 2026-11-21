@@ -12,6 +12,23 @@ import {
 import type { SuggestionRequest, VoiceSuggestionRequest } from './suggestion-provider.js';
 
 /**
+ * Mesures de cuisine (demande du propriétaire, 2026-11-21 : « je dois toujours
+ * avoir les informations en ml, g »). Le jeu d'unités de la section 15 ne
+ * contient ni cuillère ni pincée — le modèle, lui, raisonne en cuillères, et
+ * n'avait donc d'autre issue que de laisser la quantité vide ou de la glisser
+ * dans le libellé. Résultat : « Huile d'olive » sans un chiffre, et une fiche
+ * dont le champ « Parts » ne pouvait rien mettre à l'échelle, puisqu'une
+ * quantité absente ne se multiplie pas.
+ *
+ * La conversion revient donc au modèle, avec ses équivalences écrites noir sur
+ * blanc : c'est le seul endroit de la chaîne qui sache qu'une cuillère à soupe
+ * d'huile fait 15 ml. Partagée par les trois consignes (écrite, parlée) et par
+ * la réécriture d'une page web, sans quoi une recette conservée repartirait en
+ * cuillères.
+ */
+export const MEASUREMENT_RULE = `Toute quantité est chiffrée dans une unité que l'application connaît : gramme, kilo, millilitre, litre, pièce, paquet, boîte ou sachet. Choisis celle qui se lit le mieux en cuisine — 1 kg de pommes de terre plutôt que 1000 g, 20 g de beurre plutôt que 0,02 kg. Jamais de cuillère, de pincée, de verre, de tasse, de bol, de filet ni de « quelques » — convertis-les toi-même (une cuillère à soupe = 15 ml ou 15 g, une cuillère à café = 5 ml ou 5 g, une pincée = 1 g, un verre = 200 ml, une tasse = 250 ml). Le libellé d'un ingrédient ne porte jamais de quantité, et les étapes emploient les mêmes unités que la liste d'ingrédients. Ne laisse « quantity » et « unit » vides que pour ce qui se dose vraiment au goût, comme le sel et le poivre.`;
+
+/**
  * Exigences de métier, partagées par les deux consignes système et donc par
  * les trois chemins (écrit, parlé, relance). Écrites le 2026-11-20 après le
  * constat du propriétaire : le réservoir de production tenait 399 recettes à
@@ -37,6 +54,7 @@ Tu peux supposer présents dans tout foyer, sans que personne ait eu à te les n
 Construis un vrai plat : une base aromatique revenue, un assaisonnement nommé, une liaison, une réduction ou un gratinage quand le plat s'y prête. Une recette porte au moins six ingrédients et au moins cinq étapes.
 Les ingrédients du foyer sont une réserve où puiser, pas une liste à épuiser : laisse de côté ceux qui n'ont rien à faire dans le plat plutôt que de les y forcer. Une recette qui en emploie trois et qu'on a envie de manger vaut mieux qu'une qui les case tous.
 Sauf demande contraire, les quantités sont données pour quatre personnes.
+${MEASUREMENT_RULE}
 Chaque étape doit être réalisable sans rien deviner : indique la température du four en degrés Celsius, l'intensité du feu (doux, moyen, vif) et la durée de l'étape chaque fois que la cuisson l'exige. Une étape de cuisson sans température ni durée est inutilisable.`;
 
 /** Système : cadre le rôle, rappelé à chaque appel (nouveau ou reprise). */
@@ -157,7 +175,7 @@ function recipeFieldsLine(): string {
     Object.keys(SUGGESTION_REGION_LABELS_FR).join(', ') +
     "), totalMinutes (entier), prepMinutes et cookMinutes (entiers en minutes, ou null si la recette n'a pas cette étape ou que tu ne la distingues pas), difficulty (une valeur parmi VERY_EASY, EASY, INTERMEDIATE, HARD), dishType (une valeur parmi " +
     DISH_TYPES.join(', ') +
-    '), provenance ("web" ou "ai"), sourceUrl (URL https pour "web", null pour "ai"), steps (liste d\'étapes, au moins cinq pour "ai"), ingredients (liste de { label, quantity, unit }, quantity et unit pouvant être null, unit parmi : ' +
+    '), provenance ("web" ou "ai"), sourceUrl (URL https pour "web", null pour "ai"), steps (liste d\'étapes, au moins cinq pour "ai"), ingredients (liste de { label, quantity, unit }, quantity et unit pouvant être null pour ce qui se dose au goût seulement, unit parmi : ' +
     UNITS.join(', ') +
     ').'
   );
