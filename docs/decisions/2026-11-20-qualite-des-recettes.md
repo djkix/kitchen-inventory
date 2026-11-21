@@ -207,6 +207,50 @@ relâcher la règle du formulaire.
 Les recettes déjà refusées ne sont pas perdues : elles sont au réservoir et
 **Réglages › Reconnaissance › rattrapage** les reprendra.
 
+## D8 — Le modèle convertit les cuillères, l'application ne les apprend pas (2026-11-21)
+
+> « il me faut l'équivalent en quantité pour les cuillères ou autre mesure, je
+> dois toujours avoir les informations en ml, g (calculer automatiquement en
+> fonction du nb de personne que je choisis »
+
+Le jeu d'unités de la section 15 est fermé et ne contient ni cuillère, ni
+pincée, ni verre. Le modèle, lui, pense en cuillères : n'ayant pas d'unité où
+la ranger, il laissait la quantité vide — « Huile d'olive », sans un chiffre.
+Le champ **Parts** de la fiche recette (EF-26) n'avait alors plus rien à
+mettre à l'échelle, puisqu'une quantité absente ne se multiplie pas. Les deux
+moitiés de la demande sont donc un seul défaut.
+
+**Deux issues possibles**, et une seule a été retenue :
+
+- *Ajouter des unités* `TABLESPOON`, `TEASPOON`, `PINCH` : migration Prisma,
+  familles de conversion nouvelles (une cuillère est un volume pour l'huile,
+  une masse pour la farine — donc pas une famille, mais une dépendance à
+  l'ingrédient), et un stock qui n'en a aucun usage. Écartée.
+- *Demander la conversion au modèle*, avec ses équivalences écrites. C'est le
+  seul maillon de la chaîne qui sache qu'une cuillère à soupe d'huile fait
+  15 ml et qu'une gousse d'ail est une pièce. Retenue : `MEASUREMENT_RULE`,
+  une constante partagée par les deux consignes système (écrite et parlée) et
+  par la réécriture d'une page web conservée.
+
+**Les huit unités restent ouvertes**, pas seulement le gramme et le
+millilitre (question du propriétaire, même jour) : kilo, litre, paquet, boîte
+et sachet servent aussi en cuisine, et la consigne demande celle qui se lit le
+mieux — 1 kg de pommes de terre, pas 1000 g. Ce qui est interdit, c'est la
+mesure que l'application ne sait pas ranger, pas la grande unité.
+
+La règle vaut aussi pour les **étapes** et interdit la quantité dans le
+libellé (« Huile d'olive (2 c. à soupe) » contournait tout). Elle ne laisse
+une quantité vide que pour ce qui se dose vraiment au goût.
+
+**Le nombre de parts n'a pas bougé** : il est déjà sur la fiche recette, et
+c'est le seul endroit où il a un sens — le réservoir est partagé, une
+suggestion mise à l'échelle pour six y resterait pour six. La fiche recalcule
+à l'affichage, par `servingsRatio` et `scaleIngredients`
+(`packages/shared/src/rules/servings.ts`), inchangés.
+
+**Les recettes déjà au réservoir gardent leurs trous** : une consigne ne
+réécrit pas ce qui est déjà écrit. Seules les fournées suivantes en profitent.
+
 ## Ce qui n'est pas garanti
 
 Rien ici ne prouve que les recettes seront bonnes : la consigne et le modèle

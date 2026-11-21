@@ -155,12 +155,18 @@ reste du poulet et un peu de sauce tomate, je veux faire un plat italien »*, et
 Gemini écoute, comprend et propose dans le même appel. L'audio n'est conservé
 nulle part.
 
-Le modèle dose parfois un ingrédient dans une unité que l'application ne
-connaît pas — une cuillère à soupe de concentré de tomates, une gousse d'ail.
-L'ingrédient garde alors son libellé et perd sa quantité, plutôt que
-d'emporter la recette entière : « 2 » sans la cuillère se lirait « 2
-concentrés de tomates ». Les unités reconnues sont la pièce, le gramme, le
-kilo, le millilitre, le litre, le paquet, la boîte et le sachet.
+Les unités reconnues sont la pièce, le gramme, le kilo, le millilitre, le
+litre, le paquet, la boîte et le sachet — ni cuillère ni pincée. La consigne
+les autorise toutes, à charge pour le modèle de prendre celle qui se lit le
+mieux (1 kg de pommes de terre, pas 1000 g), et lui demande de convertir
+lui-même le reste : une cuillère à soupe fait
+15 ml, une cuillère à café 5 ml, une pincée 1 g, un verre 200 ml, une tasse
+250 ml. Une quantité ne reste vide que pour ce qui se dose vraiment au goût,
+le sel et le poivre. C'est ce qui permet au champ **Parts** de la fiche
+recette de tout recalculer : une quantité absente ne se multiplie pas. Si le
+modèle laisse malgré tout passer une unité inconnue, l'ingrédient garde son
+libellé et perd sa quantité, plutôt que d'emporter la recette entière :
+« 2 » sans la cuillère se lirait « 2 concentrés de tomates ».
 
 **Mes recettes** est la bibliothèque du foyer : classée par note, filtrable
 (difficulté, cuisine, temps, plat, régime), avec favoris, notation par membre
@@ -256,7 +262,8 @@ huile, beurre, farine, oignon, ail, échalote, moutarde, bouillon, crème, lait,
 œufs, herbes et épices courantes — qu'aucun foyer n'inventorie et que le
 modèle s'interdisait faute d'être nommé. Elle fixe un plancher : **au moins
 six ingrédients et cinq étapes**, une base aromatique revenue, un
-assaisonnement nommé, des quantités pour quatre personnes. Et elle dit que le
+assaisonnement nommé, des quantités pour quatre personnes, toujours en
+grammes, en millilitres ou en pièces. Et elle dit que le
 stock est une réserve où puiser, **pas une liste à épuiser** : mieux vaut
 laisser un ingrédient de côté que de produire des « wraps au concentré de
 tomate et abricots ».
@@ -1107,6 +1114,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.43.4 | 2026-11-21 | Les quantités des recettes proposées arrivent en grammes et en millilitres, cuillères converties, pour que le champ « Parts » puisse les mettre à l'échelle |
 | 0.43.3 | 2026-11-20 | Une recette dont un ingrédient porte un nombre sans unité (« 2 gousses d'ail ») entre de nouveau dans « Mes recettes » |
 | 0.43.2 | 2026-11-20 | Correction des parcours bout en bout cassés par la pastille « IA », qui se lit désormais en entier par un lecteur d'écran |
 | 0.43.1 | 2026-11-20 | La provenance d'une recette composée tient dans une pastille « IA » ; les Flash-Lite repassent devant les Flash, qui ne répondent pas, et une recherche ne peut plus dépasser 80 secondes sans explication |
