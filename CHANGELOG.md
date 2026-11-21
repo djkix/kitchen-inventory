@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.4](https://github.com/djkix/kitchen-inventory/compare/v0.43.3...v0.43.4) (2026-11-21)
+
+
+### Bug Fixes
+
+* **recettes:** des quantités toujours chiffrées, cuillères converties (EF-26) ([#85](https://github.com/djkix/kitchen-inventory/issues/85)) ([35e612b](https://github.com/djkix/kitchen-inventory/commit/35e612bb2e3b1bec2e505c8d07b7dd7b1f43b819))
+
 ## [0.43.3](https://github.com/djkix/kitchen-inventory/compare/v0.43.2...v0.43.3) (2026-11-20)
 
 
