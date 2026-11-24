@@ -3,6 +3,7 @@ import { LocationChip } from '../../components/ui/location-chip';
 import { NutriscoreBadge } from '../../components/ui/nutriscore-badge';
 import { mediaUrl } from '../../lib/api';
 import { cn } from '../../lib/cn';
+import { formatQuantityWithEquivalent } from '../../lib/kitchen-equivalent-ui';
 import { formatQuantity } from '../../lib/quantity-ui';
 
 const STATE_TEXT_LOOK: Record<RecipeIngredientDto['state'], string> = {
@@ -51,7 +52,7 @@ export function IngredientRow({ ingredient }: IngredientRowProps) {
           )}
         </p>
         {showsOwnQuantity && ingredient.quantity !== null && ingredient.unit !== null && (
-          <p className="tnum text-[13px] text-muted">{formatQuantity(ingredient.quantity, ingredient.unit)}</p>
+          <p className="tnum text-[13px] text-muted">{formatQuantityWithEquivalent(ingredient.quantity, ingredient.unit)}</p>
         )}
         <p className={cn('text-[13px]', STATE_TEXT_LOOK[ingredient.state])}>{stateDetail(ingredient)}</p>
         {ingredient.locationName && (

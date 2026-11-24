@@ -6,7 +6,8 @@ import { Button } from '../../components/ui/button';
 import { LocationChip } from '../../components/ui/location-chip';
 import { Sheet } from '../../components/ui/sheet';
 import { errorMessage, mediaUrl } from '../../lib/api';
-import { formatMinutes, formatQuantity } from '../../lib/quantity-ui';
+import { formatQuantityWithEquivalent } from '../../lib/kitchen-equivalent-ui';
+import { formatMinutes } from '../../lib/quantity-ui';
 import { queryKeys } from '../../lib/queries';
 import { recipesApi } from '../../lib/recipes-api';
 import { suggestionsApi } from '../../lib/suggestions-api';
@@ -187,7 +188,7 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
                     </span>
                   </div>
                   {ingredient.quantity !== null && ingredient.unit !== null && (
-                    <span className="block text-[13px] text-faint">{formatQuantity(ingredient.quantity, ingredient.unit)}</span>
+                    <span className="block text-[13px] text-faint">{formatQuantityWithEquivalent(ingredient.quantity, ingredient.unit)}</span>
                   )}
                   {/* Rapprochement approximatif (A11, B11) : jamais tu, pour que le propriétaire
                       puisse corriger une mauvaise supposition avant de cuisiner. */}

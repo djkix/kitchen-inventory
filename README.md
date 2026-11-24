@@ -168,6 +168,15 @@ modèle laisse malgré tout passer une unité inconnue, l'ingrédient garde son
 libellé et perd sa quantité, plutôt que d'emporter la recette entière :
 « 2 » sans la cuillère se lirait « 2 concentrés de tomates ».
 
+Sur les recettes, la mesure exacte est suivie de son **équivalent ménager**
+quand il y en a un : « 45 ml (3 c. à soupe) », « 10 g (2 c. à café) ». Il est
+calculé à l'affichage et jamais stocké, donc il suit le champ **Parts** : si
+vous passez de quatre à six personnes, le nombre de cuillères suit. Rien n'est
+affiché en dessous d'une demi-cuillère à café ni au-delà de huit cuillères à
+soupe, où le compte cesse d'être parlant — 250 g de farine ne se mesurent pas
+en seize cuillères. L'écran Stock, lui, n'affiche jamais de cuillères : un
+placard se compte en grammes.
+
 **Mes recettes** est la bibliothèque du foyer : classée par note, filtrable
 (difficulté, cuisine, temps, plat, régime), avec favoris, notation par membre
 et glissement vers la gauche pour archiver. Cuisiner une recette décrémente le

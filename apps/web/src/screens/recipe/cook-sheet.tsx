@@ -8,7 +8,7 @@ import { Sheet } from '../../components/ui/sheet';
 import { StarRating } from '../../components/ui/star-rating';
 import { useToast } from '../../components/ui/toast';
 import { errorMessage, newClientOpId } from '../../lib/api';
-import { formatQuantity } from '../../lib/quantity-ui';
+import { formatQuantityWithEquivalent } from '../../lib/kitchen-equivalent-ui';
 import { queryKeys } from '../../lib/queries';
 import { recipesApi } from '../../lib/recipes-api';
 
@@ -154,7 +154,7 @@ export function CookSheetView({ recipe, initialServings, busy, onConfirm, onCanc
             <li key={ingredient.id} className="flex flex-col gap-2 px-3 py-2">
               <Checkbox
                 label={ingredient.label}
-                hint={scaled !== null && ingredient.unit !== null ? formatQuantity(scaled, ingredient.unit) : undefined}
+                hint={scaled !== null && ingredient.unit !== null ? formatQuantityWithEquivalent(scaled, ingredient.unit) : undefined}
                 checked={checked[ingredient.id] ?? false}
                 disabled={busy}
                 onChange={(event) => setChecked((prev) => ({ ...prev, [ingredient.id]: event.target.checked }))}
