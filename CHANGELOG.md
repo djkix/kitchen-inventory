@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.45.0](https://github.com/djkix/kitchen-inventory/compare/v0.44.0...v0.45.0) (2026-11-24)
+
+
+### Features
+
+* **suggestions:** une recette à la demande, écrite ou parlée (EF-25, EF-26) ([#89](https://github.com/djkix/kitchen-inventory/issues/89)) ([07f2726](https://github.com/djkix/kitchen-inventory/commit/07f27261eab01bd4d7cf08607cf553a33618e25e))
+
 ## [0.44.0](https://github.com/djkix/kitchen-inventory/compare/v0.43.4...v0.44.0) (2026-11-24)
 
 
