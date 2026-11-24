@@ -163,9 +163,12 @@ ne passe ni par le plancher du réservoir ni par le verrou de 24 heures : une
 question posée appelle le modèle. La recette rejoint ensuite le réservoir, donc
 le bouton « conserver » fonctionne comme pour les autres.
 
-**Vos ingrédients à vous.** Un champ à pastilles, avec autocomplétion depuis le
-catalogue : « poulet, tomates » ne rend que des recettes utilisant **tous** ces
-éléments — l'objet est d'écouler un reste.
+**Le champ de Suggestions attend une phrase**, plus une liste d'ingrédients :
+« une recette asiatique avec de la cacahuète, des échalotes et de l'ail », ou
+« quelque chose de rapide ce soir ». Une phrase tapée demande **une** recette ;
+un champ vide laisse partir la fournée filtrée. Le champ à pastilles et les
+ingrédients imposés ont disparu avec lui : le modèle comprend la phrase
+entière, découper la saisie ne servait plus à rien.
 
 **Demande parlée.** Une icône de micro ouvre un écran à part : on dit *« il me
 reste du poulet et un peu de sauce tomate, je veux faire un plat italien »*, et

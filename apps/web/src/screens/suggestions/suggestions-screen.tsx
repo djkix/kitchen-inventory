@@ -1,4 +1,5 @@
-import { SUGGESTION_PAGE_MAX, SUGGESTION_PAGE_SIZE, type SuggestionBatchDto, type SuggestionDto } from '@kitchen/shared';
+import { SUGGESTION_PAGE_MAX, SUGGESTION_PAGE_SIZE, type SingleRecipeDto, type SuggestionBatchDto, type SuggestionDto } from '@kitchen/shared';
+import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
@@ -6,10 +7,13 @@ import { Button, Spinner } from '../../components/ui/button';
 import { EmptyState, ErrorState } from '../../components/ui/empty-state';
 import { Sheet } from '../../components/ui/sheet';
 import { isApiError } from '../../lib/api';
+import { useTrackedRequest } from '../../hooks/use-tracked-request';
 import { useSuggestionsQuery } from '../../lib/queries';
+import { suggestionsApi } from '../../lib/suggestions-api';
 import type { SuggestionOrientation } from '../../lib/suggestions-api';
 import { DishTypeQuestion, useDishTypeAnswer } from './dish-type-question';
-import { IngredientsField } from './ingredients-field';
+import { SingleRecipeAnswer } from './single-recipe-answer';
+import { RequestField } from './request-field';
 import { countActiveOrientation, OrientationBar } from './orientation-bar';
 import { SuggestionCard, suggestionAccessibleName } from './suggestion-card';
 import { SuggestionSheet } from './suggestion-sheet';
@@ -98,6 +102,18 @@ export function SuggestionsScreen() {
    * disparaît.
    */
   const [filtersOpen, setFiltersOpen] = useState(false);
+  /**
+   * Réponse à une demande en langage naturel (2026-11-24). Elle prend la place
+   * de la liste tant qu'elle est là : on a posé une question, on lit la
+   * réponse, pas douze cartes à côté. Une nouvelle recherche filtrée la
+   * chasse.
+   */
+  const [answer, setAnswer] = useState<SingleRecipeDto | null>(null);
+  const tracked = useTrackedRequest();
+  const ask = useMutation({
+    mutationFn: (text: string) => tracked((requestId) => suggestionsApi.request({ text, requestId })),
+    onSuccess: setAnswer,
+  });
   // Pas d'appel tant que la question n'a pas de réponse (voir `useSuggestionsQuery`).
   const suggestions = useSuggestionsQuery(orientation, { enabled: answeredDishType !== null, relaunch, limit });
   // Suggestion ouverte dans la fiche de conservation (tâche 12) ; `null` quand le tiroir est fermé.
@@ -136,16 +152,23 @@ export function SuggestionsScreen() {
 
       <RecipeTabSwitch />
 
-      {/* Au-dessus des filtres (D6, 2026-10-19), et vide par défaut : ce qui est
-          tapé ici est imposé à chaque recette proposée, le stock venant en plus. */}
-      <IngredientsField
-        value={orientation.ingredients ?? ''}
-        onChange={(raw) => {
-          // Une autre demande est une autre recherche : mêmes remises à zéro
-          // que pour un changement d'orientation.
-          setRelaunch(0);
-          setLimit(SUGGESTION_PAGE_SIZE);
-          setOrientation((current) => ({ ...current, ingredients: raw === '' ? undefined : raw, refresh: undefined }));
+      {/* Au-dessus des filtres (D6, 2026-10-19), et vide par défaut. C'est ce
+          champ qui décide du chemin (2026-11-24) : une phrase tapée demande UNE
+          recette, un champ vide relance la fournée filtrée. */}
+      <RequestField
+        busy={ask.isPending}
+        onSubmit={(text) => {
+          if (text === '') {
+            // Champ vide : on relance la recherche filtrée, et la réponse
+            // précédente s'efface — elle répondait à une autre question.
+            setAnswer(null);
+            ask.reset();
+            setRelaunch((n) => n + 1);
+            setLimit(SUGGESTION_PAGE_SIZE);
+            return;
+          }
+          setAnswer(null);
+          ask.mutate(text);
         }}
         /*
           Un seul contrôle de plus sur la ligne du champ, portant le nombre
@@ -201,7 +224,19 @@ export function SuggestionsScreen() {
         </div>
       </Sheet>
 
-      {suggestions.isPending ? (
+      {/* Une demande en langage naturel est en cours : on l'attend, et rien
+          d'autre ne bouge à l'écran. */}
+      {ask.isPending && <WaitingState />}
+
+      {/* Le refus se dit — quota, fournisseur absent, demande non comprise —
+          avec le même composant que le reste de l'écran. */}
+      {ask.isError && !ask.isPending && <SuggestionsErrorState error={ask.error} />}
+
+      {/* La réponse prend la place de la liste : on a posé une question, on lit
+          la réponse. Un « Chercher » à champ vide la chasse. */}
+      {answer && !ask.isPending && <SingleRecipeAnswer answer={answer} showHeard={false} onSelect={setSelected} />}
+
+      {answer || ask.isPending || ask.isError ? null : suggestions.isPending ? (
         <WaitingState />
       ) : suggestions.isError ? (
         <SuggestionsErrorState error={suggestions.error} onRetry={() => void suggestions.refetch()} />

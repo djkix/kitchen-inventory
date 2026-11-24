@@ -4,10 +4,6 @@ import type { MatchState } from '../rules/ingredient-match.js';
 import { clientOpIdSchema, idSchema, positiveQuantitySchema, unitSchema } from './common.js';
 import type { NutriscoreGrade } from './products.js';
 import {
-  normalizeIngredientTerms,
-  splitIngredientTerms,
-  SUGGESTION_INGREDIENT_LENGTH_MAX,
-  SUGGESTION_INGREDIENTS_MAX,
 } from '../rules/suggestion-ingredients.js';
 import { difficultySchema, dishTypeSchema } from './recipes.js';
 
@@ -63,35 +59,6 @@ export const SUGGESTION_PAGE_SIZE = 12;
  */
 export const SUGGESTION_PAGE_MAX = 5 * SUGGESTION_PAGE_SIZE;
 
-/**
- * Ingrédients dictés à la main (spécification du 2026-10-19, D7) : du texte
- * libre séparé par des virgules, borné à cinq termes de trente caractères.
- * Le résultat est normalisé, dédoublonné et **trié** (D3) — c'est cette liste
- * qui entre dans la signature d'orientation, et deux saisies de même contenu
- * doivent y entrer identiques.
- *
- * Les bornes vivent ici et nulle part ailleurs : l'écran valide avec ce même
- * schéma avant d'envoyer quoi que ce soit (jamais deux implémentations).
- * Une saisie vide rend une liste vide, c'est-à-dire aucune contrainte.
- */
-export const suggestionIngredientsSchema = z
-  .string()
-  .superRefine((raw, ctx) => {
-    const terms = splitIngredientTerms(raw);
-    if (terms.length > SUGGESTION_INGREDIENTS_MAX) {
-      ctx.addIssue({ code: 'custom', message: `${SUGGESTION_INGREDIENTS_MAX} ingrédients au maximum` });
-    }
-    if (terms.some((term) => term.length > SUGGESTION_INGREDIENT_LENGTH_MAX)) {
-      ctx.addIssue({ code: 'custom', message: `${SUGGESTION_INGREDIENT_LENGTH_MAX} caractères au maximum par ingrédient` });
-    }
-  })
-  // `raw` ET `terms` (tour de correction 1) : le modèle doit recevoir la
-  // saisie telle qu'elle a été tapée — « crème fraîche » accentué — tandis que
-  // la signature (D3) et le rapprochement au réservoir (D8) travaillent sur la
-  // forme normalisée. La normalisation sert la comparaison, jamais le
-  // transport.
-  .transform((raw) => ({ raw: raw.trim(), terms: normalizeIngredientTerms(raw) }));
-export type SuggestionIngredients = z.infer<typeof suggestionIngredientsSchema>;
 
 export const suggestionQuerySchema = z.object({
   /**
@@ -135,13 +102,6 @@ export const suggestionQuerySchema = z.object({
    * ne tient qu'au plancher du réservoir et à la relance explicite.
    */
   limit: z.coerce.number().int().min(1).max(SUGGESTION_PAGE_MAX).optional(),
-  /**
-   * Ingrédients que chaque recette proposée doit utiliser (D1). Ils
-   * s'**ajoutent** au point de départ tiré du stock, ils ne le remplacent pas
-   * (D4) : le réservoir est filtré dessus, la signature les porte, et le
-   * prompt distingue ce qui est imposé de ce qui est simplement disponible.
-   */
-  ingredients: suggestionIngredientsSchema.optional(),
 });
 export type SuggestionQuery = z.infer<typeof suggestionQuerySchema>;
 

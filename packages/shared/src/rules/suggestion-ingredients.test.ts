@@ -1,17 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { labelMatchesTerms, normalizeIngredientTerms, recipeUsesAllTerms, splitIngredientTerms } from './suggestion-ingredients.js';
+import { labelMatchesTerms, normalizeIngredientTerms } from './suggestion-ingredients.js';
 
-describe('splitIngredientTerms (D7)', () => {
-  it('découpe sur la virgule, sans normaliser : c’est la saisie telle quelle qui est bornée', () => {
-    expect(splitIngredientTerms('Pommes de terre, Merguez')).toEqual(['Pommes de terre', 'Merguez']);
-  });
-  it('ignore les séparateurs vides : une virgule de trop n’est pas un ingrédient', () => {
-    expect(splitIngredientTerms(' , pommes ,, ')).toEqual(['pommes']);
-  });
-  it('rend une liste vide pour une saisie vide : absence de contrainte, pas contrainte vide', () => {
-    expect(splitIngredientTerms('   ')).toEqual([]);
-  });
-});
 
 describe('normalizeIngredientTerms (D3, D7)', () => {
   it('trie les termes : « merguez, pommes de terre » est la même demande que l’ordre inverse', () => {
@@ -28,31 +17,6 @@ describe('normalizeIngredientTerms (D3, D7)', () => {
   });
 });
 
-describe('recipeUsesAllTerms (D1, D8)', () => {
-  const labels = ['Pommes de terre nouvelles', 'Merguez d’agneau', 'Huile d’olive'];
-
-  it('exige TOUS les termes : c’est le sens de la demande, écouler des restes', () => {
-    expect(recipeUsesAllTerms(labels, ['merguez', 'pommes de terre'])).toBe(true);
-    expect(recipeUsesAllTerms(labels, ['merguez', 'courgette'])).toBe(false);
-  });
-  it('rapproche par inclusion : « pomme de terre » trouve « pommes de terre nouvelles »', () => {
-    expect(recipeUsesAllTerms(['Pommes de terre nouvelles'], ['pommes de terre'])).toBe(true);
-  });
-  it('ne sépare pas le singulier du pluriel, dans les deux sens', () => {
-    // L'exemple littéral de la demande : « j'ai des pommes de terre ». Selon
-    // que le propriétaire tape au singulier ou au pluriel, il déclenchait un appel
-    // payant au lieu de lire son réservoir.
-    expect(recipeUsesAllTerms(['Pommes de terre nouvelles'], ['pomme de terre'])).toBe(true);
-    expect(recipeUsesAllTerms(['Pomme de terre'], ['pommes de terre'])).toBe(true);
-    expect(recipeUsesAllTerms(['Œufs'], ['oeuf'])).toBe(true);
-    expect(recipeUsesAllTerms(['Œuf'], ['oeufs'])).toBe(true);
-    expect(recipeUsesAllTerms(['Noix de muscade'], ['noix'])).toBe(true);
-  });
-
-  it('sans terme, aucune contrainte', () => {
-    expect(recipeUsesAllTerms([], [])).toBe(true);
-  });
-});
 
 describe('labelMatchesTerms (D5)', () => {
   it('reconnaît le libellé qui porte un terme dicté', () => {
@@ -70,32 +34,3 @@ describe('labelMatchesTerms (D5)', () => {
   });
 });
 
-describe('recipeUsesAllTerms — saisie sans virgule (constat du propriétaire, 2026-10-19)', () => {
-  const POULET_TOMATE = ['Blanc de poulet', 'Tomates cerises', 'Huile d’olive'];
-
-  it('trouve une recette au poulet et à la tomate quand les deux sont tapés d’un seul tenant', () => {
-    // « poulet tomate » sans virgule est UN terme : aucun libellé ne le
-    // contient d'un seul tenant, et l'écran annonçait « aucune recette » pour
-    // une recette qui contient pourtant les deux — après avoir payé l'appel.
-    expect(recipeUsesAllTerms(POULET_TOMATE, ['poulet tomate'])).toBe(true);
-  });
-
-  it('exige toujours que chaque mot significatif soit présent', () => {
-    expect(recipeUsesAllTerms(POULET_TOMATE, ['poulet merguez'])).toBe(false);
-  });
-
-  it('ne retient rien d’un terme fait de mots de liaison', () => {
-    // « de la » ne porte aucun sens : sans mot significatif, la seconde
-    // lecture ne doit pas s'ouvrir, sinon elle dirait oui à tout.
-    expect(recipeUsesAllTerms(['Crème fraîche'], ['de la'])).toBe(false);
-  });
-
-  it('garde la lecture d’un seul tenant quand elle suffit', () => {
-    expect(recipeUsesAllTerms(['Pommes de terre nouvelles'], ['pomme de terre'])).toBe(true);
-  });
-
-  it('n’élargit pas un terme d’un seul mot', () => {
-    // Un mot unique ne doit pas se disperser : seul le libellé compte.
-    expect(recipeUsesAllTerms(['Tomates cerises'], ['poulet'])).toBe(false);
-  });
-});

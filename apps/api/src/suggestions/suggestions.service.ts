@@ -178,12 +178,13 @@ const SUGGESTION_POOL_FLOOR = 6;
  * pas du contenu du placard.
  *
  * Passée à `v2` le 2026-10-08 avec l'arrivée du type de plat, à `v3` le même
- * jour avec les durées de préparation et de cuisson séparées, et à `v4` le
- * 2026-10-15 avec le retrait des graines, et à `v5` le 2026-10-19 avec les
- * ingrédients dictés (D3) : sans ce changement de version, les lignes écrites
- * avant seraient relues comme des orientations qu'elles ne désignent pas.
+ * jour avec les durées de préparation et de cuisson séparées, à `v4` le
+ * 2026-10-15 avec le retrait des graines, à `v5` le 2026-10-19 avec les
+ * ingrédients dictés (D3), et à `v6` le 2026-11-24 avec leur retrait : sans ce
+ * changement de version, les lignes écrites avant seraient relues comme des
+ * orientations qu'elles ne désignent pas.
  */
-const SUGGESTION_SIGNATURE_VERSION = 'v5';
+const SUGGESTION_SIGNATURE_VERSION = 'v6';
 
 /**
  * Au-delà de ce délai, une orientation déjà demandée peut l'être à nouveau
@@ -228,10 +229,6 @@ function orientationFilter(query: SuggestionQuery): PoolFilter {
     region: query.region,
     maxMinutes: query.maxMinutes,
     difficulty: query.difficulty,
-    // Les ingrédients dictés sont une orientation comme les autres (D2) : le
-    // réservoir est lu filtré sur eux, et le modèle n'est appelé que si ce
-    // réservoir filtré reste sous le plancher de six.
-    ingredients: query.ingredients?.terms,
   };
 }
 
@@ -241,12 +238,6 @@ function computeSignature(query: SuggestionQuery): string {
     maxMinutes: query.maxMinutes ?? null,
     difficulty: query.difficulty ?? null,
     dishType: query.dishType ?? null,
-    // Normalisés et TRIÉS par le schéma partagé (D3) : sans le tri, « merguez,
-    // pommes de terre » et « pommes de terre, merguez » seraient deux
-    // orientations distinctes ; sans leur présence ici, deux combinaisons
-    // différentes partageraient le verrou de 24 h et la seconde se verrait
-    // refuser son appel à cause de la première.
-    ingredients: query.ingredients?.terms ?? [],
     version: SUGGESTION_SIGNATURE_VERSION,
   });
   return createHash('sha256').update(payload).digest('hex');
@@ -399,7 +390,7 @@ export class SuggestionsService {
         if (entries.length === 0) {
           throw ApiError.insufficientStock(HOUSEHOLD_EMPTY_MESSAGE);
         }
-        return this.render(entries, snapshot, true, notice, fresh, pageSize, query.ingredients?.terms ?? []);
+        return this.render(entries, snapshot, true, notice, fresh, pageSize, []);
       }
       const breach = await this.quotaBreach();
       if (breach) {
@@ -409,11 +400,10 @@ export class SuggestionsService {
         const fallback = await this.readPool({ refresh: false });
         if (fallback.length === 0) throw ApiError.rateLimited(this.quotaMessage(breach, false));
         entries = fallback;
-        // Le repli lit le réservoir sans AUCUN filtre : ni orientation, ni
-        // ingrédients dictés. Le dire (tour de correction 1) — sinon le propriétaire
-        // reçoit des recettes sans rapport avec ce qu'il vient de taper, et
-        // seul le quota lui est expliqué.
-        notice = this.quotaMessage(breach, true, (query.ingredients?.terms.length ?? 0) > 0);
+        // Le repli lit le réservoir sans aucun filtre d'orientation. Le dire,
+        // sinon le propriétaire reçoit des recettes sans rapport avec ce qu'il
+        // a demandé et seul le quota lui est expliqué.
+        notice = this.quotaMessage(breach, true);
       } else {
         // Titres déjà connus pour cette orientation, cités au modèle pour
         // qu'il ne les repropose pas. Sur relance, `entries` est vide par
@@ -446,7 +436,7 @@ export class SuggestionsService {
       }
     }
 
-    return this.render(entries, snapshot, fromCache, notice, fresh, pageSize, query.ingredients?.terms ?? []);
+    return this.render(entries, snapshot, fromCache, notice, fresh, pageSize, []);
   }
 
   /**
@@ -757,9 +747,6 @@ export class SuggestionsService {
       dishType: query.dishType,
       count: modelBatch(settings.suggestionWebSearch),
       knownTitles,
-      // Imposés au modèle (D1), en plus des graines tirées du stock (D4) : le
-      // prompt distingue les deux, l'un s'ajoute à l'autre.
-      ingredients: query.ingredients,
     };
 
     const started = Date.now();

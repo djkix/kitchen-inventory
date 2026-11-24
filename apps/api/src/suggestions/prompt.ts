@@ -123,31 +123,8 @@ export function buildSuggestionPrompt(req: SuggestionRequest, options: { retry?:
   const webSearch = req.webSearch !== false;
   const webCount = Math.max(0, req.count - Math.round(req.count / 3));
   const aiCount = req.count - webCount;
-  /**
-   * Ingrédients dictés (D1, D4, 2026-10-19). Deux lignes, et pas une : ce qui
-   * est imposé et ce qui est seulement disponible ne se lisent pas pareil —
-   * le modèle doit pouvoir ignorer une tomate du placard, jamais la merguez
-   * qu'on vient de lui nommer. La saisie part **telle qu'elle a été tapée**
-   * (tour de correction 1) : « crème fraîche » doit arriver accentué au
-   * modèle, la forme normalisée ne sert qu'à la signature (D3) et au
-   * rapprochement au réservoir (D8).
-   */
-  const dictated = req.ingredients?.terms ?? [];
-  const lines: string[] =
-    dictated.length > 0
-      ? [
-          `Ingrédients imposés : ${req.ingredients?.raw ?? ''}. Chaque recette proposée doit les utiliser TOUS, sans exception : n'en propose aucune qui en ignore un seul.`,
-          ...householdLines(req.household),
-        ]
-      : householdLines(req.household);
-  /**
-   * Un seul référent par phrase (tour de correction 1). « Utilisant si
-   * possible ces ingrédients » voisinait avec « doit les utiliser TOUS » :
-   * deux consignes contradictoires, sur un « ces ingrédients » devenu
-   * ambigu — et des fournées payées qui ignoraient la merguez.
-   */
-  const useClause =
-    dictated.length > 0 ? 'utilisant tous les ingrédients imposés ci-dessus' : 'utilisant si possible ces ingrédients';
+  const lines: string[] = householdLines(req.household);
+  const useClause = 'utilisant si possible ces produits';
   if (webSearch) {
     lines.push(
       `Propose au total ${req.count} recettes ${useClause} : environ ${webCount} trouvées par recherche web réelle (avec leur URL source en https), et environ ${aiCount} composées par toi (sans URL).`,

@@ -5,8 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SUGGESTION_PAGE_MAX } from '@kitchen/shared';
 import { ApiClientError } from '../../lib/api';
 import { useSuggestionsQuery } from '../../lib/queries';
+import { suggestionsApi } from '../../lib/suggestions-api';
 import { resetDishTypeAnswerForTests } from './dish-type-question';
 import { SuggestionsErrorState, SuggestionsScreen } from './suggestions-screen';
+
+vi.mock('../../lib/suggestions-api', () => ({
+  suggestionsApi: { request: vi.fn(), list: vi.fn(), keep: vi.fn(), voice: vi.fn() },
+}));
 
 vi.mock('../../lib/queries', () => ({
   useSuggestionsQuery: vi.fn(),
@@ -116,9 +121,13 @@ describe('SuggestionsScreen', () => {
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
     render(
-      <MemoryRouter>
-        <SuggestionsScreen />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+
+      </QueryClientProvider>,
     );
 
     expect(screen.getByRole('link', { name: /Mes recettes/i }).getAttribute('href')).toBe('/recettes/bibliotheque');
@@ -162,9 +171,8 @@ describe('SuggestionsScreen', () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
-    const client = new QueryClient();
     render(
-      <QueryClientProvider client={client}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
         <MemoryRouter>
           <SuggestionsScreen />
         </MemoryRouter>
@@ -218,9 +226,8 @@ describe('SuggestionsScreen', () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
-    const client = new QueryClient();
     render(
-      <QueryClientProvider client={client}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
         <MemoryRouter>
           <SuggestionsScreen />
         </MemoryRouter>
@@ -258,9 +265,8 @@ describe('SuggestionsScreen', () => {
 
     vi.mocked(useSuggestionsQuery).mockReturnValue(batch([]));
 
-    const client = new QueryClient();
     render(
-      <QueryClientProvider client={client}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
         <MemoryRouter>
           <SuggestionsScreen />
         </MemoryRouter>
@@ -347,9 +353,8 @@ describe('SuggestionsScreen', () => {
       } as unknown as ReturnType<typeof useSuggestionsQuery>;
     });
 
-    const client = new QueryClient();
     render(
-      <QueryClientProvider client={client}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
         <MemoryRouter>
           <SuggestionsScreen />
         </MemoryRouter>
@@ -414,9 +419,8 @@ describe('SuggestionsScreen', () => {
       } as unknown as ReturnType<typeof useSuggestionsQuery>;
     });
 
-    const client = new QueryClient();
     render(
-      <QueryClientProvider client={client}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
         <MemoryRouter>
           <SuggestionsScreen />
         </MemoryRouter>
@@ -479,9 +483,8 @@ describe('SuggestionsScreen', () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
-    const client = new QueryClient();
     render(
-      <QueryClientProvider client={client}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
         <MemoryRouter>
           <SuggestionsScreen />
         </MemoryRouter>
@@ -537,9 +540,8 @@ describe('SuggestionsScreen', () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
-    const client = new QueryClient();
     render(
-      <QueryClientProvider client={client}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
         <MemoryRouter>
           <SuggestionsScreen />
         </MemoryRouter>
@@ -574,9 +576,8 @@ describe('SuggestionsScreen', () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
-    const client = new QueryClient();
     render(
-      <QueryClientProvider client={client}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
         <MemoryRouter>
           <SuggestionsScreen />
         </MemoryRouter>
@@ -635,9 +636,13 @@ describe('SuggestionsScreen', () => {
       const client = new QueryClient();
       render(
         <QueryClientProvider client={client}>
-          <MemoryRouter>
-            <SuggestionsScreen />
-          </MemoryRouter>
+          <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+            <MemoryRouter>
+              <SuggestionsScreen />
+            </MemoryRouter>
+
+          </QueryClientProvider>
         </QueryClientProvider>,
       );
       fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
@@ -690,9 +695,13 @@ describe('SuggestionsScreen', () => {
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
     render(
-      <MemoryRouter>
-        <SuggestionsScreen />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
@@ -716,9 +725,13 @@ describe('SuggestionsScreen', () => {
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
     render(
-      <MemoryRouter>
-        <SuggestionsScreen />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+
+      </QueryClientProvider>,
     );
 
     // Les sept types de la taxonomie, nommés par la question.
@@ -750,9 +763,13 @@ describe('SuggestionsScreen', () => {
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
     render(
-      <MemoryRouter>
-        <SuggestionsScreen />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Dessert' }));
@@ -786,9 +803,13 @@ describe('SuggestionsScreen', () => {
     const client = new QueryClient();
     const { rerender } = render(
       <QueryClientProvider client={client}>
-        <MemoryRouter>
-          <SuggestionsScreen />
-        </MemoryRouter>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+          <MemoryRouter>
+            <SuggestionsScreen />
+          </MemoryRouter>
+
+        </QueryClientProvider>
       </QueryClientProvider>,
     );
 
@@ -807,9 +828,13 @@ describe('SuggestionsScreen', () => {
 
     rerender(
       <QueryClientProvider client={client}>
-        <MemoryRouter>
-          <SuggestionsScreen />
-        </MemoryRouter>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+          <MemoryRouter>
+            <SuggestionsScreen />
+          </MemoryRouter>
+
+        </QueryClientProvider>
       </QueryClientProvider>,
     );
 
@@ -835,9 +860,13 @@ describe('SuggestionsScreen', () => {
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
     render(
-      <MemoryRouter>
-        <SuggestionsScreen />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
@@ -865,9 +894,13 @@ describe('SuggestionsScreen', () => {
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
     const { unmount } = render(
-      <MemoryRouter>
-        <SuggestionsScreen />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
@@ -880,9 +913,13 @@ describe('SuggestionsScreen', () => {
     resetDishTypeAnswerForTests();
 
     render(
-      <MemoryRouter>
-        <SuggestionsScreen />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
@@ -905,9 +942,13 @@ describe('SuggestionsScreen', () => {
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
     const { unmount } = render(
-      <MemoryRouter>
-        <SuggestionsScreen />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Dessert' }));
@@ -918,9 +959,13 @@ describe('SuggestionsScreen', () => {
     unmount();
 
     render(
-      <MemoryRouter>
-        <SuggestionsScreen />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+
+      </QueryClientProvider>,
     );
 
     // La question ne revient pas : la réponse a survécu au remontage.
@@ -929,92 +974,6 @@ describe('SuggestionsScreen', () => {
   });
 });
 
-/**
- * Suggestions à partir d'ingrédients dictés (spécification du 2026-10-19,
- * D6, D7) : « j'ai des pommes de terre et un reste de merguez ». Un champ de
- * texte libre au-dessus des filtres — un reste n'est pas en stock, il ne se
- * choisit pas dans l'inventaire.
- */
-describe('SuggestionsScreen, ingrédients dictés (2026-10-19)', () => {
-  function mountWith(items: unknown[], poolCount = items.length) {
-    vi.mocked(useSuggestionsQuery).mockReturnValue({
-      isPending: false,
-      isError: false,
-      isFetching: false,
-      data: { notice: null, items, poolCount, poolTotal: poolCount },
-      error: null,
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useSuggestionsQuery>);
-
-    const client = new QueryClient();
-    render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter>
-          <SuggestionsScreen />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Plat' }));
-  }
-
-  function type(text: string) {
-    // Le champ est un `combobox` depuis les pastilles du 2026-10-19.
-    const field = screen.getByRole('combobox', { name: /ingrédients/i });
-    fireEvent.change(field, { target: { value: text } });
-    fireEvent.submit(field);
-  }
-
-  it('n’envoie rien tant que le champ est vide : il ne change pas le comportement actuel (D6)', () => {
-    mountWith([]);
-    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toEqual({ dishType: 'MAIN' });
-  });
-
-  it('porte les ingrédients saisis dans l’orientation, et repart de la première page', () => {
-    mountWith([]);
-    type('pommes de terre, merguez');
-
-    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]).toMatchObject({ dishType: 'MAIN', ingredients: 'pommes de terre, merguez' });
-    // Une autre demande est une autre liste : page et compteur de relances
-    // repartent de zéro, comme pour tout changement d'orientation.
-    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.limit).toBe(12);
-    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[1]?.relaunch).toBe(0);
-  });
-
-  it('refuse une saisie hors des bornes du schéma partagé, et ne lance rien (D7)', () => {
-    mountWith([]);
-    type('a, b, c, d, e, f');
-
-    expect(screen.getByText(/5 ingrédients au maximum/i)).toBeTruthy();
-    // Rien n'est parti : l'orientation reste celle d'avant la saisie.
-    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]?.ingredients).toBeUndefined();
-  });
-
-  it('traite une saisie faite de virgules comme une absence de contrainte (tour 1)', () => {
-    // Elle passait le schéma, posait `ingredients: ', ,,'` dans l'orientation,
-    // et l'écran expliquait alors une liste vide par une « combinaison trop
-    // rare » — une explication fausse pour une demande inexistante.
-    mountWith([]);
-    type(' , ,, ');
-
-    expect(vi.mocked(useSuggestionsQuery).mock.calls.at(-1)?.[0]?.ingredients).toBeUndefined();
-    expect(screen.queryByText(/combinaison/i)).toBeNull();
-  });
-
-  it('dit pourquoi une demande ne rend rien, au lieu d’une liste vide et muette', () => {
-    mountWith([]);
-    type('merguez, pommes de terre');
-
-    // La limite assumée de D1, dite à l'écran : imposer tous les ingrédients
-    // rend peu de choses sur une combinaison inhabituelle.
-    expect(screen.getByText(/combinaison/i)).toBeTruthy();
-  });
-
-  it('laisse l’état vide habituel quand aucun ingrédient n’est dicté', () => {
-    mountWith([]);
-    expect(screen.queryByText(/combinaison/i)).toBeNull();
-    expect(screen.getByText(/Changez d’orientation/i)).toBeTruthy();
-  });
-});
 
 /**
  * Le propriétaire, 2026-10-20 : « j'aime beaucoup l'affichage barre de recherche /
@@ -1036,9 +995,8 @@ describe('SuggestionsScreen, filtres derrière un bouton (2026-10-20)', () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useSuggestionsQuery>);
 
-    const client = new QueryClient();
     render(
-      <QueryClientProvider client={client}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
         <MemoryRouter>
           <SuggestionsScreen />
         </MemoryRouter>
@@ -1143,9 +1101,13 @@ describe('Entrée de la demande parlée (D3)', () => {
   it('offre un lien vers l’écran de demande parlée, dès la question de type de plat', () => {
     vi.mocked(useSuggestionsQuery).mockReturnValue({ isPending: false, isError: false, isFetching: false, data: undefined } as never);
     render(
-      <MemoryRouter>
-        <SuggestionsScreen />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+
+      </QueryClientProvider>,
     );
     const lien = screen.getByRole('link', { name: /demande parlée/i });
     expect(lien.getAttribute('href')).toBe('/recettes/parler');
@@ -1154,12 +1116,92 @@ describe('Entrée de la demande parlée (D3)', () => {
   it('n’ajoute aucun contrôle au champ d’ingrédients, qui reste inchangé', () => {
     vi.mocked(useSuggestionsQuery).mockReturnValue({ isPending: false, isError: false, isFetching: false, data: undefined } as never);
     render(
-      <MemoryRouter>
-        <SuggestionsScreen />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+        <MemoryRouter>
+          <SuggestionsScreen />
+        </MemoryRouter>
+
+      </QueryClientProvider>,
     );
     fireEvent.click(screen.getAllByRole('button')[0]!);
     // La ligne du champ ne porte toujours que « Chercher » et « Filtres ».
     expect(screen.queryByRole('button', { name: /micro|parler/i })).toBeNull();
+  });
+});
+
+/**
+ * Recette à la demande (spécification du 2026-11-24). Le champ à pastilles est
+ * devenu un champ de texte libre, et c'est le geste qui décide du chemin :
+ * une phrase tapée demande UNE recette, un champ vide lance la fournée
+ * filtrée.
+ */
+describe('SuggestionsScreen, une recette à la demande (2026-11-24)', () => {
+  beforeEach(() => {
+    vi.mocked(suggestionsApi.request).mockReset();
+  });
+
+  function prepare() {
+    vi.mocked(useSuggestionsQuery).mockReturnValue({
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      data: { notice: null, poolCount: 0, poolTotal: 0, items: [], fromCache: false },
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSuggestionsQuery>);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+
+          <MemoryRouter>
+            <SuggestionsScreen />
+          </MemoryRouter>
+
+        </QueryClientProvider>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /plat/i }));
+  }
+
+  it('une phrase tapée part vers la route « une recette »', async () => {
+    vi.mocked(suggestionsApi.request).mockResolvedValue({
+      heard: { ingredients: ['courgette'], orientation: null },
+      recipe: {
+        id: 'r1',
+        title: 'Gratin de courgettes',
+        notes: 'Pas de crème : j’ai pris du lait.',
+        origin: 'Composition',
+        region: 'europeenne',
+        totalMinutes: 40,
+        prepMinutes: 10,
+        cookMinutes: 30,
+        difficulty: 'EASY',
+        dishType: 'MAIN',
+        provenance: 'ai',
+        sourceUrl: null,
+        verified: false,
+        steps: ['Préchauffer le four à 200 °C.'],
+        ingredients: [],
+        coverage: 1,
+        group: 'ready',
+        missingLabels: [],
+      },
+    });
+    prepare();
+
+    fireEvent.change(screen.getByLabelText('Votre demande'), { target: { value: 'un gratin de courgettes' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Chercher' }));
+
+    await waitFor(() => expect(screen.getByText('Gratin de courgettes')).toBeTruthy());
+    expect(vi.mocked(suggestionsApi.request)).toHaveBeenCalledWith(expect.objectContaining({ text: 'un gratin de courgettes' }));
+    expect(screen.getByText(/j’ai pris du lait/)).toBeTruthy();
+  });
+
+  it('un champ vide lance la fournée filtrée, sans demander de recette', () => {
+    prepare();
+    fireEvent.click(screen.getByRole('button', { name: 'Chercher' }));
+    expect(vi.mocked(suggestionsApi.request)).not.toHaveBeenCalled();
   });
 });

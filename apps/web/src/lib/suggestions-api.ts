@@ -69,6 +69,16 @@ export const suggestionsApi = {
   },
 
   /**
+   * Recette à la demande écrite (spécification du 2026-11-24) : une phrase, une
+   * recette. Payante et comptée au quota comme la demande parlée ; elle
+   * n'ignore le réservoir que comme point de départ — la recette rendue y entre
+   * ensuite, ce qui laisse « conserver » fonctionner sans rien de plus.
+   */
+  request(input: { text: string; requestId?: string }): Promise<SingleRecipeDto> {
+    return api.post<SingleRecipeDto>('/suggestions/request', input);
+  },
+
+  /**
    * Conserve une suggestion en recette du foyer (EF-25, EF-26, B6). Le site
    * n'est **jamais** recontacté : sa page a été lue une seule fois, à l'entrée
    * au réservoir, et son contenu y est gardé (D10, 2026-10-15). Côté serveur,
