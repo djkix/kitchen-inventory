@@ -8,7 +8,7 @@ import {
   SUGGESTION_PAGE_MAX,
   SUGGESTION_REGIONS,
   voiceAudioRejection,
-  voiceModelBatchSchema,
+  singleRecipeModelSchema,
   VOICE_HEARD_INGREDIENTS_MAX,
   VOICE_MAX_BYTES,
   VOICE_MAX_SECONDS,
@@ -214,32 +214,32 @@ describe('suggestionQuerySchema', () => {
 });
 
 /**
- * Demande parlée (spécification du 2026-10-21) : un seul appel rend la lecture
- * de la phrase ET les recettes (D2, D4).
+ * Demande « une recette » (2026-11-24), écrite ou parlée : un seul appel rend
+ * la lecture de la demande ET la recette. Le schéma est volontairement
+ * permissif sur `recipe: null` — c'est le service qui en fait un refus
+ * français (D9) — et intransigeant sur une recette présente mais mal formée.
  */
-describe('voiceModelBatchSchema (demande parlée, D2, D4)', () => {
-  it('rend ce que le modèle a entendu à côté des recettes', () => {
-    const parsed = voiceModelBatchSchema.parse({
+describe('singleRecipeModelSchema (2026-11-24)', () => {
+  it('rend ce que le modèle a compris à côté de la recette', () => {
+    const parsed = singleRecipeModelSchema.parse({
       heard: { ingredients: ['poulet', 'sauce tomate'], orientation: 'plat italien' },
-      recipes: [recette],
+      recipe: recette,
     });
     expect(parsed.heard.ingredients).toEqual(['poulet', 'sauce tomate']);
     expect(parsed.heard.orientation).toBe('plat italien');
-    expect(parsed.recipes).toHaveLength(1);
+    expect(parsed.recipe?.title).toBe('Pâtes à la tomate');
   });
 
   it('tient une réponse sans lecture pour une lecture vide, jamais pour une erreur', () => {
-    // C'est le service qui décide qu'une lecture vide veut dire « rien
-    // compris » (D9) : le schéma ne doit pas perdre les recettes payées.
-    const parsed = voiceModelBatchSchema.parse({ recipes: [recette] });
+    const parsed = singleRecipeModelSchema.parse({ recipe: recette });
     expect(parsed.heard).toEqual({ ingredients: [], orientation: null });
-    expect(parsed.recipes).toHaveLength(1);
+    expect(parsed.recipe).not.toBeNull();
   });
 
   it('écarte les ingrédients vides et borne la lecture', () => {
-    const parsed = voiceModelBatchSchema.parse({
+    const parsed = singleRecipeModelSchema.parse({
       heard: { ingredients: ['  ', 'poulet', ...Array.from({ length: 30 }, (_, i) => `x${i}`)], orientation: '   ' },
-      recipes: [recette],
+      recipe: recette,
     });
     expect(parsed.heard.ingredients).not.toContain('');
     expect(parsed.heard.ingredients.length).toBeLessThanOrEqual(VOICE_HEARD_INGREDIENTS_MAX);
@@ -248,16 +248,13 @@ describe('voiceModelBatchSchema (demande parlée, D2, D4)', () => {
     expect(parsed.heard.orientation).toBeNull();
   });
 
-  it('garde les recettes valides et écarte la seule mal formée, comme le lot écrit', () => {
-    const parsed = voiceModelBatchSchema.parse({
-      heard: { ingredients: ['poulet'], orientation: null },
-      recipes: [recette, { ...recette, sourceUrl: 'http://pas-https.test/x' }],
-    });
-    expect(parsed.recipes).toHaveLength(1);
+  it('accepte un refus explicite du modèle', () => {
+    const parsed = singleRecipeModelSchema.parse({ heard: { ingredients: [], orientation: null }, recipe: null });
+    expect(parsed.recipe).toBeNull();
   });
 
-  it('refuse un lot dont aucune recette ne tient debout', () => {
-    expect(voiceModelBatchSchema.safeParse({ heard: { ingredients: [], orientation: null }, recipes: [{ title: 'rien' }] }).success).toBe(false);
+  it('refuse une recette présente mais mal formée', () => {
+    expect(singleRecipeModelSchema.safeParse({ heard: { ingredients: [], orientation: null }, recipe: { title: 'rien' } }).success).toBe(false);
   });
 });
 

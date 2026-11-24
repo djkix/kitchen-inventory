@@ -516,23 +516,6 @@ const voiceHeardSchema = z
   }));
 export type VoiceHeard = z.infer<typeof voiceHeardSchema>;
 
-/**
- * Réponse attendue d'un appel parlé : la lecture **et** les recettes, en un
- * seul appel (D2). Les recettes passent par `modelBatchSchema`, jamais par une
- * seconde règle : même validation recette par recette, même rejet d'un lot
- * dont rien ne tient debout.
- */
-export const voiceModelBatchSchema = z
-  .object({ heard: voiceHeardSchema, recipes: z.array(z.unknown()) })
-  .transform((batch, ctx) => {
-    const parsed = modelBatchSchema.safeParse({ recipes: batch.recipes });
-    if (!parsed.success) {
-      ctx.addIssue({ code: 'custom', message: 'Aucune recette exploitable dans la réponse du modèle', path: ['recipes'] });
-      return z.NEVER;
-    }
-    return { heard: batch.heard, recipes: parsed.data.recipes };
-  });
-export type VoiceModelBatch = z.infer<typeof voiceModelBatchSchema>;
 
 /**
  * Longueur maximale d'une demande écrite (2026-11-24). « une recette asiatique
@@ -588,15 +571,6 @@ export interface SingleRecipeDto {
   recipe: SuggestionDto;
 }
 
-/**
- * Ce que l'écran de demande parlée reçoit : une fournée ordinaire, plus la
- * lecture que le modèle a faite de la phrase (D2). Elle est affichée avec les
- * résultats pour qu'un contresens se voie — c'est la contrepartie assumée de
- * l'absence d'étape de confirmation.
- */
-export interface VoiceSuggestionBatchDto extends SuggestionBatchDto {
-  heard: VoiceHeard;
-}
 
 /**
  * Avancement du rattrapage des recettes déjà au réservoir (D6), suivi par

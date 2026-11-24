@@ -169,8 +169,10 @@ catalogue : « poulet, tomates » ne rend que des recettes utilisant **tous** ce
 
 **Demande parlée.** Une icône de micro ouvre un écran à part : on dit *« il me
 reste du poulet et un peu de sauce tomate, je veux faire un plat italien »*, et
-Gemini écoute, comprend et propose dans le même appel. L'audio n'est conservé
-nulle part.
+Gemini écoute, comprend et répond dans le même appel — **une** recette, comme
+la demande écrite, avec ses remarques et ce qu'il a compris de la phrase
+affiché au-dessus, pour qu'un contresens se voie. L'audio n'est conservé nulle
+part.
 
 Les unités reconnues sont la pièce, le gramme, le kilo, le millilitre, le
 litre, le paquet, la boîte et le sachet — ni cuillère ni pincée. La consigne

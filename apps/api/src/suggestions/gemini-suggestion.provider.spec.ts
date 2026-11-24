@@ -330,17 +330,17 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
     provider = new GeminiSuggestionProvider({ apiKey: 'test-key', httpClient: http.client });
   });
 
-  it('rend la lecture du modèle ET les recettes en un seul appel (D2, D4)', async () => {
-    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+  it('rend la lecture du modèle ET la recette en un seul appel (D2, D4)', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
     const result = await provider.suggestFromVoice(VOICE_REQUEST);
-    expect(result.heard.ingredients).toEqual(['poulet', 'sauce tomate']);
-    expect(result.heard.orientation).toBe('plat italien');
-    expect(result.recipes.length).toBeGreaterThan(0);
+    expect(result.heard.ingredients).toEqual(['cacahuète', 'ail']);
+    expect(result.heard.orientation).toBe('une recette asiatique');
+    expect(result.recipe?.title).toBe('Nouilles sautées à la cacahuète');
     expect(http.calls).toHaveLength(1);
   });
 
   it('envoie l’audio en pièce jointe, avec son type', async () => {
-    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
     await provider.suggestFromVoice(VOICE_REQUEST);
     const parts = requestBody(http).contents[0].parts;
     expect(parts[0].inlineData.mimeType).toBe('audio/webm');
@@ -350,7 +350,7 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
   });
 
   it('facture l’appel au tarif audio quand la ventilation est absente (D7)', async () => {
-    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
     const voice = await provider.suggestFromVoice(VOICE_REQUEST);
     // `geminiFixture` rend 900 jetons d'entrée et 70 de sortie, sans
     // ventilation : le repli de D7 les facture tous au tarif audio.
@@ -358,6 +358,10 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
     const expected = Math.round(((900 * price.audio + 70 * price.output) / 1_000_000) * 100 * 10_000) / 10_000;
     expect(voice.attempts[0]?.costCents).toBe(expected);
     // Et c'est bien plus que ce qu'un appel écrit de même volume aurait coûté.
+    // `on` empile les routes et la première l'emporte : il faut repartir à
+    // zéro pour servir la fournée écrite au même appel.
+    http.reset();
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch.json'));
     const written = await provider.suggest(BASE_REQUEST);
     expect(voice.attempts[0]!.costCents!).toBeGreaterThan(written.attempts[0]!.costCents!);
   });
@@ -410,12 +414,12 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
 describe('buildVoicePrompt (D2, D4)', () => {
   const req = { household: 'Tomate (Placard)', count: 12, audio: Buffer.alloc(0), mimeType: 'audio/webm' };
 
-  it('demande la lecture de la phrase et les recettes dans le même objet JSON', () => {
+  it('demande la lecture de la phrase et la recette dans le même objet JSON', () => {
     const prompt = buildVoicePrompt(req);
     expect(prompt).toMatch(/heard/);
     expect(prompt).toMatch(/ingredients/);
     expect(prompt).toMatch(/orientation/);
-    expect(prompt).toMatch(/recipes/);
+    expect(prompt).toMatch(/recipe/);
   });
 
   it('croise la parole avec le stock réel, qui est toute la valeur de la fonction', () => {
@@ -424,7 +428,12 @@ describe('buildVoicePrompt (D2, D4)', () => {
     expect(prompt).toMatch(/enregistrement|audio|parl/i);
   });
 
-  it('garde la consigne de diversité des propositions', () => {
-    expect(buildVoicePrompt(req)).toContain('nettement différentes');
+  // Depuis le 2026-11-24, la demande parlée rend UNE recette : la consigne de
+  // diversité, qui vaut à l'intérieur d'une fournée, n'a plus d'objet ici.
+  it('demande une seule recette, sans recherche web', () => {
+    const prompt = buildVoicePrompt(req);
+    expect(prompt).toContain('UNE SEULE recette');
+    expect(prompt).not.toContain('nettement différentes');
+    expect(prompt).not.toMatch(/recherche web/i);
   });
 });

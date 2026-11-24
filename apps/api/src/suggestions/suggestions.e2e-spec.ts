@@ -1694,7 +1694,7 @@ describe('SuggestionsService (EF-26)', () => {
    * d'audio réel : ce qui est en jeu ici n'est pas le son mais le croisement
    * avec le stock, le quota, le journal et les bornes.
    */
-  describe('listFromVoice (demande parlée, 2026-10-21)', () => {
+  describe('requestOneFromVoice (demande parlée, 2026-10-21 ; une recette depuis le 2026-11-24)', () => {
     const AUDIO = Buffer.alloc(VOICE_MIN_BYTES + 1, 7);
     const MIME = 'audio/webm';
 
@@ -1704,16 +1704,15 @@ describe('SuggestionsService (EF-26)', () => {
       await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
     }
 
-    it('rend les recettes et ce que le modèle a entendu (D2, D4)', async () => {
+    it('rend UNE recette et ce que le modèle a entendu (D2, D4)', async () => {
       const { service, db } = await createService();
       await seedStock(db);
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
 
-      const result = await service.listFromVoice(AUDIO, MIME);
-      expect(result.heard.ingredients).toEqual(['poulet', 'sauce tomate']);
-      expect(result.heard.orientation).toBe('plat italien');
-      expect(result.items.length).toBeGreaterThan(0);
-      expect(result.fromCache).toBe(false);
+      const result = await service.requestOneFromVoice(AUDIO, MIME);
+      expect(result.heard.ingredients).toEqual(['cacahuète', 'ail']);
+      expect(result.heard.orientation).toBe('une recette asiatique');
+      expect(result.recipe.title).toBe('Nouilles sautées à la cacahuète');
     });
 
     it('croise la parole avec le stock réel : l’audio part, le stock aussi', async () => {
@@ -1721,42 +1720,41 @@ describe('SuggestionsService (EF-26)', () => {
       // toute la valeur de la fonctionnalité.
       const { service, db } = await createService();
       await seedStock(db);
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
 
-      await service.listFromVoice(AUDIO, MIME);
+      await service.requestOneFromVoice(AUDIO, MIME);
       const parts = JSON.parse(String(http.calls[0]?.init?.body)).contents[0].parts;
       expect(parts[0].inlineData.mimeType).toBe(MIME);
       expect(parts[1].text).toContain('Tomate');
+      expect(parts[1].text).toContain('UNE SEULE recette');
     });
 
     it('ne dit jamais manquant un ingrédient entendu, et garde la couverture sur le stock (D4, D5 du 2026-10-19)', async () => {
       const { service, db } = await createService();
       await seedStock(db);
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
 
-      const result = await service.listFromVoice(AUDIO, MIME);
-      const item = result.items[0];
-      expect(item?.missingLabels).not.toContain('Blanc de poulet');
-      expect(item?.missingLabels).not.toContain('Sauce tomate');
-      expect(item?.ingredients.find((i) => i.label === 'Blanc de poulet')?.declared).toBe(true);
-      expect(item?.ingredients.find((i) => i.label === 'Pâtes')?.declared).toBe(false);
+      const { recipe } = await service.requestOneFromVoice(AUDIO, MIME);
+      expect(recipe.missingLabels).not.toContain('Purée de cacahuètes');
+      expect(recipe.ingredients.find((i) => i.label === 'Purée de cacahuètes')?.declared).toBe(true);
+      expect(recipe.ingredients.find((i) => i.label === 'Nouilles de riz')?.declared).toBe(false);
       // La règle de couverture partagée n'est pas touchée : elle ne connaît
       // que le stock, et une déclaration ne remplit pas le placard.
-      expect(item?.coverage).toBeLessThan(1);
+      expect(recipe.coverage).toBeLessThan(1);
     });
 
-    it('fait entrer les recettes au réservoir : rien de payé n’est jeté (D5)', async () => {
+    it('fait entrer la recette au réservoir : rien de payé n’est jeté (D5)', async () => {
       const { service, db } = await createService();
       await seedStock(db);
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
 
-      const result = await service.listFromVoice(AUDIO, MIME);
+      const result = await service.requestOneFromVoice(AUDIO, MIME);
       const rows = await db.suggestionPoolRecipe.findMany();
-      expect(rows).toHaveLength(3);
-      // Le réservoir est commun aux deux chemins : ce sont bien les lignes du
-      // réservoir qui sont rendues à l'écran, et elles y restent ensuite.
-      expect(rows.map((row) => row.identity).sort()).toEqual(result.items.map((item) => item.id).sort());
-      expect(rows.map((row) => (row.payload as { title: string }).title)).toContain('Poulet à la tomate 1');
+      expect(rows).toHaveLength(1);
+      // Le réservoir est commun aux deux chemins : c'est bien la ligne du
+      // réservoir qui est rendue à l'écran, et elle y reste ensuite.
+      expect(rows[0]?.identity).toBe(result.recipe.id);
+      expect((rows[0]?.payload as { title: string }).title).toBe('Nouilles sautées à la cacahuète');
     });
 
     it('appelle toujours le modèle, même quand le réservoir déborde (D5)', async () => {
@@ -1769,21 +1767,21 @@ describe('SuggestionsService (EF-26)', () => {
           recipe: { ...COMPOSITION_VOCALE, title: `Déjà connue ${i}` },
         })),
       );
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
 
-      await service.listFromVoice(AUDIO, MIME);
+      await service.requestOneFromVoice(AUDIO, MIME);
       expect(http.calls).toHaveLength(1);
     });
 
     it('consomme un appel du quota journalier, et le refuse une fois atteint (D5)', async () => {
       const { service, db } = await createService({ RECIPE_SUGGESTION_DAILY_QUOTA: '1' });
       await seedStock(db);
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
 
-      await service.listFromVoice(AUDIO, MIME);
+      await service.requestOneFromVoice(AUDIO, MIME);
       expect(await db.recognitionLog.count({ where: { purpose: 'RECIPE_SUGGESTION' } })).toBe(1);
 
-      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 429, code: 'rate_limited' });
+      await expect(service.requestOneFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 429, code: 'rate_limited' });
       // Refusé AVANT de dépenser : un quota atteint ne doit pas envoyer l'audio.
       expect(http.calls).toHaveLength(1);
     });
@@ -1795,18 +1793,18 @@ describe('SuggestionsService (EF-26)', () => {
       await db.recognitionLog.create({
         data: { provider: 'gemini', purpose: 'VISION', succeeded: true, costCents: new Prisma.Decimal(5), latencyMs: 10, rawResult: {} },
       });
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
 
-      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 429, code: 'rate_limited' });
+      await expect(service.requestOneFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 429, code: 'rate_limited' });
       expect(http.calls).toHaveLength(0);
     });
 
     it('journalise l’appel sans qu’un seul octet d’audio n’y arrive (D6)', async () => {
       const { service, db } = await createService();
       await seedStock(db);
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
 
-      await service.listFromVoice(AUDIO, MIME);
+      await service.requestOneFromVoice(AUDIO, MIME);
       const log = await db.recognitionLog.findFirstOrThrow({ where: { purpose: 'RECIPE_SUGGESTION' } });
       const serialized = JSON.stringify(log.rawResult);
       expect(serialized).not.toContain(AUDIO.toString('base64'));
@@ -1820,7 +1818,7 @@ describe('SuggestionsService (EF-26)', () => {
       await seedStock(db);
       http.on('generateContent', () => json({ error: 'boum' }, 500));
 
-      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 502 });
+      await expect(service.requestOneFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 502 });
       const logs = await db.recognitionLog.findMany();
       for (const log of logs) {
         expect(JSON.stringify(log.rawResult)).not.toContain(AUDIO.toString('base64').slice(0, 20));
@@ -1830,9 +1828,9 @@ describe('SuggestionsService (EF-26)', () => {
     it('facture l’appel au tarif audio (D7)', async () => {
       const { service, db } = await createService();
       await seedStock(db);
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
 
-      await service.listFromVoice(AUDIO, MIME);
+      await service.requestOneFromVoice(AUDIO, MIME);
       const log = await db.recognitionLog.findFirstOrThrow({ where: { purpose: 'RECIPE_SUGGESTION' } });
       // La fixture rend 900 jetons d'entrée et 70 de sortie sans ventilation
       // par modalité : tout l'entrant passe au tarif audio (repli de D7).
@@ -1850,7 +1848,7 @@ describe('SuggestionsService (EF-26)', () => {
         json({ promptFeedback: { blockReason: 'SAFETY' }, usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 0 } }),
       );
 
-      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 502 });
+      await expect(service.requestOneFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 502 });
       const log = await db.recognitionLog.findFirstOrThrow({ where: { purpose: 'RECIPE_SUGGESTION' } });
       expect(log.succeeded).toBe(false);
       expect(log.costCents?.toNumber()).toBeGreaterThan(0);
@@ -1859,12 +1857,12 @@ describe('SuggestionsService (EF-26)', () => {
     it('refuse un enregistrement hors bornes sans rien dépenser (D8)', async () => {
       const { service, db } = await createService();
       await seedStock(db);
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
 
       // Vide, trop gros, mauvais format : trois refus, aucun appel.
-      await expect(service.listFromVoice(Buffer.alloc(10), MIME)).rejects.toMatchObject({ status: 400, code: 'validation_failed' });
-      await expect(service.listFromVoice(Buffer.alloc(VOICE_MAX_BYTES + 1), MIME)).rejects.toMatchObject({ status: 400 });
-      await expect(service.listFromVoice(AUDIO, 'video/mp4')).rejects.toMatchObject({ status: 400 });
+      await expect(service.requestOneFromVoice(Buffer.alloc(10), MIME)).rejects.toMatchObject({ status: 400, code: 'validation_failed' });
+      await expect(service.requestOneFromVoice(Buffer.alloc(VOICE_MAX_BYTES + 1), MIME)).rejects.toMatchObject({ status: 400 });
+      await expect(service.requestOneFromVoice(AUDIO, 'video/mp4')).rejects.toMatchObject({ status: 400 });
       expect(http.calls).toHaveLength(0);
     });
 
@@ -1873,9 +1871,9 @@ describe('SuggestionsService (EF-26)', () => {
       await seedStock(db);
       http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-muet.json'));
 
-      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 422, code: 'business_rule' });
+      await expect(service.requestOneFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 422, code: 'business_rule' });
       try {
-        await service.listFromVoice(AUDIO, MIME);
+        await service.requestOneFromVoice(AUDIO, MIME);
       } catch (error) {
         expect(String((error as Error).message)).toMatch(/compris/i);
       }
@@ -1888,7 +1886,7 @@ describe('SuggestionsService (EF-26)', () => {
     it('refuse quand aucun fournisseur n’est configuré, sans toucher au stock', async () => {
       const { service, db } = await createService({ VISION_PROVIDER: 'none', VISION_API_KEY: '' });
       await seedStock(db);
-      await expect(service.listFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 422, code: 'provider_disabled' });
+      await expect(service.requestOneFromVoice(AUDIO, MIME)).rejects.toMatchObject({ status: 422, code: 'provider_disabled' });
       expect(http.calls).toHaveLength(0);
     });
 
@@ -1897,10 +1895,10 @@ describe('SuggestionsService (EF-26)', () => {
       // stock et refuse en 409 quand il est vide, une demande parlée porte
       // déjà ses ingrédients.
       const { service } = await createService();
-      http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+      http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
 
-      const result = await service.listFromVoice(AUDIO, MIME);
-      expect(result.items.length).toBeGreaterThan(0);
+      const result = await service.requestOneFromVoice(AUDIO, MIME);
+      expect(result.recipe.title).toBe('Nouilles sautées à la cacahuète');
     });
   });
 
@@ -2152,18 +2150,22 @@ describe('POST /suggestions/voice (EF-25, EF-26, 2026-10-21)', () => {
     expect(res.body.error.code).toBe('unauthenticated');
   });
 
-  it('rend les recettes et la lecture du modèle', async () => {
-    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+  it('rend UNE recette et la lecture du modèle (2026-11-24)', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
     const res = await agent.post('/api/v1/suggestions/voice').attach('audio', AUDIO, { filename: 'demande.webm', contentType: 'audio/webm' }).expect(200);
-    expect(res.body.heard.ingredients).toEqual(['poulet', 'sauce tomate']);
-    expect(res.body.items.length).toBeGreaterThan(0);
+    expect(res.body.heard.ingredients).toEqual(['cacahuète', 'ail']);
+    expect(res.body.recipe.title).toBe('Nouilles sautées à la cacahuète');
+    expect(res.body.recipe.notes).toContain('ail semoule');
+    // La fournée a disparu : plus de `items`, plus de `poolCount`.
+    expect(res.body.items).toBeUndefined();
+    expect(res.body.poolCount).toBeUndefined();
   });
 
   // Conception du 2026-11-02 : la demande parlée est la plus longue des
   // quatre, donc la première à mériter d'être annoncée.
   it('ouvre une ligne de demande quand l’écran en fournit l’identifiant', async () => {
     const REQ = '33333333-3333-4333-8333-333333333333';
-    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
     await agent
       .post('/api/v1/suggestions/voice')
       .field('requestId', REQ)
@@ -2174,7 +2176,7 @@ describe('POST /suggestions/voice (EF-25, EF-26, 2026-10-21)', () => {
   });
 
   it('sans identifiant, n’ouvre aucune ligne', async () => {
-    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
     await agent.post('/api/v1/suggestions/voice').attach('audio', AUDIO, { filename: 'demande.webm', contentType: 'audio/webm' }).expect(200);
     expect(await t.prisma.aiRequest.count()).toBe(0);
   });

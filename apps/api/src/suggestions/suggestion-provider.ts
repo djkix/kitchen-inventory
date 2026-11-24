@@ -100,10 +100,7 @@ export interface SingleRecipeOutput {
   model: string;
 }
 
-/** Un appel parlé rend les recettes **et** la lecture que le modèle a faite de la phrase (D2, D4). */
-export interface VoiceSuggestionOutput extends SuggestionOutput {
-  heard: VoiceHeard;
-}
+
 
 /**
  * Échec du fournisseur alors qu'au moins une tentative a déjà été facturée :

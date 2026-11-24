@@ -9,7 +9,7 @@ import {
   InvalidBatchJsonError,
   parseModelBatch,
   parseSingleRecipe,
-  parseVoiceBatch,
+  parseVoiceAnswer,
   SUGGESTION_SYSTEM_PROMPT,
   SUGGESTION_SYSTEM_PROMPT_NO_SEARCH,
 } from './prompt.js';
@@ -20,7 +20,6 @@ import {
   type SuggestionAttempt,
   type SuggestionOutput,
   type SuggestionRequest,
-  type VoiceSuggestionOutput,
   type VoiceSuggestionRequest,
 } from './suggestion-provider.js';
 
@@ -139,7 +138,7 @@ export class GeminiSuggestionProvider {
    * d'erreur (D6). Ce qui remonte dans `attempts[].raw` est la réponse du
    * modèle, jamais la requête.
    */
-  async suggestFromVoice(req: VoiceSuggestionRequest): Promise<VoiceSuggestionOutput> {
+  async suggestFromVoice(req: VoiceSuggestionRequest): Promise<SingleRecipeOutput> {
     if (!this.options.apiKey) throw new ProviderError('Fournisseur de suggestions désactivé');
     const model = req.model ?? this.model;
     const started = Date.now();
@@ -152,7 +151,9 @@ export class GeminiSuggestionProvider {
     const raw = await this.post(
       [{ inlineData: { mimeType: req.mimeType, data: req.audio.toString('base64') } }, { text: buildVoicePrompt(req) }],
       model,
-      req.webSearch !== false,
+      // Jamais de recherche web, comme la demande écrite : sur une recette
+      // unique, une page illisible ne laisserait rien à l'écran.
+      false,
     );
     const attempts: SuggestionAttempt[] = [
       // `hasAudio` : sans ventilation par modalité qui mentionne l'audio, tout
@@ -162,8 +163,8 @@ export class GeminiSuggestionProvider {
     ];
     try {
       assertUsable(raw, 'la demande parlée');
-      const batch = parseVoiceBatch(extractText(raw));
-      return { heard: batch.heard, recipes: batch.recipes.slice(0, req.count), attempts, model };
+      const answer = parseVoiceAnswer(extractText(raw));
+      return { heard: answer.heard, recipe: answer.recipe, attempts, model };
     } catch (error) {
       if (!(error instanceof InvalidBatchJsonError) && !(error instanceof ProviderError)) throw error;
       const message = error instanceof ProviderError ? error.message : 'Le fournisseur de suggestions n’a pas renvoyé de JSON exploitable pour la demande parlée';

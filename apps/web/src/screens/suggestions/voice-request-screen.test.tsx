@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { VoiceSuggestionBatchDto } from '@kitchen/shared';
+import type { SingleRecipeDto } from '@kitchen/shared';
 import { api, ApiClientError } from '../../lib/api';
 import { suggestionsApi } from '../../lib/suggestions-api';
 import { microphoneErrorMessage, type VoiceRecording } from './use-voice-recorder';
@@ -56,34 +56,28 @@ function renderScreen(entry = '/recettes/parler') {
   );
 }
 
-const BATCH: VoiceSuggestionBatchDto = {
-  fromCache: false,
-  notice: null,
-  poolCount: 1,
-  poolTotal: 1,
+const ANSWER: SingleRecipeDto = {
   heard: { ingredients: ['poulet', 'sauce tomate'], orientation: 'plat italien' },
-  items: [
-    {
-      id: 'identite-1',
-      title: 'Poulet à la tomate',
-      notes: null,
-      origin: 'Composition',
-      region: 'mediterraneenne',
-      totalMinutes: 25,
-      prepMinutes: 10,
-      cookMinutes: 15,
-      difficulty: 'EASY',
-      dishType: 'MAIN',
-      provenance: 'ai',
-      sourceUrl: null,
-      verified: false,
-      steps: ['Faire revenir le poulet.'],
-      ingredients: [],
-      coverage: 0.5,
-      group: 'almost',
-      missingLabels: [],
-    },
-  ],
+  recipe: {
+    id: 'identite-1',
+    title: 'Poulet à la tomate',
+    notes: 'Pas de basilic frais dans votre stock : j’ai pris du basilic séché.',
+    origin: 'Composition',
+    region: 'mediterraneenne',
+    totalMinutes: 25,
+    prepMinutes: 10,
+    cookMinutes: 15,
+    difficulty: 'EASY',
+    dishType: 'MAIN',
+    provenance: 'ai',
+    sourceUrl: null,
+    verified: false,
+    steps: ['Faire revenir le poulet.'],
+    ingredients: [],
+    coverage: 0.5,
+    group: 'almost',
+    missingLabels: [],
+  },
 };
 
 /** Un enregistrement plausible : des octets quelconques, jamais de la parole. */
@@ -144,8 +138,8 @@ describe('VoiceRequestScreen (demande parlée, 2026-10-21)', () => {
     expect(voice).not.toHaveBeenCalled();
   });
 
-  it('envoie l’enregistrement, affiche ce que le modèle a compris et les recettes (D2, D4)', async () => {
-    voice.mockResolvedValue(BATCH);
+  it('envoie l’enregistrement, affiche ce que le modèle a compris et LA recette (D2, D4)', async () => {
+    voice.mockResolvedValue(ANSWER);
     renderScreen();
     onRecorded(recording(4096));
 
@@ -157,32 +151,10 @@ describe('VoiceRequestScreen (demande parlée, 2026-10-21)', () => {
     expect(compris).toMatch(/poulet/);
     expect(compris).toMatch(/sauce tomate/);
     expect(compris).toMatch(/plat italien/);
+    // Les remarques du modèle (2026-11-24) accompagnent la recette.
+    expect(screen.getByText(/basilic séché/)).toBeTruthy();
   });
 
-  /**
-   * Demande du propriétaire le 2026-11-09 : « un bouton pour me proposer
-   * d'autres recettes toujours avec le même input ». L'enregistrement n'étant
-   * conservé nulle part (D6), la relance porte sur les ingrédients compris, par
-   * une recherche écrite — et `refresh` est indispensable, sans quoi le serveur
-   * servirait le réservoir et rendrait les mêmes recettes.
-   */
-  it('redemande des recettes sur les ingrédients compris, sans reparler, et les ajoute aux premières', async () => {
-    voice.mockResolvedValue(BATCH);
-    const autre = { ...BATCH.items[0]!, id: 'autre-1', title: 'Risotto au poulet' };
-    vi.mocked(suggestionsApi.list).mockResolvedValue({ items: [autre], poolCount: 2, poolTotal: 2, fromCache: false } as never);
-    renderScreen();
-    onRecorded(recording(4096));
-    await waitFor(() => expect(screen.getByText(/Poulet à la tomate/)).toBeTruthy());
-
-    fireEvent.click(screen.getByRole('button', { name: 'Proposer d’autres recettes' }));
-
-    await waitFor(() => expect(screen.getByText(/Risotto au poulet/)).toBeTruthy());
-    // Les premières restent : on en veut davantage, pas d'autres à la place.
-    expect(screen.getByText(/Poulet à la tomate/)).toBeTruthy();
-    // Aucun second envoi d'audio, et une relance explicite sur les ingrédients compris.
-    expect(voice).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(suggestionsApi.list)).toHaveBeenCalledWith(expect.objectContaining({ refresh: true, ingredients: expect.stringContaining('poulet') }));
-  });
 
   it('dit le quota atteint plutôt que d’échouer en silence (D9)', async () => {
     voice.mockRejectedValue(new ApiClientError(429, 'rate_limited', 'Quota journalier de suggestions atteint (5 par jour) ; réessayez demain.'));
@@ -193,7 +165,7 @@ describe('VoiceRequestScreen (demande parlée, 2026-10-21)', () => {
     // le refus courant est une pause de quelques minutes, et refaire sa demande
     // à voix haute pour cela seul est un geste de trop. L'audio ne quitte pas
     // la page pour autant (D6).
-    voice.mockResolvedValue(BATCH);
+    voice.mockResolvedValue(ANSWER);
     fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
     await waitFor(() => expect(screen.getByText(/Poulet à la tomate/)).toBeTruthy());
     expect(voice).toHaveBeenCalledTimes(2);
@@ -241,7 +213,7 @@ describe('microphoneErrorMessage (D9)', () => {
  */
 describe('reprise d’une demande différée', () => {
   it('réaffiche la lecture et les recettes de la demande nommée dans l’adresse', async () => {
-    const get = vi.spyOn(api, 'get').mockResolvedValue({ id: 'req-1', kind: 'VOICE', state: 'DONE', result: BATCH, error: null, retryAt: null } as never);
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ id: 'req-1', kind: 'VOICE', state: 'DONE', result: ANSWER, error: null, retryAt: null } as never);
 
     renderScreen('/recettes/parler?demande=req-1');
 
@@ -249,6 +221,21 @@ describe('reprise d’une demande différée', () => {
     // La lecture du modèle est là aussi : c'est elle qui montre un contresens (D2).
     expect(screen.getAllByText(/plat italien/).length).toBeGreaterThan(0);
     expect(get).toHaveBeenCalledWith('/ai-requests/req-1');
+    get.mockRestore();
+  });
+
+  /**
+   * Vigilance 4 du plan : les résultats différés écrits AVANT le 2026-11-24
+   * portent l'ancienne forme (`items`, pas `recipe`) et sont relus tels quels
+   * depuis la base. L'écran ne doit pas les lire comme une recette.
+   */
+  it('ne casse pas sur un résultat différé de l’ancienne forme', async () => {
+    const ancien = { heard: ANSWER.heard, items: [ANSWER.recipe], fromCache: false, notice: null, poolCount: 1, poolTotal: 1 };
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ id: 'req-1', kind: 'VOICE', state: 'DONE', result: ancien, error: null, retryAt: null } as never);
+
+    renderScreen('/recettes/parler?demande=req-1');
+
+    expect(await screen.findByText(/n’est plus disponible/)).toBeTruthy();
     get.mockRestore();
   });
 

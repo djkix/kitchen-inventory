@@ -29,7 +29,6 @@ import {
   type SuggestionQuery,
   type SuggestionRegion,
   type Unit,
-  type VoiceSuggestionBatchDto,
   voiceAudioRejection,
   parseNutriscoreGrade,
   type NutriscoreGrade,
@@ -57,7 +56,6 @@ import {
   type SuggestionAttempt,
   type SuggestionOutput,
   type SuggestionRequest,
-  type VoiceSuggestionOutput,
 } from './suggestion-provider.js';
 
 /**
@@ -452,29 +450,14 @@ export class SuggestionsService {
   }
 
   /**
-   * Demande parlée (spécification du 2026-10-21) : le propriétaire appuie sur un
-   * bouton, dit ce qu'il lui reste et ce qu'il veut manger, et reçoit des
-   * recettes croisées avec son stock réel.
-   *
-   * Ce qui se joue ici, dans l'ordre :
-   *
-   * - **D8** : les bornes de l'enregistrement sont revérifiées côté serveur,
-   *   avec la règle partagée — l'écran les applique déjà, mais un client
-   *   n'est jamais une garantie ;
-   * - **D5** : le réservoir n'est pas lu d'abord (une phrase est unique, il
-   *   n'y a rien à y retrouver), l'appel consomme le quota journalier et
-   *   entre dans le plafond mensuel comme une relance, et les recettes
-   *   rendues entrent au réservoir — rien de payé n'est jeté ;
-   * - **D4** : les ingrédients entendus sont traités comme **déclarés** au
-   *   sens du 2026-10-19 (D5) — jamais annoncés comme manquants, la
-   *   couverture restant calculée sur le seul stock ;
-   * - **D6** : l'audio traverse cette méthode et disparaît. Rien n'en est
-   *   écrit : `RecognitionLog.rawResult` ne reçoit que la réponse du modèle.
+   * Demande parlée (spécification du 2026-10-21, D2). Depuis le 2026-11-24,
+   * elle rend **une** recette et non plus une fournée : le geste est le même
+   * que la demande écrite, seule l'entrée change.
    *
    * Contrairement à `list`, un placard vide n'est pas une erreur : la parole
    * porte déjà ses ingrédients, le stock ne sert qu'à compléter.
    */
-  async listFromVoice(audio: Buffer, mimeType: string): Promise<VoiceSuggestionBatchDto> {
+  async requestOneFromVoice(audio: Buffer, mimeType: string): Promise<SingleRecipeDto> {
     assertProviderEnabled(this.provider, 'suggestions');
     // Règle partagée avec l'écran (`voiceAudioRejection`) : même refus, même
     // phrase, une seule implémentation.
@@ -482,40 +465,20 @@ export class SuggestionsService {
     if (rejection) throw new ApiError(400, 'validation_failed', rejection);
 
     // Vérifié avant d'envoyer quoi que ce soit : un quota atteint ne doit pas
-    // faire monter un enregistrement vers le modèle. Pas de repli au
-    // réservoir non plus — une phrase n'a pas d'orientation de rechange, et
-    // servir des recettes sans rapport avec ce qui vient d'être dit serait
-    // plus déroutant qu'un refus clair.
+    // faire monter un enregistrement vers le modèle.
     const breach = await this.quotaBreach();
     if (breach) throw ApiError.rateLimited(this.quotaMessage(breach, false));
 
     const categories = await loadCategoryRows(this.prisma);
     const snapshot = await this.coverage.snapshot(new Date(), categories);
-    // Le foyer entier part au modèle (2026-11-24), sans quantités ni dates :
-    // c'est ce qui lui permet de dire ce qui manque et par quoi il l'a
-    // remplacé.
-    //
-    // Contrairement à `list`, un placard vide n'est pas une erreur ici : la
-    // parole porte déjà ses ingrédients, le stock ne sert qu'à compléter. Le
-    // plan de livraison étendait la garde aux trois chemins ; elle est
-    // maintenue au seul chemin filtré, qui n'a rien d'autre pour composer sa
-    // question.
     const household = await loadHouseholdProducts(this.prisma);
 
     const started = Date.now();
-    let output: VoiceSuggestionOutput;
-    // Lus avant l'appel : le nombre demandé en dépend, et l'ingestion aussi.
+    let output: SingleRecipeOutput;
     const settings = await this.settings.get();
     try {
       ({ result: output } = await this.gemini.call((model) =>
-        this.provider.suggestFromVoice({
-          household: formatHouseholdInventory(household),
-          count: modelBatch(settings.suggestionWebSearch),
-          audio,
-          mimeType,
-          model,
-          webSearch: settings.suggestionWebSearch,
-        }),
+        this.provider.suggestFromVoice({ household: formatHouseholdInventory(household), count: 1, audio, mimeType, model, webSearch: false }),
       ));
     } catch (error) {
       if (error instanceof GeminiPausedError) throw geminiRefusal(error);
@@ -525,30 +488,51 @@ export class SuggestionsService {
     }
     await this.logAttempts(output.attempts, true);
 
-    // Avant tout verdict sur la lecture : l'appel est payé, ses recettes
-    // entrent au réservoir même si la phrase n'a pas été comprise (D5).
-    const identities = new Set(output.recipes.map((recipe) => suggestionIdentity(recipe)));
-    await this.pool.ingest(output.recipes, output.model, settings.suggestionWebSearch);
+    // Le verdict sur la lecture vient APRÈS l'ingestion (D5, D9) : l'appel est
+    // payé, sa recette entre au réservoir même si la phrase n'a pas été
+    // comprise. Un refus se dit, il ne jette pas ce qui est acquis.
+    return this.finishSingleRecipe(output, snapshot, settings.suggestionWebSearch, () => {
+      if (output.heard.ingredients.length === 0 && output.heard.orientation === null) {
+        throw ApiError.businessRule(
+          'Votre demande n’a pas été comprise : aucun ingrédient ni aucune envie n’a été reconnu dans l’enregistrement. Réessayez en parlant plus près du micro.',
+        );
+      }
+    });
+  }
 
-    if (output.heard.ingredients.length === 0 && output.heard.orientation === null) {
-      // D9 : un refus se dit. Le modèle a répondu, mais n'a rien tiré de
-      // l'enregistrement — ce n'est ni une panne ni un quota.
-      throw ApiError.businessRule(
-        'Votre demande n’a pas été comprise : aucun ingrédient ni aucune envie n’a été reconnu dans l’enregistrement. Réessayez en parlant plus près du micro.',
-      );
+  /**
+   * La part commune aux deux demandes « une recette » (écrite et parlée) :
+   * l'appel est payé, la recette entre au réservoir, puis elle en est relue.
+   *
+   * Relue et jamais servie depuis la réponse brute : c'est au réservoir que
+   * vit la forme dédoublonnée, et c'est par cette identité-là que
+   * `POST /suggestions/keep` la retrouvera.
+   */
+  private async finishSingleRecipe(
+    output: SingleRecipeOutput,
+    snapshot: StockSnapshot,
+    webSearch: boolean,
+    /** Verdict posé APRÈS l'ingestion : ce qui est payé est acquis (D5). */
+    verdict?: () => void,
+  ): Promise<SingleRecipeDto> {
+    if (output.recipe === null) {
+      verdict?.();
+      throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
     }
+    const identity = suggestionIdentity(output.recipe);
+    await this.pool.ingest([output.recipe], output.model, webSearch);
+    verdict?.();
 
-    // Relu au réservoir, jamais servi depuis la réponse brute : une recette
-    // web dont la page n'a pas pu être lue a été jetée à l'ingestion (D4 du
-    // 2026-10-15) et ne doit à aucun moment atteindre l'écran.
-    const entries = (await Promise.all([...identities].map((identity) => this.pool.findByIdentity(identity)))).filter(
-      (entry): entry is PoolRecipe => entry !== null,
-    );
-    // Les ingrédients entendus deviennent les « dictés » du 2026-10-19 : le
-    // mécanisme de D5 est réutilisé tel quel, jamais réécrit.
+    const entry = await this.pool.findByIdentity(identity);
+    if (entry === null) throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
+
+    // Les ingrédients relevés dans la demande deviennent les « dictés » du
+    // 2026-10-19 : sans eux, un ingrédient nommé dans la demande et absent du
+    // stock s'afficherait « Manquant ».
     const dictated = normalizeIngredientTerms(output.heard.ingredients.join(', '));
-    const batch = await this.render(entries, snapshot, false, null, identities, SUGGESTION_PAGE_SIZE, dictated);
-    return { ...batch, heard: output.heard };
+    const [recipe] = await this.toSuggestionDtos([entry], snapshot, dictated);
+    if (recipe === undefined) throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
+    return { heard: output.heard, recipe };
   }
 
   /**
@@ -587,27 +571,7 @@ export class SuggestionsService {
       throw ApiError.providerUnavailable(error instanceof ProviderError ? error.message : 'Fournisseur de suggestions injoignable');
     }
     await this.logAttempts(output.attempts, true);
-
-    // L'appel est payé : la recette entre au réservoir avant tout verdict sur
-    // la lecture, exactement comme pour la parole (D5). Elle y sert ensuite les
-    // visites de l'écran Suggestions.
-    if (output.recipe === null) throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
-    const identity = suggestionIdentity(output.recipe);
-    await this.pool.ingest([output.recipe], output.model, settings.suggestionWebSearch);
-
-    // Relue au réservoir, jamais servie depuis la réponse brute : c'est là que
-    // vit la forme dédoublonnée, et c'est elle que `POST /suggestions/keep`
-    // retrouvera par cette même identité.
-    const entry = await this.pool.findByIdentity(identity);
-    if (entry === null) throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
-
-    // Les ingrédients relevés dans la demande deviennent les « dictés » du
-    // 2026-10-19 : sans eux, un ingrédient nommé dans la phrase et absent du
-    // stock s'afficherait « Manquant ».
-    const dictated = normalizeIngredientTerms(output.heard.ingredients.join(', '));
-    const [recipe] = await this.toSuggestionDtos([entry], snapshot, dictated);
-    if (recipe === undefined) throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
-    return { heard: output.heard, recipe };
+    return this.finishSingleRecipe(output, snapshot, settings.suggestionWebSearch);
   }
 
   /**

@@ -13,7 +13,6 @@ import {
   type SingleRecipeDto,
   type SuggestionBatchDto,
   type SuggestionQuery,
-  type VoiceSuggestionBatchDto,
 } from '@kitchen/shared';
 import { aiRequestField } from '../ai-requests/ai-request-field.js';
 import { DeferralService } from '../ai-requests/deferral.service.js';
@@ -46,8 +45,8 @@ export class SuggestionsController implements OnModuleInit {
       return { result: answer, count: 1 };
     });
     this.deferral.register('VOICE', async ({ file, mimeType }) => {
-      const batch = await this.suggestions.listFromVoice(file!, mimeType!);
-      return { result: batch, count: batch.items.length };
+      const answer = await this.suggestions.requestOneFromVoice(file!, mimeType!);
+      return { result: answer, count: 1 };
     });
   }
 
@@ -135,7 +134,7 @@ export class SuggestionsController implements OnModuleInit {
   @Post('voice')
   @HttpCode(200)
   @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: VOICE_MAX_BYTES + 1024, files: 1 } }))
-  voice(@UploadedFile() file: Express.Multer.File | undefined, @Body() rawBody: unknown, @CurrentUser() user: RequestUser): Promise<VoiceSuggestionBatchDto> {
+  voice(@UploadedFile() file: Express.Multer.File | undefined, @Body() rawBody: unknown, @CurrentUser() user: RequestUser): Promise<SingleRecipeDto> {
     if (!file) throw new ApiError(400, 'validation_failed', 'Enregistrement manquant (champ « audio »)');
     return this.deferral.track(
       {
@@ -144,8 +143,8 @@ export class SuggestionsController implements OnModuleInit {
         kind: 'VOICE',
         payload: () => ({ file: { buffer: file.buffer, mimeType: file.mimetype } }),
       },
-      () => this.suggestions.listFromVoice(file.buffer, file.mimetype),
-      (batch) => batch.items.length,
+      () => this.suggestions.requestOneFromVoice(file.buffer, file.mimetype),
+      () => 1,
     );
   }
 

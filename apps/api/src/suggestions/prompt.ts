@@ -6,10 +6,8 @@ import {
   singleRecipeModelSchema,
   SUGGESTION_REGION_LABELS_FR,
   UNITS,
-  voiceModelBatchSchema,
   type ModelBatch,
   type SingleRecipeModelAnswer,
-  type VoiceModelBatch,
 } from '@kitchen/shared';
 import type { SuggestionRequest, VoiceSuggestionRequest } from './suggestion-provider.js';
 
@@ -241,30 +239,17 @@ export function buildSingleRecipePrompt(req: { text: string; household: string }
  * faire, et toute la valeur de la fonctionnalité.
  */
 export function buildVoicePrompt(req: VoiceSuggestionRequest): string {
-  const webSearch = req.webSearch !== false;
-  const webCount = Math.max(0, req.count - Math.round(req.count / 3));
-  const aiCount = req.count - webCount;
   const lines: string[] = [
     "L'enregistrement audio joint est une demande parlée : une personne dit ce qu'elle a sous la main et le genre de plat qu'elle veut.",
     'Écoute-le, puis relève les ingrédients qu’elle nomme et l’orientation qu’elle demande (type de plat, cuisine, durée, envie — une phrase courte en français, ou null si elle n’en exprime aucune).',
     ...householdLines(req.household),
-    "Chaque recette doit utiliser les ingrédients entendus dans l'enregistrement, et respecter l'orientation demandée.",
-  ];
-  if (webSearch) {
-    lines.push(
-      `Propose au total ${req.count} recettes : environ ${webCount} trouvées par recherche web réelle (avec leur URL source en https), et environ ${aiCount} composées par toi (sans URL).`,
-      'Ajuste ce dosage si la recherche web ne renvoie pas assez de résultats pertinents : complète alors par des compositions.',
-    );
-  } else {
-    lines.push(`Propose au total ${req.count} recettes, toutes composées par toi : provenance "ai" et sourceUrl null pour chacune.`);
-  }
-  lines.push(
-    SUGGESTION_DIVERSITY_RULE,
-    'Réponds par un objet JSON unique de la forme { "heard": { "ingredients": [ ... ], "orientation": "…" ou null }, "recipes": [ ... ] }.',
-    "« heard.ingredients » ne contient que ce que tu as réellement entendu nommer, jamais les ingrédients du stock ci-dessus.",
+    'Propose UNE SEULE recette qui réponde à ce qu’elle a dit, composée par toi : provenance "ai" et sourceUrl null.',
+    "Si tu ne tires rien de l'enregistrement, rends \"recipe\": null plutôt qu'une recette de remplissage.",
+    'Réponds par un objet JSON unique de la forme { "heard": { "ingredients": [ ... ], "orientation": "…" ou null }, "recipe": { ... } }.',
+    "« heard.ingredients » ne contient que ce que tu as réellement entendu nommer, jamais les produits du foyer ci-dessus.",
     recipeFieldsLine(),
     FORMAT_TAIL,
-  );
+  ];
   return lines.join('\n');
 }
 
@@ -287,18 +272,13 @@ export function parseSingleRecipe(text: string): SingleRecipeModelAnswer {
   return result.data;
 }
 
-/** Lecture et recettes d'une demande parlée. Même intransigeance que `parseModelBatch` : rien n'est deviné. */
-export function parseVoiceBatch(text: string): VoiceModelBatch {
-  const stripped = stripJsonFences(text);
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripped);
-  } catch {
-    throw new InvalidBatchJsonError('JSON du fournisseur de suggestions illisible');
-  }
-  const result = voiceModelBatchSchema.safeParse(parsed);
-  if (!result.success) throw new InvalidBatchJsonError('Réponse parlée du fournisseur de suggestions non conforme au schéma');
-  return result.data;
+/**
+ * Lecture et recette d'une demande parlée. Depuis le 2026-11-24, un appel
+ * parlé rend UNE recette, comme la demande écrite : même schéma, même
+ * souplesse sur `recipe: null`.
+ */
+export function parseVoiceAnswer(text: string): SingleRecipeModelAnswer {
+  return parseSingleRecipe(text);
 }
 
 /**
