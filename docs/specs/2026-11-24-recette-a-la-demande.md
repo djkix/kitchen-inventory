@@ -314,8 +314,12 @@ purée de cacahuètes est au congélateur » n'aurait tenu qu'à moitié).
 
 **L'inventaire vide** (**relecture**) : `SuggestionsService.list` lève
 aujourd'hui `insufficientStock` quand `pickSeedIngredients` ne rend rien. La
-garde reste, sur un critère devenu plus simple — aucun produit en stock —, et
-vaut pour les trois chemins.
+garde reste, sur un critère devenu plus simple — aucun produit en stock —,
+mais **sur le seul chemin filtré** (amendé en exécution le 2026-11-24, validé
+par le propriétaire) : une demande écrite ou parlée porte ses propres
+ingrédients, et la refuser sur un placard vide serait moins utile que de
+laisser le modèle composer à partir de la phrase. Le chemin filtré, lui, n'a
+rien d'autre pour composer sa question.
 
 ## Ce qui est laissé au constructeur
 
