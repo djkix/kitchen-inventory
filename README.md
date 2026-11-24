@@ -168,6 +168,13 @@ modèle laisse malgré tout passer une unité inconnue, l'ingrédient garde son
 libellé et perd sa quantité, plutôt que d'emporter la recette entière :
 « 2 » sans la cuillère se lirait « 2 concentrés de tomates ».
 
+Chaque recette proposée porte les **remarques** du modèle sur elle face à votre
+stock : les substitutions qu'il a faites et pourquoi, où un ingrédient est rangé
+si cela surprend, une variante s'il y en a une qui vaut la peine. Elles
+s'affichent au-dessus des ingrédients, dans le tiroir. Les recettes entrées au
+réservoir avant cette livraison n'en portent pas : une consigne ne réécrit pas
+ce qui est déjà écrit.
+
 Sur les recettes, la mesure exacte est suivie de son **équivalent ménager**
 quand il y en a un : « 45 ml (3 c. à soupe) », « 10 g (2 c. à café) ». Il est
 calculé à l'affichage et jamais stocké, donc il suit le champ **Parts** : si

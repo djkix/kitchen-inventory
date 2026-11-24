@@ -57,6 +57,27 @@ describe('modelRecipeSchema', () => {
   });
 });
 
+describe('remarques du modèle (notes, 24 novembre 2026)', () => {
+  it('accepte les remarques du modèle', () => {
+    expect(modelRecipeSchema.parse({ ...recette, notes: 'Pas d’ail frais : ail semoule.' }).notes).toBe('Pas d’ail frais : ail semoule.');
+  });
+
+  // Les quelque quatre cents recettes déjà au réservoir n'ont pas ce champ, et
+  // leur payload est revalidé à chaque lecture : sans défaut, elles seraient
+  // toutes écartées.
+  it('accepte une recette sans remarques', () => {
+    expect(modelRecipeSchema.parse(recette).notes ?? null).toBeNull();
+  });
+
+  it('accepte un null explicite du modèle', () => {
+    expect(modelRecipeSchema.parse({ ...recette, notes: null }).notes ?? null).toBeNull();
+  });
+
+  it('refuse des remarques démesurées', () => {
+    expect(modelRecipeSchema.safeParse({ ...recette, notes: 'x'.repeat(1201) }).success).toBe(false);
+  });
+});
+
 describe('unité inconnue rendue par le modèle (14 novembre 2026)', () => {
   it('ramène l’ingrédient à son libellé au lieu de faire tomber la recette', () => {
     // Le modèle a dosé le concentré de tomates en cuillères à soupe, unité que

@@ -66,6 +66,7 @@ const BATCH: VoiceSuggestionBatchDto = {
     {
       id: 'identite-1',
       title: 'Poulet à la tomate',
+      notes: null,
       origin: 'Composition',
       region: 'mediterraneenne',
       totalMinutes: 25,

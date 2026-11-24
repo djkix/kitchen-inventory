@@ -171,6 +171,12 @@ export function SuggestionSheet({ suggestion, open, onClose, keep = suggestionsA
           <span>{DIFFICULTY_LABELS_FR[suggestion.difficulty]}</span>
         </p>
 
+        {/* Remarques du modèle sur cette recette face au stock (2026-11-24) :
+            au-dessus des ingrédients, parce qu'elles expliquent précisément ce
+            qu'on va y lire — « pas d'ail frais, j'ai pris de l'ail semoule ».
+            Les recettes entrées avant la livraison n'en portent pas. */}
+        {suggestion.notes && <p className="rounded-card bg-raised px-4 py-3 text-[14px] leading-snug text-muted">{suggestion.notes}</p>}
+
         <ul className="flex flex-col divide-y divide-line rounded-card bg-raised">
           {suggestion.ingredients.map((ingredient, index) => {
             const imageUrl = mediaUrl(ingredient.productImagePath);

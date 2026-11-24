@@ -24,6 +24,7 @@ const suggestion: SuggestionDto = {
   coverage: 0.8,
   group: 'almost',
   missingLabels: ['Farine'],
+  notes: null,
   // Jamais d'étapes pour une suggestion `web` : la page n'est lue qu'à la
   // conservation (B6) — voir `suggestions.service.ts#toSuggestionDtos`.
   steps: [],
@@ -285,6 +286,18 @@ describe('SuggestionSheet', () => {
  * Manquant » juste après que le propriétaire ait tapé « merguez », et c'est là qu'il
  * regarde.
  */
+describe('SuggestionSheet, remarques du modèle (24 novembre 2026)', () => {
+  it('affiche les remarques quand il y en a', () => {
+    renderSheet({ suggestion: { ...suggestion, notes: 'Pas d’ail frais : ail semoule.' } });
+    expect(screen.getByText('Pas d’ail frais : ail semoule.')).toBeTruthy();
+  });
+
+  it('n’affiche rien quand notes vaut null', () => {
+    renderSheet({ suggestion: { ...suggestion, notes: null } });
+    expect(screen.queryByText(/ail semoule/)).toBeNull();
+  });
+});
+
 describe('SuggestionSheet, ingrédient déclaré', () => {
   it('annonce « Déclaré » au lieu de « Manquant » pour un ingrédient que l’on vient de taper', () => {
     const declared: SuggestionDto = {

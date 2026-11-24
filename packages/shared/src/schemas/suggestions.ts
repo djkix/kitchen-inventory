@@ -203,6 +203,19 @@ const modelRecipeBaseSchema = z.object({
   sourceUrl: z.string().trim().url({ message: 'URL invalide' }).nullable(),
   steps: z.array(z.string().trim().min(1)).max(60),
   ingredients: z.array(modelRecipeIngredientSchema).min(1, { message: 'Au moins un ingrédient requis' }).max(60),
+  /**
+   * Remarques du modèle sur cette recette face au stock réel (2026-11-24) :
+   * les substitutions faites et pourquoi, où un ingrédient est rangé s'il
+   * surprend, une variante si elle vaut la peine. Jamais de date de
+   * péremption — elles n'interviennent pas dans le module recettes (cahier,
+   * section 12, amendement du 2026-10-04).
+   *
+   * Tolérant **à la frontière seulement** : absent (les quelque quatre cents
+   * recettes déjà au réservoir, dont le `payload` est revalidé à chaque
+   * lecture par `toPoolRecipe`) ou `null` (le modèle n'a rien d'utile à
+   * dire). Plus loin, `SuggestionDto.notes` est strictement `string | null`.
+   */
+  notes: z.string().trim().max(1200).nullish(),
 });
 
 /**
@@ -366,6 +379,13 @@ export interface SuggestionDto {
   coverage: number;
   group: CoverageGroup;
   missingLabels: string[];
+  /**
+   * Remarques du modèle sur cette recette face au stock réel (2026-11-24),
+   * recopiées telles quelles depuis la recette du réservoir. `null` pour les
+   * quelque quatre cents recettes entrées avant cette livraison : aucun
+   * rattrapage n'est prévu, une consigne ne réécrit pas ce qui est écrit.
+   */
+  notes: string | null;
 }
 
 /**

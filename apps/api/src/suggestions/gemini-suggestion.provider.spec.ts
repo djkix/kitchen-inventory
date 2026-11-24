@@ -210,6 +210,18 @@ describe('consigne système, exigences de qualité (2026-11-20)', () => {
     expect(prompt).toContain('une cuillère à soupe = 15 ml');
   });
 
+  /**
+   * Remarques sur le stock réel (2026-11-24). Décrites dans `recipeFieldsLine`,
+   * donc dans la demande utilisateur et non dans la consigne système : les
+   * deux chemins (écrit, parlé) la partagent déjà.
+   */
+  it('demande des remarques sur le stock réel, sans date de péremption', () => {
+    for (const prompt of [buildSuggestionPrompt(BASE_REQUEST), buildVoicePrompt({ ...BASE_REQUEST, audio: Buffer.from(''), mimeType: 'audio/webm' })]) {
+      expect(prompt).toContain('notes');
+      expect(prompt).toContain('jamais de date de péremption');
+    }
+  });
+
   it('annonce au modèle le plancher d’étapes dans la description des champs', () => {
     expect(buildSuggestionPrompt(BASE_REQUEST)).toContain('au moins cinq pour "ai"');
     expect(buildVoicePrompt({ ...BASE_REQUEST, audio: Buffer.from(''), mimeType: 'audio/webm' })).toContain('au moins cinq pour "ai"');

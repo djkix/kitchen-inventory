@@ -913,6 +913,10 @@ export class SuggestionsService {
         coverage: coverage.coverage,
         group: coverage.group,
         missingLabels,
+        // Remarques du modèle (2026-11-24), telles qu'il les a écrites. Les
+        // recettes entrées avant cette livraison n'en portent pas : le schéma
+        // partagé les lit à `null`, l'écran n'affiche alors rien.
+        notes: recipe.notes ?? null,
       };
       return dto;
     });

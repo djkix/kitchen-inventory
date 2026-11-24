@@ -177,7 +177,7 @@ function recipeFieldsLine(): string {
     DISH_TYPES.join(', ') +
     '), provenance ("web" ou "ai"), sourceUrl (URL https pour "web", null pour "ai"), steps (liste d\'étapes, au moins cinq pour "ai"), ingredients (liste de { label, quantity, unit }, quantity et unit pouvant être null pour ce qui se dose au goût seulement, unit parmi : ' +
     UNITS.join(', ') +
-    ').'
+    '), notes (quelques phrases en français sur CETTE recette face au stock du foyer : les substitutions que tu as faites et pourquoi, où un ingrédient est rangé si cela surprend, une variante si elle vaut la peine — jamais de date de péremption, jamais de quantité en stock, et null si tu n’as rien d’utile à dire).'
   );
 }
 
