@@ -3,7 +3,13 @@ import { ProviderError } from '../recognition/providers/recognition-provider.js'
 
 /** Orientation facultative de la recherche (section 12, EF-25, B9) et nombre de recettes voulues. */
 export interface SuggestionRequest {
-  seeds: readonly string[];
+  /**
+   * Ce que le foyer possède, mis en forme par `formatHouseholdInventory`
+   * (2026-11-24) : une ligne par produit, avec ses emplacements, **sans
+   * quantité ni date**. Remplace les huit graines de `pickSeedIngredients`,
+   * qui ne laissaient au modèle aucun moyen de dire ce qui manquait.
+   */
+  household: string;
   region?: SuggestionRegion;
   maxMinutes?: number;
   difficulty?: Difficulty;

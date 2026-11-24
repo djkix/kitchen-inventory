@@ -196,18 +196,15 @@ describe('SuggestionsService (EF-26)', () => {
 
   const QUERY: SuggestionQuery = { refresh: false };
 
-  it('compose la requête depuis le stock, sans les épices ni le sel (B5)', async () => {
+  /**
+   * Depuis le 2026-11-24, tout le placard part au modèle : la sélection de
+   * huit graines et l'exclusion du sel et des épices (B5) n'existent plus.
+   * Ce qui reste interdit, ce sont les quantités et les dates.
+   */
+  it('compose la requête depuis tout le placard, sans quantités ni dates', async () => {
     const { service, db } = await createService();
     const locationId = await seedLocation(db);
-    // Catégorie réellement semée par défaut (`DEFAULT_CATEGORIES`, `packages/shared`),
-    // pas une catégorie inventée pour le test (revue de tâche 6 : l'ancienne version
-    // créait des catégories nommées littéralement `epices`/`sel-et-poivre`, qui ne
-    // prouvaient rien sur le comportement réel en production).
-    const epices = await db.category.create({ data: { name: 'Épices et aromates' } });
     await seedProduct(db, locationId, { name: 'Tomate', quantity: 5, unit: 'PIECE' });
-    await seedProduct(db, locationId, { name: 'Paprika fumé', categoryId: epices.id, quantity: 1, unit: 'SACHET' });
-    // Sel et poivre n'ont aucune catégorie dédiée dans `DEFAULT_CATEGORIES` : exclus
-    // par le nom du produit, sans catégorie du tout ici.
     await seedProduct(db, locationId, { name: 'Sel fin', quantity: 1, unit: 'PACK' });
 
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch-creme.json'));
@@ -216,21 +213,20 @@ describe('SuggestionsService (EF-26)', () => {
     const body = JSON.parse(String(http.calls[0]?.init?.body));
     const prompt = body.contents[0].parts[0].text as string;
     expect(prompt).toContain('Tomate');
-    expect(prompt).not.toContain('Paprika');
-    expect(prompt).not.toContain('Sel fin');
+    expect(prompt).toContain('Sel fin');
+    expect(prompt).not.toMatch(/5\s*pièces?/);
+    expect(prompt).toContain('ne dit ni les quantités disponibles ni les dates');
   });
 
-  it('refuse d’appeler le modèle quand le stock ne donne aucun ingrédient (vigilance 3)', async () => {
-    const { service, db } = await createService();
-    const locationId = await seedLocation(db);
-    // Exclu par le nom du produit (sel/poivre, B5) : aucune catégorie nécessaire.
-    await seedProduct(db, locationId, { name: 'Poivre', quantity: 1, unit: 'SACHET' });
-
+  it('refuse d’appeler le modèle quand le foyer est vide (vigilance 2)', async () => {
+    const { service } = await createService();
+    // Aucun produit en stock : il n'y a plus de « pas assez d'ingrédients
+    // structurants » depuis que c'est l'inventaire entier qui part au modèle.
     await expect(service.list(QUERY)).rejects.toMatchObject({ status: 409, code: 'insufficient_stock' });
     try {
       await service.list(QUERY);
     } catch (error) {
-      expect(String((error as Error).message)).toMatch(/ingrédient/);
+      expect(String((error as Error).message)).toMatch(/stock est vide/);
     }
     expect(http.calls).toHaveLength(0);
   });
@@ -591,15 +587,12 @@ describe('SuggestionsService (EF-26)', () => {
     });
   });
 
-  it('sert le réservoir même quand le stock ne donne aucune graine', async () => {
+  it('sert le réservoir même quand le foyer est vide', async () => {
     // « Stock insuffisant pour suggérer » était levé AVANT toute lecture du
     // réservoir : un placard momentanément vide masquait des dizaines de
     // recettes gardées pour toujours, alors que le lot promet exactement
     // l'inverse. Leur couverture nulle est justement l'information utile.
     const { service, db } = await createService();
-    const locationId = await seedLocation(db);
-    // Exclu des graines par son nom (sel/poivre, B5) : le stock ne compose rien.
-    await seedProduct(db, locationId, { name: 'Poivre', quantity: 1, unit: 'SACHET' });
     await seedPool(
       db,
       Array.from({ length: 3 }, (_, index) => ({ recipe: composition(index) })),
@@ -609,7 +602,7 @@ describe('SuggestionsService (EF-26)', () => {
 
     expect(result.items).toHaveLength(3);
     expect(result.items.every((item) => item.coverage === 0)).toBe(true);
-    // Sous le plancher de six, mais sans graine il n'y a rien à demander.
+    // Sous le plancher de six, mais sans placard il n'y a rien à demander.
     expect(http.calls).toHaveLength(0);
   });
 
@@ -1633,9 +1626,11 @@ describe('SuggestionsService (EF-26)', () => {
       // contradictoires sur un référent devenu ambigu (tour 1).
       expect(prompt).not.toContain('si possible');
       expect(prompt).toMatch(/doit les utiliser TOUS/);
-      // Le stock reste envoyé, mais clairement du côté du « disponible ».
+      // Le placard reste envoyé, mais après les imposés : il n'est qu'une
+      // réserve où puiser.
       expect(prompt).toContain('Tomate');
-      expect(prompt).toMatch(/seulement disponibles/);
+      expect(prompt).toMatch(/Produits présents dans le foyer/);
+      expect(prompt.indexOf('Ingrédients imposés')).toBeLessThan(prompt.indexOf('Produits présents dans le foyer'));
       // Les consignes existantes tiennent toujours.
       expect(prompt).toMatch(/nettement différentes les unes des autres/);
     });
@@ -1643,7 +1638,7 @@ describe('SuggestionsService (EF-26)', () => {
     it('envoie au modèle la saisie telle qu’elle a été tapée, accents compris (tour 1)', () => {
       // La normalisation sert la signature et le rapprochement au réservoir,
       // jamais le transport : « crème fraîche » doit arriver accentué.
-      const prompt = buildSuggestionPrompt({ seeds: ['Tomate'], count: 12, ingredients: dictated('Crème fraîche, Merguez') });
+      const prompt = buildSuggestionPrompt({ household: 'Tomate (Placard)', count: 12, ingredients: dictated('Crème fraîche, Merguez') });
       expect(prompt).toContain('Crème fraîche, Merguez');
       expect(prompt).not.toContain('creme fraiche');
     });

@@ -146,6 +146,14 @@ reste trop peu. Le **nombre de recettes** s'affiche sous le titre de l'écran,
 comme à « Mes recettes » : celles qui répondent à l'orientation en cours, et le
 réservoir entier quand il est plus grand.
 
+**Ce que le modèle sait de votre placard.** La liste complète de vos produits,
+avec leur emplacement, une ligne par produit — et rien d'autre : ni les
+quantités en stock, ni les dates de péremption. Une recette n'a pas besoin de
+savoir qu'il vous reste 250 g de farine plutôt que 2 kg, seule la présence du
+produit compte ; et les péremptions restent l'affaire de « Périme bientôt ».
+C'est ce placard entier, et non plus huit ingrédients choisis automatiquement,
+qui permet au modèle de dire ce qui manque et par quoi il l'a remplacé.
+
 **Vos ingrédients à vous.** Un champ à pastilles, avec autocomplétion depuis le
 catalogue : « poulet, tomates » ne rend que des recettes utilisant **tous** ces
 éléments — l'objet est d'écouler un reste.

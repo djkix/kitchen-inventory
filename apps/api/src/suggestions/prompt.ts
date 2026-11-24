@@ -105,6 +105,19 @@ export const KNOWN_TITLES_CAP = 40;
 export const SUGGESTION_FORMAT_REMINDER =
   "Ta réponse précédente n'était pas exploitable : ce n'était pas un objet JSON unique et conforme. Réponds cette fois uniquement par l'objet JSON demandé ci-dessus, rien d'autre autour, sans clôtures de bloc de code.";
 
+/**
+ * Ce que le foyer possède (2026-11-24), annoncé au modèle. La ligne sur les
+ * quantités n'est pas une précaution de style : la liste n'en porte aucune, et
+ * sans cet avertissement le modèle annoncerait des manques qu'il ne peut pas
+ * constater.
+ */
+function householdLines(household: string): string[] {
+  return [
+    `Produits présents dans le foyer, un par ligne avec leur emplacement :\n${household}`,
+    "Cette liste ne dit ni les quantités disponibles ni les dates : ne prétends donc jamais qu'il en manque, et ne parle d'aucune péremption.",
+  ];
+}
+
 /** Construit la demande utilisateur ; `retry` ajoute le rappel de format sans changer la commande. */
 export function buildSuggestionPrompt(req: SuggestionRequest, options: { retry?: boolean } = {}): string {
   const webSearch = req.webSearch !== false;
@@ -120,14 +133,13 @@ export function buildSuggestionPrompt(req: SuggestionRequest, options: { retry?:
    * rapprochement au réservoir (D8).
    */
   const dictated = req.ingredients?.terms ?? [];
-  const stockLine = req.seeds.join(', ') || 'aucun en particulier';
   const lines: string[] =
     dictated.length > 0
       ? [
           `Ingrédients imposés : ${req.ingredients?.raw ?? ''}. Chaque recette proposée doit les utiliser TOUS, sans exception : n'en propose aucune qui en ignore un seul.`,
-          `Ingrédients seulement disponibles dans le foyer, à utiliser en complément si cela sert la recette : ${stockLine}.`,
+          ...householdLines(req.household),
         ]
-      : [`Ingrédients disponibles dans le foyer : ${stockLine}.`];
+      : householdLines(req.household);
   /**
    * Un seul référent par phrase (tour de correction 1). « Utilisant si
    * possible ces ingrédients » voisinait avec « doit les utiliser TOUS » :
@@ -198,11 +210,10 @@ export function buildVoicePrompt(req: VoiceSuggestionRequest): string {
   const webSearch = req.webSearch !== false;
   const webCount = Math.max(0, req.count - Math.round(req.count / 3));
   const aiCount = req.count - webCount;
-  const stockLine = req.seeds.join(', ') || 'aucun en particulier';
   const lines: string[] = [
     "L'enregistrement audio joint est une demande parlée : une personne dit ce qu'elle a sous la main et le genre de plat qu'elle veut.",
     'Écoute-le, puis relève les ingrédients qu’elle nomme et l’orientation qu’elle demande (type de plat, cuisine, durée, envie — une phrase courte en français, ou null si elle n’en exprime aucune).',
-    `Ingrédients déjà présents dans son stock, à utiliser en complément de ce qu’elle a dit si cela sert la recette : ${stockLine}.`,
+    ...householdLines(req.household),
     "Chaque recette doit utiliser les ingrédients entendus dans l'enregistrement, et respecter l'orientation demandée.",
   ];
   if (webSearch) {

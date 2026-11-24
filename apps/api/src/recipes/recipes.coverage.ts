@@ -1,14 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import {
+  type HouseholdProduct,
   availableInUnit,
   buildStockSnapshot,
   expiryStatus,
   isUsableForRecipes,
-  normalizeProductName,
   roundQuantity,
   STOCK_CONSUMPTION_ORDER,
   temperatureSchema,
-  type SeedCandidate,
   type StockEntry,
   type StockSnapshot,
   type Unit,
@@ -109,8 +108,8 @@ export class RecipesCoverageService {
   /**
    * `categories`, si fourni, évite une deuxième lecture de la table `Category` quand
    * l'appelant l'a déjà chargée pour son propre usage (ex. `SuggestionsService`, qui
-   * en a aussi besoin pour `loadSeedCandidates` — revue de tâche 6 : les deux
-   * interrogeaient chacun la table séparément).
+   * en a aussi besoin — revue de tâche 6 : les deux interrogeaient chacun la
+   * table séparément).
    */
   async snapshot(today = new Date(), categories?: readonly CategoryRow[]): Promise<StockSnapshot> {
     const [lots, loadedCategories, alertDays] = await Promise.all([
@@ -250,60 +249,54 @@ export interface CategoryRow {
 
 /**
  * Une seule requête pour tout l'arbre des catégories (id, parent, nom) — partagée
- * par `RecipesCoverageService.snapshot()` et `loadSeedCandidates` (revue de tâche 6)
+ * par `RecipesCoverageService.snapshot()` et la couverture des recettes,
  * plutôt qu'interrogée séparément par chacun.
  */
 export function loadCategoryRows(prisma: PrismaService): Promise<CategoryRow[]> {
   return prisma.category.findMany({ select: { id: true, parentId: true, name: true } });
 }
 
-/**
- * Chemin de catégorie normalisé (racine → feuille), pour les candidats de départ
- * des suggestions (EF-26, `SeedCandidate.categoryPath`). Fonction pure : ne fait
- * aucune requête, construit le chemin à partir de lignes déjà chargées.
- */
-export function buildCategoryPaths(categories: readonly CategoryRow[]): Map<string, readonly string[]> {
-  const byId = new Map(categories.map((c) => [c.id, c]));
-  const paths = new Map<string, readonly string[]>();
-  const resolve = (id: string): readonly string[] => {
-    const cached = paths.get(id);
-    if (cached) return cached;
-    const category = byId.get(id);
-    if (!category) return [];
-    const parentPath = category.parentId ? resolve(category.parentId) : [];
-    const path = [...parentPath, normalizeProductName(category.name)];
-    paths.set(id, path);
-    return path;
-  };
-  for (const category of categories) resolve(category.id);
-  return paths;
-}
 
 /**
- * Candidats de départ pour la sélection des ingrédients (EF-26, `pickSeedIngredients`) :
- * un par produit présent dans l'instantané de stock, trié par importance — profondeur
- * de catégorie (la plus spécifique d'abord), puis nom de produit (ordre alphabétique
- * stable). Les noms de produits sont chargés en une seule requête pour tout le stock,
- * jamais un par produit ; `categories` est fourni par l'appelant (voir `snapshot`),
- * jamais rechargé ici.
+ * Ce que le foyer possède, pour la consigne envoyée au modèle (EF-26,
+ * décision du propriétaire du 2026-11-24). Remplace `loadSeedCandidates` et
+ * la sélection de huit graines : le modèle voit tout le placard.
  *
- * Le tri n'utilise jamais la quantité : une consommation ordinaire la fait varier en
- * continu et ferait glisser le 8ᵉ ou 9ᵉ candidat d'un appel à l'autre, changeant la
- * signature de cache et déclenchant un appel payant évitable au fournisseur
- * (défaut corrigé en revue de tâche 6).
+ * **Ni quantité, ni date** — c'est tout l'objet de la décision. Aucun filtre
+ * de péremption non plus : les dates n'interviennent pas dans le module
+ * recettes (cahier, section 12, amendement du 2026-10-04), ce qui distingue
+ * cette lecture de `snapshot()`, qui écarte les lots périmés du calcul de
+ * couverture.
+ *
+ * Les produits fusionnés sont résolus vers leur cible, sans quoi un même
+ * produit entrerait deux fois dans la liste sous deux noms.
  */
-export async function loadSeedCandidates(prisma: PrismaService, snapshot: StockSnapshot, categories: readonly CategoryRow[]): Promise<SeedCandidate[]> {
-  const entries = [...snapshot.byProduct.values()];
-  if (entries.length === 0) return [];
-  const products = await prisma.product.findMany({ where: { id: { in: entries.map((e) => e.productId) } }, select: { id: true, name: true } });
-  const nameById = new Map(products.map((p) => [p.id, p.name]));
-  const categoryPaths = buildCategoryPaths(categories);
-  const depthOf = (categoryId: string | null): number => (categoryId ? (categoryPaths.get(categoryId)?.length ?? 0) : 0);
-  const withNames = entries.map((entry) => ({ entry, name: nameById.get(entry.productId) ?? entry.productId }));
-  const sorted = withNames.sort((a, b) => depthOf(b.entry.categoryId) - depthOf(a.entry.categoryId) || a.name.localeCompare(b.name));
-  return sorted.map(({ entry, name }) => ({
-    productId: entry.productId,
-    name,
-    categoryPath: entry.categoryId ? (categoryPaths.get(entry.categoryId) ?? []) : [],
-  }));
+export async function loadHouseholdProducts(prisma: PrismaService): Promise<HouseholdProduct[]> {
+  const nameSelect = { id: true, name: true } as const;
+  const lots = await prisma.stockItem.findMany({
+    where: { archivedAt: null, quantity: { gt: 0 } },
+    select: {
+      product: {
+        select: {
+          ...nameSelect,
+          mergedInto: { select: { ...nameSelect, mergedInto: { select: nameSelect } } },
+        },
+      },
+      location: { select: { name: true } },
+    },
+  });
+
+  const byProduct = new Map<string, { name: string; locations: Set<string> }>();
+  for (const lot of lots) {
+    const target = lot.product.mergedInto?.mergedInto ?? lot.product.mergedInto ?? lot.product;
+    const entry = byProduct.get(target.id) ?? { name: target.name, locations: new Set<string>() };
+    if (lot.location?.name) entry.locations.add(lot.location.name);
+    byProduct.set(target.id, entry);
+  }
+
+  return [...byProduct.values()]
+    .map(({ name, locations }) => ({ name, locations: [...locations].sort((a, b) => a.localeCompare(b, 'fr')) }))
+    // Trié pour que deux appels successifs envoient exactement le même texte :
+    // un prompt qui change tout seul fait repayer des appels pour rien.
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 }

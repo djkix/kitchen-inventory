@@ -8,7 +8,7 @@ import { PRICES_USD_PER_MTOK } from '../recognition/providers/gemini.provider.js
 import { buildSuggestionPrompt, buildVoicePrompt, KNOWN_TITLES_CAP, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
 import type { SuggestionProviderError, SuggestionRequest } from './suggestion-provider.js';
 
-const BASE_REQUEST: SuggestionRequest = { seeds: ['tomate', 'pâtes', 'basilic'], count: 12 };
+const BASE_REQUEST: SuggestionRequest = { household: 'Tomate (Placard)\nPâtes (Placard)\nBasilic (Réfrigérateur)', count: 12 };
 
 function requestBody(http: FakeHttp, index = 0): any {
   return JSON.parse(String(http.calls[index]?.init?.body));
@@ -283,7 +283,7 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
   let http: FakeHttp;
   let provider: GeminiSuggestionProvider;
   const AUDIO = Buffer.from('des-octets-qui-ne-sont-pas-de-la-parole');
-  const VOICE_REQUEST = { seeds: ['tomate', 'pâtes'], count: 12, audio: AUDIO, mimeType: 'audio/webm' };
+  const VOICE_REQUEST = { household: 'Tomate (Placard)', count: 12, audio: AUDIO, mimeType: 'audio/webm' };
 
   beforeEach(() => {
     http = new FakeHttp();
@@ -368,7 +368,7 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
 });
 
 describe('buildVoicePrompt (D2, D4)', () => {
-  const req = { seeds: ['tomate', 'pâtes'], count: 12, audio: Buffer.alloc(0), mimeType: 'audio/webm' };
+  const req = { household: 'Tomate (Placard)', count: 12, audio: Buffer.alloc(0), mimeType: 'audio/webm' };
 
   it('demande la lecture de la phrase et les recettes dans le même objet JSON', () => {
     const prompt = buildVoicePrompt(req);
@@ -380,7 +380,7 @@ describe('buildVoicePrompt (D2, D4)', () => {
 
   it('croise la parole avec le stock réel, qui est toute la valeur de la fonction', () => {
     const prompt = buildVoicePrompt(req);
-    expect(prompt).toContain('tomate, pâtes');
+    expect(prompt).toContain('Tomate (Placard)');
     expect(prompt).toMatch(/enregistrement|audio|parl/i);
   });
 

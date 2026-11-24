@@ -5,7 +5,8 @@ import {
   classifyMatch,
   comparePoolEntries,
   createRecipeSchema,
-  pickSeedIngredients,
+  formatHouseholdInventory,
+  type HouseholdProduct,
   normalizeProductName,
   normalizeIngredientTerms,
   labelMatchesTerms,
@@ -39,7 +40,7 @@ import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import type { RequestUser } from '../auth/request-user.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RecipesService } from '../recipes/recipes.service.js';
-import { loadCategoryRows, loadSeedCandidates, RecipesCoverageService } from '../recipes/recipes.coverage.js';
+import { loadCategoryRows, loadHouseholdProducts, RecipesCoverageService } from '../recipes/recipes.coverage.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
 import { SettingsService } from '../settings/settings.service.js';
@@ -287,6 +288,13 @@ function toJson(value: unknown): Prisma.InputJsonValue {
  * rendus du stock, puis calcule leur couverture — en réutilisant les règles pures
  * partagées, jamais en les recopiant.
  */
+/**
+ * Un placard vide (2026-11-24). Depuis que c'est l'inventaire entier qui part
+ * au modèle, il n'y a plus de « pas assez d'ingrédients structurants » : il y
+ * a des produits, ou il n'y en a pas.
+ */
+const HOUSEHOLD_EMPTY_MESSAGE = 'Votre stock est vide : ajoutez des produits avant de demander des recettes.';
+
 @Injectable()
 export class SuggestionsService {
   constructor(
@@ -327,7 +335,7 @@ export class SuggestionsService {
     const pageSize = query.limit ?? SUGGESTION_PAGE_SIZE;
     // Une seule lecture de l'arbre des catégories, partagée par l'instantané de
     // stock et par les candidats de départ (revue de tâche 6 : `snapshot()` et
-    // `loadSeedCandidates` interrogeaient chacun la table `Category`).
+    // la couverture interrogeaient chacune la table `Category`).
     const categories = await loadCategoryRows(this.prisma);
     const snapshot = await this.coverage.snapshot(new Date(), categories);
 
@@ -369,11 +377,11 @@ export class SuggestionsService {
     }
 
     if (mustAsk) {
-      // Les graines ne servent plus qu'à composer la question posée au modèle
-      // (D11) : elles ne sont donc calculées que lorsqu'une question part, et
-      // non plus à chaque visite.
-      const seeds = pickSeedIngredients(await loadSeedCandidates(this.prisma, snapshot, categories), new Date());
-      if (seeds.length === 0) {
+      // La liste du foyer ne sert qu'à composer la question posée au modèle
+      // (D11) : elle n'est donc lue que lorsqu'une question part, et non plus
+      // à chaque visite.
+      const household = await loadHouseholdProducts(this.prisma);
+      if (household.length === 0) {
         // Un placard momentanément vide ne doit plus masquer le réservoir
         // (revue finale du 2026-10-15) : le lot promet que les recettes
         // trouvées restent disponibles, et leur couverture nulle est
@@ -382,7 +390,7 @@ export class SuggestionsService {
         // pas encore été lu.
         if (query.refresh) entries = await this.readPool(query);
         if (entries.length === 0) {
-          throw ApiError.insufficientStock('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
+          throw ApiError.insufficientStock(HOUSEHOLD_EMPTY_MESSAGE);
         }
         return this.render(entries, snapshot, true, notice, fresh, pageSize, query.ingredients?.terms ?? []);
       }
@@ -405,7 +413,7 @@ export class SuggestionsService {
         // construction (la lecture a été sautée) : il faut donc relire.
         const known = query.refresh ? await this.pool.read(orientationFilter(query)) : entries;
         try {
-          const fetched = await this.fetchAndStore(signature, seeds, query, known.map((entry) => entry.recipe.title));
+          const fetched = await this.fetchAndStore(signature, household, query, known.map((entry) => entry.recipe.title));
           fresh = new Set(await this.pool.ingest(fetched.recipes, fetched.model, fetched.webSearch));
           // Alimente la base de recettes, sans faire attendre l'écran (D1, D7).
           this.catalogue(fresh);
@@ -474,7 +482,16 @@ export class SuggestionsService {
 
     const categories = await loadCategoryRows(this.prisma);
     const snapshot = await this.coverage.snapshot(new Date(), categories);
-    const seeds = pickSeedIngredients(await loadSeedCandidates(this.prisma, snapshot, categories), new Date());
+    // Le foyer entier part au modèle (2026-11-24), sans quantités ni dates :
+    // c'est ce qui lui permet de dire ce qui manque et par quoi il l'a
+    // remplacé.
+    //
+    // Contrairement à `list`, un placard vide n'est pas une erreur ici : la
+    // parole porte déjà ses ingrédients, le stock ne sert qu'à compléter. Le
+    // plan de livraison étendait la garde aux trois chemins ; elle est
+    // maintenue au seul chemin filtré, qui n'a rien d'autre pour composer sa
+    // question.
+    const household = await loadHouseholdProducts(this.prisma);
 
     const started = Date.now();
     let output: VoiceSuggestionOutput;
@@ -483,7 +500,7 @@ export class SuggestionsService {
     try {
       ({ result: output } = await this.gemini.call((model) =>
         this.provider.suggestFromVoice({
-          seeds: seeds.map((s) => s.name),
+          household: formatHouseholdInventory(household),
           count: modelBatch(settings.suggestionWebSearch),
           audio,
           mimeType,
@@ -694,14 +711,14 @@ export class SuggestionsService {
    */
   private async fetchAndStore(
     signature: string,
-    seeds: readonly { productId: string; name: string }[],
+    household: readonly HouseholdProduct[],
     query: SuggestionQuery,
     knownTitles: readonly string[],
   ): Promise<{ recipes: ModelRecipe[]; model: string; webSearch: boolean }> {
     // Lus avant de composer la requête : le nombre demandé en dépend.
     const settings = await this.settings.get();
     const request: SuggestionRequest = {
-      seeds: seeds.map((s) => s.name),
+      household: formatHouseholdInventory(household),
       region: query.region,
       maxMinutes: query.maxMinutes,
       difficulty: query.difficulty,

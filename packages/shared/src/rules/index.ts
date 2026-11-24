@@ -11,7 +11,7 @@ export * from './recipe-library.js';
 export * from './recipe-sort.js';
 export * from './servings.js';
 export * from './kitchen-equivalent.js';
-export * from './seed-selection.js';
+export * from './household-inventory.js';
 export * from './ingredient-match.js';
 export * from './suggestion-identity.js';
 export * from './effective-rating.js';
