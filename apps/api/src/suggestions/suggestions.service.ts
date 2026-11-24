@@ -20,6 +20,7 @@ import {
   type ModelRecipe,
   type RecipeDto,
   type RecipeRewrite,
+  type SingleRecipeDto,
   type StockSnapshot,
   type CatalogueStatus,
   type SuggestionBatchDto,
@@ -52,6 +53,7 @@ import { SuggestionPoolService, type PoolFilter, type PoolRecipe } from './sugge
 import {
   RECIPE_REWRITER,
   SuggestionProviderError,
+  type SingleRecipeOutput,
   type SuggestionAttempt,
   type SuggestionOutput,
   type SuggestionRequest,
@@ -293,6 +295,13 @@ function toJson(value: unknown): Prisma.InputJsonValue {
  * au modèle, il n'y a plus de « pas assez d'ingrédients structurants » : il y
  * a des produits, ou il n'y en a pas.
  */
+/**
+ * Refus d'une demande dont le modèle n'a rien tiré (2026-11-24). Même esprit
+ * que D9 pour la parole : un refus se dit, il ne se remplace pas par une
+ * recette de remplissage.
+ */
+const REQUEST_NOT_UNDERSTOOD = 'Votre demande n’a pas été comprise : reformulez-la en disant ce que vous voulez cuisiner.';
+
 const HOUSEHOLD_EMPTY_MESSAGE = 'Votre stock est vide : ajoutez des produits avant de demander des recettes.';
 
 @Injectable()
@@ -540,6 +549,65 @@ export class SuggestionsService {
     const dictated = normalizeIngredientTerms(output.heard.ingredients.join(', '));
     const batch = await this.render(entries, snapshot, false, null, identities, SUGGESTION_PAGE_SIZE, dictated);
     return { ...batch, heard: output.heard };
+  }
+
+  /**
+   * Recette à la demande écrite (spécification du 2026-11-24). Une phrase, une
+   * recette.
+   *
+   * Le chemin ignore tout l'appareillage de la fournée : pas de plancher de
+   * réservoir, pas de verrou de 24 heures sur l'orientation, pas de titres déjà
+   * connus, aucune ligne `SuggestionBatch`. Une question posée appelle le
+   * modèle, toujours — c'est ce que la personne attend en tapant sa phrase.
+   *
+   * Comme la demande parlée, un placard vide n'est pas une erreur : la phrase
+   * porte déjà ses ingrédients.
+   */
+  async requestOne(text: string): Promise<SingleRecipeDto> {
+    assertProviderEnabled(this.provider, 'suggestions');
+
+    // Vérifié avant l'appel, comme pour la parole : un quota atteint ne doit
+    // pas faire partir une requête payante.
+    const breach = await this.quotaBreach();
+    if (breach) throw ApiError.rateLimited(this.quotaMessage(breach, false));
+
+    const categories = await loadCategoryRows(this.prisma);
+    const snapshot = await this.coverage.snapshot(new Date(), categories);
+    const household = await loadHouseholdProducts(this.prisma);
+
+    const started = Date.now();
+    let output: SingleRecipeOutput;
+    const settings = await this.settings.get();
+    try {
+      ({ result: output } = await this.gemini.call((model) => this.provider.suggestOne({ text, household: formatHouseholdInventory(household), model })));
+    } catch (error) {
+      if (error instanceof GeminiPausedError) throw geminiRefusal(error);
+      if (error instanceof SuggestionProviderError) await this.logAttempts(error.attempts, false);
+      else await this.logFailure(error, Date.now() - started);
+      throw ApiError.providerUnavailable(error instanceof ProviderError ? error.message : 'Fournisseur de suggestions injoignable');
+    }
+    await this.logAttempts(output.attempts, true);
+
+    // L'appel est payé : la recette entre au réservoir avant tout verdict sur
+    // la lecture, exactement comme pour la parole (D5). Elle y sert ensuite les
+    // visites de l'écran Suggestions.
+    if (output.recipe === null) throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
+    const identity = suggestionIdentity(output.recipe);
+    await this.pool.ingest([output.recipe], output.model, settings.suggestionWebSearch);
+
+    // Relue au réservoir, jamais servie depuis la réponse brute : c'est là que
+    // vit la forme dédoublonnée, et c'est elle que `POST /suggestions/keep`
+    // retrouvera par cette même identité.
+    const entry = await this.pool.findByIdentity(identity);
+    if (entry === null) throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
+
+    // Les ingrédients relevés dans la demande deviennent les « dictés » du
+    // 2026-10-19 : sans eux, un ingrédient nommé dans la phrase et absent du
+    // stock s'afficherait « Manquant ».
+    const dictated = normalizeIngredientTerms(output.heard.ingredients.join(', '));
+    const [recipe] = await this.toSuggestionDtos([entry], snapshot, dictated);
+    if (recipe === undefined) throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
+    return { heard: output.heard, recipe };
   }
 
   /**

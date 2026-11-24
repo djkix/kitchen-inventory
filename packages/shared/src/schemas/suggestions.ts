@@ -535,6 +535,60 @@ export const voiceModelBatchSchema = z
 export type VoiceModelBatch = z.infer<typeof voiceModelBatchSchema>;
 
 /**
+ * Longueur maximale d'une demande écrite (2026-11-24). « une recette asiatique
+ * avec de la cacahuète, des échalotes et de l'ail » tient en 76 caractères :
+ * 160 laissent deux fois cette marge, et bornent un champ qui part au modèle.
+ */
+export const RECIPE_REQUEST_MAX_CHARS = 160;
+
+/** Corps de `POST /suggestions/request` : la phrase telle qu'elle a été tapée. */
+export const recipeRequestSchema = z.object({
+  text: z.string().trim().min(1, { message: 'Dites ce que vous voulez cuisiner' }).max(RECIPE_REQUEST_MAX_CHARS, {
+    message: `Votre demande dépasse ${RECIPE_REQUEST_MAX_CHARS} caractères`,
+  }),
+  requestId: z.string().uuid().optional(),
+});
+export type RecipeRequestInput = z.infer<typeof recipeRequestSchema>;
+
+/**
+ * Réponse attendue d'une demande « une recette » (écrite ou parlée,
+ * 2026-11-24) : la lecture de la demande **et** une recette unique.
+ *
+ * `recipe` est délibérément permissif à l'entrée : un modèle qui n'a rien tiré
+ * de la demande renvoie `null`, et c'est le service qui en fait un refus en
+ * français (comme pour la lecture vide d'une demande parlée, D9). Un objet
+ * présent mais non conforme, lui, est un échec de format : il déclenche la
+ * reprise unique, exactement comme un lot illisible.
+ */
+export const singleRecipeModelSchema = z
+  .object({ heard: voiceHeardSchema, recipe: z.unknown() })
+  .transform((answer, ctx) => {
+    if (answer.recipe === null || answer.recipe === undefined) return { heard: answer.heard, recipe: null };
+    const parsed = modelRecipeSchema.safeParse(answer.recipe);
+    if (!parsed.success) {
+      ctx.addIssue({ code: 'custom', message: 'Recette non exploitable dans la réponse du modèle', path: ['recipe'] });
+      return z.NEVER;
+    }
+    return { heard: answer.heard, recipe: parsed.data };
+  });
+export type SingleRecipeModelAnswer = z.infer<typeof singleRecipeModelSchema>;
+
+
+/**
+ * Ce que l'écran reçoit d'une demande « une recette » (2026-11-24), écrite ou
+ * parlée : la recette, déjà rapprochée du stock et porteuse de son identité de
+ * contenu — donc utilisable telle quelle par la carte, le tiroir et
+ * `POST /suggestions/keep` —, plus la lecture que le modèle a faite de la
+ * demande. La version parlée l'affiche pour qu'un contresens se voie ; la
+ * version écrite ne l'affiche pas (la phrase est à l'écran) mais s'en sert
+ * pour marquer les ingrédients « déclarés ».
+ */
+export interface SingleRecipeDto {
+  heard: VoiceHeard;
+  recipe: SuggestionDto;
+}
+
+/**
  * Ce que l'écran de demande parlée reçoit : une fournée ordinaire, plus la
  * lecture que le modèle a faite de la phrase (D2). Elle est affichée avec les
  * résultats pour qu'un contresens se voie — c'est la contrepartie assumée de

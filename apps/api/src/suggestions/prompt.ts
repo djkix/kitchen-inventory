@@ -3,10 +3,12 @@ import {
   DISH_TYPE_LABELS_FR,
   DISH_TYPES,
   modelBatchSchema,
+  singleRecipeModelSchema,
   SUGGESTION_REGION_LABELS_FR,
   UNITS,
   voiceModelBatchSchema,
   type ModelBatch,
+  type SingleRecipeModelAnswer,
   type VoiceModelBatch,
 } from '@kitchen/shared';
 import type { SuggestionRequest, VoiceSuggestionRequest } from './suggestion-provider.js';
@@ -196,6 +198,38 @@ function recipeFieldsLine(): string {
 const FORMAT_TAIL = 'Aucun texte, aucune explication, aucune clôture de bloc de code autour de cet objet JSON.';
 
 /**
+ * Demande « une recette » (spécification du 2026-11-24) : une phrase, une
+ * recette, et les remarques qui vont avec.
+ *
+ * Trois écarts volontaires avec la consigne de fournée :
+ *
+ * 1. **Aucune recherche web.** Une recette `web` dont la page est illisible est
+ *    jetée à l'ingestion, et la recherche est éteinte en production : sur une
+ *    seule recette, l'appel payé ne laisserait rien à l'écran.
+ * 2. **Pas de consigne de diversité, pas de titres déjà connus.** Il n'y a
+ *    qu'une recette à proposer, et elle doit répondre à la demande, pas éviter
+ *    le réservoir.
+ * 3. **`heard` est demandé même par écrit.** La phrase est à l'écran, donc
+ *    inutile à relire ; mais sans les ingrédients relevés, un ingrédient nommé
+ *    dans la demande et absent du stock s'afficherait « Manquant » — le défaut
+ *    que D5 du 2026-10-19 avait corrigé pour la voix.
+ */
+export function buildSingleRecipePrompt(req: { text: string; household: string }, options: { retry?: boolean } = {}): string {
+  const lines: string[] = [
+    `Demande de la personne, telle qu'elle l'a écrite : « ${req.text} »`,
+    ...householdLines(req.household),
+    'Propose UNE SEULE recette qui réponde à cette demande, composée par toi : provenance "ai" et sourceUrl null.',
+    "Si la demande ne porte sur aucune recette, ou que tu ne peux pas y répondre, rends \"recipe\": null plutôt qu'une recette de remplissage.",
+    'Réponds par un objet JSON unique de la forme { "heard": { "ingredients": [ ... ], "orientation": "…" ou null }, "recipe": { ... } }.',
+    "« heard.ingredients » ne contient que les ingrédients nommés dans la demande, jamais les produits du foyer ci-dessus.",
+    recipeFieldsLine(),
+    FORMAT_TAIL,
+  ];
+  if (options.retry) lines.push(SUGGESTION_FORMAT_REMINDER);
+  return lines.join('\n');
+}
+
+/**
  * Demande parlée (spécification du 2026-10-21, D2 et D4) : un seul appel, qui
  * porte l'enregistrement, et qui rend à la fois ce que le modèle a entendu et
  * les recettes. Il n'y a pas d'étape de confirmation — c'est le choix du
@@ -232,6 +266,25 @@ export function buildVoicePrompt(req: VoiceSuggestionRequest): string {
     FORMAT_TAIL,
   );
   return lines.join('\n');
+}
+
+/**
+ * Recette unique rendue à une demande en langage naturel (2026-11-24). Même
+ * intransigeance que `parseVoiceBatch` sur le format ; la seule souplesse est
+ * `recipe: null`, qui dit « je n'ai rien tiré de cette demande » et que le
+ * service traduit en refus français.
+ */
+export function parseSingleRecipe(text: string): SingleRecipeModelAnswer {
+  const stripped = stripJsonFences(text);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stripped);
+  } catch {
+    throw new InvalidBatchJsonError('JSON du fournisseur de suggestions illisible');
+  }
+  const result = singleRecipeModelSchema.safeParse(parsed);
+  if (!result.success) throw new InvalidBatchJsonError('Réponse du fournisseur de suggestions non conforme au schéma d’une recette unique');
+  return result.data;
 }
 
 /** Lecture et recettes d'une demande parlée. Même intransigeance que `parseModelBatch` : rien n'est deviné. */

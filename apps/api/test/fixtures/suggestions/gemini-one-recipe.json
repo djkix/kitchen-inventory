@@ -1,0 +1,38 @@
+{
+  "heard": {
+    "ingredients": [
+      "cacahuète",
+      "ail"
+    ],
+    "orientation": "une recette asiatique"
+  },
+  "recipe": {
+    "title": "Nouilles sautées à la cacahuète",
+    "origin": "Composition",
+    "region": "asiatique",
+    "totalMinutes": 25,
+    "prepMinutes": 10,
+    "cookMinutes": 15,
+    "difficulty": "EASY",
+    "dishType": "MAIN",
+    "provenance": "ai",
+    "sourceUrl": null,
+    "notes": "Pas d’ail frais dans votre stock : j’ai pris de l’ail semoule. Votre purée de cacahuètes est rangée au congélateur, sortez-la à l’avance.",
+    "steps": [
+      "Réhydrater les nouilles de riz dans l’eau bouillante pendant 5 minutes, puis égoutter.",
+      "Mélanger la purée de cacahuètes, la sauce soja et le lait de coco jusqu’à obtenir une sauce lisse.",
+      "Faire chauffer l’huile de sésame à feu vif dans un wok et saisir les légumes 4 minutes.",
+      "Ajouter les nouilles et la sauce, mélanger 2 minutes à feu moyen.",
+      "Hors du feu, parsemer d’arachides concassées et de coriandre."
+    ],
+    "ingredients": [
+      { "label": "Nouilles de riz", "quantity": 250, "unit": "GRAM" },
+      { "label": "Purée de cacahuètes", "quantity": 45, "unit": "GRAM" },
+      { "label": "Sauce soja", "quantity": 15, "unit": "MILLILITER" },
+      { "label": "Lait de coco", "quantity": 100, "unit": "MILLILITER" },
+      { "label": "Ail semoule", "quantity": 5, "unit": "GRAM" },
+      { "label": "Huile de sésame", "quantity": 15, "unit": "MILLILITER" },
+      { "label": "Arachides", "quantity": 30, "unit": "GRAM" }
+    ]
+  }
+}

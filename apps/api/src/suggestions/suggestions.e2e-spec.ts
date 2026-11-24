@@ -2260,3 +2260,78 @@ describe('GET/POST /suggestions/catalogue (D6)', () => {
     await membre.post('/api/v1/suggestions/catalogue').expect(403);
   });
 });
+
+/**
+ * Recette à la demande écrite (spécification du 2026-11-24). Une phrase, une
+ * recette : le chemin ignore le réservoir comme point de départ, la signature
+ * d'orientation et le plancher de six — une question posée appelle le modèle.
+ */
+describe('POST /suggestions/request (EF-25, 2026-11-24)', () => {
+  let t: TestApp;
+  let agent: TestAgent;
+  let http: FakeHttp;
+
+  beforeAll(async () => {
+    http = new FakeHttp();
+    t = await createTestApp({ VISION_PROVIDER: 'gemini', VISION_API_KEY: 'AIza-test' }, http.client);
+  });
+  beforeEach(async () => {
+    await t.reset();
+    http.reset();
+    agent = t.agent();
+    await t.signIn(agent, ADMIN);
+  });
+  afterAll(() => t.close());
+
+  it('exige une session', async () => {
+    const res = await t.api.post('/api/v1/suggestions/request').send({ text: 'un gratin' }).expect(401);
+    expect(res.body.error.code).toBe('unauthenticated');
+  });
+
+  it('rend une seule recette, composée, avec ses remarques', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
+    const res = await agent.post('/api/v1/suggestions/request').send({ text: 'une recette asiatique avec de la cacahuète et de l’ail' }).expect(200);
+
+    expect(res.body.recipe.title).toBe('Nouilles sautées à la cacahuète');
+    // Forcé : une recette « web » dont la page est illisible est jetée à
+    // l'ingestion, et l'appel payé ne laisserait rien à l'écran.
+    expect(res.body.recipe.provenance).toBe('ai');
+    expect(res.body.recipe.sourceUrl).toBeNull();
+    expect(res.body.recipe.notes).toContain('ail semoule');
+    expect(res.body.heard.ingredients).toContain('cacahuète');
+    expect(res.body.items).toBeUndefined();
+  });
+
+  it('n’autorise pas la recherche web, quel que soit le réglage', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
+    await agent.post('/api/v1/suggestions/request').send({ text: 'un gratin' }).expect(200);
+
+    const body = JSON.parse(String(http.calls[0]?.init?.body));
+    expect(body.tools).toBeUndefined();
+  });
+
+  it('conserve la recette rendue sans rappeler le modèle', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
+    const res = await agent.post('/api/v1/suggestions/request').send({ text: 'un gratin' }).expect(200);
+    const appelsApresDemande = http.calls.length;
+
+    await agent.post('/api/v1/suggestions/keep').send({ suggestionId: res.body.recipe.id }).expect(201);
+    expect(http.calls).toHaveLength(appelsApresDemande);
+  });
+
+  /**
+   * Vigilance 1 du plan : « bonjour » n'est pas une demande de recette. Le
+   * refus se dit en français, et surtout il ne rend pas une recette de
+   * remplissage.
+   */
+  it('refuse en français une phrase dont rien n’est tiré', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe-muet.json'));
+    const res = await agent.post('/api/v1/suggestions/request').send({ text: 'bonjour' }).expect(422);
+    expect(res.body.error.message).toMatch(/pas (été )?comprise/i);
+  });
+
+  it('refuse une phrase vide sans appeler le modèle', async () => {
+    await agent.post('/api/v1/suggestions/request').send({ text: '   ' }).expect(400);
+    expect(http.calls).toHaveLength(0);
+  });
+});

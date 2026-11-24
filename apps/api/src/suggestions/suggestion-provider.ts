@@ -74,6 +74,32 @@ export type VoiceSuggestionRequest = Omit<SuggestionRequest, 'ingredients'> & {
   mimeType: string;
 };
 
+/**
+ * Demande « une recette » écrite (spécification du 2026-11-24) : une phrase, le
+ * placard, rien d'autre. Ni orientation, ni `count`, ni titres connus — il n'y
+ * a qu'une recette à rendre et elle doit répondre à la demande.
+ */
+export interface SingleRecipeRequest {
+  /** La phrase telle qu'elle a été tapée. */
+  text: string;
+  /** Le placard, mis en forme par `formatHouseholdInventory`. */
+  household: string;
+  model?: string;
+}
+
+/**
+ * Une recette rendue à une demande, avec la lecture que le modèle a faite de
+ * celle-ci. `recipe` vaut `null` quand le modèle n'a rien tiré de la demande :
+ * c'est une réponse légitime, pas une panne — l'appelant en fait un refus en
+ * français.
+ */
+export interface SingleRecipeOutput {
+  heard: VoiceHeard;
+  recipe: ModelRecipe | null;
+  attempts: SuggestionAttempt[];
+  model: string;
+}
+
 /** Un appel parlé rend les recettes **et** la lecture que le modèle a faite de la phrase (D2, D4). */
 export interface VoiceSuggestionOutput extends SuggestionOutput {
   heard: VoiceHeard;

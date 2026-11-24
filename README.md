@@ -154,6 +154,15 @@ produit compte ; et les péremptions restent l'affaire de « Périme bientôt »
 C'est ce placard entier, et non plus huit ingrédients choisis automatiquement,
 qui permet au modèle de dire ce qui manque et par quoi il l'a remplacé.
 
+**Une recette à la demande.** `POST /suggestions/request` prend une phrase en
+clair — « une recette asiatique avec de la cacahuète, des échalotes et de
+l'ail » — et rend **une seule** recette, composée pour vous, avec ses
+remarques. Ce chemin ne cherche jamais sur le web (une page illisible est
+écartée, et sur une seule recette l'appel payé ne laisserait rien à l'écran) et
+ne passe ni par le plancher du réservoir ni par le verrou de 24 heures : une
+question posée appelle le modèle. La recette rejoint ensuite le réservoir, donc
+le bouton « conserver » fonctionne comme pour les autres.
+
 **Vos ingrédients à vous.** Un champ à pastilles, avec autocomplétion depuis le
 catalogue : « poulet, tomates » ne rend que des recettes utilisant **tous** ces
 éléments — l'objet est d'écouler un reste.

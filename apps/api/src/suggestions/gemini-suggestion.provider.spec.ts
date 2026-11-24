@@ -5,7 +5,7 @@ import { ProviderError } from '../recognition/providers/recognition-provider.js'
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
 import { PRICES_USD_PER_MTOK } from '../recognition/providers/gemini.provider.js';
-import { buildSuggestionPrompt, buildVoicePrompt, KNOWN_TITLES_CAP, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
+import { buildSingleRecipePrompt, buildSuggestionPrompt, buildVoicePrompt, KNOWN_TITLES_CAP, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
 import type { SuggestionProviderError, SuggestionRequest } from './suggestion-provider.js';
 
 const BASE_REQUEST: SuggestionRequest = { household: 'Tomate (Placard)\nPâtes (Placard)\nBasilic (Réfrigérateur)', count: 12 };
@@ -225,6 +225,46 @@ describe('consigne système, exigences de qualité (2026-11-20)', () => {
   it('annonce au modèle le plancher d’étapes dans la description des champs', () => {
     expect(buildSuggestionPrompt(BASE_REQUEST)).toContain('au moins cinq pour "ai"');
     expect(buildVoicePrompt({ ...BASE_REQUEST, audio: Buffer.from(''), mimeType: 'audio/webm' })).toContain('au moins cinq pour "ai"');
+  });
+});
+
+/**
+ * Recette à la demande écrite (2026-11-24). La consigne ne ressemble à celle
+ * d'une fournée que de loin : une seule recette, aucune recherche web, et un
+ * refus explicite plutôt qu'un remplissage.
+ */
+describe('buildSingleRecipePrompt (2026-11-24)', () => {
+  const REQ = { text: 'une recette asiatique avec de la cacahuète', household: "Nouilles de riz (Placard)\nPurée de cacahuètes (Congélateur)" };
+
+  it('demande une seule recette, composée, sans recherche web', () => {
+    const prompt = buildSingleRecipePrompt(REQ);
+    expect(prompt).toContain('UNE SEULE recette');
+    expect(prompt).toContain('composée par toi');
+    expect(prompt).not.toMatch(/recherche web/i);
+  });
+
+  it('porte la phrase telle qu’elle a été tapée', () => {
+    expect(buildSingleRecipePrompt(REQ)).toContain('une recette asiatique avec de la cacahuète');
+  });
+
+  it('porte le placard avec ses emplacements, sans quantités ni dates', () => {
+    const prompt = buildSingleRecipePrompt(REQ);
+    expect(prompt).toContain('Purée de cacahuètes (Congélateur)');
+    expect(prompt).toContain('ne dit ni les quantités disponibles ni les dates');
+  });
+
+  it('autorise un refus explicite plutôt qu’une recette de remplissage', () => {
+    expect(buildSingleRecipePrompt(REQ)).toContain('"recipe": null');
+  });
+
+  it('réclame la lecture de la demande, pour les ingrédients déclarés', () => {
+    expect(buildSingleRecipePrompt(REQ)).toContain('"heard"');
+  });
+
+  it('ne demande ni diversité ni évitement des titres connus', () => {
+    const prompt = buildSingleRecipePrompt(REQ);
+    expect(prompt).not.toContain('nettement différentes');
+    expect(prompt).not.toContain('déjà connues');
   });
 });
 

@@ -4,7 +4,7 @@
  * que l'utilisateur voit : le serveur les applique, l'interface les explique.
  */
 
-export const AI_REQUEST_KINDS = ['SCAN_IMAGE', 'SUGGESTIONS', 'VOICE', 'RECEIPT'] as const;
+export const AI_REQUEST_KINDS = ['SCAN_IMAGE', 'SUGGESTIONS', 'VOICE', 'RECEIPT', 'RECIPE_REQUEST'] as const;
 export type AiRequestKind = (typeof AI_REQUEST_KINDS)[number];
 
 export type AiRequestState = 'RUNNING' | 'DEFERRED' | 'DONE' | 'FAILED' | 'ABANDONED';
@@ -65,6 +65,9 @@ const SCREENS: Record<AiRequestKind, string> = {
   // l'écran où elle a été faite, qui sait relire ce résultat-là.
   VOICE: '/recettes/parler',
   RECEIPT: '/courses',
+  // Comme la demande parlée : une recette rendue à une phrase ne se retrouve
+  // pas au réservoir par son orientation, l'écran doit relire ce résultat-là.
+  RECIPE_REQUEST: '/recettes',
 };
 
 /**
@@ -76,7 +79,7 @@ const SCREENS: Record<AiRequestKind, string> = {
  * annoncé restait invisible. C'est exactement ce que le propriétaire a
  * constaté le 2026-11-09.
  */
-const CARRIES_ID: ReadonlySet<AiRequestKind> = new Set<AiRequestKind>(['VOICE']);
+const CARRIES_ID: ReadonlySet<AiRequestKind> = new Set<AiRequestKind>(['VOICE', 'RECIPE_REQUEST']);
 
 /** L'adresse de l'écran à ouvrir pour une demande donnée. */
 export function requestScreenUrl(kind: AiRequestKind, id: string): string {
@@ -90,6 +93,8 @@ function title(kind: AiRequestKind, count: number | undefined): string {
     case 'SUGGESTIONS':
     case 'VOICE':
       return count === undefined ? 'Vos idées de recettes sont prêtes' : plural(count, 'idée de recette', 'idées de recettes');
+    case 'RECIPE_REQUEST':
+      return 'Votre recette est prête';
     case 'RECEIPT':
       return count === undefined ? 'Votre ticket est lu' : `Ticket lu : ${plural(count, 'ligne', 'lignes')}`;
     case 'SCAN_IMAGE':
@@ -102,6 +107,7 @@ const BODIES: Record<AiRequestKind, string> = {
   SUGGESTIONS: 'Touchez pour les voir.',
   VOICE: 'Touchez pour les voir.',
   RECEIPT: 'Touchez pour vérifier les lignes avant de les ajouter.',
+  RECIPE_REQUEST: 'Touchez pour la voir.',
 };
 
 /**

@@ -2,9 +2,21 @@ import type { HttpClient } from '../common/http-client.js';
 import { GeminiPausedError, GENERATION_TIMEOUT_MS, transportMessage } from '../gemini/gemini-errors.js';
 import { countSearchQueries, estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
-import { buildSuggestionPrompt, buildVoicePrompt, InvalidBatchJsonError, parseModelBatch, parseVoiceBatch, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
+import {
+  buildSingleRecipePrompt,
+  buildSuggestionPrompt,
+  buildVoicePrompt,
+  InvalidBatchJsonError,
+  parseModelBatch,
+  parseSingleRecipe,
+  parseVoiceBatch,
+  SUGGESTION_SYSTEM_PROMPT,
+  SUGGESTION_SYSTEM_PROMPT_NO_SEARCH,
+} from './prompt.js';
 import {
   SuggestionProviderError,
+  type SingleRecipeOutput,
+  type SingleRecipeRequest,
   type SuggestionAttempt,
   type SuggestionOutput,
   type SuggestionRequest,
@@ -72,6 +84,44 @@ export class GeminiSuggestionProvider {
       }
     }
     // Inatteignable : la boucle rend un résultat ou lève à la seconde passe.
+    throw new ProviderError('Fournisseur de suggestions sans réponse exploitable');
+  }
+
+  /**
+   * Demande « une recette » écrite (spécification du 2026-11-24).
+   *
+   * **Jamais de recherche web**, quel que soit le réglage : une recette `web`
+   * dont la page est illisible est jetée à l'ingestion, et la recherche est
+   * éteinte en production. Sur une seule recette, l'appel payé ne laisserait
+   * rien à l'écran.
+   *
+   * Une reprise, comme `suggest` : le texte ne coûte presque rien à renvoyer,
+   * contrairement à l'audio.
+   */
+  async suggestOne(req: SingleRecipeRequest): Promise<SingleRecipeOutput> {
+    if (!this.options.apiKey) throw new ProviderError('Fournisseur de suggestions désactivé');
+    const attempts: SuggestionAttempt[] = [];
+    const model = req.model ?? this.model;
+
+    for (const retry of [false, true]) {
+      const started = Date.now();
+      let raw: GeminiResponse;
+      try {
+        raw = await this.call([{ text: buildSingleRecipePrompt(req, { retry }) }], model, false);
+      } catch (error) {
+        if (attempts.length === 0) throw error;
+        throw new SuggestionProviderError(error instanceof Error ? error.message : String(error), attempts, error);
+      }
+      attempts.push({ raw, costCents: estimateCostCents(model, raw.usageMetadata, countSearchQueries(raw)), latencyMs: Date.now() - started });
+
+      try {
+        const answer = parseSingleRecipe(extractText(raw));
+        return { heard: answer.heard, recipe: answer.recipe, attempts, model };
+      } catch (error) {
+        if (!(error instanceof InvalidBatchJsonError)) throw error;
+        if (retry) throw new SuggestionProviderError('Le fournisseur de suggestions n’a pas renvoyé de recette exploitable après reprise', attempts, error);
+      }
+    }
     throw new ProviderError('Fournisseur de suggestions sans réponse exploitable');
   }
 

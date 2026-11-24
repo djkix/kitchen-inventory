@@ -3,11 +3,14 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import {
   keepSuggestionSchema,
+  recipeRequestSchema,
   suggestionQuerySchema,
   VOICE_MAX_BYTES,
   type CatalogueStatus,
   type KeepSuggestionInput,
   type RecipeDto,
+  type RecipeRequestInput,
+  type SingleRecipeDto,
   type SuggestionBatchDto,
   type SuggestionQuery,
   type VoiceSuggestionBatchDto,
@@ -37,6 +40,10 @@ export class SuggestionsController implements OnModuleInit {
     this.deferral.register('SUGGESTIONS', async ({ json }) => {
       const batch = await this.suggestions.list(json as SuggestionQuery);
       return { result: batch, count: batch.items.length };
+    });
+    this.deferral.register('RECIPE_REQUEST', async ({ json }) => {
+      const answer = await this.suggestions.requestOne((json as RecipeRequestInput).text);
+      return { result: answer, count: 1 };
     });
     this.deferral.register('VOICE', async ({ file, mimeType }) => {
       const batch = await this.suggestions.listFromVoice(file!, mimeType!);
@@ -101,6 +108,29 @@ export class SuggestionsController implements OnModuleInit {
    * (contrairement à la photo du scan), il traverse le service et disparaît
    * (D6).
    */
+  /**
+   * Recette à la demande écrite (spécification du 2026-11-24) : une phrase, une
+   * recette. Route payante et soumise au quota, comme `voice`.
+   *
+   * Cinq par minute et par adresse, comme `voice`. Un compartiment **commun**
+   * aux deux routes n'est pas possible : `@nestjs/throttler` indexe son
+   * compteur par (traqueur, contrôleur, gestionnaire), si bien que deux routes
+   * ont deux compteurs quoi qu'on nomme. Dix demandes par minute dans le pire
+   * cas, donc — ce que `RECIPE_SUGGESTION_DAILY_QUOTA` (vingt par jour) ferme
+   * de toute façon le premier, comme la route parlée le documente déjà. Ce que
+   * la limite protège ici, c'est le travail fait avant tout compteur.
+   */
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('request')
+  @HttpCode(200)
+  request(@ZodBody(recipeRequestSchema) body: RecipeRequestInput, @CurrentUser() user: RequestUser): Promise<SingleRecipeDto> {
+    return this.deferral.track(
+      { id: body.requestId, userId: user.id, kind: 'RECIPE_REQUEST', payload: () => ({ json: body }) },
+      () => this.suggestions.requestOne(body.text),
+      () => 1,
+    );
+  }
+
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('voice')
   @HttpCode(200)
