@@ -22,13 +22,11 @@ import { emptySuggestionPool, seedReadWebRecipes, suggestionCalls } from './supp
  *  4. une orientation jamais cherchée relance une vraie recherche ;
  *  5. l'état vide dit la cause, propose la relance, et le verrou de 24 heures
  *     s'annonce au lieu de laisser un écran vide et muet (décision D11) ;
- *  6. les ingrédients dictés (spécification du 2026-10-19) : un terme validé
- *     devient une pastille visible et retirable, l'autocomplétion propose le
- *     catalogue, et la recherche ne rend que des recettes qui les utilisent
- *     TOUS (D1, D8). Le dernier de la liste parce qu'il s'appuie sur le
- *     réservoir que les tests précédents ont rempli : huit recettes y portent
- *     déjà « Tomate » et « Huile d’olive », soit plus que le plancher de six,
- *     donc aucun appel au modèle à payer pour l'essentiel de ce parcours.
+ *  6. la demande en langage naturel (spécification du 2026-11-24) : une
+ *     phrase tapée rend UNE recette, avec ses remarques et son équivalent
+ *     ménager. Le dernier de la liste parce qu'il appelle toujours le modèle,
+ *     contrairement aux précédents qui vivent du réservoir rempli au fil du
+ *     fichier.
  *
  * **Preuve des appels** : le compteur de la doublure
  * (`e2e/fixtures/stub-server.ts`, route `/__calls`, lu par
@@ -115,12 +113,10 @@ import { emptySuggestionPool, seedReadWebRecipes, suggestionCalls } from './supp
  *   d'une étape — `apps/web/src/screens/recipe/recipe-screen.tsx`.
  * - `getByPlaceholder('Rechercher une recette')` —
  *   `apps/web/src/screens/recipes/recipes-screen.tsx`.
- * - `getByRole('combobox', { name: 'Ingrédients à utiliser' })`, le bouton
+ * - `getByRole('textbox', { name: 'Votre demande' })` et le bouton
  *   « Chercher » (`exact: true`, pour ne jamais attraper « Chercher de
- *   nouvelles recettes »), la liste `getByRole('listbox', { name: 'Produits
- *   proposés' })` et ses `option`, la croix d'une pastille
- *   (`aria-label` « Retirer <terme> ») —
- *   `apps/web/src/screens/suggestions/ingredients-field.tsx`.
+ *   nouvelles recettes ») —
+ *   `apps/web/src/screens/suggestions/request-field.tsx`.
  * - « Huile d’olive » : produit du jeu de développement
  *   (`prisma/seed/dev.ts`), ce qui en fait une proposition d'autocomplétion
  *   réelle ; c'est aussi, avec « Tomate », l'un des deux libellés des huit
@@ -460,138 +456,31 @@ test('bascule le favori d’une carte sans naviguer vers la fiche (EF-21)', asyn
   await expect(page.getByRole('link', { name: /^Croque-monsieur,/ })).toBeVisible();
 });
 
-test('ingrédients dictés : pastilles, autocomplétion, et des recettes qui les utilisent toutes (EF-25, EF-26)', async ({ page }) => {
-  // Réservoir déjà rempli par les tests précédents de ce fichier : les huit
-  // recettes web portent « Tomate » et « Huile d’olive », les quatre
-  // compositions portent « Pâtes » (fixture `gemini-batch.json`, citée en
-  // tête). « tomate » + « Huile d’olive » trouve donc huit recettes au
-  // réservoir, au-dessus du plancher de six : aucun appel au modèle n'est
-  // payé pour la partie principale de ce parcours — seule la combinaison
-  // sans résultat, à la fin, en coûte un (elle ne peut pas être prouvée
-  // autrement : le réservoir vide EST ce qui fait partir l'appel).
+test('une phrase tapée rend une recette unique, avec ses remarques (EF-25, 2026-11-24)', async ({ page }) => {
+  // Le champ à pastilles a disparu le 2026-11-24 avec les ingrédients
+  // imposés : on écrit sa demande en clair, et l'application rend UNE recette.
+  // Ce chemin appelle toujours le modèle — c'est une question posée, pas une
+  // lecture du réservoir —, et la doublure la reconnaît à la phrase
+  // « UNE SEULE recette » de sa consigne (`stub-server.ts`), qu'elle sert avec
+  // `gemini-one-recipe.json`.
   await page.goto('/recettes');
   await waitForSuggestionsResponse(page, () => answerDishTypeQuestion(page));
-  const before = await suggestionCalls();
 
-  // Motif `combobox` (`ingredients-field.tsx`) : le champ s'annonce comme tel
-  // pour porter sa liste de propositions. À ne pas confondre avec les quatre
-  // `<select>` de la barre de filtres, qui sont aussi des `combobox` mais
-  // portent d'autres noms (« Cuisine », « Type de plat »…).
-  const field = page.getByRole('combobox', { name: 'Ingrédients à utiliser' });
+  const field = page.getByRole('textbox', { name: 'Votre demande' });
+  await field.fill('une recette asiatique avec de la cacahuète');
 
-  // 1. Le cœur de la correction : un terme validé par Entrée devient une
-  //    pastille VISIBLE. Le propriétaire avait tapé « poulet tomate » sans virgule, et
-  //    rien à l'écran ne disait que l'application n'y lisait qu'un seul
-  //    ingrédient de ce nom — il a lu « Aucune recette » après avoir payé
-  //    l'appel. La croix de la pastille porte le terme dans son nom
-  //    accessible (« Retirer tomate »), c'est elle qui prouve laquelle est là.
-  await field.fill('tomate');
-  await field.press('Enter');
-  await expect(page.getByRole('button', { name: 'Retirer tomate' })).toBeVisible();
-  // Entrée valide le terme, elle ne lance pas la recherche : le champ est
-  // rendu vide pour le suivant, et aucun appel n'est parti.
-  await expect(field).toHaveValue('');
-
-  // 2. Autocomplétion depuis le catalogue de produits (`GET /products`) :
-  //    « Huile d’olive » est un produit du jeu de développement
-  //    (`prisma/seed/dev.ts`). Le clic sur la proposition la pose en pastille
-  //    — et le terme porte alors exactement un libellé connu, ce qui est tout
-  //    l'intérêt : le rapprochement au réservoir ne dépend plus de
-  //    l'orthographe du jour.
-  await field.fill('huile');
-  await page.getByRole('listbox', { name: 'Produits proposés' }).getByRole('option', { name: 'Huile d’olive', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Retirer Huile d’olive' })).toBeVisible();
-
-  // 3. La virgule valide elle aussi, et la croix retire la pastille — ici un
-  //    terme tapé par erreur, qu'il faut pouvoir enlever sans tout reprendre.
-  await field.fill('merguez,');
-  const removeMerguez = page.getByRole('button', { name: 'Retirer merguez' });
-  await expect(removeMerguez).toBeVisible();
-  await removeMerguez.click();
-  await expect(page.getByRole('button', { name: 'Retirer merguez' })).toHaveCount(0);
-
-  // 4. La recherche ne rend que des recettes utilisant TOUS les termes (D1,
-  //    D8) : les huit recettes web portent les deux, les quatre compositions
-  //    n'en portent aucun et sont absentes. Servi par le réservoir, donc sans
-  //    le moindre appel au modèle (D2).
-  //    `exact: true` : « Chercher » seul, jamais « Chercher de nouvelles
-  //    recettes », l'autre bouton de cet écran.
   const search = page.getByRole('button', { name: 'Chercher', exact: true });
-  const matched = await waitForSuggestionsResponse(page, () => search.click());
-  expect(matched.items).toHaveLength(WEB_RECIPE_COUNT);
-  await expect(page.locator('article')).toHaveCount(WEB_RECIPE_COUNT);
-  await expect(page.getByTestId('suggestion-ai-badge')).toHaveCount(0);
-  expect(await suggestionCalls()).toBe(before);
+  await search.click();
 
-  // 5. Combinaison que rien ne satisfait : aucune recette ne porte à la fois
-  //    « Tomate » et « Pâtes ». Le réservoir filtré rend zéro, donc le modèle
-  //    est appelé une fois (le seul appel de ce parcours) ; la fournée
-  //    rejouée n'apporte rien de plus qui les porte toutes, et l'écran doit
-  //    le DIRE plutôt que de laisser une liste vide et muette — la limite
-  //    assumée de D1, qui est précisément ce que le propriétaire a subi.
-  await field.fill('pâtes,');
-  const empty = await waitForSuggestionsResponse(page, () => search.click());
-  expect(empty.items).toHaveLength(0);
-  expect(await suggestionCalls()).toBe(before + 1);
-  await expect(page.getByRole('heading', { name: 'Aucune recette avec ces ingrédients', level: 2 })).toBeVisible();
-  await expect(
-    page.getByText('La combinaison demandée est trop rare : chaque recette doit utiliser tous les ingrédients saisis.', { exact: false }),
-  ).toBeVisible();
-});
+  // Une seule carte, celle de la fixture, et les remarques du modèle à côté.
+  await expect(page.getByText('Nouilles sautées à la cacahuète')).toBeVisible();
+  await expect(page.locator('article')).toHaveCount(1);
+  await expect(page.getByText(/ail semoule/)).toBeVisible();
 
-test('efface une recette de la liste : archivage après confirmation, jamais de suppression (D4, D5)', async ({ page }) => {
-  // « Toujours présent dans la base des recettes » (demande du propriétaire) :
-  // l'effacement de la liste est un `POST /recipes/:id/archive`. La recette
-  // quitte « Mes recettes », garde son historique et ses notes, et la bascule
-  // « Archivées » la retrouve.
-  //
-  // Joué au navigateur et non en jsdom pour la même raison que le favori juste
-  // au-dessus : le bouton d'effacement est posé SOUS la carte opaque, découvert
-  // par un glissement, par le focus ou par le survol. Seul un vrai calcul de
-  // superposition CSS prouve qu'il est réellement atteignable — un test de
-  // composant ne voit pas le recouvrement.
-  //
-  // Le survol est joué explicitement : sans geste, Playwright trouvait le
-  // bouton mais ne pouvait pas le cliquer (CI du 2026-10-19), et c'était le
-  // vrai défaut — une souris non plus ne pouvait pas l'atteindre. Le
-  // glissement au doigt, lui, n'est pas joué ici : il est couvert par les
-  // tests de composant (`recipes-screen.test.tsx`).
-  //
-  // « Bibimbap simplifié » : recette du jeu de développement
-  // (`prisma/seed/dev.ts`), qu'aucun autre parcours ne touche.
-  await page.goto('/recettes/bibliotheque');
-
-  // Les préférences de filtres sont mémorisées côté serveur, et le parcours
-  // précédent laisse « Favoris » actif : on repart d'une liste non filtrée.
-  await page.getByRole('button', { name: /^Filtres/ }).click();
-  const filtres = page.getByRole('dialog');
-  await filtres.getByRole('button', { name: 'Tout effacer' }).click();
-  await filtres.getByRole('button', { name: 'Voir les recettes' }).click();
-
-  await page.getByPlaceholder('Rechercher une recette').fill('Bibimbap');
-  await expect(page.getByRole('link', { name: /^Bibimbap simplifié,/ })).toBeVisible();
-
-  // Nommé par sa recette, jamais « Supprimer » seul : plusieurs cartes portent
-  // la même action, un lecteur d'écran doit les distinguer (EF-23).
-  const carte = page.getByRole('listitem').filter({ has: page.getByRole('link', { name: /^Bibimbap simplifié,/ }) });
-  await carte.hover();
-  await expect(carte).toHaveAttribute('data-revealed', 'true');
-  await page.getByRole('button', { name: 'Supprimer Bibimbap simplifié' }).click();
-
-  // Le geste seul n'efface pas : une confirmation s'interpose (D5).
-  const confirmation = page.getByRole('dialog');
-  await expect(confirmation.getByText(/quitte Mes recettes/)).toBeVisible();
-  await Promise.all([
-    page.waitForResponse((candidate) => /\/api\/v1\/recipes\/[^/]+\/archive$/.test(candidate.url()) && candidate.request().method() === 'POST'),
-    confirmation.getByRole('button', { name: 'Effacer' }).click(),
-  ]);
-
-  await expect(page.getByRole('link', { name: /^Bibimbap simplifié,/ })).toHaveCount(0);
-
-  // Toujours en base : la bascule « Archivées » la retrouve, entière.
-  await page.getByRole('button', { name: /^Filtres/ }).click();
-  const apres = page.getByRole('dialog');
-  await apres.getByRole('group', { name: 'Pastilles rapides' }).getByRole('button', { name: 'Archivées' }).click();
-  await apres.getByRole('button', { name: 'Voir les recettes' }).click();
-  await expect(page.getByRole('link', { name: /^Bibimbap simplifié,/ })).toBeVisible();
+  // Et elle se conserve comme les autres : elle est entrée au réservoir.
+  await page.getByRole('button', { name: /^Nouilles sautées à la cacahuète,/ }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  // L'équivalent ménager (2026-11-24) accompagne la mesure exacte : la fixture
+  // porte 45 g de purée de cacahuètes, soit trois cuillères à soupe.
+  await expect(page.getByRole('dialog').getByText('45 g (3 c. à soupe)')).toBeVisible();
 });

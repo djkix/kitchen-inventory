@@ -1161,6 +1161,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.45.0 | 2026-11-24 | Une recette à la demande : on écrit ou on dicte sa phrase, l'application rend une seule recette détaillée avec ses remarques sur votre stock ; tout le placard part au modèle, sans quantités ni dates, et les quantités portent leur équivalent en cuillères |
 | 0.44.0 | 2026-11-24 | Un troisième export, l'inventaire allégé à joindre à une demande posée directement à une IA |
 | 0.43.4 | 2026-11-21 | Les quantités des recettes proposées arrivent en grammes et en millilitres, cuillères converties, pour que le champ « Parts » puisse les mettre à l'échelle |
 | 0.43.3 | 2026-11-20 | Une recette dont un ingrédient porte un nombre sans unité (« 2 gousses d'ail ») entre de nouveau dans « Mes recettes » |
