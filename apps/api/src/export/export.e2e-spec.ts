@@ -17,7 +17,7 @@ describe('export (EF-16), front statique et robots', () => {
   });
   afterAll(() => t.close());
 
-  it('exporte l’inventaire actif en CSV et en JSON', async () => {
+  it('exporte l’inventaire actif en CSV, en JSON et en JSON allégé', async () => {
     const agent = t.agent();
     await t.signIn(agent, ADMIN);
     const product = await agent.post('/api/v1/products').send({ name: 'Sauce; soja "Kikkoman"', originalName: '醤油' }).expect(201);
@@ -35,7 +35,14 @@ describe('export (EF-16), front statique et robots', () => {
     const json = await agent.get('/api/v1/export/inventory.json').expect(200);
     expect(json.body).toHaveLength(1);
     expect(json.body[0]).toMatchObject({ product: 'Sauce; soja "Kikkoman"', quantity: 2, unit: 'PIECE' });
+    const prompt = await agent.get('/api/v1/export/inventory-prompt.json').expect(200);
+    expect(prompt.headers['content-disposition']).toContain('inventaire-prompt.json');
+    expect(JSON.parse(prompt.text).stock).toEqual([
+      { produit: 'Sauce; soja "Kikkoman"', quantite: 2, unite: 'pièce', emplacement: 'Placard' },
+    ]);
+
     await t.api.get('/api/v1/export/inventory.csv').expect(401);
+    await t.api.get('/api/v1/export/inventory-prompt.json').expect(401);
   });
 
   it('neutralise un nom de produit qui commencerait une formule de tableur', async () => {

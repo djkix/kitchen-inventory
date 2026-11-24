@@ -1,5 +1,5 @@
 import { Controller, Get, Header } from '@nestjs/common';
-import { UNIT_LABELS_FR } from '@kitchen/shared';
+import { roundQuantity, UNIT_LABELS_FR } from '@kitchen/shared';
 import { formatCivilDate, toNumber } from '../common/decimal.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -30,6 +30,24 @@ export class ExportController {
   @Get('inventory.json')
   json(): Promise<ExportRow[]> {
     return this.rows();
+  }
+
+  /**
+   * Inventaire allégé, destiné à être collé dans une conversation avec un
+   * modèle (demande du propriétaire, 2026-11-23). L'export complet ci-dessus
+   * sort un objet par **lot** — 177 lots pour 171 produits — avec
+   * l'identifiant, le code-barres, le chemin de l'emplacement, le type de
+   * date et la date de création : autant de bruit qui coûte des jetons sans
+   * rien apprendre à un modèle à qui l'on demande une recette.
+   *
+   * Celui-ci ne garde que ce qui sert à cuisiner, et il est servi en
+   * téléchargement comme le CSV : le propriétaire le joint à sa demande.
+   */
+  @Get('inventory-prompt.json')
+  @Header('Content-Type', 'application/json; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="inventaire-prompt.json"')
+  async prompt(): Promise<string> {
+    return JSON.stringify(promptInventory(await this.rows(), formatCivilDate(new Date()) ?? ''), null, 1);
   }
 
   @Get('inventory.csv')
@@ -91,4 +109,53 @@ export function csvCell(value: unknown): string {
   let text = typeof value === 'boolean' ? (value ? 'oui' : 'non') : String(value);
   if (typeof value === 'string' && FORMULA_START.test(text)) text = `'${text}`;
   return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/** Une ligne de l'inventaire allégé : ce qu'il faut pour cuisiner, rien de plus. */
+export interface PromptRow {
+  produit: string;
+  quantite: number;
+  unite: string;
+  emplacement: string;
+  /** Absente plutôt que nulle : un champ vide dans chaque ligne coûte des jetons pour rien. */
+  peremption?: string;
+}
+
+export interface PromptInventory {
+  genere: string;
+  stock: PromptRow[];
+}
+
+/**
+ * Regroupe les lots par produit **et par unité** — jamais par produit seul :
+ * additionner 2 pièces et 500 g donnerait 502 de rien du tout. La péremption
+ * retenue est la plus proche du groupe, c'est elle qui presse ; l'emplacement
+ * est celui du premier lot rencontré, les lignes arrivant déjà triées par
+ * emplacement puis par produit.
+ *
+ * Les unités partent en clair (« g », « ml », « pièce ») : le modèle n'a
+ * aucune raison de connaître `GRAM`.
+ */
+export function promptInventory(rows: readonly ExportRow[], today: string): PromptInventory {
+  const groups = new Map<string, PromptRow>();
+  for (const row of rows) {
+    const key = `${row.product}\u0000${row.unit}`;
+    const existing = groups.get(key);
+    if (existing === undefined) {
+      const line: PromptRow = {
+        produit: row.product,
+        quantite: roundQuantity(row.quantity),
+        unite: UNIT_LABELS_FR[row.unit as keyof typeof UNIT_LABELS_FR] ?? row.unit,
+        emplacement: row.location,
+      };
+      if (row.effectiveExpiry !== null) line.peremption = row.effectiveExpiry;
+      groups.set(key, line);
+      continue;
+    }
+    existing.quantite = roundQuantity(existing.quantite + row.quantity);
+    if (row.effectiveExpiry !== null && (existing.peremption === undefined || row.effectiveExpiry < existing.peremption)) {
+      existing.peremption = row.effectiveExpiry;
+    }
+  }
+  return { genere: today, stock: [...groups.values()].sort((a, b) => a.produit.localeCompare(b.produit, 'fr')) };
 }

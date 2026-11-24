@@ -957,11 +957,20 @@ proposé comme candidat (`AMBIGUOUS`) plutôt que reconnu d'office ; les unités
 qui comptent des objets entiers (pièce, paquet, boîte, sachet) sont reconnues
 d'office, le « 3 × » du ticket en désignant trois.
 
-**Export.** `GET /api/v1/export/inventory.csv` et `/inventory.json`, derrière
+**Export.** `GET /api/v1/export/inventory.csv`, `/inventory.json` et
+`/inventory-prompt.json`, derrière
 la session ou un jeton de service. Dans le CSV, une cellule de texte qui
 commencerait comme une formule de tableur (`=`, `+`, `-`, `@`, tabulation,
 retour chariot) est préfixée d'une apostrophe : Excel l'affiche comme du texte
 au lieu de l'exécuter.
+
+`inventory-prompt.json` est le même stock, taillé pour être **collé dans une
+conversation avec un modèle** : les lots d'un même produit regroupés (jamais
+deux unités additionnées), les unités en clair (`g`, `ml`, `pièce`), la
+péremption la plus proche de chaque groupe, et rien d'autre — ni identifiant,
+ni code-barres, ni chemin d'emplacement, ni date de création. Pour 177 lots,
+20 Ko au lieu de 60. Le fichier ne contient que les données : la demande,
+c'est vous qui l'écrivez.
 
 **API.** REST sous `/api/v1`, JSON, erreurs normalisées
 `{ "error": { "code", "message", "details" } }` avec des codes stables
@@ -1114,6 +1123,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.44.0 | 2026-11-24 | Un troisième export, l'inventaire allégé à joindre à une demande posée directement à une IA |
 | 0.43.4 | 2026-11-21 | Les quantités des recettes proposées arrivent en grammes et en millilitres, cuillères converties, pour que le champ « Parts » puisse les mettre à l'échelle |
 | 0.43.3 | 2026-11-20 | Une recette dont un ingrédient porte un nombre sans unité (« 2 gousses d'ail ») entre de nouveau dans « Mes recettes » |
 | 0.43.2 | 2026-11-20 | Correction des parcours bout en bout cassés par la pastille « IA », qui se lit désormais en entier par un lecteur d'écran |
