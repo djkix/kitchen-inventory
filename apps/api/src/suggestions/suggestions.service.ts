@@ -465,10 +465,9 @@ export class SuggestionsService {
 
     const started = Date.now();
     let output: SingleRecipeOutput;
-    const settings = await this.settings.get();
     try {
       ({ result: output } = await this.gemini.call((model) =>
-        this.provider.suggestFromVoice({ household: formatHouseholdInventory(household), count: 1, audio, mimeType, model, webSearch: false }),
+        this.provider.suggestFromVoice({ household: formatHouseholdInventory(household), audio, mimeType, model }),
       ));
     } catch (error) {
       if (error instanceof GeminiPausedError) throw geminiRefusal(error);
@@ -481,7 +480,7 @@ export class SuggestionsService {
     // Le verdict sur la lecture vient APRÈS l'ingestion (D5, D9) : l'appel est
     // payé, sa recette entre au réservoir même si la phrase n'a pas été
     // comprise. Un refus se dit, il ne jette pas ce qui est acquis.
-    return this.finishSingleRecipe(output, snapshot, settings.suggestionWebSearch, () => {
+    return this.finishSingleRecipe(output, snapshot, () => {
       if (output.heard.ingredients.length === 0 && output.heard.orientation === null) {
         throw ApiError.businessRule(
           'Votre demande n’a pas été comprise : aucun ingrédient ni aucune envie n’a été reconnu dans l’enregistrement. Réessayez en parlant plus près du micro.',
@@ -501,7 +500,6 @@ export class SuggestionsService {
   private async finishSingleRecipe(
     output: SingleRecipeOutput,
     snapshot: StockSnapshot,
-    webSearch: boolean,
     /** Verdict posé APRÈS l'ingestion : ce qui est payé est acquis (D5). */
     verdict?: () => void,
   ): Promise<SingleRecipeDto> {
@@ -509,12 +507,38 @@ export class SuggestionsService {
       verdict?.();
       throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
     }
-    const identity = suggestionIdentity(output.recipe);
-    await this.pool.ingest([output.recipe], output.model, webSearch);
+
+    /**
+     * `provenance: 'ai'` **forcé**, et pas seulement demandé dans la consigne
+     * (revue du 2026-11-24, I1). Ce chemin n'a fait aucune recherche web : une
+     * recette qui se dirait trouvée ailleurs ferait lire une page par
+     * l'ingestion — sur un chemin qui promet de ne contacter aucun site — puis,
+     * la page illisible, laisserait l'écran vide sur un appel payé.
+     */
+    const composed: ModelRecipe = { ...output.recipe, provenance: 'ai', sourceUrl: null };
+    // `allowWeb: false` pour la même raison : l'appel a été fait sans
+    // recherche, l'ingestion doit le savoir.
+    await this.pool.ingest([composed], output.model, false);
     verdict?.();
 
-    const entry = await this.pool.findByIdentity(identity);
-    if (entry === null) throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
+    /**
+     * Rendue depuis la réponse du modèle, et **non** relue au réservoir (revue
+     * du 2026-11-24, C2). `suggestionIdentity` ne hache que le titre et l'URL,
+     * et `ingestOne` n'écrase jamais le `payload` d'une ligne existante : un
+     * titre déjà connu — il y en a plus de quatre cents — faisait rendre
+     * l'ancienne recette, avec les remarques d'une autre demande et sur un
+     * autre stock, pour l'appel qu'on vient de payer.
+     *
+     * `verified: false` est exact : une composition n'a pas de page à vérifier.
+     */
+    const entry: PoolRecipe = {
+      identity: suggestionIdentity(composed),
+      recipe: composed,
+      verified: false,
+      firstSeenAt: new Date().toISOString(),
+      pageRecipe: null,
+      pageText: null,
+    };
 
     // Les ingrédients relevés dans la demande deviennent les « dictés » du
     // 2026-10-19 : sans eux, un ingrédient nommé dans la demande et absent du
@@ -551,7 +575,6 @@ export class SuggestionsService {
 
     const started = Date.now();
     let output: SingleRecipeOutput;
-    const settings = await this.settings.get();
     try {
       ({ result: output } = await this.gemini.call((model) => this.provider.suggestOne({ text, household: formatHouseholdInventory(household), model })));
     } catch (error) {
@@ -561,7 +584,7 @@ export class SuggestionsService {
       throw ApiError.providerUnavailable(error instanceof ProviderError ? error.message : 'Fournisseur de suggestions injoignable');
     }
     await this.logAttempts(output.attempts, true);
-    return this.finishSingleRecipe(output, snapshot, settings.suggestionWebSearch);
+    return this.finishSingleRecipe(output, snapshot);
   }
 
   /**

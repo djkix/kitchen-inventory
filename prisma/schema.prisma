@@ -459,7 +459,6 @@ enum AiPurpose {
   VISION
   RECIPE_SUGGESTION
   RECEIPT
-  RECIPE_REQUEST
 }
 
 // Conserve aussi les échecs : ce sont les cas à rejouer quand le modèle change.

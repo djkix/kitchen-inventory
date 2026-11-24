@@ -61,7 +61,7 @@ export interface SuggestionOutput {
  * L'audio ne traverse que cet objet : il n'est écrit nulle part, ni sur
  * disque, ni en base, ni dans le journal d'appels (D6).
  */
-export type VoiceSuggestionRequest = SuggestionRequest & {
+export type VoiceSuggestionRequest = HouseholdCall & {
   audio: Buffer;
   /** Type MIME tel que l'écran l'a enregistré (`audio/webm`, `audio/mp4`…), transmis au modèle. */
   mimeType: string;
@@ -72,12 +72,16 @@ export type VoiceSuggestionRequest = SuggestionRequest & {
  * placard, rien d'autre. Ni orientation, ni `count`, ni titres connus — il n'y
  * a qu'une recette à rendre et elle doit répondre à la demande.
  */
-export interface SingleRecipeRequest {
-  /** La phrase telle qu'elle a été tapée. */
-  text: string;
+export interface HouseholdCall {
   /** Le placard, mis en forme par `formatHouseholdInventory`. */
   household: string;
+  /** Modèle de CET appel, choisi par `GeminiService.call`. */
   model?: string;
+}
+
+export interface SingleRecipeRequest extends HouseholdCall {
+  /** La phrase telle qu'elle a été tapée. */
+  text: string;
 }
 
 /**

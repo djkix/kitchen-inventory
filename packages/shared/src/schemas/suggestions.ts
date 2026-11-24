@@ -3,8 +3,6 @@ import type { CoverageGroup, IngredientState } from '../rules/coverage.js';
 import type { MatchState } from '../rules/ingredient-match.js';
 import { clientOpIdSchema, idSchema, positiveQuantitySchema, unitSchema } from './common.js';
 import type { NutriscoreGrade } from './products.js';
-import {
-} from '../rules/suggestion-ingredients.js';
 import { difficultySchema, dishTypeSchema } from './recipes.js';
 
 /**

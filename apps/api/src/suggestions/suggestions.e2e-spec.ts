@@ -2139,6 +2139,90 @@ describe('POST /suggestions/request (EF-25, 2026-11-24)', () => {
     expect(res.body.error.message).toMatch(/pas (été )?comprise/i);
   });
 
+  /**
+   * Revue du 2026-11-24 (C2). `suggestionIdentity` ne hache que le titre et
+   * l'URL, et l'ingestion n'écrase jamais le `payload` d'une ligne existante :
+   * relire le réservoir rendait l'ANCIENNE recette, avec les remarques d'une
+   * autre demande, pour un appel qu'on vient de payer.
+   */
+  it('rend la recette qui vient d’être payée, même si le titre existe déjà au réservoir', async () => {
+    const ancienne = {
+      title: 'Nouilles sautées à la cacahuète',
+      origin: 'Composition',
+      region: 'asiatique' as const,
+      totalMinutes: 15,
+      prepMinutes: 5,
+      cookMinutes: 10,
+      difficulty: 'EASY' as const,
+      dishType: 'MAIN' as const,
+      provenance: 'ai' as const,
+      sourceUrl: null,
+      notes: 'Remarques d’une demande précédente.',
+      steps: ['Une étape qui ne vient pas de cette demande.'],
+      ingredients: [{ label: 'Riz', quantity: 200, unit: 'GRAM' as const }],
+    };
+    await t.prisma.suggestionPoolRecipe.create({
+      data: {
+        identity: suggestionIdentity(ancienne),
+        payload: ancienne as unknown as Prisma.InputJsonValue,
+        provenance: 'ai',
+        dishType: 'MAIN',
+        sourceUrl: null,
+        verifiedAt: null,
+        pageRecipe: Prisma.DbNull,
+        pageText: null,
+        model: 'test-model',
+      },
+    });
+
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
+    const res = await agent.post('/api/v1/suggestions/request').send({ text: 'des nouilles à la cacahuète' }).expect(200);
+
+    expect(res.body.recipe.notes).toContain('ail semoule');
+    expect(res.body.recipe.ingredients.map((i: { label: string }) => i.label)).toContain('Purée de cacahuètes');
+    expect(res.body.recipe.steps[0]).not.toBe('Une étape qui ne vient pas de cette demande.');
+  });
+
+  /**
+   * Revue du 2026-11-24 (I1). La spécification exige que ce chemin force
+   * `provenance: 'ai'` ; la consigne le demande, mais rien ne l'imposait. Un
+   * modèle qui rend malgré tout une recette « web » faisait lire une page par
+   * l'ingestion — sur un chemin qui promet de ne contacter aucun site — puis,
+   * la page illisible, rendait 422 « pas comprise » sur un appel payé.
+   */
+  it('force la composition même si le modèle se dit « web », sans contacter le site', async () => {
+    const webRecipe = {
+      heard: { ingredients: ['gratin'], orientation: null },
+      recipe: {
+        title: 'Gratin trouvé ailleurs',
+        origin: 'exemple.test',
+        region: 'europeenne',
+        totalMinutes: 40,
+        prepMinutes: 10,
+        cookMinutes: 30,
+        difficulty: 'EASY',
+        dishType: 'MAIN',
+        provenance: 'web',
+        sourceUrl: 'https://203.0.113.20/gratin',
+        notes: 'Pas de crème : du lait.',
+        steps: ['Préchauffer le four à 200 °C.'],
+        ingredients: [{ label: 'Pommes de terre', quantity: 800, unit: 'GRAM' }],
+      },
+    };
+    http.on('generateContent', () =>
+      json({
+        candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(webRecipe) }] }, finishReason: 'STOP' }],
+        usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 70 },
+      }),
+    );
+
+    const res = await agent.post('/api/v1/suggestions/request').send({ text: 'un gratin' }).expect(200);
+    expect(res.body.recipe.provenance).toBe('ai');
+    expect(res.body.recipe.sourceUrl).toBeNull();
+    // Un seul appel : celui au modèle. Aucune lecture de page.
+    expect(http.calls).toHaveLength(1);
+  });
+
   it('refuse une phrase vide sans appeler le modèle', async () => {
     await agent.post('/api/v1/suggestions/request').send({ text: '   ' }).expect(400);
     expect(http.calls).toHaveLength(0);

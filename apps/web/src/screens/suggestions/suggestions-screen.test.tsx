@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SUGGESTION_PAGE_MAX } from '@kitchen/shared';
-import { ApiClientError } from '../../lib/api';
+import { api, ApiClientError } from '../../lib/api';
 import { useSuggestionsQuery } from '../../lib/queries';
 import { suggestionsApi } from '../../lib/suggestions-api';
 import { resetDishTypeAnswerForTests } from './dish-type-question';
@@ -1141,7 +1141,28 @@ describe('SuggestionsScreen, une recette à la demande (2026-11-24)', () => {
     vi.mocked(suggestionsApi.request).mockReset();
   });
 
-  function prepare() {
+  const ANSWER_RECIPE = {
+    id: 'r1',
+    title: 'Gratin de courgettes',
+    notes: 'Pas de crème : j’ai pris du lait.',
+    origin: 'Composition',
+    region: 'europeenne' as const,
+    totalMinutes: 40,
+    prepMinutes: 10,
+    cookMinutes: 30,
+    difficulty: 'EASY' as const,
+    dishType: 'MAIN' as const,
+    provenance: 'ai' as const,
+    sourceUrl: null,
+    verified: false,
+    steps: ['Préchauffer le four à 200 °C.'],
+    ingredients: [],
+    coverage: 1,
+    group: 'ready' as const,
+    missingLabels: [],
+  };
+
+  function prepare(entry = '/recettes') {
     vi.mocked(useSuggestionsQuery).mockReturnValue({
       isPending: false,
       isError: false,
@@ -1153,41 +1174,48 @@ describe('SuggestionsScreen, une recette à la demande (2026-11-24)', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
-
-          <MemoryRouter>
-            <SuggestionsScreen />
-          </MemoryRouter>
-
-        </QueryClientProvider>
+        <MemoryRouter initialEntries={[entry]}>
+          <SuggestionsScreen />
+        </MemoryRouter>
       </QueryClientProvider>,
     );
     fireEvent.click(screen.getByRole('button', { name: /plat/i }));
   }
 
+  /**
+   * Revue du 2026-11-24 (I2). `RECIPE_REQUEST` est dans `CARRIES_ID` : la
+   * notification porte `?demande=<id>` et promet « Touchez pour la voir ».
+   * L'écran doit donc savoir relire ce résultat-là — sans quoi la touche
+   * ouvrait Suggestions et la recette n'était visible nulle part.
+   */
+  it('réaffiche la recette d’une demande différée nommée dans l’adresse', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({
+      id: 'req-9',
+      kind: 'RECIPE_REQUEST',
+      state: 'DONE',
+      result: { heard: { ingredients: [], orientation: null }, recipe: { ...ANSWER_RECIPE, title: 'Soupe différée' } },
+      error: null,
+      retryAt: null,
+    } as never);
+
+    prepare('/recettes?demande=req-9');
+
+    expect(await screen.findByText('Soupe différée')).toBeTruthy();
+    expect(get).toHaveBeenCalledWith('/ai-requests/req-9');
+    get.mockRestore();
+  });
+
+  it('le dit sans faire croire à une perte quand la demande n’est plus là', async () => {
+    const get = vi.spyOn(api, 'get').mockRejectedValue(new ApiClientError(404, 'not_found', 'Demande introuvable'));
+    prepare('/recettes?demande=req-9');
+    expect(await screen.findByText(/n’est plus disponible/)).toBeTruthy();
+    get.mockRestore();
+  });
+
   it('une phrase tapée part vers la route « une recette »', async () => {
     vi.mocked(suggestionsApi.request).mockResolvedValue({
       heard: { ingredients: ['courgette'], orientation: null },
-      recipe: {
-        id: 'r1',
-        title: 'Gratin de courgettes',
-        notes: 'Pas de crème : j’ai pris du lait.',
-        origin: 'Composition',
-        region: 'europeenne',
-        totalMinutes: 40,
-        prepMinutes: 10,
-        cookMinutes: 30,
-        difficulty: 'EASY',
-        dishType: 'MAIN',
-        provenance: 'ai',
-        sourceUrl: null,
-        verified: false,
-        steps: ['Préchauffer le four à 200 °C.'],
-        ingredients: [],
-        coverage: 1,
-        group: 'ready',
-        missingLabels: [],
-      },
+      recipe: ANSWER_RECIPE,
     });
     prepare();
 
@@ -1197,6 +1225,25 @@ describe('SuggestionsScreen, une recette à la demande (2026-11-24)', () => {
     await waitFor(() => expect(screen.getByText('Gratin de courgettes')).toBeTruthy());
     expect(vi.mocked(suggestionsApi.request)).toHaveBeenCalledWith(expect.objectContaining({ text: 'un gratin de courgettes' }));
     expect(screen.getByText(/j’ai pris du lait/)).toBeTruthy();
+  });
+
+  /**
+   * Revue du 2026-11-24 (I3). La réponse prend la place de la liste ; changer
+   * une orientation lançait bien une recherche, mais l'écran continuait
+   * d'afficher la recette précédente. Le seul retour possible était
+   * « Chercher » à champ vide.
+   */
+  it('changer d’orientation chasse la réponse et ramène la liste', async () => {
+    vi.mocked(suggestionsApi.request).mockResolvedValue({ heard: { ingredients: [], orientation: null }, recipe: ANSWER_RECIPE });
+    prepare();
+    fireEvent.change(screen.getByLabelText('Votre demande'), { target: { value: 'un gratin' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Chercher' }));
+    await waitFor(() => expect(screen.getByText('Gratin de courgettes')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: /^Filtres/ }));
+    fireEvent.change(within(screen.getByRole('dialog')).getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'asiatique' } });
+
+    await waitFor(() => expect(screen.queryByText('Gratin de courgettes')).toBeNull());
   });
 
   it('un champ vide lance la fournée filtrée, sans demander de recette', () => {

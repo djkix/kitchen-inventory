@@ -216,7 +216,7 @@ describe('consigne système, exigences de qualité (2026-11-20)', () => {
    * deux chemins (écrit, parlé) la partagent déjà.
    */
   it('demande des remarques sur le stock réel, sans date de péremption', () => {
-    for (const prompt of [buildSuggestionPrompt(BASE_REQUEST), buildVoicePrompt({ ...BASE_REQUEST, audio: Buffer.from(''), mimeType: 'audio/webm' })]) {
+    for (const prompt of [buildSuggestionPrompt(BASE_REQUEST), buildVoicePrompt({ household: BASE_REQUEST.household, audio: Buffer.from(''), mimeType: 'audio/webm' })]) {
       expect(prompt).toContain('notes');
       expect(prompt).toContain('jamais de date de péremption');
     }
@@ -224,7 +224,7 @@ describe('consigne système, exigences de qualité (2026-11-20)', () => {
 
   it('annonce au modèle le plancher d’étapes dans la description des champs', () => {
     expect(buildSuggestionPrompt(BASE_REQUEST)).toContain('au moins cinq pour "ai"');
-    expect(buildVoicePrompt({ ...BASE_REQUEST, audio: Buffer.from(''), mimeType: 'audio/webm' })).toContain('au moins cinq pour "ai"');
+    expect(buildVoicePrompt({ household: BASE_REQUEST.household, audio: Buffer.from(''), mimeType: 'audio/webm' })).toContain('au moins cinq pour "ai"');
   });
 });
 
@@ -323,7 +323,7 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
   let http: FakeHttp;
   let provider: GeminiSuggestionProvider;
   const AUDIO = Buffer.from('des-octets-qui-ne-sont-pas-de-la-parole');
-  const VOICE_REQUEST = { household: 'Tomate (Placard)', count: 12, audio: AUDIO, mimeType: 'audio/webm' };
+  const VOICE_REQUEST = { household: 'Tomate (Placard)', audio: AUDIO, mimeType: 'audio/webm' };
 
   beforeEach(() => {
     http = new FakeHttp();
@@ -412,7 +412,7 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
 });
 
 describe('buildVoicePrompt (D2, D4)', () => {
-  const req = { household: 'Tomate (Placard)', count: 12, audio: Buffer.alloc(0), mimeType: 'audio/webm' };
+  const req = { household: 'Tomate (Placard)', audio: Buffer.alloc(0), mimeType: 'audio/webm' };
 
   it('demande la lecture de la phrase et la recette dans le même objet JSON', () => {
     const prompt = buildVoicePrompt(req);

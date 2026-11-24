@@ -56,6 +56,8 @@ export function kitchenEquivalent(quantity: number, unit: Unit): KitchenEquivale
   const base = convertQuantity(quantity, unit, family === 'mass' ? 'GRAM' : 'MILLILITER');
   if (base < FLOOR || base > CEILING) return null;
   const spoon: SpoonKind = base < TABLESPOON ? 'teaspoon' : 'tablespoon';
+  // Au-dessus du plancher, le compte vaut au moins une demi-cuillère à café :
+  // aucun cas ne rend zéro.
   const spoons = Math.round((base / (spoon === 'teaspoon' ? TEASPOON : TABLESPOON)) * 2) / 2;
-  return spoons > 0 ? { spoons, spoon } : null;
+  return { spoons, spoon };
 }
