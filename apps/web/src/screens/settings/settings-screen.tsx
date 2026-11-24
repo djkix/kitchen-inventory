@@ -116,6 +116,17 @@ export function SettingsScreen() {
               Inventaire JSON
             </a>
           </div>
+          {/*
+            Inventaire allégé (demande du propriétaire, 2026-11-23) : le même
+            stock, regroupé par produit, unités en clair, sans identifiant ni
+            code-barres — à joindre à une demande posée directement à un modèle.
+            Sur sa propre ligne, et non dans la grille à deux colonnes : son
+            libellé n'y tiendrait pas, et ce n'est pas un troisième format
+            d'export mais un usage particulier du JSON.
+          */}
+          <a href={`${API_BASE}/export/inventory-prompt.json`} download="inventaire-prompt.json" className="mt-2 flex min-h-touch items-center justify-center rounded-xl bg-raised px-4 text-[15px] font-medium active:bg-surface">
+            Inventaire pour une demande à l'IA
+          </a>
         </AccordionSection>
 
         <Section title="Compte">
