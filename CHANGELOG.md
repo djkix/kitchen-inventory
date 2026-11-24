@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.0](https://github.com/djkix/kitchen-inventory/compare/v0.43.4...v0.44.0) (2026-11-24)
+
+
+### Features
+
+* **export:** un inventaire allégé à joindre à une demande à l'IA (EF-16) ([#87](https://github.com/djkix/kitchen-inventory/issues/87)) ([ad00f99](https://github.com/djkix/kitchen-inventory/commit/ad00f995676152b2146ee4d5434cbe34749049fb))
+
 ## [0.43.4](https://github.com/djkix/kitchen-inventory/compare/v0.43.3...v0.43.4) (2026-11-21)
 
 
