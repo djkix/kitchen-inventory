@@ -6,23 +6,20 @@ import { normalizeProductName } from './duplicates.js';
  * merguez ». Du texte libre, et non une sélection dans l'inventaire — un reste
  * n'est pas en stock, il ne se scanne pas.
  *
- * Tout est ici, en règles pures : le découpage, la normalisation et le
- * rapprochement au réservoir. Le serveur les applique à la signature, au filtre
- * du réservoir et au DTO ; l'écran réutilise le schéma Zod qui s'appuie
- * dessus. Jamais deux implémentations.
+ * Les ingrédients imposés ont disparu le 2026-11-24 avec le champ à pastilles,
+ * remplacé par une phrase en clair. Ce qui reste ici sert toujours : la
+ * normalisation et le repli comparable portent le champ « déclaré » des
+ * suggestions (D5 du 2026-10-19) et le rapprochement des lignes d'un ticket de
+ * caisse. Règles pures, une seule implémentation.
  */
 
-/** Cinq ingrédients au plus (D7) : bornent la signature, la taille du prompt et le coût du rapprochement. */
-export const SUGGESTION_INGREDIENTS_MAX = 5;
-/** Trente caractères par ingrédient (D7) : un ingrédient, pas une phrase. */
-export const SUGGESTION_INGREDIENT_LENGTH_MAX = 30;
 
 /**
  * Termes tels que saisis, découpés sur la virgule et débarrassés des vides.
  * Non normalisés : ce sont ces longueurs-là que les bornes de D7 mesurent, et
  * c'est cette saisie-là que le message d'erreur doit désigner.
  */
-export function splitIngredientTerms(raw: string): string[] {
+function splitIngredientTerms(raw: string): string[] {
   return raw
     .split(',')
     .map((term) => term.trim())
@@ -92,36 +89,4 @@ export function labelMatchesTerms(label: string, terms: readonly string[]): bool
   return terms.some((term) => folded.includes(foldForComparison(term)));
 }
 
-/**
- * Un terme est-il couvert par **l'ensemble** des libellés d'une recette ?
- *
- * Deux lectures, dans cet ordre : le terme entier dans un libellé (« pomme de
- * terre » dans « Pommes de terre nouvelles »), sinon **chacun de ses mots
- * significatifs** dans un libellé quelconque de la recette.
- *
- * La seconde lecture existe pour une saisie que la première rejetait en bloc
- * (constat du propriétaire, 2026-10-19) : il a tapé « poulet tomate » sans virgule,
- * donc un terme unique, et aucun libellé ne contient « poulet tomate » d'un
- * seul tenant. L'écran annonçait « aucune recette » pour du poulet et des
- * tomates, après avoir payé l'appel au modèle dont les recettes venaient
- * d'être filtrées. Le séparateur reste la virgule — on ne peut pas découper
- * sur l'espace sans casser « pommes de terre » — mais ne pas trouver du poulet
- * et de la tomate dans une recette qui contient les deux n'était défendable
- * d'aucune façon.
- */
-function termCoveredByLabels(labels: readonly string[], term: string): boolean {
-  if (labels.some((label) => labelMatchesTerms(label, [term]))) return true;
-  const words = significantWords(term);
-  if (words.length < 2) return false;
-  return words.every((word) => labels.some((label) => foldForComparison(label).includes(word)));
-}
 
-/**
- * La recette utilise-t-elle **tous** les termes dictés (D1) ? Rapprochement
- * par inclusion sur les libellés normalisés (D8) : « pomme de terre » trouve
- * « pommes de terre nouvelles ». Volontairement généreux — un faux positif
- * coûte une recette un peu à côté, un faux négatif coûte un appel au modèle.
- */
-export function recipeUsesAllTerms(labels: readonly string[], terms: readonly string[]): boolean {
-  return terms.every((term) => termCoveredByLabels(labels, term));
-}

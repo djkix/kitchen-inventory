@@ -94,6 +94,8 @@ const OFF_NOT_FOUND: OffMapping = { file: 'off-not-found.json', status: 404 };
 
 const VISION_FIXTURE = 'vision-gochujang.json';
 const SUGGESTIONS_FIXTURE = 'suggestions/gemini-batch.json';
+// Recette à la demande (2026-11-24) : une recette unique, pas une fournée.
+const ONE_RECIPE_FIXTURE = 'suggestions/gemini-one-recipe.json';
 // Ticket de caisse (EF-29) : deux produits suivis en pièces, que le jeu de
 // développement connaît (« Yaourt nature », « Beurre doux »). Le rapprochement
 // n'accepte « reconnu d'office » que pour une unité PIECE, d'où ce choix plutôt
@@ -108,7 +110,7 @@ const RECEIPT_FIXTURE = 'receipts/gemini-ticket-pieces.json';
  * fier au `fromCache` que le serveur se pose à lui-même — c'est précisément
  * ce drapeau que le parcours est censé mettre à l'épreuve.
  */
-const callCounts = { suggestions: 0, vision: 0, receipts: 0 };
+const callCounts = { suggestions: 0, vision: 0, receipts: 0, oneRecipe: 0 };
 
 async function readFixture(file: string): Promise<string> {
   return readFile(resolve(FIXTURES_DIR, file), 'utf8');
@@ -148,7 +150,7 @@ function wrapGeminiText(text: string): unknown {
 interface GeminiRequestBody {
   tools?: unknown[];
   systemInstruction?: { parts?: Array<{ text?: string }> };
-  contents?: Array<{ parts?: Array<{ inlineData?: unknown }> }>;
+  contents?: Array<{ parts?: Array<{ inlineData?: unknown; text?: string }> }>;
 }
 
 /**
@@ -184,6 +186,20 @@ function isSuggestionRequest(body: GeminiRequestBody): boolean {
   return !isVisionRequest(body);
 }
 
+/**
+ * Recette à la demande (2026-11-24). Elle arrive sur la même route, sans image
+ * et sans outil : rien ne la distingue d'une fournée, sinon sa consigne. On
+ * route donc sur « UNE SEULE recette », la phrase que `buildSingleRecipePrompt`
+ * est seul à écrire — et qui est épinglée par un test d'API, de sorte qu'un
+ * changement de formulation casse là-bas avant de casser ici.
+ *
+ * Testée AVANT `isSuggestionRequest`, qui prend tout ce qui n'est pas une image.
+ */
+function isOneRecipeRequest(body: GeminiRequestBody): boolean {
+  const texte = (body.contents ?? []).flatMap((c) => (c.parts ?? []).map((p) => p.text ?? '')).join('');
+  return !isVisionRequest(body) && texte.includes('UNE SEULE recette');
+}
+
 function isVisionRequest(body: GeminiRequestBody): boolean {
   return (body.contents ?? []).some((c) => (c.parts ?? []).some((p) => p.inlineData !== undefined));
 }
@@ -200,6 +216,12 @@ async function handleGenerateContent(req: IncomingMessage, res: ServerResponse):
   if (isReceiptRequest(body)) {
     callCounts.receipts += 1;
     const text = await readFixture(RECEIPT_FIXTURE);
+    sendRawJson(res, 200, JSON.stringify(wrapGeminiText(text)));
+    return;
+  }
+  if (isOneRecipeRequest(body)) {
+    callCounts.oneRecipe += 1;
+    const text = await readFixture(ONE_RECIPE_FIXTURE);
     sendRawJson(res, 200, JSON.stringify(wrapGeminiText(text)));
     return;
   }

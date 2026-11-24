@@ -5,7 +5,8 @@ import {
   classifyMatch,
   comparePoolEntries,
   createRecipeSchema,
-  pickSeedIngredients,
+  formatHouseholdInventory,
+  type HouseholdProduct,
   normalizeProductName,
   normalizeIngredientTerms,
   labelMatchesTerms,
@@ -19,6 +20,7 @@ import {
   type ModelRecipe,
   type RecipeDto,
   type RecipeRewrite,
+  type SingleRecipeDto,
   type StockSnapshot,
   type CatalogueStatus,
   type SuggestionBatchDto,
@@ -27,7 +29,6 @@ import {
   type SuggestionQuery,
   type SuggestionRegion,
   type Unit,
-  type VoiceSuggestionBatchDto,
   voiceAudioRejection,
   parseNutriscoreGrade,
   type NutriscoreGrade,
@@ -39,7 +40,7 @@ import { APP_CONFIG, type AppConfig } from '../common/config.js';
 import type { RequestUser } from '../auth/request-user.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RecipesService } from '../recipes/recipes.service.js';
-import { loadCategoryRows, loadSeedCandidates, RecipesCoverageService } from '../recipes/recipes.coverage.js';
+import { loadCategoryRows, loadHouseholdProducts, RecipesCoverageService } from '../recipes/recipes.coverage.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import { VISION_PROVIDER_NAMES } from '../recognition/recognition.service.js';
 import { SettingsService } from '../settings/settings.service.js';
@@ -51,10 +52,10 @@ import { SuggestionPoolService, type PoolFilter, type PoolRecipe } from './sugge
 import {
   RECIPE_REWRITER,
   SuggestionProviderError,
+  type SingleRecipeOutput,
   type SuggestionAttempt,
   type SuggestionOutput,
   type SuggestionRequest,
-  type VoiceSuggestionOutput,
 } from './suggestion-provider.js';
 
 /**
@@ -177,12 +178,13 @@ const SUGGESTION_POOL_FLOOR = 6;
  * pas du contenu du placard.
  *
  * Passée à `v2` le 2026-10-08 avec l'arrivée du type de plat, à `v3` le même
- * jour avec les durées de préparation et de cuisson séparées, et à `v4` le
- * 2026-10-15 avec le retrait des graines, et à `v5` le 2026-10-19 avec les
- * ingrédients dictés (D3) : sans ce changement de version, les lignes écrites
- * avant seraient relues comme des orientations qu'elles ne désignent pas.
+ * jour avec les durées de préparation et de cuisson séparées, à `v4` le
+ * 2026-10-15 avec le retrait des graines, à `v5` le 2026-10-19 avec les
+ * ingrédients dictés (D3), et à `v6` le 2026-11-24 avec leur retrait : sans ce
+ * changement de version, les lignes écrites avant seraient relues comme des
+ * orientations qu'elles ne désignent pas.
  */
-const SUGGESTION_SIGNATURE_VERSION = 'v5';
+const SUGGESTION_SIGNATURE_VERSION = 'v6';
 
 /**
  * Au-delà de ce délai, une orientation déjà demandée peut l'être à nouveau
@@ -227,10 +229,6 @@ function orientationFilter(query: SuggestionQuery): PoolFilter {
     region: query.region,
     maxMinutes: query.maxMinutes,
     difficulty: query.difficulty,
-    // Les ingrédients dictés sont une orientation comme les autres (D2) : le
-    // réservoir est lu filtré sur eux, et le modèle n'est appelé que si ce
-    // réservoir filtré reste sous le plancher de six.
-    ingredients: query.ingredients?.terms,
   };
 }
 
@@ -240,12 +238,6 @@ function computeSignature(query: SuggestionQuery): string {
     maxMinutes: query.maxMinutes ?? null,
     difficulty: query.difficulty ?? null,
     dishType: query.dishType ?? null,
-    // Normalisés et TRIÉS par le schéma partagé (D3) : sans le tri, « merguez,
-    // pommes de terre » et « pommes de terre, merguez » seraient deux
-    // orientations distinctes ; sans leur présence ici, deux combinaisons
-    // différentes partageraient le verrou de 24 h et la seconde se verrait
-    // refuser son appel à cause de la première.
-    ingredients: query.ingredients?.terms ?? [],
     version: SUGGESTION_SIGNATURE_VERSION,
   });
   return createHash('sha256').update(payload).digest('hex');
@@ -287,6 +279,20 @@ function toJson(value: unknown): Prisma.InputJsonValue {
  * rendus du stock, puis calcule leur couverture — en réutilisant les règles pures
  * partagées, jamais en les recopiant.
  */
+/**
+ * Un placard vide (2026-11-24). Depuis que c'est l'inventaire entier qui part
+ * au modèle, il n'y a plus de « pas assez d'ingrédients structurants » : il y
+ * a des produits, ou il n'y en a pas.
+ */
+/**
+ * Refus d'une demande dont le modèle n'a rien tiré (2026-11-24). Même esprit
+ * que D9 pour la parole : un refus se dit, il ne se remplace pas par une
+ * recette de remplissage.
+ */
+const REQUEST_NOT_UNDERSTOOD = 'Votre demande n’a pas été comprise : reformulez-la en disant ce que vous voulez cuisiner.';
+
+const HOUSEHOLD_EMPTY_MESSAGE = 'Votre stock est vide : ajoutez des produits avant de demander des recettes.';
+
 @Injectable()
 export class SuggestionsService {
   constructor(
@@ -327,7 +333,7 @@ export class SuggestionsService {
     const pageSize = query.limit ?? SUGGESTION_PAGE_SIZE;
     // Une seule lecture de l'arbre des catégories, partagée par l'instantané de
     // stock et par les candidats de départ (revue de tâche 6 : `snapshot()` et
-    // `loadSeedCandidates` interrogeaient chacun la table `Category`).
+    // la couverture interrogeaient chacune la table `Category`).
     const categories = await loadCategoryRows(this.prisma);
     const snapshot = await this.coverage.snapshot(new Date(), categories);
 
@@ -369,11 +375,11 @@ export class SuggestionsService {
     }
 
     if (mustAsk) {
-      // Les graines ne servent plus qu'à composer la question posée au modèle
-      // (D11) : elles ne sont donc calculées que lorsqu'une question part, et
-      // non plus à chaque visite.
-      const seeds = pickSeedIngredients(await loadSeedCandidates(this.prisma, snapshot, categories), new Date());
-      if (seeds.length === 0) {
+      // La liste du foyer ne sert qu'à composer la question posée au modèle
+      // (D11) : elle n'est donc lue que lorsqu'une question part, et non plus
+      // à chaque visite.
+      const household = await loadHouseholdProducts(this.prisma);
+      if (household.length === 0) {
         // Un placard momentanément vide ne doit plus masquer le réservoir
         // (revue finale du 2026-10-15) : le lot promet que les recettes
         // trouvées restent disponibles, et leur couverture nulle est
@@ -382,9 +388,9 @@ export class SuggestionsService {
         // pas encore été lu.
         if (query.refresh) entries = await this.readPool(query);
         if (entries.length === 0) {
-          throw ApiError.insufficientStock('Le stock ne contient pas assez d’ingrédients pour composer une recherche de recettes');
+          throw ApiError.insufficientStock(HOUSEHOLD_EMPTY_MESSAGE);
         }
-        return this.render(entries, snapshot, true, notice, fresh, pageSize, query.ingredients?.terms ?? []);
+        return this.render(entries, snapshot, true, notice, fresh, pageSize, []);
       }
       const breach = await this.quotaBreach();
       if (breach) {
@@ -394,18 +400,17 @@ export class SuggestionsService {
         const fallback = await this.readPool({ refresh: false });
         if (fallback.length === 0) throw ApiError.rateLimited(this.quotaMessage(breach, false));
         entries = fallback;
-        // Le repli lit le réservoir sans AUCUN filtre : ni orientation, ni
-        // ingrédients dictés. Le dire (tour de correction 1) — sinon le propriétaire
-        // reçoit des recettes sans rapport avec ce qu'il vient de taper, et
-        // seul le quota lui est expliqué.
-        notice = this.quotaMessage(breach, true, (query.ingredients?.terms.length ?? 0) > 0);
+        // Le repli lit le réservoir sans aucun filtre d'orientation. Le dire,
+        // sinon le propriétaire reçoit des recettes sans rapport avec ce qu'il
+        // a demandé et seul le quota lui est expliqué.
+        notice = this.quotaMessage(breach, true);
       } else {
         // Titres déjà connus pour cette orientation, cités au modèle pour
         // qu'il ne les repropose pas. Sur relance, `entries` est vide par
         // construction (la lecture a été sautée) : il faut donc relire.
         const known = query.refresh ? await this.pool.read(orientationFilter(query)) : entries;
         try {
-          const fetched = await this.fetchAndStore(signature, seeds, query, known.map((entry) => entry.recipe.title));
+          const fetched = await this.fetchAndStore(signature, household, query, known.map((entry) => entry.recipe.title));
           fresh = new Set(await this.pool.ingest(fetched.recipes, fetched.model, fetched.webSearch));
           // Alimente la base de recettes, sans faire attendre l'écran (D1, D7).
           this.catalogue(fresh);
@@ -431,33 +436,18 @@ export class SuggestionsService {
       }
     }
 
-    return this.render(entries, snapshot, fromCache, notice, fresh, pageSize, query.ingredients?.terms ?? []);
+    return this.render(entries, snapshot, fromCache, notice, fresh, pageSize, []);
   }
 
   /**
-   * Demande parlée (spécification du 2026-10-21) : le propriétaire appuie sur un
-   * bouton, dit ce qu'il lui reste et ce qu'il veut manger, et reçoit des
-   * recettes croisées avec son stock réel.
-   *
-   * Ce qui se joue ici, dans l'ordre :
-   *
-   * - **D8** : les bornes de l'enregistrement sont revérifiées côté serveur,
-   *   avec la règle partagée — l'écran les applique déjà, mais un client
-   *   n'est jamais une garantie ;
-   * - **D5** : le réservoir n'est pas lu d'abord (une phrase est unique, il
-   *   n'y a rien à y retrouver), l'appel consomme le quota journalier et
-   *   entre dans le plafond mensuel comme une relance, et les recettes
-   *   rendues entrent au réservoir — rien de payé n'est jeté ;
-   * - **D4** : les ingrédients entendus sont traités comme **déclarés** au
-   *   sens du 2026-10-19 (D5) — jamais annoncés comme manquants, la
-   *   couverture restant calculée sur le seul stock ;
-   * - **D6** : l'audio traverse cette méthode et disparaît. Rien n'en est
-   *   écrit : `RecognitionLog.rawResult` ne reçoit que la réponse du modèle.
+   * Demande parlée (spécification du 2026-10-21, D2). Depuis le 2026-11-24,
+   * elle rend **une** recette et non plus une fournée : le geste est le même
+   * que la demande écrite, seule l'entrée change.
    *
    * Contrairement à `list`, un placard vide n'est pas une erreur : la parole
    * porte déjà ses ingrédients, le stock ne sert qu'à compléter.
    */
-  async listFromVoice(audio: Buffer, mimeType: string): Promise<VoiceSuggestionBatchDto> {
+  async requestOneFromVoice(audio: Buffer, mimeType: string): Promise<SingleRecipeDto> {
     assertProviderEnabled(this.provider, 'suggestions');
     // Règle partagée avec l'écran (`voiceAudioRejection`) : même refus, même
     // phrase, une seule implémentation.
@@ -465,31 +455,19 @@ export class SuggestionsService {
     if (rejection) throw new ApiError(400, 'validation_failed', rejection);
 
     // Vérifié avant d'envoyer quoi que ce soit : un quota atteint ne doit pas
-    // faire monter un enregistrement vers le modèle. Pas de repli au
-    // réservoir non plus — une phrase n'a pas d'orientation de rechange, et
-    // servir des recettes sans rapport avec ce qui vient d'être dit serait
-    // plus déroutant qu'un refus clair.
+    // faire monter un enregistrement vers le modèle.
     const breach = await this.quotaBreach();
     if (breach) throw ApiError.rateLimited(this.quotaMessage(breach, false));
 
     const categories = await loadCategoryRows(this.prisma);
     const snapshot = await this.coverage.snapshot(new Date(), categories);
-    const seeds = pickSeedIngredients(await loadSeedCandidates(this.prisma, snapshot, categories), new Date());
+    const household = await loadHouseholdProducts(this.prisma);
 
     const started = Date.now();
-    let output: VoiceSuggestionOutput;
-    // Lus avant l'appel : le nombre demandé en dépend, et l'ingestion aussi.
-    const settings = await this.settings.get();
+    let output: SingleRecipeOutput;
     try {
       ({ result: output } = await this.gemini.call((model) =>
-        this.provider.suggestFromVoice({
-          seeds: seeds.map((s) => s.name),
-          count: modelBatch(settings.suggestionWebSearch),
-          audio,
-          mimeType,
-          model,
-          webSearch: settings.suggestionWebSearch,
-        }),
+        this.provider.suggestFromVoice({ household: formatHouseholdInventory(household), audio, mimeType, model }),
       ));
     } catch (error) {
       if (error instanceof GeminiPausedError) throw geminiRefusal(error);
@@ -499,30 +477,114 @@ export class SuggestionsService {
     }
     await this.logAttempts(output.attempts, true);
 
-    // Avant tout verdict sur la lecture : l'appel est payé, ses recettes
-    // entrent au réservoir même si la phrase n'a pas été comprise (D5).
-    const identities = new Set(output.recipes.map((recipe) => suggestionIdentity(recipe)));
-    await this.pool.ingest(output.recipes, output.model, settings.suggestionWebSearch);
+    // Le verdict sur la lecture vient APRÈS l'ingestion (D5, D9) : l'appel est
+    // payé, sa recette entre au réservoir même si la phrase n'a pas été
+    // comprise. Un refus se dit, il ne jette pas ce qui est acquis.
+    return this.finishSingleRecipe(output, snapshot, () => {
+      if (output.heard.ingredients.length === 0 && output.heard.orientation === null) {
+        throw ApiError.businessRule(
+          'Votre demande n’a pas été comprise : aucun ingrédient ni aucune envie n’a été reconnu dans l’enregistrement. Réessayez en parlant plus près du micro.',
+        );
+      }
+    });
+  }
 
-    if (output.heard.ingredients.length === 0 && output.heard.orientation === null) {
-      // D9 : un refus se dit. Le modèle a répondu, mais n'a rien tiré de
-      // l'enregistrement — ce n'est ni une panne ni un quota.
-      throw ApiError.businessRule(
-        'Votre demande n’a pas été comprise : aucun ingrédient ni aucune envie n’a été reconnu dans l’enregistrement. Réessayez en parlant plus près du micro.',
-      );
+  /**
+   * La part commune aux deux demandes « une recette » (écrite et parlée) :
+   * l'appel est payé, la recette entre au réservoir, puis elle en est relue.
+   *
+   * Relue et jamais servie depuis la réponse brute : c'est au réservoir que
+   * vit la forme dédoublonnée, et c'est par cette identité-là que
+   * `POST /suggestions/keep` la retrouvera.
+   */
+  private async finishSingleRecipe(
+    output: SingleRecipeOutput,
+    snapshot: StockSnapshot,
+    /** Verdict posé APRÈS l'ingestion : ce qui est payé est acquis (D5). */
+    verdict?: () => void,
+  ): Promise<SingleRecipeDto> {
+    if (output.recipe === null) {
+      verdict?.();
+      throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
     }
 
-    // Relu au réservoir, jamais servi depuis la réponse brute : une recette
-    // web dont la page n'a pas pu être lue a été jetée à l'ingestion (D4 du
-    // 2026-10-15) et ne doit à aucun moment atteindre l'écran.
-    const entries = (await Promise.all([...identities].map((identity) => this.pool.findByIdentity(identity)))).filter(
-      (entry): entry is PoolRecipe => entry !== null,
-    );
-    // Les ingrédients entendus deviennent les « dictés » du 2026-10-19 : le
-    // mécanisme de D5 est réutilisé tel quel, jamais réécrit.
+    /**
+     * `provenance: 'ai'` **forcé**, et pas seulement demandé dans la consigne
+     * (revue du 2026-11-24, I1). Ce chemin n'a fait aucune recherche web : une
+     * recette qui se dirait trouvée ailleurs ferait lire une page par
+     * l'ingestion — sur un chemin qui promet de ne contacter aucun site — puis,
+     * la page illisible, laisserait l'écran vide sur un appel payé.
+     */
+    const composed: ModelRecipe = { ...output.recipe, provenance: 'ai', sourceUrl: null };
+    // `allowWeb: false` pour la même raison : l'appel a été fait sans
+    // recherche, l'ingestion doit le savoir.
+    await this.pool.ingest([composed], output.model, false);
+    verdict?.();
+
+    /**
+     * Rendue depuis la réponse du modèle, et **non** relue au réservoir (revue
+     * du 2026-11-24, C2). `suggestionIdentity` ne hache que le titre et l'URL,
+     * et `ingestOne` n'écrase jamais le `payload` d'une ligne existante : un
+     * titre déjà connu — il y en a plus de quatre cents — faisait rendre
+     * l'ancienne recette, avec les remarques d'une autre demande et sur un
+     * autre stock, pour l'appel qu'on vient de payer.
+     *
+     * `verified: false` est exact : une composition n'a pas de page à vérifier.
+     */
+    const entry: PoolRecipe = {
+      identity: suggestionIdentity(composed),
+      recipe: composed,
+      verified: false,
+      firstSeenAt: new Date().toISOString(),
+      pageRecipe: null,
+      pageText: null,
+    };
+
+    // Les ingrédients relevés dans la demande deviennent les « dictés » du
+    // 2026-10-19 : sans eux, un ingrédient nommé dans la demande et absent du
+    // stock s'afficherait « Manquant ».
     const dictated = normalizeIngredientTerms(output.heard.ingredients.join(', '));
-    const batch = await this.render(entries, snapshot, false, null, identities, SUGGESTION_PAGE_SIZE, dictated);
-    return { ...batch, heard: output.heard };
+    const [recipe] = await this.toSuggestionDtos([entry], snapshot, dictated);
+    if (recipe === undefined) throw ApiError.businessRule(REQUEST_NOT_UNDERSTOOD);
+    return { heard: output.heard, recipe };
+  }
+
+  /**
+   * Recette à la demande écrite (spécification du 2026-11-24). Une phrase, une
+   * recette.
+   *
+   * Le chemin ignore tout l'appareillage de la fournée : pas de plancher de
+   * réservoir, pas de verrou de 24 heures sur l'orientation, pas de titres déjà
+   * connus, aucune ligne `SuggestionBatch`. Une question posée appelle le
+   * modèle, toujours — c'est ce que la personne attend en tapant sa phrase.
+   *
+   * Comme la demande parlée, un placard vide n'est pas une erreur : la phrase
+   * porte déjà ses ingrédients.
+   */
+  async requestOne(text: string): Promise<SingleRecipeDto> {
+    assertProviderEnabled(this.provider, 'suggestions');
+
+    // Vérifié avant l'appel, comme pour la parole : un quota atteint ne doit
+    // pas faire partir une requête payante.
+    const breach = await this.quotaBreach();
+    if (breach) throw ApiError.rateLimited(this.quotaMessage(breach, false));
+
+    const categories = await loadCategoryRows(this.prisma);
+    const snapshot = await this.coverage.snapshot(new Date(), categories);
+    const household = await loadHouseholdProducts(this.prisma);
+
+    const started = Date.now();
+    let output: SingleRecipeOutput;
+    try {
+      ({ result: output } = await this.gemini.call((model) => this.provider.suggestOne({ text, household: formatHouseholdInventory(household), model })));
+    } catch (error) {
+      if (error instanceof GeminiPausedError) throw geminiRefusal(error);
+      if (error instanceof SuggestionProviderError) await this.logAttempts(error.attempts, false);
+      else await this.logFailure(error, Date.now() - started);
+      throw ApiError.providerUnavailable(error instanceof ProviderError ? error.message : 'Fournisseur de suggestions injoignable');
+    }
+    await this.logAttempts(output.attempts, true);
+    return this.finishSingleRecipe(output, snapshot);
   }
 
   /**
@@ -694,23 +756,20 @@ export class SuggestionsService {
    */
   private async fetchAndStore(
     signature: string,
-    seeds: readonly { productId: string; name: string }[],
+    household: readonly HouseholdProduct[],
     query: SuggestionQuery,
     knownTitles: readonly string[],
   ): Promise<{ recipes: ModelRecipe[]; model: string; webSearch: boolean }> {
     // Lus avant de composer la requête : le nombre demandé en dépend.
     const settings = await this.settings.get();
     const request: SuggestionRequest = {
-      seeds: seeds.map((s) => s.name),
+      household: formatHouseholdInventory(household),
       region: query.region,
       maxMinutes: query.maxMinutes,
       difficulty: query.difficulty,
       dishType: query.dishType,
       count: modelBatch(settings.suggestionWebSearch),
       knownTitles,
-      // Imposés au modèle (D1), en plus des graines tirées du stock (D4) : le
-      // prompt distingue les deux, l'un s'ajoute à l'autre.
-      ingredients: query.ingredients,
     };
 
     const started = Date.now();
@@ -913,6 +972,10 @@ export class SuggestionsService {
         coverage: coverage.coverage,
         group: coverage.group,
         missingLabels,
+        // Remarques du modèle (2026-11-24), telles qu'il les a écrites. Les
+        // recettes entrées avant cette livraison n'en portent pas : le schéma
+        // partagé les lit à `null`, l'écran n'affiche alors rien.
+        notes: recipe.notes ?? null,
       };
       return dto;
     });

@@ -1,15 +1,21 @@
-import { SUGGESTION_PAGE_MAX, SUGGESTION_PAGE_SIZE, type SuggestionBatchDto, type SuggestionDto } from '@kitchen/shared';
+import { SUGGESTION_PAGE_MAX, SUGGESTION_PAGE_SIZE, type AiRequestStatusDto, type SingleRecipeDto, type SuggestionBatchDto, type SuggestionDto } from '@kitchen/shared';
+import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
 import { Button, Spinner } from '../../components/ui/button';
 import { EmptyState, ErrorState } from '../../components/ui/empty-state';
 import { Sheet } from '../../components/ui/sheet';
-import { isApiError } from '../../lib/api';
+import { api, isApiError } from '../../lib/api';
+import { forgetAiRequest, isDeferred } from '../../lib/ai-request';
+import { DeferredNotice } from '../../components/ui/deferred-notice';
+import { useTrackedRequest } from '../../hooks/use-tracked-request';
 import { useSuggestionsQuery } from '../../lib/queries';
+import { suggestionsApi } from '../../lib/suggestions-api';
 import type { SuggestionOrientation } from '../../lib/suggestions-api';
 import { DishTypeQuestion, useDishTypeAnswer } from './dish-type-question';
-import { IngredientsField } from './ingredients-field';
+import { isSingleRecipeAnswer, SingleRecipeAnswer } from './single-recipe-answer';
+import { RequestField } from './request-field';
 import { countActiveOrientation, OrientationBar } from './orientation-bar';
 import { SuggestionCard, suggestionAccessibleName } from './suggestion-card';
 import { SuggestionSheet } from './suggestion-sheet';
@@ -98,6 +104,70 @@ export function SuggestionsScreen() {
    * disparaît.
    */
   const [filtersOpen, setFiltersOpen] = useState(false);
+  /**
+   * Réponse à une demande en langage naturel (2026-11-24). Elle prend la place
+   * de la liste tant qu'elle est là : on a posé une question, on lit la
+   * réponse, pas douze cartes à côté. Une nouvelle recherche filtrée la
+   * chasse.
+   */
+  const [answer, setAnswer] = useState<SingleRecipeDto | null>(null);
+
+  /**
+   * Résultat d'une demande différée, réclamé au retour (revue du 2026-11-24).
+   *
+   * `RECIPE_REQUEST` est dans `CARRIES_ID` : la notification porte
+   * l'identifiant dans l'adresse et promet « Touchez pour la voir ». Sans
+   * cette lecture, la touche ouvrait l'écran ordinaire et la recette composée
+   * — avec ses remarques, qui n'existent que dans ce résultat — n'était
+   * visible nulle part. Même mécanique que l'écran de demande parlée.
+   */
+  const [params, setParams] = useSearchParams();
+  const demande = params.get('demande');
+  const [restoring, setRestoring] = useState(demande !== null);
+  const [restoreFailed, setRestoreFailed] = useState(false);
+
+  useEffect(() => {
+    if (!demande) return;
+    let alive = true;
+    void api
+      .get<AiRequestStatusDto>(`/ai-requests/${demande}`)
+      .then((status) => {
+        if (!alive) return;
+        if (status.state === 'DONE' && isSingleRecipeAnswer(status.result)) {
+          setAnswer(status.result);
+          forgetAiRequest(demande);
+        } else {
+          setRestoreFailed(true);
+        }
+      })
+      .catch(() => alive && setRestoreFailed(true))
+      .finally(() => {
+        if (!alive) return;
+        setRestoring(false);
+        // L'identifiant quitte l'adresse une fois lu : un rechargement ne doit
+        // pas redemander un résultat déjà sous les yeux.
+        setParams({}, { replace: true });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [demande, setParams]);
+
+  const tracked = useTrackedRequest();
+  const ask = useMutation({
+    mutationFn: (text: string) => tracked((requestId) => suggestionsApi.request({ text, requestId })),
+    onSuccess: setAnswer,
+  });
+  /**
+   * Revenir à la liste : la réponse s'efface, et l'erreur avec elle. Les deux
+   * doivent partir ensemble — un refus laissé en place masquerait les cartes
+   * sans aucun moyen de les ramener (revue du 2026-11-24).
+   */
+  const clearAnswer = useCallback(() => {
+    setAnswer(null);
+    setRestoreFailed(false);
+    ask.reset();
+  }, [ask]);
   // Pas d'appel tant que la question n'a pas de réponse (voir `useSuggestionsQuery`).
   const suggestions = useSuggestionsQuery(orientation, { enabled: answeredDishType !== null, relaunch, limit });
   // Suggestion ouverte dans la fiche de conservation (tâche 12) ; `null` quand le tiroir est fermé.
@@ -136,16 +206,22 @@ export function SuggestionsScreen() {
 
       <RecipeTabSwitch />
 
-      {/* Au-dessus des filtres (D6, 2026-10-19), et vide par défaut : ce qui est
-          tapé ici est imposé à chaque recette proposée, le stock venant en plus. */}
-      <IngredientsField
-        value={orientation.ingredients ?? ''}
-        onChange={(raw) => {
-          // Une autre demande est une autre recherche : mêmes remises à zéro
-          // que pour un changement d'orientation.
-          setRelaunch(0);
-          setLimit(SUGGESTION_PAGE_SIZE);
-          setOrientation((current) => ({ ...current, ingredients: raw === '' ? undefined : raw, refresh: undefined }));
+      {/* Au-dessus des filtres (D6, 2026-10-19), et vide par défaut. C'est ce
+          champ qui décide du chemin (2026-11-24) : une phrase tapée demande UNE
+          recette, un champ vide relance la fournée filtrée. */}
+      <RequestField
+        busy={ask.isPending}
+        onSubmit={(text) => {
+          if (text === '') {
+            // Champ vide : on relance la recherche filtrée, et la réponse
+            // précédente s'efface — elle répondait à une autre question.
+            clearAnswer();
+            setRelaunch((n) => n + 1);
+            setLimit(SUGGESTION_PAGE_SIZE);
+            return;
+          }
+          clearAnswer();
+          ask.mutate(text);
         }}
         /*
           Un seul contrôle de plus sur la ligne du champ, portant le nombre
@@ -186,6 +262,11 @@ export function SuggestionsScreen() {
           <OrientationBar
             value={orientation}
             onChange={(next) => {
+              // Une orientation choisie est une autre question : la réponse
+              // précédente s'efface, sinon la recherche partait et l'écran
+              // continuait d'afficher l'unique recette d'avant (revue du
+              // 2026-11-24).
+              clearAnswer();
               // Une orientation différente est déjà une nouvelle recherche : le
               // compteur de relances repart de zéro, sans quoi il resterait collé
               // exactement comme le faisait `refresh: true` avant lui.
@@ -201,7 +282,32 @@ export function SuggestionsScreen() {
         </div>
       </Sheet>
 
-      {suggestions.isPending ? (
+      {restoring && <WaitingState />}
+
+      {restoreFailed && (
+        <p role="status" className="mx-4 my-6 text-center text-[14px] text-muted">
+          Cette demande n’est plus disponible. Sa recette reste dans les suggestions.
+        </p>
+      )}
+
+      {/* Une demande en langage naturel est en cours : on l'attend, et rien
+          d'autre ne bouge à l'écran. */}
+      {ask.isPending && <WaitingState />}
+
+      {/* Demande gardée par le serveur : ce n'est pas un échec, c'est une
+          attente. Elle repartira seule et sera annoncée (D1b) — même
+          traitement que l'écran de demande parlée. */}
+      {ask.isError && !ask.isPending && isDeferred(ask.error) && <DeferredNotice error={ask.error} what="recettes" />}
+
+      {/* Le refus se dit — quota, fournisseur absent, demande non comprise —
+          avec le même composant que le reste de l'écran. */}
+      {ask.isError && !ask.isPending && !isDeferred(ask.error) && <SuggestionsErrorState error={ask.error} />}
+
+      {/* La réponse prend la place de la liste : on a posé une question, on lit
+          la réponse. Un « Chercher » à champ vide la chasse. */}
+      {answer && !ask.isPending && <SingleRecipeAnswer answer={answer} showHeard={false} onSelect={setSelected} />}
+
+      {answer || restoring || restoreFailed || ask.isPending || ask.isError ? null : suggestions.isPending ? (
         <WaitingState />
       ) : suggestions.isError ? (
         <SuggestionsErrorState error={suggestions.error} onRetry={() => void suggestions.refetch()} />
@@ -214,10 +320,6 @@ export function SuggestionsScreen() {
           <SuggestionsResult
             batch={suggestions.data}
             onSelect={setSelected}
-            // L'état vide doit dire POURQUOI il est vide : imposer tous les
-            // ingrédients dictés (D1) rend peu de chose sur une combinaison
-            // inhabituelle, et une liste vide et muette ne l'explique pas.
-            dictated={orientation.ingredients !== undefined}
             // Seule sortie du verrou de 24 heures posé par la décision D11 du
             // 2026-10-15 : sans `refresh`, une orientation que le modèle n'a
             // jamais su satisfaire reste vide jusqu'au bout du délai. Le
@@ -431,14 +533,11 @@ function SuggestionsResult({
   onSelect,
   onRefresh,
   onLoadMore,
-  dictated,
 }: {
   batch: ReturnType<typeof useSuggestionsQuery>['data'];
   onSelect: (suggestion: SuggestionDto) => void;
   onRefresh: () => void;
   onLoadMore: () => void;
-  /** Une demande porte des ingrédients dictés : l'état vide s'explique autrement. */
-  dictated: boolean;
 }) {
   if (!batch) return null;
 
@@ -452,19 +551,13 @@ function SuggestionsResult({
 
       {batch.items.length === 0 ? (
         <EmptyState
-          title={dictated ? 'Aucune recette avec ces ingrédients' : 'Aucune suggestion pour cette orientation'}
+          title="Aucune suggestion pour cette orientation"
           // « Revenez plus tard, le stock aura peut-être changé » était devenu
           // faux : depuis la décision D11 du 2026-10-15, la recherche ne dépend
           // plus du contenu du placard — on invitait à faire la seule chose qui
           // ne peut plus rien y changer. Les deux vraies sorties sont dites
           // ici, et le bouton rend la seconde atteignable.
-          description={
-            dictated
-              ? // Limite assumée de D1 : chaque recette doit utiliser TOUS les
-                // ingrédients saisis, et une combinaison rare n'en rend que peu.
-                'La combinaison demandée est trop rare : chaque recette doit utiliser tous les ingrédients saisis. Retirez-en un, élargissez l’orientation, ou lancez vous-même une nouvelle recherche.'
-              : 'Changez d’orientation — une autre cuisine, une durée plus large — ou lancez vous-même une nouvelle recherche.'
-          }
+          description="Changez d’orientation — une autre cuisine, une durée plus large — ou lancez vous-même une nouvelle recherche."
           action={
             <button
               type="button"

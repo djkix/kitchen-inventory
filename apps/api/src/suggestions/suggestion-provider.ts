@@ -1,9 +1,15 @@
-import type { Difficulty, DishType, ModelRecipe, SuggestionIngredients, SuggestionRegion, VoiceHeard } from '@kitchen/shared';
+import type { Difficulty, DishType, ModelRecipe, SuggestionRegion, VoiceHeard } from '@kitchen/shared';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 
 /** Orientation facultative de la recherche (section 12, EF-25, B9) et nombre de recettes voulues. */
 export interface SuggestionRequest {
-  seeds: readonly string[];
+  /**
+   * Ce que le foyer possède, mis en forme par `formatHouseholdInventory`
+   * (2026-11-24) : une ligne par produit, avec ses emplacements, **sans
+   * quantité ni date**. Remplace les huit graines de `pickSeedIngredients`,
+   * qui ne laissaient au modèle aucun moyen de dire ce qui manquait.
+   */
+  household: string;
   region?: SuggestionRegion;
   maxMinutes?: number;
   difficulty?: Difficulty;
@@ -25,13 +31,6 @@ export interface SuggestionRequest {
    * borne (`KNOWN_TITLES_CAP`) et coupe la queue.
    */
   knownTitles?: readonly string[];
-  /**
-   * Ingrédients dictés à la main sur l'écran (2026-10-19, D1), **imposés** —
-   * chaque recette doit tous les utiliser. Ils s'ajoutent aux graines tirées
-   * du stock, ils ne les remplacent pas (D4). Le prompt lit `raw` (la saisie
-   * telle quelle), jamais `terms`, réservé à la signature et au réservoir.
-   */
-  ingredients?: SuggestionIngredients;
 }
 
 /**
@@ -62,16 +61,43 @@ export interface SuggestionOutput {
  * L'audio ne traverse que cet objet : il n'est écrit nulle part, ni sur
  * disque, ni en base, ni dans le journal d'appels (D6).
  */
-export type VoiceSuggestionRequest = Omit<SuggestionRequest, 'ingredients'> & {
+export type VoiceSuggestionRequest = HouseholdCall & {
   audio: Buffer;
   /** Type MIME tel que l'écran l'a enregistré (`audio/webm`, `audio/mp4`…), transmis au modèle. */
   mimeType: string;
 };
 
-/** Un appel parlé rend les recettes **et** la lecture que le modèle a faite de la phrase (D2, D4). */
-export interface VoiceSuggestionOutput extends SuggestionOutput {
-  heard: VoiceHeard;
+/**
+ * Demande « une recette » écrite (spécification du 2026-11-24) : une phrase, le
+ * placard, rien d'autre. Ni orientation, ni `count`, ni titres connus — il n'y
+ * a qu'une recette à rendre et elle doit répondre à la demande.
+ */
+export interface HouseholdCall {
+  /** Le placard, mis en forme par `formatHouseholdInventory`. */
+  household: string;
+  /** Modèle de CET appel, choisi par `GeminiService.call`. */
+  model?: string;
 }
+
+export interface SingleRecipeRequest extends HouseholdCall {
+  /** La phrase telle qu'elle a été tapée. */
+  text: string;
+}
+
+/**
+ * Une recette rendue à une demande, avec la lecture que le modèle a faite de
+ * celle-ci. `recipe` vaut `null` quand le modèle n'a rien tiré de la demande :
+ * c'est une réponse légitime, pas une panne — l'appelant en fait un refus en
+ * français.
+ */
+export interface SingleRecipeOutput {
+  heard: VoiceHeard;
+  recipe: ModelRecipe | null;
+  attempts: SuggestionAttempt[];
+  model: string;
+}
+
+
 
 /**
  * Échec du fournisseur alors qu'au moins une tentative a déjà été facturée :

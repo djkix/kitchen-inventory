@@ -30,7 +30,11 @@ describe('CookSheetView', () => {
     render(<CookSheetView recipe={recipe} initialServings={recipe.servings} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />);
     expect(screen.getByText('200 g')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Portions réalisées'), { target: { value: '2' } });
-    expect(screen.getByText('100 g')).toBeTruthy();
+    // L'équivalent ménager (2026-11-24) suit les portions : il est calculé à
+    // l'affichage, jamais stocké, donc il ne peut pas rester celui de quatre
+    // parts. À 200 g il n'y en a pas — au-delà de huit cuillères à soupe, le
+    // compte cesse d'être parlant.
+    expect(screen.getByText('100 g (6,5 c. à soupe)')).toBeTruthy();
   });
   it('n’envoie que les lignes cochées, et rien avant validation', () => {
     const onConfirm = vi.fn();

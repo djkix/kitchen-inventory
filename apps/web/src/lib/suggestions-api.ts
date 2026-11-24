@@ -6,7 +6,7 @@ import type {
   SuggestionBatchDto,
   SuggestionDuration,
   SuggestionRegion,
-  VoiceSuggestionBatchDto,
+  SingleRecipeDto,
 } from '@kitchen/shared';
 import { api } from './api';
 
@@ -45,14 +45,6 @@ export interface SuggestionOrientation {
    * (`SUGGESTION_PAGE_MAX`) ; il ne déclenche jamais d'appel au modèle.
    */
   limit?: number;
-  /**
-   * Ingrédients dictés à la main (2026-10-19, D1, D7) : du texte libre séparé
-   * par des virgules, tel que tapé. Chaque recette proposée doit les utiliser
-   * tous. C'est le serveur qui normalise, trie et borne, avec le schéma Zod
-   * partagé — l'écran valide avec ce même schéma avant d'envoyer, jamais avec
-   * une seconde règle.
-   */
-  ingredients?: string;
 }
 
 export const suggestionsApi = {
@@ -66,6 +58,16 @@ export const suggestionsApi = {
    */
   list(orientation: SuggestionOrientation): Promise<SuggestionBatchDto> {
     return api.post<SuggestionBatchDto>('/suggestions', { ...orientation });
+  },
+
+  /**
+   * Recette à la demande écrite (spécification du 2026-11-24) : une phrase, une
+   * recette. Payante et comptée au quota comme la demande parlée ; elle
+   * n'ignore le réservoir que comme point de départ — la recette rendue y entre
+   * ensuite, ce qui laisse « conserver » fonctionner sans rien de plus.
+   */
+  request(input: { text: string; requestId?: string }): Promise<SingleRecipeDto> {
+    return api.post<SingleRecipeDto>('/suggestions/request', input);
   },
 
   /**
@@ -84,14 +86,15 @@ export const suggestionsApi = {
   /**
    * Demande parlée (spécification du 2026-10-21, D1) : l'enregistrement monte
    * au serveur, qui le confie au modèle. Celui-ci transcrit, comprend et
-   * propose dans le même appel (D2) ; la réponse porte sa lecture à côté des
-   * recettes, pour qu'un contresens se voie.
+   * propose dans le même appel (D2) ; la réponse porte sa lecture à côté de la
+   * recette, pour qu'un contresens se voie. Une recette depuis le 2026-11-24,
+   * et non plus une fournée.
    *
    * L'audio n'est conservé nulle part (D6) : ni ici, ni au serveur. Ce qui
    * part n'est écrit dans aucune requête rejouable — c'est un envoi, pas un
    * téléversement de média.
    */
-  voice(audio: Blob, mimeType: string, requestId?: string): Promise<VoiceSuggestionBatchDto> {
+  voice(audio: Blob, mimeType: string, requestId?: string): Promise<SingleRecipeDto> {
     const form = new FormData();
     // Identifiant de la demande (conception du 2026-11-02) : il permet de
     // retrouver le résultat au retour, et d'être prévenu s'il arrive alors
@@ -102,6 +105,6 @@ export const suggestionsApi = {
     // `application/octet-stream`, donc refusé pour de mauvaises raisons.
     // Le nom de fichier, lui, n'est lu par personne — `multer` en exige un.
     form.append('audio', audio.type === mimeType ? audio : new Blob([audio], { type: mimeType }), 'demande.audio');
-    return api.postForm<VoiceSuggestionBatchDto>('/suggestions/voice', form);
+    return api.postForm<SingleRecipeDto>('/suggestions/voice', form);
   },
 };

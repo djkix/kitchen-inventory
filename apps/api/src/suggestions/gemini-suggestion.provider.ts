@@ -2,13 +2,24 @@ import type { HttpClient } from '../common/http-client.js';
 import { GeminiPausedError, GENERATION_TIMEOUT_MS, transportMessage } from '../gemini/gemini-errors.js';
 import { countSearchQueries, estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
-import { buildSuggestionPrompt, buildVoicePrompt, InvalidBatchJsonError, parseModelBatch, parseVoiceBatch, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
+import {
+  buildSingleRecipePrompt,
+  buildSuggestionPrompt,
+  buildVoicePrompt,
+  InvalidBatchJsonError,
+  parseModelBatch,
+  parseSingleRecipe,
+  parseVoiceAnswer,
+  SUGGESTION_SYSTEM_PROMPT,
+  SUGGESTION_SYSTEM_PROMPT_NO_SEARCH,
+} from './prompt.js';
 import {
   SuggestionProviderError,
+  type SingleRecipeOutput,
+  type SingleRecipeRequest,
   type SuggestionAttempt,
   type SuggestionOutput,
   type SuggestionRequest,
-  type VoiceSuggestionOutput,
   type VoiceSuggestionRequest,
 } from './suggestion-provider.js';
 
@@ -76,6 +87,44 @@ export class GeminiSuggestionProvider {
   }
 
   /**
+   * Demande « une recette » écrite (spécification du 2026-11-24).
+   *
+   * **Jamais de recherche web**, quel que soit le réglage : une recette `web`
+   * dont la page est illisible est jetée à l'ingestion, et la recherche est
+   * éteinte en production. Sur une seule recette, l'appel payé ne laisserait
+   * rien à l'écran.
+   *
+   * Une reprise, comme `suggest` : le texte ne coûte presque rien à renvoyer,
+   * contrairement à l'audio.
+   */
+  async suggestOne(req: SingleRecipeRequest): Promise<SingleRecipeOutput> {
+    if (!this.options.apiKey) throw new ProviderError('Fournisseur de suggestions désactivé');
+    const attempts: SuggestionAttempt[] = [];
+    const model = req.model ?? this.model;
+
+    for (const retry of [false, true]) {
+      const started = Date.now();
+      let raw: GeminiResponse;
+      try {
+        raw = await this.call([{ text: buildSingleRecipePrompt(req, { retry }) }], model, false);
+      } catch (error) {
+        if (attempts.length === 0) throw error;
+        throw new SuggestionProviderError(error instanceof Error ? error.message : String(error), attempts, error);
+      }
+      attempts.push({ raw, costCents: estimateCostCents(model, raw.usageMetadata, countSearchQueries(raw)), latencyMs: Date.now() - started });
+
+      try {
+        const answer = parseSingleRecipe(extractText(raw));
+        return { heard: answer.heard, recipe: answer.recipe, attempts, model };
+      } catch (error) {
+        if (!(error instanceof InvalidBatchJsonError)) throw error;
+        if (retry) throw new SuggestionProviderError('Le fournisseur de suggestions n’a pas renvoyé de recette exploitable après reprise', attempts, error);
+      }
+    }
+    throw new ProviderError('Fournisseur de suggestions sans réponse exploitable');
+  }
+
+  /**
    * Demande parlée (spécification du 2026-10-21, D2) : l'enregistrement part
    * avec la consigne, et le modèle rend sa lecture **et** les recettes dans la
    * même réponse.
@@ -89,7 +138,7 @@ export class GeminiSuggestionProvider {
    * d'erreur (D6). Ce qui remonte dans `attempts[].raw` est la réponse du
    * modèle, jamais la requête.
    */
-  async suggestFromVoice(req: VoiceSuggestionRequest): Promise<VoiceSuggestionOutput> {
+  async suggestFromVoice(req: VoiceSuggestionRequest): Promise<SingleRecipeOutput> {
     if (!this.options.apiKey) throw new ProviderError('Fournisseur de suggestions désactivé');
     const model = req.model ?? this.model;
     const started = Date.now();
@@ -102,7 +151,9 @@ export class GeminiSuggestionProvider {
     const raw = await this.post(
       [{ inlineData: { mimeType: req.mimeType, data: req.audio.toString('base64') } }, { text: buildVoicePrompt(req) }],
       model,
-      req.webSearch !== false,
+      // Jamais de recherche web, comme la demande écrite : sur une recette
+      // unique, une page illisible ne laisserait rien à l'écran.
+      false,
     );
     const attempts: SuggestionAttempt[] = [
       // `hasAudio` : sans ventilation par modalité qui mentionne l'audio, tout
@@ -112,8 +163,8 @@ export class GeminiSuggestionProvider {
     ];
     try {
       assertUsable(raw, 'la demande parlée');
-      const batch = parseVoiceBatch(extractText(raw));
-      return { heard: batch.heard, recipes: batch.recipes.slice(0, req.count), attempts, model };
+      const answer = parseVoiceAnswer(extractText(raw));
+      return { heard: answer.heard, recipe: answer.recipe, attempts, model };
     } catch (error) {
       if (!(error instanceof InvalidBatchJsonError) && !(error instanceof ProviderError)) throw error;
       const message = error instanceof ProviderError ? error.message : 'Le fournisseur de suggestions n’a pas renvoyé de JSON exploitable pour la demande parlée';

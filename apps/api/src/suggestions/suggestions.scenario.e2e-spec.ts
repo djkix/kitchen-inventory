@@ -180,16 +180,23 @@ describe('scénario de réussite figé des suggestions', () => {
     wireModel();
   });
 
-  it('sélectionne les cinq produits structurants, sans le sel ni le paprika', async () => {
+  /**
+   * Depuis le 2026-11-24, tout le placard part au modèle : plus de sélection
+   * de huit graines, plus d'exclusion du sel ni des épices. Ce qui reste
+   * interdit, ce sont les quantités et les dates.
+   */
+  it('envoie tout le placard au modèle, emplacements compris, sans quantités ni dates', async () => {
     await agent.post('/api/v1/suggestions').expect(200);
 
     const call = http.calls.find((c) => c.url.includes('generateContent'));
     const body = JSON.parse(String(call?.init?.body));
     const prompt = body.contents[0].parts[0].text as string;
 
-    expect(prompt).toContain("Ingrédients disponibles dans le foyer : Huile d'olive, Parmesan, Riz, Sauce tomate, Spaghettis.");
-    expect(prompt).not.toMatch(/\bSel\b/);
-    expect(prompt).not.toMatch(/\bPaprika\b/);
+    expect(prompt).toContain('Produits présents dans le foyer');
+    for (const produit of ["Huile d'olive", 'Parmesan', 'Riz', 'Sauce tomate', 'Spaghettis', 'Sel', 'Paprika']) {
+      expect(prompt).toContain(produit);
+    }
+    expect(prompt).toContain('ne dit ni les quantités disponibles ni les dates');
   });
 
   it('rend la fournée attendue, recette par recette', async () => {

@@ -3,12 +3,6 @@ import type { CoverageGroup, IngredientState } from '../rules/coverage.js';
 import type { MatchState } from '../rules/ingredient-match.js';
 import { clientOpIdSchema, idSchema, positiveQuantitySchema, unitSchema } from './common.js';
 import type { NutriscoreGrade } from './products.js';
-import {
-  normalizeIngredientTerms,
-  splitIngredientTerms,
-  SUGGESTION_INGREDIENT_LENGTH_MAX,
-  SUGGESTION_INGREDIENTS_MAX,
-} from '../rules/suggestion-ingredients.js';
 import { difficultySchema, dishTypeSchema } from './recipes.js';
 
 /**
@@ -63,35 +57,6 @@ export const SUGGESTION_PAGE_SIZE = 12;
  */
 export const SUGGESTION_PAGE_MAX = 5 * SUGGESTION_PAGE_SIZE;
 
-/**
- * Ingrédients dictés à la main (spécification du 2026-10-19, D7) : du texte
- * libre séparé par des virgules, borné à cinq termes de trente caractères.
- * Le résultat est normalisé, dédoublonné et **trié** (D3) — c'est cette liste
- * qui entre dans la signature d'orientation, et deux saisies de même contenu
- * doivent y entrer identiques.
- *
- * Les bornes vivent ici et nulle part ailleurs : l'écran valide avec ce même
- * schéma avant d'envoyer quoi que ce soit (jamais deux implémentations).
- * Une saisie vide rend une liste vide, c'est-à-dire aucune contrainte.
- */
-export const suggestionIngredientsSchema = z
-  .string()
-  .superRefine((raw, ctx) => {
-    const terms = splitIngredientTerms(raw);
-    if (terms.length > SUGGESTION_INGREDIENTS_MAX) {
-      ctx.addIssue({ code: 'custom', message: `${SUGGESTION_INGREDIENTS_MAX} ingrédients au maximum` });
-    }
-    if (terms.some((term) => term.length > SUGGESTION_INGREDIENT_LENGTH_MAX)) {
-      ctx.addIssue({ code: 'custom', message: `${SUGGESTION_INGREDIENT_LENGTH_MAX} caractères au maximum par ingrédient` });
-    }
-  })
-  // `raw` ET `terms` (tour de correction 1) : le modèle doit recevoir la
-  // saisie telle qu'elle a été tapée — « crème fraîche » accentué — tandis que
-  // la signature (D3) et le rapprochement au réservoir (D8) travaillent sur la
-  // forme normalisée. La normalisation sert la comparaison, jamais le
-  // transport.
-  .transform((raw) => ({ raw: raw.trim(), terms: normalizeIngredientTerms(raw) }));
-export type SuggestionIngredients = z.infer<typeof suggestionIngredientsSchema>;
 
 export const suggestionQuerySchema = z.object({
   /**
@@ -135,13 +100,6 @@ export const suggestionQuerySchema = z.object({
    * ne tient qu'au plancher du réservoir et à la relance explicite.
    */
   limit: z.coerce.number().int().min(1).max(SUGGESTION_PAGE_MAX).optional(),
-  /**
-   * Ingrédients que chaque recette proposée doit utiliser (D1). Ils
-   * s'**ajoutent** au point de départ tiré du stock, ils ne le remplacent pas
-   * (D4) : le réservoir est filtré dessus, la signature les porte, et le
-   * prompt distingue ce qui est imposé de ce qui est simplement disponible.
-   */
-  ingredients: suggestionIngredientsSchema.optional(),
 });
 export type SuggestionQuery = z.infer<typeof suggestionQuerySchema>;
 
@@ -203,6 +161,19 @@ const modelRecipeBaseSchema = z.object({
   sourceUrl: z.string().trim().url({ message: 'URL invalide' }).nullable(),
   steps: z.array(z.string().trim().min(1)).max(60),
   ingredients: z.array(modelRecipeIngredientSchema).min(1, { message: 'Au moins un ingrédient requis' }).max(60),
+  /**
+   * Remarques du modèle sur cette recette face au stock réel (2026-11-24) :
+   * les substitutions faites et pourquoi, où un ingrédient est rangé s'il
+   * surprend, une variante si elle vaut la peine. Jamais de date de
+   * péremption — elles n'interviennent pas dans le module recettes (cahier,
+   * section 12, amendement du 2026-10-04).
+   *
+   * Tolérant **à la frontière seulement** : absent (les quelque quatre cents
+   * recettes déjà au réservoir, dont le `payload` est revalidé à chaque
+   * lecture par `toPoolRecipe`) ou `null` (le modèle n'a rien d'utile à
+   * dire). Plus loin, `SuggestionDto.notes` est strictement `string | null`.
+   */
+  notes: z.string().trim().max(1200).nullish(),
 });
 
 /**
@@ -366,6 +337,13 @@ export interface SuggestionDto {
   coverage: number;
   group: CoverageGroup;
   missingLabels: string[];
+  /**
+   * Remarques du modèle sur cette recette face au stock réel (2026-11-24),
+   * recopiées telles quelles depuis la recette du réservoir. `null` pour les
+   * quelque quatre cents recettes entrées avant cette livraison : aucun
+   * rattrapage n'est prévu, une consigne ne réécrit pas ce qui est écrit.
+   */
+  notes: string | null;
 }
 
 /**
@@ -496,33 +474,61 @@ const voiceHeardSchema = z
   }));
 export type VoiceHeard = z.infer<typeof voiceHeardSchema>;
 
-/**
- * Réponse attendue d'un appel parlé : la lecture **et** les recettes, en un
- * seul appel (D2). Les recettes passent par `modelBatchSchema`, jamais par une
- * seconde règle : même validation recette par recette, même rejet d'un lot
- * dont rien ne tient debout.
- */
-export const voiceModelBatchSchema = z
-  .object({ heard: voiceHeardSchema, recipes: z.array(z.unknown()) })
-  .transform((batch, ctx) => {
-    const parsed = modelBatchSchema.safeParse({ recipes: batch.recipes });
-    if (!parsed.success) {
-      ctx.addIssue({ code: 'custom', message: 'Aucune recette exploitable dans la réponse du modèle', path: ['recipes'] });
-      return z.NEVER;
-    }
-    return { heard: batch.heard, recipes: parsed.data.recipes };
-  });
-export type VoiceModelBatch = z.infer<typeof voiceModelBatchSchema>;
 
 /**
- * Ce que l'écran de demande parlée reçoit : une fournée ordinaire, plus la
- * lecture que le modèle a faite de la phrase (D2). Elle est affichée avec les
- * résultats pour qu'un contresens se voie — c'est la contrepartie assumée de
- * l'absence d'étape de confirmation.
+ * Longueur maximale d'une demande écrite (2026-11-24). « une recette asiatique
+ * avec de la cacahuète, des échalotes et de l'ail » tient en 76 caractères :
+ * 160 laissent deux fois cette marge, et bornent un champ qui part au modèle.
  */
-export interface VoiceSuggestionBatchDto extends SuggestionBatchDto {
+export const RECIPE_REQUEST_MAX_CHARS = 160;
+
+/** Corps de `POST /suggestions/request` : la phrase telle qu'elle a été tapée. */
+export const recipeRequestSchema = z.object({
+  text: z.string().trim().min(1, { message: 'Dites ce que vous voulez cuisiner' }).max(RECIPE_REQUEST_MAX_CHARS, {
+    message: `Votre demande dépasse ${RECIPE_REQUEST_MAX_CHARS} caractères`,
+  }),
+  requestId: z.string().uuid().optional(),
+});
+export type RecipeRequestInput = z.infer<typeof recipeRequestSchema>;
+
+/**
+ * Réponse attendue d'une demande « une recette » (écrite ou parlée,
+ * 2026-11-24) : la lecture de la demande **et** une recette unique.
+ *
+ * `recipe` est délibérément permissif à l'entrée : un modèle qui n'a rien tiré
+ * de la demande renvoie `null`, et c'est le service qui en fait un refus en
+ * français (comme pour la lecture vide d'une demande parlée, D9). Un objet
+ * présent mais non conforme, lui, est un échec de format : il déclenche la
+ * reprise unique, exactement comme un lot illisible.
+ */
+export const singleRecipeModelSchema = z
+  .object({ heard: voiceHeardSchema, recipe: z.unknown() })
+  .transform((answer, ctx) => {
+    if (answer.recipe === null || answer.recipe === undefined) return { heard: answer.heard, recipe: null };
+    const parsed = modelRecipeSchema.safeParse(answer.recipe);
+    if (!parsed.success) {
+      ctx.addIssue({ code: 'custom', message: 'Recette non exploitable dans la réponse du modèle', path: ['recipe'] });
+      return z.NEVER;
+    }
+    return { heard: answer.heard, recipe: parsed.data };
+  });
+export type SingleRecipeModelAnswer = z.infer<typeof singleRecipeModelSchema>;
+
+
+/**
+ * Ce que l'écran reçoit d'une demande « une recette » (2026-11-24), écrite ou
+ * parlée : la recette, déjà rapprochée du stock et porteuse de son identité de
+ * contenu — donc utilisable telle quelle par la carte, le tiroir et
+ * `POST /suggestions/keep` —, plus la lecture que le modèle a faite de la
+ * demande. La version parlée l'affiche pour qu'un contresens se voie ; la
+ * version écrite ne l'affiche pas (la phrase est à l'écran) mais s'en sert
+ * pour marquer les ingrédients « déclarés ».
+ */
+export interface SingleRecipeDto {
   heard: VoiceHeard;
+  recipe: SuggestionDto;
 }
+
 
 /**
  * Avancement du rattrapage des recettes déjà au réservoir (D6), suivi par

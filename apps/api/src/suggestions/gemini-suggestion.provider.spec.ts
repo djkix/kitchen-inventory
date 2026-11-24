@@ -5,10 +5,10 @@ import { ProviderError } from '../recognition/providers/recognition-provider.js'
 import { FakeHttp, geminiFixture, json } from '../../test/fake-http.js';
 import { GeminiSuggestionProvider } from './gemini-suggestion.provider.js';
 import { PRICES_USD_PER_MTOK } from '../recognition/providers/gemini.provider.js';
-import { buildSuggestionPrompt, buildVoicePrompt, KNOWN_TITLES_CAP, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
+import { buildSingleRecipePrompt, buildSuggestionPrompt, buildVoicePrompt, KNOWN_TITLES_CAP, SUGGESTION_SYSTEM_PROMPT, SUGGESTION_SYSTEM_PROMPT_NO_SEARCH } from './prompt.js';
 import type { SuggestionProviderError, SuggestionRequest } from './suggestion-provider.js';
 
-const BASE_REQUEST: SuggestionRequest = { seeds: ['tomate', 'pâtes', 'basilic'], count: 12 };
+const BASE_REQUEST: SuggestionRequest = { household: 'Tomate (Placard)\nPâtes (Placard)\nBasilic (Réfrigérateur)', count: 12 };
 
 function requestBody(http: FakeHttp, index = 0): any {
   return JSON.parse(String(http.calls[index]?.init?.body));
@@ -210,9 +210,61 @@ describe('consigne système, exigences de qualité (2026-11-20)', () => {
     expect(prompt).toContain('une cuillère à soupe = 15 ml');
   });
 
+  /**
+   * Remarques sur le stock réel (2026-11-24). Décrites dans `recipeFieldsLine`,
+   * donc dans la demande utilisateur et non dans la consigne système : les
+   * deux chemins (écrit, parlé) la partagent déjà.
+   */
+  it('demande des remarques sur le stock réel, sans date de péremption', () => {
+    for (const prompt of [buildSuggestionPrompt(BASE_REQUEST), buildVoicePrompt({ household: BASE_REQUEST.household, audio: Buffer.from(''), mimeType: 'audio/webm' })]) {
+      expect(prompt).toContain('notes');
+      expect(prompt).toContain('jamais de date de péremption');
+    }
+  });
+
   it('annonce au modèle le plancher d’étapes dans la description des champs', () => {
     expect(buildSuggestionPrompt(BASE_REQUEST)).toContain('au moins cinq pour "ai"');
-    expect(buildVoicePrompt({ ...BASE_REQUEST, audio: Buffer.from(''), mimeType: 'audio/webm' })).toContain('au moins cinq pour "ai"');
+    expect(buildVoicePrompt({ household: BASE_REQUEST.household, audio: Buffer.from(''), mimeType: 'audio/webm' })).toContain('au moins cinq pour "ai"');
+  });
+});
+
+/**
+ * Recette à la demande écrite (2026-11-24). La consigne ne ressemble à celle
+ * d'une fournée que de loin : une seule recette, aucune recherche web, et un
+ * refus explicite plutôt qu'un remplissage.
+ */
+describe('buildSingleRecipePrompt (2026-11-24)', () => {
+  const REQ = { text: 'une recette asiatique avec de la cacahuète', household: "Nouilles de riz (Placard)\nPurée de cacahuètes (Congélateur)" };
+
+  it('demande une seule recette, composée, sans recherche web', () => {
+    const prompt = buildSingleRecipePrompt(REQ);
+    expect(prompt).toContain('UNE SEULE recette');
+    expect(prompt).toContain('composée par toi');
+    expect(prompt).not.toMatch(/recherche web/i);
+  });
+
+  it('porte la phrase telle qu’elle a été tapée', () => {
+    expect(buildSingleRecipePrompt(REQ)).toContain('une recette asiatique avec de la cacahuète');
+  });
+
+  it('porte le placard avec ses emplacements, sans quantités ni dates', () => {
+    const prompt = buildSingleRecipePrompt(REQ);
+    expect(prompt).toContain('Purée de cacahuètes (Congélateur)');
+    expect(prompt).toContain('ne dit ni les quantités disponibles ni les dates');
+  });
+
+  it('autorise un refus explicite plutôt qu’une recette de remplissage', () => {
+    expect(buildSingleRecipePrompt(REQ)).toContain('"recipe": null');
+  });
+
+  it('réclame la lecture de la demande, pour les ingrédients déclarés', () => {
+    expect(buildSingleRecipePrompt(REQ)).toContain('"heard"');
+  });
+
+  it('ne demande ni diversité ni évitement des titres connus', () => {
+    const prompt = buildSingleRecipePrompt(REQ);
+    expect(prompt).not.toContain('nettement différentes');
+    expect(prompt).not.toContain('déjà connues');
   });
 });
 
@@ -271,24 +323,24 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
   let http: FakeHttp;
   let provider: GeminiSuggestionProvider;
   const AUDIO = Buffer.from('des-octets-qui-ne-sont-pas-de-la-parole');
-  const VOICE_REQUEST = { seeds: ['tomate', 'pâtes'], count: 12, audio: AUDIO, mimeType: 'audio/webm' };
+  const VOICE_REQUEST = { household: 'Tomate (Placard)', audio: AUDIO, mimeType: 'audio/webm' };
 
   beforeEach(() => {
     http = new FakeHttp();
     provider = new GeminiSuggestionProvider({ apiKey: 'test-key', httpClient: http.client });
   });
 
-  it('rend la lecture du modèle ET les recettes en un seul appel (D2, D4)', async () => {
-    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+  it('rend la lecture du modèle ET la recette en un seul appel (D2, D4)', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
     const result = await provider.suggestFromVoice(VOICE_REQUEST);
-    expect(result.heard.ingredients).toEqual(['poulet', 'sauce tomate']);
-    expect(result.heard.orientation).toBe('plat italien');
-    expect(result.recipes.length).toBeGreaterThan(0);
+    expect(result.heard.ingredients).toEqual(['cacahuète', 'ail']);
+    expect(result.heard.orientation).toBe('une recette asiatique');
+    expect(result.recipe?.title).toBe('Nouilles sautées à la cacahuète');
     expect(http.calls).toHaveLength(1);
   });
 
   it('envoie l’audio en pièce jointe, avec son type', async () => {
-    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
     await provider.suggestFromVoice(VOICE_REQUEST);
     const parts = requestBody(http).contents[0].parts;
     expect(parts[0].inlineData.mimeType).toBe('audio/webm');
@@ -298,7 +350,7 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
   });
 
   it('facture l’appel au tarif audio quand la ventilation est absente (D7)', async () => {
-    http.on('generateContent', () => geminiFixture('suggestions/gemini-voice-batch.json'));
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-one-recipe.json'));
     const voice = await provider.suggestFromVoice(VOICE_REQUEST);
     // `geminiFixture` rend 900 jetons d'entrée et 70 de sortie, sans
     // ventilation : le repli de D7 les facture tous au tarif audio.
@@ -306,6 +358,10 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
     const expected = Math.round(((900 * price.audio + 70 * price.output) / 1_000_000) * 100 * 10_000) / 10_000;
     expect(voice.attempts[0]?.costCents).toBe(expected);
     // Et c'est bien plus que ce qu'un appel écrit de même volume aurait coûté.
+    // `on` empile les routes et la première l'emporte : il faut repartir à
+    // zéro pour servir la fournée écrite au même appel.
+    http.reset();
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch.json'));
     const written = await provider.suggest(BASE_REQUEST);
     expect(voice.attempts[0]!.costCents!).toBeGreaterThan(written.attempts[0]!.costCents!);
   });
@@ -356,23 +412,28 @@ describe('GeminiSuggestionProvider.suggestFromVoice (D2, D4, D7)', () => {
 });
 
 describe('buildVoicePrompt (D2, D4)', () => {
-  const req = { seeds: ['tomate', 'pâtes'], count: 12, audio: Buffer.alloc(0), mimeType: 'audio/webm' };
+  const req = { household: 'Tomate (Placard)', audio: Buffer.alloc(0), mimeType: 'audio/webm' };
 
-  it('demande la lecture de la phrase et les recettes dans le même objet JSON', () => {
+  it('demande la lecture de la phrase et la recette dans le même objet JSON', () => {
     const prompt = buildVoicePrompt(req);
     expect(prompt).toMatch(/heard/);
     expect(prompt).toMatch(/ingredients/);
     expect(prompt).toMatch(/orientation/);
-    expect(prompt).toMatch(/recipes/);
+    expect(prompt).toMatch(/recipe/);
   });
 
   it('croise la parole avec le stock réel, qui est toute la valeur de la fonction', () => {
     const prompt = buildVoicePrompt(req);
-    expect(prompt).toContain('tomate, pâtes');
+    expect(prompt).toContain('Tomate (Placard)');
     expect(prompt).toMatch(/enregistrement|audio|parl/i);
   });
 
-  it('garde la consigne de diversité des propositions', () => {
-    expect(buildVoicePrompt(req)).toContain('nettement différentes');
+  // Depuis le 2026-11-24, la demande parlée rend UNE recette : la consigne de
+  // diversité, qui vaut à l'intérieur d'une fournée, n'a plus d'objet ici.
+  it('demande une seule recette, sans recherche web', () => {
+    const prompt = buildVoicePrompt(req);
+    expect(prompt).toContain('UNE SEULE recette');
+    expect(prompt).not.toContain('nettement différentes');
+    expect(prompt).not.toMatch(/recherche web/i);
   });
 });

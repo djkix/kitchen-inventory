@@ -650,6 +650,7 @@ enum AiRequestKind {
   SUGGESTIONS
   VOICE
   RECEIPT
+  RECIPE_REQUEST
 }
 
 enum AiRequestState {

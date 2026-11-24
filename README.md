@@ -146,14 +146,39 @@ reste trop peu. Le **nombre de recettes** s'affiche sous le titre de l'écran,
 comme à « Mes recettes » : celles qui répondent à l'orientation en cours, et le
 réservoir entier quand il est plus grand.
 
-**Vos ingrédients à vous.** Un champ à pastilles, avec autocomplétion depuis le
-catalogue : « poulet, tomates » ne rend que des recettes utilisant **tous** ces
-éléments — l'objet est d'écouler un reste.
+**Ce que le modèle sait de votre placard.** La liste complète de vos produits,
+avec leur emplacement, une ligne par produit — et rien d'autre : ni les
+quantités en stock, ni les dates de péremption. Une recette n'a pas besoin de
+savoir qu'il vous reste 250 g de farine plutôt que 2 kg, seule la présence du
+produit compte ; et les péremptions restent l'affaire de « Périme bientôt ».
+C'est ce placard entier, et non plus huit ingrédients choisis automatiquement,
+qui permet au modèle de dire ce qui manque et par quoi il l'a remplacé.
+
+**Une recette à la demande.** `POST /suggestions/request` prend une phrase en
+clair — « une recette asiatique avec de la cacahuète, des échalotes et de
+l'ail » — et rend **une seule** recette, composée pour vous, avec ses
+remarques. Ce chemin ne cherche jamais sur le web, et la recette rendue
+est **toujours** une composition, même si le modèle prétend le contraire : une
+page illisible la ferait écarter, et sur une seule recette l'appel payé ne
+laisserait rien à l'écran. Il ne passe ni par le plancher du réservoir ni par
+le verrou de 24 heures : une question posée appelle le modèle. La recette
+rejoint ensuite le réservoir, donc le bouton « conserver » fonctionne comme
+pour les autres — et c'est bien la recette qui vient d'être écrite qui
+s'affiche, même si une recette du même titre y dormait déjà.
+
+**Le champ de Suggestions attend une phrase**, plus une liste d'ingrédients :
+« une recette asiatique avec de la cacahuète, des échalotes et de l'ail », ou
+« quelque chose de rapide ce soir ». Une phrase tapée demande **une** recette ;
+un champ vide laisse partir la fournée filtrée. Le champ à pastilles et les
+ingrédients imposés ont disparu avec lui : le modèle comprend la phrase
+entière, découper la saisie ne servait plus à rien.
 
 **Demande parlée.** Une icône de micro ouvre un écran à part : on dit *« il me
 reste du poulet et un peu de sauce tomate, je veux faire un plat italien »*, et
-Gemini écoute, comprend et propose dans le même appel. L'audio n'est conservé
-nulle part.
+Gemini écoute, comprend et répond dans le même appel — **une** recette, comme
+la demande écrite, avec ses remarques et ce qu'il a compris de la phrase
+affiché au-dessus, pour qu'un contresens se voie. L'audio n'est conservé nulle
+part.
 
 Les unités reconnues sont la pièce, le gramme, le kilo, le millilitre, le
 litre, le paquet, la boîte et le sachet — ni cuillère ni pincée. La consigne
@@ -167,6 +192,22 @@ recette de tout recalculer : une quantité absente ne se multiplie pas. Si le
 modèle laisse malgré tout passer une unité inconnue, l'ingrédient garde son
 libellé et perd sa quantité, plutôt que d'emporter la recette entière :
 « 2 » sans la cuillère se lirait « 2 concentrés de tomates ».
+
+Chaque recette proposée porte les **remarques** du modèle sur elle face à votre
+stock : les substitutions qu'il a faites et pourquoi, où un ingrédient est rangé
+si cela surprend, une variante s'il y en a une qui vaut la peine. Elles
+s'affichent au-dessus des ingrédients, dans le tiroir. Les recettes entrées au
+réservoir avant cette livraison n'en portent pas : une consigne ne réécrit pas
+ce qui est déjà écrit.
+
+Sur les recettes, la mesure exacte est suivie de son **équivalent ménager**
+quand il y en a un : « 45 ml (3 c. à soupe) », « 10 g (2 c. à café) ». Il est
+calculé à l'affichage et jamais stocké, donc il suit le champ **Parts** : si
+vous passez de quatre à six personnes, le nombre de cuillères suit. Rien n'est
+affiché en dessous d'une demi-cuillère à café ni au-delà de huit cuillères à
+soupe, où le compte cesse d'être parlant — 250 g de farine ne se mesurent pas
+en seize cuillères. L'écran Stock, lui, n'affiche jamais de cuillères : un
+placard se compte en grammes.
 
 **Mes recettes** est la bibliothèque du foyer : classée par note, filtrable
 (difficulté, cuisine, temps, plat, régime), avec favoris, notation par membre
@@ -1123,6 +1164,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.45.0 | 2026-11-24 | Une recette à la demande : on écrit ou on dicte sa phrase, l'application rend une seule recette détaillée avec ses remarques sur votre stock ; tout le placard part au modèle, sans quantités ni dates, et les quantités portent leur équivalent en cuillères |
 | 0.44.0 | 2026-11-24 | Un troisième export, l'inventaire allégé à joindre à une demande posée directement à une IA |
 | 0.43.4 | 2026-11-21 | Les quantités des recettes proposées arrivent en grammes et en millilitres, cuillères converties, pour que le champ « Parts » puisse les mettre à l'échelle |
 | 0.43.3 | 2026-11-20 | Une recette dont un ingrédient porte un nombre sans unité (« 2 gousses d'ail ») entre de nouveau dans « Mes recettes » |

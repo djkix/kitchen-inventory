@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { SUGGESTION_INGREDIENT_LENGTH_MAX } from '../rules/suggestion-ingredients.js';
 import {
   modelBatchSchema,
   modelRecipeSchema,
@@ -8,7 +7,7 @@ import {
   SUGGESTION_PAGE_MAX,
   SUGGESTION_REGIONS,
   voiceAudioRejection,
-  voiceModelBatchSchema,
+  singleRecipeModelSchema,
   VOICE_HEARD_INGREDIENTS_MAX,
   VOICE_MAX_BYTES,
   VOICE_MAX_SECONDS,
@@ -54,6 +53,74 @@ describe('modelRecipeSchema', () => {
     // plutôt que d'inventer un zéro qui se lirait « cuisson : 0 minute ».
     const recipe = { ...recette, prepMinutes: null, cookMinutes: null };
     expect(modelRecipeSchema.safeParse(recipe).success).toBe(true);
+  });
+});
+
+describe('suggestionQuerySchema', () => {
+  it('accepte une orientation vide', () => {
+    expect(suggestionQuerySchema.parse({})).toEqual({ refresh: false });
+  });
+  it('accepte les trois dimensions ensemble (B9)', () => {
+    const q = suggestionQuerySchema.parse({ region: 'asiatique', maxMinutes: '30', difficulty: 'EASY' });
+    expect(q).toMatchObject({ region: 'asiatique', maxMinutes: 30, difficulty: 'EASY' });
+  });
+  it('refuse une durée hors des paliers', () => {
+    expect(suggestionQuerySchema.safeParse({ maxMinutes: '42' }).success).toBe(false);
+  });
+  it('ne prend pas la chaîne « false » pour un vrai (défaut de z.coerce.boolean)', () => {
+    expect(suggestionQuerySchema.parse({ refresh: 'false' }).refresh).toBe(false);
+    expect(suggestionQuerySchema.parse({ refresh: 'true' }).refresh).toBe(true);
+    expect(suggestionQuerySchema.parse({}).refresh).toBe(false);
+  });
+  it('refuse une valeur de refresh qui n’est ni « true » ni « false »', () => {
+    expect(suggestionQuerySchema.safeParse({ refresh: 'oui' }).success).toBe(false);
+  });
+  it('refuse une région inconnue', () => {
+    expect(suggestionQuerySchema.safeParse({ region: 'martienne' }).success).toBe(false);
+  });
+  it('borne la page demandée, et refuse tout ce qui sort de la borne', () => {
+    // Une limite libre venue du client ferait calculer la couverture sur tout
+    // le réservoir : le rapprochement `pg_trgm` se paie par libellé
+    // d'ingrédient, sur une petite machine (2026-10-19).
+    expect(suggestionQuerySchema.parse({ limit: '36' }).limit).toBe(36);
+    expect(suggestionQuerySchema.parse({ limit: String(SUGGESTION_PAGE_MAX) }).limit).toBe(SUGGESTION_PAGE_MAX);
+    expect(suggestionQuerySchema.safeParse({ limit: String(SUGGESTION_PAGE_MAX + 1) }).success).toBe(false);
+    expect(suggestionQuerySchema.safeParse({ limit: '10000' }).success).toBe(false);
+    expect(suggestionQuerySchema.safeParse({ limit: '0' }).success).toBe(false);
+    expect(suggestionQuerySchema.safeParse({ limit: '12.5' }).success).toBe(false);
+  });
+  it('laisse la limite absente : le serveur pose alors la page par défaut', () => {
+    expect(suggestionQuerySchema.parse({}).limit).toBeUndefined();
+  });
+  // Les ingrédients imposés ont disparu le 2026-11-24 : le champ `ingredients`
+  // n'existe plus dans l'orientation, une phrase en clair part sur sa propre
+  // route (`recipeRequestSchema`).
+  it('n’accepte plus d’ingrédients imposés dans l’orientation', () => {
+    expect('ingredients' in suggestionQuerySchema.parse({})).toBe(false);
+  });
+  it('expose sept régions, sans doublon', () => {
+    expect(new Set(SUGGESTION_REGIONS).size).toBe(SUGGESTION_REGIONS.length);
+  });
+});
+
+describe('remarques du modèle (notes, 24 novembre 2026)', () => {
+  it('accepte les remarques du modèle', () => {
+    expect(modelRecipeSchema.parse({ ...recette, notes: 'Pas d’ail frais : ail semoule.' }).notes).toBe('Pas d’ail frais : ail semoule.');
+  });
+
+  // Les quelque quatre cents recettes déjà au réservoir n'ont pas ce champ, et
+  // leur payload est revalidé à chaque lecture : sans défaut, elles seraient
+  // toutes écartées.
+  it('accepte une recette sans remarques', () => {
+    expect(modelRecipeSchema.parse(recette).notes ?? null).toBeNull();
+  });
+
+  it('accepte un null explicite du modèle', () => {
+    expect(modelRecipeSchema.parse({ ...recette, notes: null }).notes ?? null).toBeNull();
+  });
+
+  it('refuse des remarques démesurées', () => {
+    expect(modelRecipeSchema.safeParse({ ...recette, notes: 'x'.repeat(1201) }).success).toBe(false);
   });
 });
 
@@ -126,99 +193,34 @@ describe('modelBatchSchema : validation recette par recette', () => {
   });
 });
 
-describe('suggestionQuerySchema', () => {
-  it('accepte une orientation vide', () => {
-    expect(suggestionQuerySchema.parse({})).toEqual({ refresh: false });
-  });
-  it('accepte les trois dimensions ensemble (B9)', () => {
-    const q = suggestionQuerySchema.parse({ region: 'asiatique', maxMinutes: '30', difficulty: 'EASY' });
-    expect(q).toMatchObject({ region: 'asiatique', maxMinutes: 30, difficulty: 'EASY' });
-  });
-  it('refuse une durée hors des paliers', () => {
-    expect(suggestionQuerySchema.safeParse({ maxMinutes: '42' }).success).toBe(false);
-  });
-  it('ne prend pas la chaîne « false » pour un vrai (défaut de z.coerce.boolean)', () => {
-    expect(suggestionQuerySchema.parse({ refresh: 'false' }).refresh).toBe(false);
-    expect(suggestionQuerySchema.parse({ refresh: 'true' }).refresh).toBe(true);
-    expect(suggestionQuerySchema.parse({}).refresh).toBe(false);
-  });
-  it('refuse une valeur de refresh qui n’est ni « true » ni « false »', () => {
-    expect(suggestionQuerySchema.safeParse({ refresh: 'oui' }).success).toBe(false);
-  });
-  it('refuse une région inconnue', () => {
-    expect(suggestionQuerySchema.safeParse({ region: 'martienne' }).success).toBe(false);
-  });
-  it('borne la page demandée, et refuse tout ce qui sort de la borne', () => {
-    // Une limite libre venue du client ferait calculer la couverture sur tout
-    // le réservoir : le rapprochement `pg_trgm` se paie par libellé
-    // d'ingrédient, sur une petite machine (2026-10-19).
-    expect(suggestionQuerySchema.parse({ limit: '36' }).limit).toBe(36);
-    expect(suggestionQuerySchema.parse({ limit: String(SUGGESTION_PAGE_MAX) }).limit).toBe(SUGGESTION_PAGE_MAX);
-    expect(suggestionQuerySchema.safeParse({ limit: String(SUGGESTION_PAGE_MAX + 1) }).success).toBe(false);
-    expect(suggestionQuerySchema.safeParse({ limit: '10000' }).success).toBe(false);
-    expect(suggestionQuerySchema.safeParse({ limit: '0' }).success).toBe(false);
-    expect(suggestionQuerySchema.safeParse({ limit: '12.5' }).success).toBe(false);
-  });
-  it('laisse la limite absente : le serveur pose alors la page par défaut', () => {
-    expect(suggestionQuerySchema.parse({}).limit).toBeUndefined();
-  });
-  it('rend les ingrédients dictés normalisés et triés (D3, D7)', () => {
-    // Triés au schéma, donc une seule fois : la signature de l'orientation les
-    // reprend tels quels, et deux saisies de même contenu sont la même demande.
-    expect(suggestionQuerySchema.parse({ ingredients: 'Merguez, Pommes de terre' }).ingredients?.terms).toEqual(['merguez', 'pommes de terre']);
-    expect(suggestionQuerySchema.parse({ ingredients: 'pommes de terre, merguez' }).ingredients?.terms).toEqual(['merguez', 'pommes de terre']);
-  });
-  it('traite une saisie vide comme une absence de contrainte, jamais comme une contrainte vide (D7)', () => {
-    expect(suggestionQuerySchema.parse({ ingredients: '  ' }).ingredients?.terms).toEqual([]);
-    // Une saisie faite de virgules seules n'est pas une contrainte non plus.
-    expect(suggestionQuerySchema.parse({ ingredients: ' , ,, ' }).ingredients?.terms).toEqual([]);
-    expect(suggestionQuerySchema.parse({}).ingredients).toBeUndefined();
-  });
-  it('garde la saisie telle quelle à côté des termes normalisés (tour 1)', () => {
-    // Le prompt doit recevoir « crème fraîche » accentué : la normalisation
-    // sert la signature et le rapprochement, jamais le transport au modèle.
-    const parsed = suggestionQuerySchema.parse({ ingredients: 'Crème fraîche, Merguez' });
-    expect(parsed.ingredients?.raw).toBe('Crème fraîche, Merguez');
-    expect(parsed.ingredients?.terms).toEqual(['creme fraiche', 'merguez']);
-  });
-  it('borne la saisie à cinq ingrédients de trente caractères (D7)', () => {
-    expect(suggestionQuerySchema.safeParse({ ingredients: 'a, b, c, d, e' }).success).toBe(true);
-    expect(suggestionQuerySchema.safeParse({ ingredients: 'a, b, c, d, e, f' }).success).toBe(false);
-    expect(suggestionQuerySchema.safeParse({ ingredients: 'x'.repeat(SUGGESTION_INGREDIENT_LENGTH_MAX) }).success).toBe(true);
-    expect(suggestionQuerySchema.safeParse({ ingredients: 'x'.repeat(SUGGESTION_INGREDIENT_LENGTH_MAX + 1) }).success).toBe(false);
-  });
-  it('expose sept régions, sans doublon', () => {
-    expect(new Set(SUGGESTION_REGIONS).size).toBe(SUGGESTION_REGIONS.length);
-  });
-});
 
 /**
- * Demande parlée (spécification du 2026-10-21) : un seul appel rend la lecture
- * de la phrase ET les recettes (D2, D4).
+ * Demande « une recette » (2026-11-24), écrite ou parlée : un seul appel rend
+ * la lecture de la demande ET la recette. Le schéma est volontairement
+ * permissif sur `recipe: null` — c'est le service qui en fait un refus
+ * français (D9) — et intransigeant sur une recette présente mais mal formée.
  */
-describe('voiceModelBatchSchema (demande parlée, D2, D4)', () => {
-  it('rend ce que le modèle a entendu à côté des recettes', () => {
-    const parsed = voiceModelBatchSchema.parse({
+describe('singleRecipeModelSchema (2026-11-24)', () => {
+  it('rend ce que le modèle a compris à côté de la recette', () => {
+    const parsed = singleRecipeModelSchema.parse({
       heard: { ingredients: ['poulet', 'sauce tomate'], orientation: 'plat italien' },
-      recipes: [recette],
+      recipe: recette,
     });
     expect(parsed.heard.ingredients).toEqual(['poulet', 'sauce tomate']);
     expect(parsed.heard.orientation).toBe('plat italien');
-    expect(parsed.recipes).toHaveLength(1);
+    expect(parsed.recipe?.title).toBe('Pâtes à la tomate');
   });
 
   it('tient une réponse sans lecture pour une lecture vide, jamais pour une erreur', () => {
-    // C'est le service qui décide qu'une lecture vide veut dire « rien
-    // compris » (D9) : le schéma ne doit pas perdre les recettes payées.
-    const parsed = voiceModelBatchSchema.parse({ recipes: [recette] });
+    const parsed = singleRecipeModelSchema.parse({ recipe: recette });
     expect(parsed.heard).toEqual({ ingredients: [], orientation: null });
-    expect(parsed.recipes).toHaveLength(1);
+    expect(parsed.recipe).not.toBeNull();
   });
 
   it('écarte les ingrédients vides et borne la lecture', () => {
-    const parsed = voiceModelBatchSchema.parse({
+    const parsed = singleRecipeModelSchema.parse({
       heard: { ingredients: ['  ', 'poulet', ...Array.from({ length: 30 }, (_, i) => `x${i}`)], orientation: '   ' },
-      recipes: [recette],
+      recipe: recette,
     });
     expect(parsed.heard.ingredients).not.toContain('');
     expect(parsed.heard.ingredients.length).toBeLessThanOrEqual(VOICE_HEARD_INGREDIENTS_MAX);
@@ -227,16 +229,13 @@ describe('voiceModelBatchSchema (demande parlée, D2, D4)', () => {
     expect(parsed.heard.orientation).toBeNull();
   });
 
-  it('garde les recettes valides et écarte la seule mal formée, comme le lot écrit', () => {
-    const parsed = voiceModelBatchSchema.parse({
-      heard: { ingredients: ['poulet'], orientation: null },
-      recipes: [recette, { ...recette, sourceUrl: 'http://pas-https.test/x' }],
-    });
-    expect(parsed.recipes).toHaveLength(1);
+  it('accepte un refus explicite du modèle', () => {
+    const parsed = singleRecipeModelSchema.parse({ heard: { ingredients: [], orientation: null }, recipe: null });
+    expect(parsed.recipe).toBeNull();
   });
 
-  it('refuse un lot dont aucune recette ne tient debout', () => {
-    expect(voiceModelBatchSchema.safeParse({ heard: { ingredients: [], orientation: null }, recipes: [{ title: 'rien' }] }).success).toBe(false);
+  it('refuse une recette présente mais mal formée', () => {
+    expect(singleRecipeModelSchema.safeParse({ heard: { ingredients: [], orientation: null }, recipe: { title: 'rien' } }).success).toBe(false);
   });
 });
 
