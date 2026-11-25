@@ -150,7 +150,8 @@ export class SuggestionsController implements OnModuleInit {
 
   /**
    * Rattrapage des recettes du réservoir (D6), derrière le bouton de
-   * Réglages › Recettes. Le passage dure, donc le serveur rend la main tout de
+   * Réglages › Reconnaissance › « Recettes du réservoir ». Le passage dure,
+   * donc le serveur rend la main tout de
    * suite (202) et l'écran suit par `GET`.
    */
   @Get('catalogue')

@@ -55,7 +55,7 @@ qu'on ouvre tous les jours.
 | Onglet | À quoi il sert |
 |--------|----------------|
 | 🥫 **Stock** | Articles par emplacement, recherche tolérante aux fautes, vue « périme bientôt » |
-| 🍲 **Recettes** | Suggestions construites sur le stock réel, puis bibliothèque du foyer |
+| 🍲 **Recettes** | Une recette à la demande, suggestions construites sur le stock réel, puis bibliothèque du foyer |
 | 📷 **Scan** | Code-barres en rafale, ou photo d'étiquette quand le code ne suffit pas |
 | 🧾 **Courses** | Un ticket de caisse photographié remplit l'inventaire d'un geste |
 | ⚙️ **Réglages** | Emplacements, comptes, modèles d'IA, quotas et dépense, export |
@@ -588,7 +588,7 @@ Google ne laisse que l'[accès de secours](#accès-de-secours).
 > n'appartiennent à personne : ce sont des jetons d'**intégration du foyer**
 > (Home Assistant, voir [Intégrations](#intégrations)), pas l'accès d'une
 > personne. Si quelqu'un qui partait avait noté un jeton, le supprimer dans
-> **Réglages › Jetons de service** — c'est le seul geste qui le coupe.
+> **Réglages › Foyer › Jetons de service** — c'est le seul geste qui le coupe.
 
 ### 3. Sur le téléphone
 
@@ -865,7 +865,7 @@ Toutes les variables sont documentées dans `.env.example`. Les principales :
 | `SUGGESTION_WEB_SEARCH` | `true` ou `false` (**défaut**) : recherche web réelle pour les suggestions. Éteinte par défaut car facturée à la requête, hors quota gratuit : une clé sans facturation la refuse par un 429, et l'écran reste vide au lieu de montrer des recettes web. Valeur de départ seulement — un administrateur bascule l'option depuis Réglages, et son choix prime |
 | `VISION_DAILY_QUOTA` | Appels photo autorisés par jour (50) |
 | `VISION_MONTHLY_CAP_CENTS` | Plafond de dépense mensuel en centimes, partagé par le scan photo et les suggestions (500, soit 5 €) ; 0 le désactive. Couvre les jetons **et** les requêtes de recherche web |
-| `RECIPE_SUGGESTION_DAILY_QUOTA` | Fournées de suggestions de recettes autorisées par jour (20) |
+| `RECIPE_SUGGESTION_DAILY_QUOTA` | Appels au modèle pour des recettes autorisés par jour (20) : fournées filtrées **et** demandes en langage naturel, écrites comme parlées |
 | `RECEIPT_DAILY_QUOTA` | Lectures de ticket de caisse autorisées par jour (10), compteur séparé du scan photo et des suggestions, affiché dans Réglages › Reconnaissance (tuile « Tickets aujourd'hui ») |
 | `GEMINI_RPM`, `GEMINI_TPM`, `GEMINI_RPD` | Limites de Google appliquées par défaut à **chaque modèle** et vérifiées avant l'appel : requêtes par minute (5), jetons par minute (250 000), requêtes par jour du Pacifique (20) — le niveau gratuit. Un administrateur les règle modèle par modèle dans Réglages › Reconnaissance, et son réglage prime |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Paire de clés des notifications, engendrée une fois par `npx web-push generate-vapid-keys`. Absentes, l'application fonctionne normalement et n'annonce rien |
@@ -936,7 +936,10 @@ Les garde-fous qui ne se voient pas à l'écran :
   recherche qui peut appeler le modèle et consommer le quota est
   `POST /api/v1/suggestions` (orientation dans le corps JSON), celle qu'utilise
   l'écran ; un jeton de service, en lecture seule, ne peut donc pas la
-  déclencher.
+  déclencher. Il en va de même des deux demandes en langage naturel,
+  `POST /api/v1/suggestions/request` (une phrase) et
+  `POST /api/v1/suggestions/voice` (un enregistrement) : elles appellent
+  toujours le modèle, chacune bornée à cinq par minute et par adresse.
 - **Chaîne de publication.** Les actions GitHub tierces sont épinglées sur un
   SHA de commit complet (la version lisible en commentaire), et le tag de
   version d'une republication manuelle passe par l'environnement puis doit
@@ -945,7 +948,7 @@ Les garde-fous qui ne se voient pas à l'écran :
 ## Intégrations
 
 **Home Assistant et autres lecteurs.** Un jeton de service créé dans
-Réglages › Jetons de service donne un accès en lecture seule à l'API. Il
+Réglages › Foyer › Jetons de service donne un accès en lecture seule à l'API. Il
 appartient au **foyer**, pas à la personne qui l'a créé : il n'est rattaché à
 aucun compte, il ne porte aucun rôle, et **révoquer un compte ne l'invalide
 pas**. Un jeton se coupe en le supprimant, et seulement ainsi — le supprimer
@@ -1089,10 +1092,9 @@ de la date, qui n'existe pas encore), P3
 abandonnée), P4 (consultation, recherche, filtre par emplacement, périme
 bientôt, la vue « à racheter » est abandonnée avec la liste de courses),
 P5 (suggestions de recettes, hors cahier des charges, ajouté parce que
-c'est la fonctionnalité la plus récente et la plus fragile — y compris le
-champ d'ingrédients dictés : pastilles, croix de retrait, autocomplétion
-depuis le catalogue, recettes n'utilisant que des combinaisons complètes, et
-l'explication affichée quand une combinaison ne rend rien) et P6 (inscription
+c'est la fonctionnalité la plus récente et la plus fragile — y compris la
+demande écrite : une phrase tapée, la recette unique qu'elle rend, ses
+remarques et son équivalent en cuillères) et P6 (inscription
 et validation d'un compte, hors cahier lui aussi : une adresse inconnue se
 connecte, voit le message d'attente et n'accède à rien, un administrateur la
 valide dans Réglages › Comptes, elle entre) et P7 (ticket de caisse, EF-29 :
@@ -1164,6 +1166,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.45.1 | 2026-11-24 | Correction des chemins de Réglages cités dans la documentation et les commentaires : le rattrapage des recettes est dans Reconnaissance, pas dans une section « Recettes » qui n'existe pas |
 | 0.45.0 | 2026-11-24 | Une recette à la demande : on écrit ou on dicte sa phrase, l'application rend une seule recette détaillée avec ses remarques sur votre stock ; tout le placard part au modèle, sans quantités ni dates, et les quantités portent leur équivalent en cuillères |
 | 0.44.0 | 2026-11-24 | Un troisième export, l'inventaire allégé à joindre à une demande posée directement à une IA |
 | 0.43.4 | 2026-11-21 | Les quantités des recettes proposées arrivent en grammes et en millilitres, cuillères converties, pour que le champ « Parts » puisse les mettre à l'échelle |

@@ -15,7 +15,7 @@ interface LocationListProps {
 export function LocationList({ tree, selectedId, onSelect, disabledIds = [] }: LocationListProps) {
   const rows = flattenLocations(tree);
   if (rows.length === 0) {
-    return <p className="py-6 text-center text-[14px] text-muted">Aucun emplacement pour l’instant. Créez-en un dans Réglages › Emplacements.</p>;
+    return <p className="py-6 text-center text-[14px] text-muted">Aucun emplacement pour l’instant. Créez-en un dans Réglages › Inventaire › Emplacements.</p>;
   }
   return (
     <ul className="flex flex-col">

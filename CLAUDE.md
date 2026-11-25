@@ -220,6 +220,26 @@ tools/             utilitaires hors application
   `0017_backup`), Réglages › Sauvegarde pour les administrateurs
   (`apps/api/src/backup`, `GET /backup`, `POST /backup/request`).
 
+- Recette à la demande livrée (EF-25, EF-26, spec
+  `docs/specs/2026-11-24-recette-a-la-demande.md`) : le modèle reçoit la liste
+  complète des produits du foyer avec leurs emplacements, **sans quantités ni
+  dates** (`loadHouseholdProducts`, `formatHouseholdInventory`) — la sélection
+  de huit graines (`pickSeedIngredients`, `SEED_MAX`) a disparu. Chaque recette
+  porte des remarques (`notes`, dans le `payload` du réservoir, aucune
+  migration) ; jamais de date de péremption. Le champ à pastilles devient un
+  champ de texte libre (`request-field.tsx`) : une phrase tapée, comme une
+  demande parlée, rend **une** recette (`POST /suggestions/request`,
+  `requestOne`/`requestOneFromVoice`, `SingleRecipeDto`, genre de demande
+  `RECIPE_REQUEST`, migration `0019_recipe_request`), sans recherche web,
+  `provenance: 'ai'` forcée, sans plancher de réservoir ni verrou
+  d'orientation ; un champ vide relance la fournée. Les ingrédients imposés
+  s'en vont (signature passée en `v6`). Sur les fiches, la mesure exacte est
+  suivie de son équivalent ménager — « 45 ml (3 c. à soupe) » —, calculé à
+  l'affichage par `kitchenEquivalent` et jamais stocké, donc il suit le champ
+  « Parts » et vaut pour les recettes déjà au réservoir. Un stock vide
+  n'interdit pas une demande en clair (elle porte ses ingrédients), il interdit
+  la fournée filtrée. Cahier des charges amendé le 2026-11-24 (sections 12, 14,
+  EF-25, EF-26).
 - Revue de sécurité du 2026-10-22 corrigée : premier administrateur d'une
   base vide réservé à `ADMIN_EMAIL` (aucun en production sans elle, porte de
   secours sinon), connexion du récupérateur de pages épinglée sur l'adresse
