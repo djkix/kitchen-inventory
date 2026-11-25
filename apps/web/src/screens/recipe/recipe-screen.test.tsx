@@ -182,34 +182,26 @@ describe('RecipeScreen', () => {
     expect(screen.queryByRole('heading', { name: 'Ingrédients' })).toBeNull();
   });
 
-  // 2026-10-20 : le champ habillé était deux fois plus haut que les durées et
-  // cassait la ligne pour un seul chiffre. Même gabarit qu'elles désormais, et
-  // deux chiffres au plus.
-  it('borne les parts à deux chiffres et refuse au-delà de vingt', () => {
+  // 2026-11-25 : menu déroulant à la place du champ de saisie. Le champ ne
+  // marchait pas — taper « 2 » sur « 4 » donnait « 42 », hors bornes, donc
+  // ignoré en silence : « 42 » à l'écran et les quantités toujours pour quatre.
+  it('propose les parts dans une liste, de une à vingt', () => {
     renderRecipeScreen();
-    const champ = screen.getByLabelText('Parts') as HTMLInputElement;
-    expect(champ.maxLength).toBe(2);
+    const champ = screen.getByLabelText('Parts') as HTMLSelectElement;
 
-    fireEvent.change(champ, { target: { value: '25' } });
-    // La saisie reste à l'écran — on n'efface jamais sous les doigts — mais
-    // elle ne part pas au serveur.
-    expect(champ.value).toBe('25');
-    expect(screen.queryByText('Pour 25 parts')).toBeNull();
+    expect(champ.tagName).toBe('SELECT');
+    expect(champ.value).toBe('4');
+    expect([...champ.options].map((o) => o.value)).toEqual(Array.from({ length: 20 }, (_, i) => String(i + 1)));
   });
 
-  it('laisse remplacer le nombre de parts, pas seulement y ajouter des chiffres', () => {
-    // Le champ se repliait sur le nombre courant quand il était vide : effacer
-    // réaffichait aussitôt l'ancien chiffre, donc taper « 2 » sur « 4 » donnait
-    // « 42 » et jamais « 2 ». Rencontré par le propriétaire le 2026-10-08.
-    renderRecipeScreen();
-    const champ = screen.getByLabelText('Parts') as HTMLInputElement;
-    expect(champ.value).toBe('4');
+  // Une recette enregistrée au-delà de vingt parts reste sur les siennes :
+  // sans cette ligne, le menu ne contiendrait pas sa propre valeur.
+  it('ajoute les parts de la recette quand elles dépassent vingt', () => {
+    renderRecipeScreen({ servings: 24 });
+    const champ = screen.getByLabelText('Parts') as HTMLSelectElement;
 
-    fireEvent.change(champ, { target: { value: '' } });
-    expect(champ.value).toBe('');
-
-    fireEvent.change(champ, { target: { value: '2' } });
-    expect(champ.value).toBe('2');
+    expect(champ.value).toBe('24');
+    expect([...champ.options].map((o) => o.value)).toContain('24');
   });
 
   // A2 : l'étoile de favori bascule et annonce son état (aria-pressed), sans réalisation requise.

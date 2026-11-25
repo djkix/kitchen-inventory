@@ -77,3 +77,35 @@ export function orderModels(available: readonly string[]): string[] {
     return 0;
   });
 }
+
+/**
+ * Niveau de réflexion demandé au modèle (2026-11-25).
+ *
+ * Les modèles Gemini 3 réfléchissent **à « high » par défaut**. Personne ne
+ * l'avait réglé, et cela se payait deux fois : à l'écran, vingt à quarante
+ * secondes d'attente pour une seule recette sur un appel pourtant réussi ; et
+ * sur le plafond mensuel, puisque les jetons de réflexion sont facturés comme
+ * de la sortie.
+ *
+ * « low » et non « minimal » : `MINIMAL` est refusé par validation sur les
+ * Flash les plus récents (3.8), et la cascade prend ses modèles dans la liste
+ * en direct de Google — une valeur qui marche sur l'un et fait tomber l'autre
+ * serait une panne différée. « low » est accepté par toute la famille 3.
+ *
+ * La famille 2 ne connaît pas `thinkingLevel` mais `thinkingBudget`, dont le
+ * zéro coupe la réflexion. Aucun modèle 2 n'est en service aujourd'hui ; la
+ * liste venant de Google, la branche est là pour le jour où il en reparaîtrait
+ * un.
+ *
+ * Composer une recette ne demande pas de réflexion poussée : la qualité est
+ * portée par la consigne (`suggestions/prompt.ts`), qui ne coûte ni attente ni
+ * jetons de sortie.
+ */
+export function thinkingConfigFor(model: string): { thinkingLevel: string } | { thinkingBudget: number } | undefined {
+  const match = STABLE.exec(model);
+  if (!match) return undefined;
+  const major = Number(match[1]!.split('.')[0]);
+  if (major >= 3) return { thinkingLevel: 'LOW' };
+  if (major === 2) return { thinkingBudget: 0 };
+  return undefined;
+}

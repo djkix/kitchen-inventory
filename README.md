@@ -209,6 +209,10 @@ soupe, où le compte cesse d'être parlant — 250 g de farine ne se mesurent pa
 en seize cuillères. L'écran Stock, lui, n'affiche jamais de cuillères : un
 placard se compte en grammes.
 
+Le champ **Parts** de la fiche recette est un **menu déroulant**, de une à
+vingt parts — ou davantage si la recette elle-même en porte plus. On choisit,
+les quantités suivent aussitôt.
+
 **Mes recettes** est la bibliothèque du foyer : classée par note, filtrable
 (difficulté, cuisine, temps, plat, régime), avec favoris, notation par membre
 et glissement vers la gauche pour archiver. Cuisiner une recette décrémente le
@@ -285,6 +289,14 @@ donc pas respecter. L'écran affichait « Erreur du serveur ».
 La qualité des recettes se cherche donc ailleurs, dans la consigne, qui ne
 coûte ni attente ni disponibilité.
 
+La **réflexion du modèle est bornée** sur les recettes. Les modèles Gemini 3
+réfléchissent « au maximum » par défaut, et personne ne l'avait réglé : une
+seule recette demandait vingt à quarante secondes d'attente sur un appel
+pourtant réussi. Les suggestions demandent désormais le niveau « bas » —
+composer une recette ne réclame pas de réflexion poussée, la qualité est
+portée par la consigne. Le scan photo et la lecture de ticket gardent la
+réflexion par défaut : y toucher changerait ce qu'ils lisent sur une image.
+
 La bascule d'un modèle à l'autre est immédiate : dès qu'un modèle refuse, le
 suivant est appelé sans attendre. Le cas coûteux est celui du modèle qui ne
 répond **rien** — impossible à distinguer d'une génération lente sans lire la
@@ -356,7 +368,9 @@ S'y ajoutent un **quota journalier** par usage (photo, recettes, tickets) et un
 aux administrateurs les modèles dans l'ordre d'emploi, leur consommation du
 jour et de la minute, l'épuisement ou la pause en cours, et permet de régler
 les trois limites de chaque modèle. Chaque requête envoyée est journalisée
-(modèle, statut, jetons, durée).
+(modèle, statut, jetons, durée). Les **jetons de réflexion** comptent dans le
+coût au même tarif que la réponse : Gemini les facture ainsi et les compte à
+part, les ignorer revenait à sous-estimer le plafond en silence.
 
 ### 🔔 « Votre réponse est prête »
 
@@ -1166,6 +1180,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.45.2 | 2026-11-25 | Une recette demandée revient plus vite : la réflexion du modèle, laissée au maximum par défaut, est ramenée au niveau « bas » sur les suggestions, et ses jetons comptent enfin dans le plafond mensuel. Le nombre de parts de la fiche recette se choisit dans un menu déroulant : le champ de saisie laissait passer des valeurs hors bornes qu'il ignorait ensuite en silence |
 | 0.45.1 | 2026-11-24 | Correction des chemins de Réglages cités dans la documentation et les commentaires : le rattrapage des recettes est dans Reconnaissance, pas dans une section « Recettes » qui n'existe pas |
 | 0.45.0 | 2026-11-24 | Une recette à la demande : on écrit ou on dicte sa phrase, l'application rend une seule recette détaillée avec ses remarques sur votre stock ; tout le placard part au modèle, sans quantités ni dates, et les quantités portent leur équivalent en cuillères |
 | 0.44.0 | 2026-11-24 | Un troisième export, l'inventaire allégé à joindre à une demande posée directement à une IA |

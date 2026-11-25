@@ -200,3 +200,18 @@ describe('alias de modèle absents de la table (2026-10-21)', () => {
     expect(unpricedModelWarning('gemini', 'gemini-flash-latest')).toBeNull();
   });
 });
+
+/**
+ * Les jetons de réflexion sont facturés au tarif de sortie et ne figurent pas
+ * dans `candidatesTokenCount` : les ignorer sous-comptait le plafond mensuel
+ * en silence (2026-11-25).
+ */
+describe('jetons de réflexion', () => {
+  it('les facture au tarif de sortie, en plus de la réponse', () => {
+    const sans = estimateCostCents('gemini-3.5-flash-lite', { promptTokenCount: 1000, candidatesTokenCount: 1000 });
+    const avec = estimateCostCents('gemini-3.5-flash-lite', { promptTokenCount: 1000, candidatesTokenCount: 1000, thoughtsTokenCount: 1000 });
+    const seuleSortie = estimateCostCents('gemini-3.5-flash-lite', { promptTokenCount: 1000, candidatesTokenCount: 2000 });
+    expect(avec).toBeGreaterThan(sans!);
+    expect(avec).toBeCloseTo(seuleSortie!, 6);
+  });
+});
