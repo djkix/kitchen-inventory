@@ -92,15 +92,17 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   const patchRecipe = useRecipeDirectPatch();
   const [busy, setBusy] = useState(false);
   const [confirmUnfavorite, setConfirmUnfavorite] = useState(false);
-  // Brouillon du champ « Parts » (EF-26) : `''` tant que le propriétaire n'a
-  // pas tapé, même geste que les autres champs décimaux de l'application
-  // (clavier décimal français, virgule acceptée en silence).
-  // Le champ EST sa propre valeur, jamais un repli sur le nombre courant : avec
-  // `raw === '' ? String(valeur) : raw`, effacer réaffichait aussitôt l'ancien
-  // chiffre, si bien qu'on ne pouvait plus le remplacer — taper « 2 » sur « 4 »
-  // donnait « 42 ». Le propriétaire l'a rencontré le 2026-10-08.
-  const [rawServings, setRawServings] = useState(String(servings));
-  useEffect(() => setRawServings(String(recipe.servings)), [recipe.id, recipe.servings]);
+  /**
+   * Parts proposées (2026-11-25) : un à vingt, plus celles de la recette si
+   * elle en porte davantage — une recette enregistrée à vingt-quatre doit
+   * rester sur ses parts, et donc figurer dans la liste.
+   */
+  const servingsOptions = useMemo(() => {
+    const values = new Set<number>();
+    for (let n = MIN_SERVINGS; n <= MAX_SERVINGS; n++) values.add(n);
+    values.add(recipe.servings);
+    return [...values].sort((a, b) => a - b);
+  }, [recipe.servings]);
 
   const archived = recipe.archivedAt !== null;
 
@@ -140,12 +142,6 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
   const ratio = servingsRatio(servings, recipe.servings);
   const scaledIngredients = useMemo(() => scaleIngredients(recipe.ingredients, ratio), [recipe.ingredients, ratio]);
 
-  const onServingsTyped = (value: string) => {
-    setRawServings(value);
-    const parsed = Math.round(Number(value.replace(',', '.')));
-    if (Number.isInteger(parsed) && parsed >= MIN_SERVINGS && parsed <= MAX_SERVINGS) onServingsChange(parsed);
-  };
-
   return (
     <>
       <ScreenHeader title={recipe.title} back="/recettes/bibliotheque" subtitle={archived ? 'Archivée' : undefined} />
@@ -180,24 +176,32 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
             {/*
               Même gabarit que les durées ci-dessus (2026-10-20) : étiquette
               muette au-dessus, valeur en dessous, alignées sur la même ligne de
-              base. Le champ habillé qui occupait cette place était deux fois
-              plus haut que ses voisins et cassait la ligne pour un seul chiffre.
-              Champ texte et non « number » : le clavier décimal français produit
-              une virgule, qu'un champ numérique rejette en silence.
+              base.
+
+              Menu déroulant depuis le 2026-11-25, sur demande du propriétaire
+              (« faire un menu déroulant pour le nb de part, c'est plus simple
+              que d'inscrire le nb »). Le champ de saisie ne marchait pas : à
+              deux chiffres et sans effacement préalable, taper « 2 » sur « 4 »
+              donnait « 42 », hors des bornes, donc silencieusement ignoré — on
+              voyait « 42 » à l'écran et les quantités restaient pour quatre.
+              Une liste de valeurs ne peut pas produire d'état hors bornes.
             */}
             <div>
               <label htmlFor="servings" className="text-muted">
                 Parts
               </label>
-              <input
+              <select
                 id="servings"
-                type="text"
-                inputMode="numeric"
-                maxLength={2}
-                value={rawServings}
-                onChange={(event) => onServingsTyped(event.target.value)}
-                className="tnum block w-10 border-b border-line bg-transparent font-medium text-fg focus:border-accent focus:outline-none"
-              />
+                value={servings}
+                onChange={(event) => onServingsChange(Number(event.target.value))}
+                className="tnum block border-b border-line bg-transparent font-medium text-fg focus:border-accent focus:outline-none"
+              >
+                {servingsOptions.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </section>

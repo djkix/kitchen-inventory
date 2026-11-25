@@ -209,6 +209,10 @@ soupe, où le compte cesse d'être parlant — 250 g de farine ne se mesurent pa
 en seize cuillères. L'écran Stock, lui, n'affiche jamais de cuillères : un
 placard se compte en grammes.
 
+Le champ **Parts** de la fiche recette est un **menu déroulant**, de une à
+vingt parts — ou davantage si la recette elle-même en porte plus. On choisit,
+les quantités suivent aussitôt.
+
 **Mes recettes** est la bibliothèque du foyer : classée par note, filtrable
 (difficulté, cuisine, temps, plat, régime), avec favoris, notation par membre
 et glissement vers la gauche pour archiver. Cuisiner une recette décrémente le
@@ -1166,6 +1170,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.45.2 | 2026-11-25 | Le nombre de parts de la fiche recette se choisit dans un menu déroulant : le champ de saisie laissait passer des valeurs hors bornes qu'il ignorait ensuite en silence |
 | 0.45.1 | 2026-11-24 | Correction des chemins de Réglages cités dans la documentation et les commentaires : le rattrapage des recettes est dans Reconnaissance, pas dans une section « Recettes » qui n'existe pas |
 | 0.45.0 | 2026-11-24 | Une recette à la demande : on écrit ou on dicte sa phrase, l'application rend une seule recette détaillée avec ses remarques sur votre stock ; tout le placard part au modèle, sans quantités ni dates, et les quantités portent leur équivalent en cuillères |
 | 0.44.0 | 2026-11-24 | Un troisième export, l'inventaire allégé à joindre à une demande posée directement à une IA |
