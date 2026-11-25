@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.45.1](https://github.com/djkix/kitchen-inventory/compare/v0.45.0...v0.45.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **reglages:** les chemins cités mènent où il faut (EF-25) ([#91](https://github.com/djkix/kitchen-inventory/issues/91)) ([200d58d](https://github.com/djkix/kitchen-inventory/commit/200d58d933beddd2a348c81f93ad55b161b40aa7))
+
 ## [0.45.0](https://github.com/djkix/kitchen-inventory/compare/v0.44.0...v0.45.0) (2026-11-24)
 
 
