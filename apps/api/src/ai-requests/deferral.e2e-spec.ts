@@ -90,6 +90,12 @@ describe('Demandes différées : rejouées à la reprise, annoncées à l’arri
   // D6 : la reprise au-delà d'une heure — un quota du jour, par exemple — ne
   // vaut pas la peine d'être attendue. Abandon tout de suite.
   it('n’attend pas une reprise au-delà d’une heure : refus immédiat, aucune ligne différée', async () => {
+    // Horloge figée : la reprise d'un quota journalier est la prochaine minuit
+    // du Pacifique, et elle passe sous le plafond d'une heure du différé dans
+    // l'heure qui la précède. Sans cette ligne, ce cas échouait entre 8 h et
+    // 9 h à Paris (7 h et 8 h en CI) — la demande était alors différée, à
+    // juste titre, et le test prenait ce comportement correct pour une panne.
+    t.app.get(GeminiService).now = () => new Date('2026-11-25T12:00:00Z');
     http.on('generateContent', () => json({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', details: [{ violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] }] } }, 429));
     const res = await upload(REQ + '3').expect(429);
     expect(res.body.error.details.deferred).toBeUndefined();

@@ -222,7 +222,16 @@ describe('Gemini : modèles, quotas, pause et journal', () => {
   it('repart du journal au redémarrage : le quota du jour n’est pas remis à zéro', async () => {
     // `models[0]` est le premier de la rotation : un Flash-Lite depuis le 2026-11-09.
     await agent.put('/api/v1/settings/gemini/limits').send({ model: 'gemini-3.5-flash-lite', rpm: 5, tpm: 250_000, rpd: 1 }).expect(200);
-    await t.prisma.geminiCall.create({ data: { model: 'gemini-3.5-flash-lite', httpStatus: 200, durationMs: 10 } });
+    // Horloge figée (2026-11-25). Sans elle, ce cas dépendait de l'heure à
+    // laquelle la suite tourne : la reprise d'un quota journalier est la
+    // prochaine minuit du Pacifique, et `resumeAt` ne nomme le jour que si
+    // elle tombe un AUTRE jour local — jamais entre minuit et 9 h à Paris
+    // (minuit et 8 h en CI, qui tourne en UTC). L'assertion ci-dessous
+    // échouait donc toutes les nuits. La ligne de journal est datée dans le
+    // même temps que l'horloge, sans quoi elle sortirait de la fenêtre de 25 h
+    // dès le lendemain.
+    gemini.now = () => new Date('2026-11-25T12:00:00Z');
+    await t.prisma.geminiCall.create({ data: { model: 'gemini-3.5-flash-lite', httpStatus: 200, durationMs: 10, createdAt: new Date('2026-11-25T11:00:00Z') } });
     gemini.forget();
     await gemini.onModuleInit();
     const status = (await agent.get('/api/v1/settings/gemini').expect(200)).body;
