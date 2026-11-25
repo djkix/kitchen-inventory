@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isStableModel, orderModels } from './gemini-models.js';
+import { isStableModel, orderModels, thinkingConfigFor } from './gemini-models.js';
 
 /**
  * L'ordre décide de l'attente : la cascade essaie les modèles dans cet ordre,
@@ -34,5 +34,29 @@ describe('orderModels', () => {
 
   it('dédoublonne sans changer l’ordre', () => {
     expect(orderModels(['gemini-3.8-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'])).toEqual(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
+  });
+});
+
+describe('thinkingConfigFor', () => {
+  // La famille 3 réfléchit à « high » par défaut : sans réglage, une seule
+  // recette demandait vingt à quarante secondes sur un appel réussi.
+  it.each(['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'])('borne la réflexion de %s à « low »', (model) => {
+    expect(thinkingConfigFor(model)).toEqual({ thinkingLevel: 'LOW' });
+  });
+
+  // « minimal » est refusé par validation sur les Flash les plus récents, et la
+  // cascade prend ses modèles dans la liste en direct de Google.
+  it('ne demande jamais « minimal »', () => {
+    expect(thinkingConfigFor('gemini-3.8-flash')).not.toEqual({ thinkingLevel: 'MINIMAL' });
+  });
+
+  // La famille 2 ne connaît pas `thinkingLevel` : lui envoyer ferait tomber
+  // l'appel. Aucune n'est en service, mais la liste vient de Google.
+  it('coupe la réflexion d’un modèle de la famille 2 par son budget', () => {
+    expect(thinkingConfigFor('gemini-2.5-flash-lite')).toEqual({ thinkingBudget: 0 });
+  });
+
+  it('ne règle rien pour un nom hors cascade', () => {
+    expect(thinkingConfigFor('gemini-3.5-pro')).toBeUndefined();
   });
 });

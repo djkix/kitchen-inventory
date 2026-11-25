@@ -72,6 +72,13 @@ export interface GeminiResponse {
   usageMetadata?: {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
+    /**
+     * Jetons de réflexion (2026-11-25). Gemini les facture au tarif de
+     * sortie, et ne les compte **pas** dans `candidatesTokenCount` : les
+     * ignorer sous-comptait le plafond mensuel en silence, ce que le repli
+     * audio ci-dessous interdit précisément.
+     */
+    thoughtsTokenCount?: number;
     promptTokensDetails?: Array<{ modality?: string; tokenCount?: number }>;
   };
 }
@@ -207,7 +214,10 @@ export function estimateCostCents(model: string, usage: GeminiResponse['usageMet
      */
     const audioTokens = audioDetails.length > 0 ? Math.min(declaredAudio, promptTokens) : hasAudio ? promptTokens : 0;
     const textTokens = Math.max(0, promptTokens - audioTokens);
-    tokensUsd = (textTokens * price.input + audioTokens * price.audio + (usage.candidatesTokenCount ?? 0) * price.output) / 1_000_000;
+    // Réflexion et réponse sont facturées au même tarif de sortie, et Gemini
+    // les compte séparément : la somme des deux, jamais la seule réponse.
+    const outputTokens = (usage.candidatesTokenCount ?? 0) + (usage.thoughtsTokenCount ?? 0);
+    tokensUsd = (textTokens * price.input + audioTokens * price.audio + outputTokens * price.output) / 1_000_000;
   }
   const searchUsd = (searchQueries * SEARCH_COST_USD_PER_1K) / 1000;
   return Math.round((tokensUsd + searchUsd) * 100 * 10_000) / 10_000;

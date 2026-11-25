@@ -1,5 +1,6 @@
 import type { HttpClient } from '../common/http-client.js';
 import { GeminiPausedError, GENERATION_TIMEOUT_MS, transportMessage } from '../gemini/gemini-errors.js';
+import { thinkingConfigFor } from '../gemini/gemini-models.js';
 import { countSearchQueries, estimateCostCents, type GeminiResponse } from '../recognition/providers/gemini.provider.js';
 import { ProviderError } from '../recognition/providers/recognition-provider.js';
 import {
@@ -193,6 +194,7 @@ export class GeminiSuggestionProvider {
   /** Transport seul : erreurs de réseau et de statut. Ce qui en sort a été facturé. */
   private async post(parts: GeminiPart[], model: string, webSearch: boolean): Promise<GeminiResponse> {
     const base = (this.options.baseURL ?? DEFAULT_BASE_URL).replace(/\/$/, '');
+    const thinking = thinkingConfigFor(model);
     let response: Response;
     try {
       response = await this.options.httpClient(`${base}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -218,7 +220,11 @@ export class GeminiSuggestionProvider {
           // et un `MAX_TOKENS` jette une réponse déjà facturée. Le coût réel
           // reste celui des jetons produits : relever le plafond n'achète rien
           // tant que le modèle n'en a pas besoin.
-          generationConfig: { maxOutputTokens: 32_768 },
+          // Réflexion bornée (2026-11-25) : sans ce réglage, la famille 3
+          // réfléchit à « high », ce qui coûtait vingt à quarante secondes
+          // d'attente et des jetons de sortie non comptés. Voir
+          // `thinkingConfigFor`.
+          generationConfig: { maxOutputTokens: 32_768, ...(thinking ? { thinkingConfig: thinking } : {}) },
         }),
       });
     } catch (error) {

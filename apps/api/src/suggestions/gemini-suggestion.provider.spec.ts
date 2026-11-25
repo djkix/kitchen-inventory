@@ -79,6 +79,15 @@ describe('GeminiSuggestionProvider (EF-26)', () => {
     expect(body.generationConfig?.responseSchema).toBeUndefined();
   });
 
+  // 2026-11-25 : la famille 3 réfléchit à « high » par défaut, d'où vingt à
+  // quarante secondes d'attente sur un appel pourtant réussi, et des jetons
+  // de sortie payés sans être comptés.
+  it('borne la réflexion du modèle', async () => {
+    http.on('generateContent', () => geminiFixture('suggestions/gemini-batch.json'));
+    await provider.suggest(BASE_REQUEST);
+    expect(requestBody(http).generationConfig?.thinkingConfig).toEqual({ thinkingLevel: 'LOW' });
+  });
+
   it('porte la région, la durée et la difficulté demandées dans le prompt (B9)', async () => {
     http.on('generateContent', () => geminiFixture('suggestions/gemini-batch.json'));
     await provider.suggest({ ...BASE_REQUEST, region: 'asiatique', maxMinutes: 30, difficulty: 'EASY' });
