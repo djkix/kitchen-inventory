@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.45.2](https://github.com/djkix/kitchen-inventory/compare/v0.45.1...v0.45.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* **recettes:** menu déroulant des parts, et réflexion du modèle bornée (EF-25, EF-26) ([#94](https://github.com/djkix/kitchen-inventory/issues/94)) ([b864f50](https://github.com/djkix/kitchen-inventory/commit/b864f503249704bd8c2499e3a4aefa4255201f3f))
+
 ## [0.45.1](https://github.com/djkix/kitchen-inventory/compare/v0.45.0...v0.45.1) (2026-11-25)
 
 
