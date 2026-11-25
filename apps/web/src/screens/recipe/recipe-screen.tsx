@@ -1,4 +1,12 @@
-import { DIFFICULTY_LABELS_FR, scaleIngredients, servingsRatio, unfavoriteLeavesLibrary, type Difficulty, type RecipeDto } from '@kitchen/shared';
+import {
+  DIFFICULTY_LABELS_FR,
+  scaleIngredients,
+  scaleQuantitiesInText,
+  servingsRatio,
+  unfavoriteLeavesLibrary,
+  type Difficulty,
+  type RecipeDto,
+} from '@kitchen/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { ScreenHeader } from '../../components/shell/app-shell';
@@ -11,7 +19,7 @@ import { useToast } from '../../components/ui/toast';
 import { errorMessage, isApiError } from '../../lib/api';
 import { useRecipeDirectPatch, useRecipeQuery } from '../../lib/queries';
 import { cn } from '../../lib/cn';
-import { formatMinutes } from '../../lib/quantity-ui';
+import { formatMinutes, formatNumber } from '../../lib/quantity-ui';
 import { IngredientRow } from './ingredient-row';
 
 /** Parts acceptées (`recipeDetailQuerySchema`, section 15) : mêmes bornes côté écran que côté serveur. */
@@ -141,6 +149,13 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
 
   const ratio = servingsRatio(servings, recipe.servings);
   const scaledIngredients = useMemo(() => scaleIngredients(recipe.ingredients, ratio), [recipe.ingredients, ratio]);
+  // Les étapes citent les mêmes quantités que la liste depuis la consigne du
+  // 2026-11-20 : sans cette ligne, une fiche portée à huit parts donnait une
+  // liste pour huit et des instructions pour quatre.
+  const scaledSteps = useMemo(
+    () => recipe.steps.map((step) => scaleQuantitiesInText(step, ratio, formatNumber)),
+    [recipe.steps, ratio],
+  );
 
   return (
     <>
@@ -223,7 +238,7 @@ function RecipeDetails({ recipe, servings, onServingsChange }: RecipeDetailsProp
         <section>
           <h2 className="mb-2 px-1 text-[13px] font-semibold text-muted">Étapes</h2>
           <ol className="flex flex-col gap-3 rounded-card bg-surface px-4 py-3">
-            {recipe.steps.map((step, index) => (
+            {scaledSteps.map((step, index) => (
               <li key={index} className="flex gap-3 text-[15px] leading-snug">
                 <span className="tnum shrink-0 font-semibold text-accent">{index + 1}</span>
                 <span>{step}</span>

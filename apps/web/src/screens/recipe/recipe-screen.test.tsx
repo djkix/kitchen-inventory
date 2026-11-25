@@ -47,7 +47,7 @@ const recipe: RecipeDto = {
   source: 'HOUSEHOLD',
   sourceUrl: null,
   createdAt: '2026-09-01T10:00:00.000Z',
-  steps: ['Faire cuire le riz'],
+  steps: ['Versez 200 g de riz dans la casserole, four à 180 °C pendant 20 min'],
   ingredients: [
     {
       id: 'ing1',
@@ -180,6 +180,23 @@ describe('RecipeScreen', () => {
     renderRecipeScreen();
     expect(screen.getByRole('region', { name: 'Ingrédients' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Ingrédients' })).toBeNull();
+  });
+
+  // 2026-11-25 : la liste d'ingrédients suivait les parts, pas les étapes, qui
+  // citent pourtant les mêmes quantités depuis la consigne du 2026-11-20. Une
+  // fiche portée à huit donnait une liste pour huit et des instructions pour
+  // quatre, sans que rien ne le signale.
+  it('met les quantités citées dans les étapes à la même échelle', () => {
+    renderRecipeScreen();
+    expect(screen.getByText(/Versez 200 g/)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Parts'), { target: { value: '8' } });
+
+    const etape = screen.getByText(/Versez/).textContent;
+    expect(etape).toContain('400 g');
+    // Ni la température ni la durée ne se multiplient.
+    expect(etape).toContain('180 °C');
+    expect(etape).toContain('20 min');
   });
 
   // 2026-11-25 : menu déroulant à la place du champ de saisie. Le champ ne

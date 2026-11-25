@@ -20,3 +20,4 @@ export * from './suggestion-ingredients.js';
 export * from './receipt-match.js';
 export * from './ai-requests.js';
 export * from './recipe-ingredient-from-model.js';
+export * from './step-quantities.js';

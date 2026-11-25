@@ -2,6 +2,11 @@ import { UNIT_LABELS_FR, UNITS, roundQuantity, type Unit } from '@kitchen/shared
 
 const NUMBER_FORMAT = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
 
+/** Un nombre seul, au format de l'application : une seule source pour la virgule et les décimales. */
+export function formatNumber(quantity: number): string {
+  return NUMBER_FORMAT.format(roundQuantity(quantity));
+}
+
 export function formatQuantity(quantity: number, unit: Unit): string {
   const label = UNIT_LABELS_FR[unit];
   const value = NUMBER_FORMAT.format(roundQuantity(quantity));
