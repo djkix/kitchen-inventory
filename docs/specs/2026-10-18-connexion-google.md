@@ -176,7 +176,7 @@ points que la revue a relevés et qui sont tranchés ici :
   correction est donc de le **dire** — README (« Le premier compte, puis les
   suivants » et « Intégrations ») — et non d'ajouter un lien qui n'existe pas :
   révoquer un compte ne coupe pas les jetons de service, on les supprime dans
-  Réglages › Jetons de service, comme on change une serrure.
+  Réglages › Foyer › Jetons de service, comme on change une serrure.
 
 - **La fenêtre du premier administrateur est nommée.** `GET /auth/status`
   annonce publiquement `setupRequired`, et la première connexion sur une base

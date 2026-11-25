@@ -139,7 +139,7 @@ mieux qu'une qui les case tous.
 ## D5 — La recherche web reste un réglage, non rallumé d'office
 
 Le réservoir ne contient aucune recette `web` parce que `suggestionWebSearch`
-est à `false`. L'interrupteur est dans **Réglages › Recherche web des
+est à `false`. L'interrupteur est dans **Réglages › Reconnaissance › Recherche web des
 recettes**, réservé aux administrateurs, et son activation **exige la
 facturation sur le projet Google Cloud** : sans elle, les recherches sont
 refusées et l'écran reste vide. Ce n'est donc pas un correctif à livrer mais
@@ -205,7 +205,7 @@ des produits comptés à la pièce. On la pose plutôt que de jeter la quantité
 relâcher la règle du formulaire.
 
 Les recettes déjà refusées ne sont pas perdues : elles sont au réservoir et
-**Réglages › Reconnaissance › rattrapage** les reprendra.
+le bouton **« Rattraper »** de *Réglages › Reconnaissance › « Recettes du réservoir »* les reprendra.
 
 ## D8 — Le modèle convertit les cuillères, l'application ne les apprend pas (2026-11-21)
 

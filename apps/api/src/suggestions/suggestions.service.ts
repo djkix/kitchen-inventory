@@ -1082,7 +1082,8 @@ export class SuggestionsService {
   }
 
   /**
-   * Le rattrapage derrière un bouton (Réglages › Recettes), sur le modèle de
+   * Le rattrapage derrière un bouton (Réglages › Reconnaissance › « Recettes
+   * du réservoir »), sur le modèle de
    * celui des repères nutritionnels : l'état vit en mémoire, pas en base — un
    * passage interrompu par un redémarrage n'a rien à reprendre, puisqu'une
    * relance ne considère de toute façon que les suggestions encore sans
