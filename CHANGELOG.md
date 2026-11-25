@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.45.3](https://github.com/djkix/kitchen-inventory/compare/v0.45.2...v0.45.3) (2026-11-25)
+
+
+### Bug Fixes
+
+* **recettes:** les étapes suivent le nombre de parts (EF-26) ([#96](https://github.com/djkix/kitchen-inventory/issues/96)) ([2100c68](https://github.com/djkix/kitchen-inventory/commit/2100c6851f059399c3f4f1e8abe6b9bd4f127fdf))
+
 ## [0.45.2](https://github.com/djkix/kitchen-inventory/compare/v0.45.1...v0.45.2) (2026-11-25)
 
 
