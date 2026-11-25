@@ -211,7 +211,12 @@ placard se compte en grammes.
 
 Le champ **Parts** de la fiche recette est un **menu déroulant**, de une à
 vingt parts — ou davantage si la recette elle-même en porte plus. On choisit,
-les quantités suivent aussitôt.
+les quantités suivent aussitôt : la liste d'ingrédients, **et les quantités
+citées dans les étapes**. Seules les masses et les volumes sont recalculés ;
+les températures, les durées et les nombres sans unité (« 2 œufs ») restent
+tels quels — un œuf de plus se lit dans la liste d'ingrédients. Comme
+l'équivalent ménager, c'est calculé à l'affichage et jamais écrit, donc cela
+vaut pour les recettes déjà enregistrées.
 
 **Mes recettes** est la bibliothèque du foyer : classée par note, filtrable
 (difficulté, cuisine, temps, plat, régime), avec favoris, notation par membre
@@ -1180,6 +1185,7 @@ engendré par release-please depuis les messages de commit.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.45.3 | 2026-11-25 | Les quantités citées dans les étapes suivent enfin le nombre de parts : une fiche portée à huit donnait une liste pour huit et des instructions pour quatre |
 | 0.45.2 | 2026-11-25 | Une recette demandée revient plus vite : la réflexion du modèle, laissée au maximum par défaut, est ramenée au niveau « bas » sur les suggestions, et ses jetons comptent enfin dans le plafond mensuel. Le nombre de parts de la fiche recette se choisit dans un menu déroulant : le champ de saisie laissait passer des valeurs hors bornes qu'il ignorait ensuite en silence |
 | 0.45.1 | 2026-11-24 | Correction des chemins de Réglages cités dans la documentation et les commentaires : le rattrapage des recettes est dans Reconnaissance, pas dans une section « Recettes » qui n'existe pas |
 | 0.45.0 | 2026-11-24 | Une recette à la demande : on écrit ou on dicte sa phrase, l'application rend une seule recette détaillée avec ses remarques sur votre stock ; tout le placard part au modèle, sans quantités ni dates, et les quantités portent leur équivalent en cuillères |
